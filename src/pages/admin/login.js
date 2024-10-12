@@ -4,8 +4,6 @@ import { useRouter } from 'next/router'
 import { checkSessionOnLogin } from '@/utils/checkSession'
 
 const LoginForm = () => {
-  // console.log('Login form')
-  // Estado para armazenar os valores dos inputs
   const [credentials, setCredentials] = useState({
     name: '',
     password: '',
@@ -26,8 +24,6 @@ const LoginForm = () => {
   const handleSubmit = async (event) => {
     event.preventDefault()
     event.stopPropagation()
-    // Aqui você pode adicionar a lógica para enviar os dados ao servidor
-    console.log('Submitting', credentials)
 
     const result = await signIn('credentials', {
       name: credentials.name,
@@ -106,14 +102,11 @@ const LoginForm = () => {
 export default LoginForm
 
 export async function getServerSideProps(context) {
-  // Verificar sessão
   const sessionCheckResult = await checkSessionOnLogin(context.req)
   if (sessionCheckResult) {
-    // Se sessionCheckResult não for null, significa que não há sessão e deve redirecionar
     return sessionCheckResult
   }
 
-  // Se houver sessão, continue com a lógica específica da página
   return {
     props: {},
   }

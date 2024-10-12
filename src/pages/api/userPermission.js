@@ -9,7 +9,6 @@ export const checkUserPermission = async (token, databody) => {
     })
     if (response.status === 200) {
       const data = await response.json()
-      console.log(data)
       return data
     }
     return { hasAccess: false }

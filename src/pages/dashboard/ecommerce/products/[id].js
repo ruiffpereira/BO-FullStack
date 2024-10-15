@@ -240,7 +240,7 @@ const ProductForm = ({ token, product, categories }) => {
                     <Image
                       width={50}
                       height={50}
-                      src={`${URL_RAIZ}/${file}`}
+                      src={`https://api.code-fullstack.com/${file}`}
                       alt={`Preview ${index}`}
                       className="w-100 h-100 object-cover rounded-md"
                     />

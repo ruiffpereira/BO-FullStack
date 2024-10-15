@@ -48,6 +48,8 @@ function Clients({ customers }) {
           rowKey={customers.rows.customerId}
           columns={columns}
           dataSource={customers.rows}
+          pagination={{ pageSize: 10 }}
+          scroll={{ x: 800 }}
         />
       </div>
     </Fragment>

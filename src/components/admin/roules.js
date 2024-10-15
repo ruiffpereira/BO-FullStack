@@ -120,7 +120,7 @@ function RulesComponent({ token }) {
       {errorMessage && <div className="error">{errorMessage}</div>}
       <form
         onSubmit={handleSubmit}
-        className="mb-4 flex justify-between items-center"
+        className="mb-4 flex gap-2 items-center flex-wrap"
       >
         <input
           type="text"
@@ -129,41 +129,44 @@ function RulesComponent({ token }) {
             setCurrentRule({ ...currentRule, name: e.target.value })
           }
           required
-          className="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          className="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline flex-grow min-w-0"
         />
-        {currentRule.permissionId ? (
+        <div className="flex gap-2 ml-auto">
           <button
-            onClick={() => {
-              setCurrentRule({ permissionId: null, name: '' })
-              setErrorMessage(null)
-            }}
             type="submit"
-            className="ml-auto bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            className=" bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
           >
-            Cancelar
+            {currentRule.permissionId ? 'Guardar' : 'Adicionar'}
           </button>
-        ) : (
-          ''
-        )}
-
-        <button
-          type="submit"
-          className="ml-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-        >
-          {currentRule.permissionId ? 'Guardar' : 'Adicionar'}
-        </button>
+          {currentRule.permissionId ? (
+            <button
+              onClick={() => {
+                setCurrentRule({ permissionId: null, name: '' })
+                setErrorMessage(null)
+              }}
+              type="submit"
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            >
+              Cancelar
+            </button>
+          ) : (
+            ''
+          )}
+        </div>
       </form>
       <ul>
         {data.map((rule) => (
           <li
             key={rule.permissionId}
-            className="flex justify-between items-center mb-2 p-2 shadow rounded"
+            className="flex justify-between items-center mb-2 p-2 gap-2 shadow rounded"
           >
-            <span className="text-gray-800">{rule.name}</span>
-            <div>
+            <p className="text-gray-800 text-ellipsis overflow-hidden">
+              {rule.name}
+            </p>
+            <div className="flex gap-2">
               <button
                 onClick={() => handleEdit(rule)}
-                className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded focus:outline-none focus:shadow-outline mr-2"
+                className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded focus:outline-none focus:shadow-outline"
               >
                 Editar
               </button>

@@ -19,7 +19,16 @@ function Layout(props) {
       </div>
       <div className="grow flex md:pl-64">
         <Sidebar isOpen={isOpen} toggleSidebar={toggleSidebar} />
-        <div className="flex-grow p-4 min-w-0 overflow-auto bg-slate-100">
+        <div
+          className="flex-grow p-4 min-w-0 overflow-auto bg-slate-100"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            if (isOpen) {
+              setIsOpen(false)
+            }
+          }}
+        >
           {props.children}
         </div>
       </div>

@@ -250,18 +250,22 @@ function Registerform({ token }) {
         {users.map((user) => (
           <li
             key={user.userId}
-            className="flex justify-between items-center mb-2 p-2 shadow rounded"
+            className="flex justify-between items-center mb-2 p-2 shadow rounded gap-2"
           >
-            <div>
-              <span className="text-gray-800">{user.name}</span>
-              <span className="text-gray-600 ml-2">{user.email}</span>
+            <div className="flex flex-wrap gap-2 min-w-0">
+              <p className="text-gray-800 text-ellipsis overflow-hidden">
+                {user.name}
+              </p>
+              <p className="text-gray-600 text-ellipsis overflow-hidden">
+                {user.email}
+              </p>
             </div>
-            <div>
+            <div className="flex gap-2">
               <button
                 onClick={() => {
                   handleEdit(user)
                 }}
-                className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded focus:outline-none focus:shadow-outline mr-2"
+                className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded focus:outline-none focus:shadow-outline"
               >
                 Editar
               </button>

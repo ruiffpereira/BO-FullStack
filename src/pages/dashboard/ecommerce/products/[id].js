@@ -236,19 +236,13 @@ const ProductForm = ({ token, product, categories }) => {
                     className="w-100 h-100 object-cover rounded-md"
                   />
                 ) : (
-                  <div>
-                    <Image
-                      width={50}
-                      height={50}
-                      src={`https://api.code-fullstack.com/${file}`}
-                      alt={`Preview ${index}`}
-                      className="w-100 h-100 object-cover rounded-md"
-                    />
-                    <img
-                      src={`https://api.code-fullstack.com/${file}`}
-                      alt={`Preview ${index}`}
-                    />
-                  </div>
+                  <Image
+                    width={50}
+                    height={50}
+                    src={`${URL_RAIZ}/${file}`}
+                    alt={`Preview ${index}`}
+                    className="w-100 h-100 object-cover rounded-md"
+                  />
                 )}
                 <button
                   type="button"

@@ -77,12 +77,13 @@ const ProductForm = ({ token, product, categories }) => {
           formDataToSend.append('existingPhotos', file)
         }
       })
-      debugger
       // Adiciona as fotos removidas ao FormData
       formDataToSend.append('removedPhotos', JSON.stringify(removedPhotos))
 
+      const method = formData.productId ? 'PUT' : 'POST'
+
       const response = await fetch(url, {
-        method: 'PUT', // Certifique-se de que o método é PUT para atualização
+        method, // Certifique-se de que o método é PUT para atualização
         headers: {
           Authorization: `Bearer ${token}`,
         },

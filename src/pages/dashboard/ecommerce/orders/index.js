@@ -52,6 +52,9 @@ function Orders({ orders }) {
   return (
     <Fragment>
       <div>
+        <div>teste</div>
+        <img src="/images/products/teste.jpg" alt="Example Image" />
+
         <h1 className="text-4xl font-bold mb-4">Lista de Encomendas</h1>
         <Table
           rowKey={orders?.rows?.orderId ?? 'defaultKey'}

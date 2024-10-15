@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Table } from 'antd'
 import { checkSession } from '@/utils/checkSession'
 
-const URL_RAIZ = process.env.NEXT_PUBLIC_CONTAINERRAIZ
+const URL_RAIZ = 'http://localhost:3001'
 
 function AddProduct({ products }) {
   const columns = [

@@ -9,7 +9,7 @@ import { useRouter } from 'next/router'
 import { checkSession } from '@/utils/checkSession'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
-const URL_RAIZ = process.env.NEXT_PUBLIC_CONTAINERRAIZ
+const URL_RAIZ = 'http://localhost:3001'
 
 const ProductForm = ({ token, product, categories }) => {
   const [errorMessage, setErrorMessage] = useState(null)

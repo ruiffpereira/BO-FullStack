@@ -1,7 +1,10 @@
 import { Fragment } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { Table } from 'antd'
 import { checkSession } from '@/utils/checkSession'
+
+const URL_RAIZ = process.env.NEXT_PUBLIC_CONTAINERRAIZ
 
 function AddProduct({ products }) {
   const columns = [
@@ -43,6 +46,22 @@ function AddProduct({ products }) {
     {
       title: 'Photos',
       dataIndex: 'photos',
+      render: (photos) => (
+        <div className="flex gap-2">
+          {Array.isArray(photos) && photos.length > 0 ? (
+            <Image
+              style={{ width: 'auto', height: 'auto' }}
+              width={50}
+              height={50}
+              src={`${URL_RAIZ}/${photos[0]}`}
+              alt="Photo 0"
+              className="w-16 h-16 object-cover rounded-md"
+            />
+          ) : (
+            <span>No photos available</span>
+          )}
+        </div>
+      ),
     },
     // {
     //   title: 'Action',
@@ -57,7 +76,7 @@ function AddProduct({ products }) {
       <Table
         rowKey={products?.rows?.productId ?? 'defaultKey'}
         columns={columns}
-        dataSource={products.rows}
+        dataSource={products?.rows ?? []}
       />
     </Fragment>
   )

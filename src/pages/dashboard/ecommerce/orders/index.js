@@ -56,7 +56,7 @@ function Orders({ orders }) {
         <Table
           rowKey={orders?.rows?.orderId ?? 'defaultKey'}
           columns={columns}
-          dataSource={orders.rows}
+          dataSource={orders?.rows ?? []}
         />
       </div>
     </Fragment>

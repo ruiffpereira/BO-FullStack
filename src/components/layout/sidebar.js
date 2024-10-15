@@ -17,7 +17,7 @@ const Sidebar = () => {
   }
 
   return (
-    <div className="flex">
+    <div className="flex fixed md:relative" style={{ zIndex: 1 }}>
       <div
         className={`fixed inset-y-0 left-0 bg-gray-800 text-white w-64 p-4 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out md:relative md:translate-x-0`}
       >

@@ -68,31 +68,34 @@ export async function getServerSideProps(context) {
   try {
     const orderDetails = await getOrderById(token, id)
 
-    const order = orderDetails.rows.map((row) => {
-      const { orderId, customer, products, createdAt } = row
-      return {
-        orderId,
-        createdAt,
-        customer,
-        products: products.map((product) => ({
-          productId: product.productId,
-          name: product.name,
-          reference: product.reference,
-          stock: product.stock,
-          price: product.price,
-          description: product.description,
-          photos: product.photos,
-          categoryId: product.categoryId,
-          subcategoryId: product.subcategoryId,
-          createdAt: product.createdAt,
-          updatedAt: product.updatedAt,
-          deletedAt: product.deletedAt,
-          quantity: product.OrderProduct.quantity,
-        })),
-      }
-    })
+    const order =
+      orderDetails?.rows?.length > 0
+        ? orderDetails.rows.map((row) => {
+            const { orderId, customer, products, createdAt } = row
+            return {
+              orderId,
+              createdAt,
+              customer,
+              products: products.map((product) => ({
+                productId: product.productId,
+                name: product.name,
+                reference: product.reference,
+                stock: product.stock,
+                price: product.price,
+                description: product.description,
+                photos: product.photos,
+                categoryId: product.categoryId,
+                subcategoryId: product.subcategoryId,
+                createdAt: product.createdAt,
+                updatedAt: product.updatedAt,
+                deletedAt: product.deletedAt,
+                quantity: product.OrderProduct.quantity,
+              })),
+            }
+          })
+        : []
 
-    if (!order) {
+    if (order.length === 0) {
       return {
         notFound: true, // Next.js retornará uma página 404
       }

@@ -1,22 +1,23 @@
-// components/ProductForm.js
-
 import AntdCascader from '@/components/cascader'
 import Link from 'next/link'
 import { useState } from 'react'
+import Image from 'next/image'
 import { useDropzone } from 'react-dropzone'
 import { useSWRConfig } from 'swr'
 import useSWRMutation from 'swr/mutation'
 import { useRouter } from 'next/router'
 import { checkSession } from '@/utils/checkSession'
+
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+const URL_RAIZ = process.env.NEXT_PUBLIC_CONTAINERRAIZ
 
 const ProductForm = ({ token, product, categories }) => {
   const [errorMessage, setErrorMessage] = useState(null)
   const urlSWRProducts = `${BASE_URL}/products`
   const router = useRouter()
+  const validImageExtensions = ['jpg', 'jpeg', 'png']
 
   const headers = {
-    'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
   }
 
@@ -36,6 +37,16 @@ const ProductForm = ({ token, product, categories }) => {
     subcategoryId: product?.subcategoryId || '',
   })
 
+  const [removedPhotos, setRemovedPhotos] = useState([])
+
+  const handleRemovePhoto = (photo) => {
+    setRemovedPhotos((prev) => [...prev, photo])
+    setFormData((prevData) => ({
+      ...prevData,
+      photos: prevData.photos.filter((p) => p !== photo),
+    }))
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
@@ -48,19 +59,42 @@ const ProductForm = ({ token, product, categories }) => {
   const { trigger: handleSubmitUser } = useSWRMutation(
     urlSWRProducts,
     async (url) => {
-      const response = await fetch(url, {
-        method: product?.productId ? 'PUT' : 'POST',
-        headers,
-        body: JSON.stringify(formData),
+      const formDataToSend = new FormData()
+      formDataToSend.append('name', formData.name)
+      formDataToSend.append('reference', formData.reference)
+      formDataToSend.append('description', formData.description)
+      formDataToSend.append('price', formData.price)
+      formDataToSend.append('stock', formData.stock)
+      formDataToSend.append('categoryId', formData.categoryId)
+      formDataToSend.append('subcategoryId', formData.subcategoryId)
+      formDataToSend.append('productId', formData.productId)
+
+      // Adiciona as fotos ao FormData
+      formData.photos.forEach((file) => {
+        if (file instanceof File) {
+          formDataToSend.append('photos', file)
+        } else {
+          formDataToSend.append('existingPhotos', file)
+        }
       })
+      debugger
+      // Adiciona as fotos removidas ao FormData
+      formDataToSend.append('removedPhotos', JSON.stringify(removedPhotos))
+
+      const response = await fetch(url, {
+        method: 'PUT', // Certifique-se de que o método é PUT para atualização
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formDataToSend,
+      })
+
       if (!response.ok) {
         const errorData = await response.json()
         const errorMessage = errorData.error || 'An unexpected error occurred'
-        console.log(errorMessage)
         setErrorMessage(errorMessage) // Captura a mensagem de erro
         return { error: errorMessage } // Retorna um objeto de erro
       }
-      console.log('response submit: ', response)
       return response
     },
     {
@@ -90,11 +124,9 @@ const ProductForm = ({ token, product, categories }) => {
       if (!response.ok) {
         const errorData = await response.json()
         const errorMessage = errorData.error || 'An unexpected error occurred'
-        console.log(errorMessage)
         setErrorMessage(errorMessage) // Captura a mensagem de erro
         return { error: errorMessage } // Retorna um objeto de erro
       }
-      console.log('response submit: ', response)
       return response
     },
     {
@@ -140,16 +172,31 @@ const ProductForm = ({ token, product, categories }) => {
     }
   }
 
+  const isValidImage = (file) => {
+    const extension = file.name.split('.').pop().toLowerCase()
+    return validImageExtensions.includes(extension)
+  }
+
   const onDrop = (acceptedFiles) => {
-    setFormData((prev) => ({
-      ...prev,
-      photos: [...prev.photos, ...acceptedFiles],
+    const validFiles = acceptedFiles.filter(
+      (file) =>
+        ['image/jpeg', 'image/png'].includes(file.type) && isValidImage(file),
+    )
+    setFormData((prevData) => ({
+      ...prevData,
+      photos: [...prevData.photos, ...validFiles],
     }))
   }
 
-  const { getRootProps, getInputProps } = useDropzone({ onDrop })
+  const { getRootProps, getInputProps } = useDropzone({
+    onDrop,
+    accept: {
+      'image/png': ['.png'],
+      'image/jpeg': ['.jpg', '.jpeg'],
+    },
+  })
 
-  // // Transformando categorias e subcategorias para o formato do Cascader
+  // Transformando categorias e subcategorias para o formato do Cascader
   const categoryOptions =
     categories?.rows?.map((category) => ({
       value: category.categoryId,
@@ -167,6 +214,46 @@ const ProductForm = ({ token, product, categories }) => {
     >
       {errorMessage && <div className="error">{errorMessage}</div>}
       <div className="flex flex-col space-y-4">
+        <div className="flex flex-col space-y-4">
+          <label className="text-gray-600 font-semibold">Photos:</label>
+          <div
+            {...getRootProps()}
+            className="border-dashed border-2 border-gray-300 p-4 rounded-md"
+          >
+            <input {...getInputProps()} />
+            <p>Drag drop some files here, or click to select files</p>
+          </div>
+          <div className="mt-2 flex gap-2">
+            {formData.photos.map((file, index) => (
+              <div key={index} className="relative">
+                {file instanceof File ? (
+                  <Image
+                    width={50}
+                    height={50}
+                    src={URL.createObjectURL(file)}
+                    alt={`Preview ${index}`}
+                    className="w-100 h-100 object-cover rounded-md"
+                  />
+                ) : (
+                  <Image
+                    width={50}
+                    height={50}
+                    src={`${URL_RAIZ}/${file}`}
+                    alt={`Preview ${index}`}
+                    className="w-100 h-100 object-cover rounded-md"
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleRemovePhoto(file)}
+                  className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
+                >
+                  &times;
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
         <label className="text-gray-600 font-semibold">Name:</label>
         <input
           type="text"
@@ -200,7 +287,8 @@ const ProductForm = ({ token, product, categories }) => {
       </div>
       <div className="flex flex-col space-y-4">
         <label className="text-gray-600 font-semibold">Price:</label>
-        <textarea
+        <input
+          type="number"
           name="price"
           value={formData.price}
           onChange={handleChange}
@@ -210,7 +298,8 @@ const ProductForm = ({ token, product, categories }) => {
       </div>
       <div className="flex flex-col space-y-4">
         <label className="text-gray-600 font-semibold">Stock:</label>
-        <textarea
+        <input
+          type="number"
           name="stock"
           value={formData.stock}
           onChange={handleChange}
@@ -218,23 +307,7 @@ const ProductForm = ({ token, product, categories }) => {
           required
         />
       </div>
-      <div className="flex flex-col space-y-4">
-        <label className="text-gray-600 font-semibold">Photos:</label>
-        <div
-          {...getRootProps()}
-          className="border-dashed border-2 border-gray-300 p-4 rounded-md"
-        >
-          <input {...getInputProps()} />
-          <p>Drag drop some files here, or click to select files</p>
-        </div>
-        <div className="mt-2">
-          {formData.photos.map((file, index) => (
-            <div key={index} className="text-sm text-gray-600">
-              {file.name || file}
-            </div>
-          ))}
-        </div>
-      </div>
+
       <div className="flex flex-col space-y-4">
         <label className="text-gray-600 font-semibold">Category:</label>
         <AntdCascader

@@ -1,10 +1,9 @@
-// components/TableWithEdit.js
 import Link from 'next/link'
 import { Fragment } from 'react'
 import { Table } from 'antd'
 import { checkSession } from '@/utils/checkSession'
+
 function Orders({ orders }) {
-  // console.log(orders)
   const columns = [
     {
       title: 'Referencia Encomenda',
@@ -51,14 +50,14 @@ function Orders({ orders }) {
 
   return (
     <Fragment>
-      <div>
-        <h1 className="text-4xl font-bold mb-4">Lista de Encomendas</h1>
-        <Table
-          rowKey={orders?.rows?.orderId ?? 'defaultKey'}
-          columns={columns}
-          dataSource={orders?.rows ?? []}
-        />
-      </div>
+      <h1 className="text-4xl font-bold mb-4">Lista de Encomendas</h1>
+      <Table
+        rowKey={(record) => record.orderId}
+        columns={columns}
+        dataSource={orders?.rows ?? []}
+        pagination={{ pageSize: 10 }}
+        scroll={{ x: 800 }} // Adiciona scroll horizontal para telas menores
+      />
     </Fragment>
   )
 }

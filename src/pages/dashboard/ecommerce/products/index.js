@@ -72,11 +72,13 @@ function AddProduct({ products }) {
 
   return (
     <Fragment>
-      <h1 className="text-3xl font-bold">Tabela de Peças</h1>
+      <h1 className="text-3xl font-bold mb-4">Tabela de Peças</h1>
       <Table
-        rowKey={products?.rows?.productId ?? 'defaultKey'}
+        rowKey={(record) => record.productId}
         columns={columns}
         dataSource={products?.rows ?? []}
+        pagination={{ pageSize: 10 }}
+        scroll={{ x: 800 }} // Adiciona scroll horizontal para telas menores
       />
     </Fragment>
   )

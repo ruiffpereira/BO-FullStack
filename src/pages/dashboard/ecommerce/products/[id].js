@@ -48,8 +48,10 @@ const ProductForm = ({ token, product, categories }) => {
   }
 
   const handleSubmit = async (e) => {
+    console.log('Enviando dados do produto:', formData)
     e.preventDefault()
     try {
+      console.log('Enviando dados do produto:', formData)
       await handleSubmitUser()
     } catch (error) {
       console.error('Erro:', error)
@@ -209,10 +211,7 @@ const ProductForm = ({ token, product, categories }) => {
     })) ?? []
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-6 p-6 bg-white shadow-lg rounded-lg"
-    >
+    <form className="space-y-6 p-6 bg-white shadow-lg rounded-lg">
       {errorMessage && <div className="error">{errorMessage}</div>}
       <div className="flex flex-col space-y-4">
         <div className="flex flex-col space-y-4">
@@ -327,7 +326,7 @@ const ProductForm = ({ token, product, categories }) => {
           Back
         </Link>
         <button
-          type="submit"
+          onClick={handleSubmit}
           className="w-full py-3 mt-6 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
           {product?.productId ? 'Update' : 'Create'} Product

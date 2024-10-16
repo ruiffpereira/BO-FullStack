@@ -269,36 +269,38 @@ const CategoryManager = ({ token }) => {
           <div key={category.categoryId} className="border p-4 rounded">
             <div className="flex justify-between items-center">
               {editCategory?.id === category.categoryId ? (
-                <div className="flex gap-2 w-full">
+                <div className="flex gap-2 w-full flex-wrap">
                   <input
                     type="text"
                     value={editCategory.name}
                     onChange={(e) =>
                       setEditCategory({ ...editCategory, name: e.target.value })
                     }
-                    className="border p-2"
+                    className="border p-2 max-w-72 flex-grow"
                   />
-                  <button
-                    onClick={() =>
-                      updateCategory({
-                        categoryId: category.categoryId,
-                        name: editCategory.name,
-                      })
-                    }
-                    className="bg-green-500 text-white px-2 py-1 rounded ml-auto"
-                  >
-                    Salvar
-                  </button>
-                  <button
-                    onClick={() => setEditCategory(null)}
-                    className="bg-gray-500 text-white px-2 py-1 rounded"
-                  >
-                    Cancelar
-                  </button>
+                  <div className="flex gap-2 ml-auto">
+                    <button
+                      onClick={() =>
+                        updateCategory({
+                          categoryId: category.categoryId,
+                          name: editCategory.name,
+                        })
+                      }
+                      className="bg-green-500 text-white px-2 py-1 rounded ml-auto"
+                    >
+                      Salvar
+                    </button>
+                    <button
+                      onClick={() => setEditCategory(null)}
+                      className="bg-gray-500 text-white px-2 py-1 rounded"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <div className="flex flex-grow">
-                  <h2 className="text-lg font-bold flex-grow">
+                <div className="flex flex-grow min-w-0">
+                  <h2 className="text-lg font-bold flex-grow text-ellipsis overflow-hidden">
                     {category.name}
                   </h2>
                   <div className="flex gap-2">
@@ -331,7 +333,7 @@ const CategoryManager = ({ token }) => {
                     className="flex justify-between items-center"
                   >
                     {editSubcategory?.id === subcategory.subcategoryId ? (
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap w-full">
                         <input
                           type="text"
                           value={editSubcategory.name}
@@ -341,54 +343,60 @@ const CategoryManager = ({ token }) => {
                               name: e.target.value,
                             })
                           }
-                          className="border p-2"
+                          className="border p-2 max-w-72 flex-grow"
                         />
-                        <button
-                          onClick={() =>
-                            updateSubcategory({
-                              categoryId: category.categoryId,
-                              subcategoryId: subcategory.subcategoryId,
-                              name: editSubcategory.name,
-                            })
-                          }
-                          className="bg-green-500 text-white px-2 py-1 rounded"
-                        >
-                          Salvar
-                        </button>
-                        <button
-                          onClick={() => setEditSubcategory(null)}
-                          className="bg-gray-500 text-white px-2 py-1 rounded"
-                        >
-                          Cancelar
-                        </button>
+                        <div className="flex gap-2 ml-auto">
+                          <button
+                            onClick={() =>
+                              updateSubcategory({
+                                categoryId: category.categoryId,
+                                subcategoryId: subcategory.subcategoryId,
+                                name: editSubcategory.name,
+                              })
+                            }
+                            className="bg-green-500 text-white px-2 py-1 rounded"
+                          >
+                            Salvar
+                          </button>
+                          <button
+                            onClick={() => setEditSubcategory(null)}
+                            className="bg-gray-500 text-white px-2 py-1 rounded"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
                       </div>
                     ) : (
-                      <span>{subcategory.name}</span>
+                      <div className="flex gap-2 w-full">
+                        <p className="text-ellipsis overflow-hidden">
+                          {subcategory.name}
+                        </p>
+                        <div className="flex gap-2 ml-auto">
+                          <button
+                            onClick={() =>
+                              setEditSubcategory({
+                                id: subcategory.subcategoryId,
+                                name: subcategory.name,
+                              })
+                            }
+                            className="bg-yellow-500 text-white px-2 py-1 rounded"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() =>
+                              deleteSubcategory({
+                                categoryId: category.categoryId,
+                                subcategoryId: subcategory.subcategoryId,
+                              })
+                            }
+                            className="bg-red-500 text-white px-2 py-1 rounded"
+                          >
+                            Apagar
+                          </button>
+                        </div>
+                      </div>
                     )}
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() =>
-                          setEditSubcategory({
-                            id: subcategory.subcategoryId,
-                            name: subcategory.name,
-                          })
-                        }
-                        className="bg-yellow-500 text-white px-2 py-1 rounded"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() =>
-                          deleteSubcategory({
-                            categoryId: category.categoryId,
-                            subcategoryId: subcategory.subcategoryId,
-                          })
-                        }
-                        className="bg-red-500 text-white px-2 py-1 rounded"
-                      >
-                        Apagar
-                      </button>
-                    </div>
                   </li>
                 ))}
               </ul>

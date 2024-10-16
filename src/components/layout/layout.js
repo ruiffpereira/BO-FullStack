@@ -17,10 +17,10 @@ function Layout(props) {
         </button>
         <div className="text-lg font-bold text-blue-900">CODE FULL STACK</div>
       </div>
-      <div className="grow flex md:pl-64">
+      <div className="grow flex md:pl-52">
         <Sidebar isOpen={isOpen} toggleSidebar={toggleSidebar} />
         <div
-          className="flex-grow p-4 min-w-0 overflow-auto bg-slate-100"
+          className={` ${isOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-0 `}
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
@@ -28,7 +28,8 @@ function Layout(props) {
               setIsOpen(false)
             }
           }}
-        >
+        ></div>
+        <div className="flex-grow p-4 min-w-0 overflow-auto bg-slate-100">
           {props.children}
         </div>
       </div>

@@ -45,6 +45,7 @@ function Clients({ customers }) {
       <div>
         <h1 className="text-4xl font-bold mb-4">Lista de Clientes</h1>
         <Table
+          className="shadow bg-white rounded-sm"
           rowKey={customers.rows.customerId}
           columns={columns}
           dataSource={customers.rows}

@@ -50,12 +50,11 @@ function AddProduct({ products }) {
         <div className="flex gap-2">
           {Array.isArray(photos) && photos.length > 0 ? (
             <Image
-              style={{ width: 'auto', height: 'auto' }}
               width={50}
               height={50}
               src={`${URL_RAIZ}/${photos[0]}`}
               alt="Photo 0"
-              className="w-16 h-16 object-cover rounded-md"
+              className="w-16 h-16 object-contain rounded-md"
             />
           ) : (
             <span>No photos available</span>
@@ -74,6 +73,7 @@ function AddProduct({ products }) {
     <Fragment>
       <h1 className="text-3xl font-bold mb-4">Tabela de Peças</h1>
       <Table
+        className="shadow bg-white rounded-sm"
         rowKey={(record) => record.productId}
         columns={columns}
         dataSource={products?.rows ?? []}

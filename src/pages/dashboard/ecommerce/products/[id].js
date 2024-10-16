@@ -58,7 +58,7 @@ const ProductForm = ({ token, product, categories }) => {
     }
   }
 
-  const { trigger: handleSubmitUser } = useSWRMutation(
+  const { trigger: handleSubmitUser, isMutating } = useSWRMutation(
     urlSWRProducts,
     async (url) => {
       const formDataToSend = new FormData()
@@ -83,6 +83,8 @@ const ProductForm = ({ token, product, categories }) => {
       formDataToSend.append('removedPhotos', JSON.stringify(removedPhotos))
 
       const method = formData.productId ? 'PUT' : 'POST'
+
+      console.log('formDataToSend:', formData.subcategoryId)
 
       const response = await fetch(url, {
         method, // Certifique-se de que o método é PUT para atualização
@@ -232,7 +234,7 @@ const ProductForm = ({ token, product, categories }) => {
                     height={50}
                     src={URL.createObjectURL(file)}
                     alt={`Preview ${index}`}
-                    className="w-100 h-100 object-cover rounded-md"
+                    className="object-contain rounded-md"
                   />
                 ) : (
                   <Image
@@ -240,7 +242,7 @@ const ProductForm = ({ token, product, categories }) => {
                     height={50}
                     src={`${URL_RAIZ}/${file}`}
                     alt={`Preview ${index}`}
-                    className="w-100 h-100 object-cover rounded-md"
+                    className="object-contain rounded-md"
                   />
                 )}
                 <button
@@ -328,8 +330,10 @@ const ProductForm = ({ token, product, categories }) => {
         <button
           onClick={handleSubmit}
           className="w-full py-3 mt-6 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          disabled={isMutating}
         >
-          {product?.productId ? 'Update' : 'Create'} Product
+          {isMutating ? 'Loading...' : product?.productId ? 'Update' : 'Create'}{' '}
+          Product
         </button>
         {product?.productId && (
           <button

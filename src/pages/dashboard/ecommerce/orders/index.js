@@ -52,6 +52,7 @@ function Orders({ orders }) {
     <Fragment>
       <h1 className="text-4xl font-bold mb-4">Lista de Encomendas</h1>
       <Table
+        className="shadow bg-white rounded-sm"
         rowKey={(record) => record.orderId}
         columns={columns}
         dataSource={orders?.rows ?? []}

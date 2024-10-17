@@ -2,7 +2,7 @@ import Sidebar from './sidebar'
 import { useState } from 'react'
 import { FaBars, FaTimes } from 'react-icons/fa'
 
-function Layout(props) {
+function Layout({ children }) {
   const [isOpen, setIsOpen] = useState(false)
 
   const toggleSidebar = () => {
@@ -30,7 +30,7 @@ function Layout(props) {
           }}
         ></div>
         <div className="flex-grow p-4 min-w-0 overflow-auto bg-slate-100">
-          {props.children}
+          {children}
         </div>
       </div>
     </div>

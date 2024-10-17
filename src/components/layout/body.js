@@ -1,9 +1,9 @@
 import { Fragment } from 'react'
 
-function Body(props) {
+function Body({ children }) {
   return (
     <Fragment>
-      <div className="font-sans ">{props.children}</div>
+      <div className="font-sans ">{children}</div>
     </Fragment>
   )
 }

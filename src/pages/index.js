@@ -1,6 +1,8 @@
 import { checkSession } from '@/utils/checkSession'
 
-export default function Home() {}
+export default function Home() {
+  return null
+}
 
 export async function getServerSideProps(context) {
   const sessionCheckResult = await checkSession(context.req)

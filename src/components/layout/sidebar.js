@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { signOut } from 'next-auth/react'
 
-const Sidebar = ({ isOpen, toggleSidebar }) => {
+const Sidebar = ({ isOpen, toggleSidebar, permissions }) => {
   const handleLogout = async () => {
     await signOut({ redirect: false })
     window.location.href = '/admin/login'
@@ -24,33 +24,39 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                 Home
               </Link>
             </li>
-            <li className="mb-2">
-              <Link
-                href="/dashboard/ecommerce"
-                className="block p-2 hover:bg-gray-700"
-                onClick={toggleSidebar}
-              >
-                Ecommerce
-              </Link>
-            </li>
-            <li className="mb-2">
-              <Link
-                href="/dashboard/schedule"
-                className="block p-2 hover:bg-gray-700"
-                onClick={toggleSidebar}
-              >
-                Schedule
-              </Link>
-            </li>
-            <li className="mb-2">
-              <Link
-                href="/dashboard/customers"
-                className="block p-2 hover:bg-gray-700"
-                onClick={toggleSidebar}
-              >
-                Customers
-              </Link>
-            </li>
+            {permissions.Ecommerce && (
+              <li className="mb-2">
+                <Link
+                  href="/dashboard/ecommerce"
+                  className="block p-2 hover:bg-gray-700"
+                  onClick={toggleSidebar}
+                >
+                  Ecommerce
+                </Link>
+              </li>
+            )}
+            {permissions.Schedule && (
+              <li className="mb-2">
+                <Link
+                  href="/dashboard/schedule"
+                  className="block p-2 hover:bg-gray-700"
+                  onClick={toggleSidebar}
+                >
+                  Schedule
+                </Link>
+              </li>
+            )}
+            {permissions.Customers && (
+              <li className="mb-2">
+                <Link
+                  href="/dashboard/customers"
+                  className="block p-2 hover:bg-gray-700"
+                  onClick={toggleSidebar}
+                >
+                  Customers
+                </Link>
+              </li>
+            )}
             <li className="mb-2">
               <Link
                 href="/dashboard/settings"
@@ -60,15 +66,17 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                 Settings
               </Link>
             </li>
-            <li className="mb-2">
-              <Link
-                href="/dashboard/admin"
-                className="block p-2 hover:bg-gray-700"
-                onClick={toggleSidebar}
-              >
-                Admin Panel
-              </Link>
-            </li>
+            {permissions.AdminPanel && (
+              <li className="mb-2">
+                <Link
+                  href="/dashboard/admin"
+                  className="block p-2 hover:bg-gray-700"
+                  onClick={toggleSidebar}
+                >
+                  Admin Panel
+                </Link>
+              </li>
+            )}
             <li className="mb-2">
               <button
                 className="block p-2 hover:bg-gray-700 w-full text-left"

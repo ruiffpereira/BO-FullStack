@@ -26,11 +26,11 @@ export async function getServerSideProps(context) {
     }
   }
 
-  const hasAccess = await checkUserPermission(token, {
-    componentName: 'Schedule',
+  const componentPermission = await checkUserPermission(token, {
+    componentNames: ['Schedule'],
   })
 
-  if (hasAccess.hasAccess === false) {
+  if (!componentPermission.Schedule) {
     return {
       notFound: true,
     }

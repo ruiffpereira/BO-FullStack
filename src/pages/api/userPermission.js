@@ -5,15 +5,22 @@ export const checkUserPermission = async (token, databody) => {
   try {
     const response = await fetchWithAuth(`${BASE_URL}/userpermissions`, token, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify(databody),
     })
+
     if (response.status === 200) {
       const data = await response.json()
       return data
+    } else {
+      console.error('Failed to check permissions:', response.statusText)
+      return null
     }
-    return { hasAccess: false }
   } catch (error) {
     console.error('Error checking permissions:', error)
-    return { hasAccess: false }
+    return { message: error.message, stack: error.stack }
   }
 }

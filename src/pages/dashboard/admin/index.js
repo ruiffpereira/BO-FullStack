@@ -31,11 +31,11 @@ export async function getServerSideProps(context) {
     }
   }
 
-  const hasAccess = await checkUserPermission(token, {
-    componentName: 'Admin Panel',
+  const componentPermission = await checkUserPermission(token, {
+    componentNames: ['AdminPanel'],
   })
 
-  if (hasAccess.hasAccess === false) {
+  if (!componentPermission.AdminPanel) {
     return {
       notFound: true,
     }

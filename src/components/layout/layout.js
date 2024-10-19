@@ -15,10 +15,14 @@ function Layout({ children }) {
         <button className="md:hidden flex" onClick={toggleSidebar}>
           {isOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
         </button>
-        <div className="text-lg font-bold text-blue-900">CODE FULL STACK</div>
+        <div className="text-lg font-bold text-slate-900">CODE FULL STACK</div>
       </div>
       <div className="grow flex md:pl-52">
-        <Sidebar isOpen={isOpen} toggleSidebar={toggleSidebar} />
+        <Sidebar
+          isOpen={isOpen}
+          toggleSidebar={toggleSidebar}
+          permissions={children.props.componentsPermissions}
+        />
         <div
           className={` ${isOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-0 `}
           onClick={(e) => {

@@ -68,11 +68,11 @@ export async function getServerSideProps(context) {
   // Se a sessão existir, você pode acessar o token
   const { token } = sessionCheckResult.props
 
-  const hasAccess = await checkUserPermission(token, {
-    componentName: 'Customer',
+  const componentPermission = await checkUserPermission(token, {
+    componentNames: ['Customers'],
   })
 
-  if (hasAccess.hasAccess === false) {
+  if (!componentPermission.Customers) {
     return {
       notFound: true,
     }

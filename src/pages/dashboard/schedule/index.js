@@ -27,10 +27,10 @@ export async function getServerSideProps(context) {
   }
 
   const componentPermission = await checkUserPermission(token, {
-    componentNames: ['Schedule'],
+    componentNames: ['VIEW_SCHEDULE'],
   })
 
-  if (!componentPermission.Schedule) {
+  if (!componentPermission.VIEW_SCHEDULE) {
     return {
       notFound: true,
     }

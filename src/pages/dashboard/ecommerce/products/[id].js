@@ -58,6 +58,15 @@ const ProductForm = ({ token, product, categories }) => {
     }
   }
 
+  const handleDelete = async (e) => {
+    e.preventDefault()
+    try {
+      await deleteProduct()
+    } catch (error) {
+      console.error('Erro:', error)
+    }
+  }
+
   const { trigger: handleSubmitUser, isMutating } = useSWRMutation(
     urlSWRProducts,
     async (url) => {
@@ -337,7 +346,7 @@ const ProductForm = ({ token, product, categories }) => {
         </button>
         {product?.productId && (
           <button
-            onClick={deleteProduct}
+            onClick={handleDelete}
             className="w-full py-3 mt-6 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
           >
             Delete

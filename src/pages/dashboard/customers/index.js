@@ -69,10 +69,10 @@ export async function getServerSideProps(context) {
   const { token } = sessionCheckResult.props
 
   const componentPermission = await checkUserPermission(token, {
-    componentNames: ['Customers'],
+    componentNames: ['VIEW_CUSTOMERS'],
   })
 
-  if (!componentPermission.Customers) {
+  if (!componentPermission.VIEW_CUSTOMERS) {
     return {
       notFound: true,
     }

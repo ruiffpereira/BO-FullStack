@@ -30,7 +30,13 @@ MyApp.getInitialProps = async ({ ctx }) => {
   }
 
   const componentsPermissions = await checkUserPermission(session.accessToken, {
-    componentNames: ['AdminPanel', 'Ecommerce', 'Customers', 'Schedule'],
+    componentNames: [
+      'VIEW_ORDERS',
+      'VIEW_SCHEDULE',
+      'VIEW_PRODUCTS',
+      'VIEW_CUSTOMERS',
+      'VIEW_ADMIN',
+    ],
   })
 
   return {

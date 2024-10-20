@@ -7,7 +7,7 @@ import { checkUserPermission } from '@/pages/api/userPermission'
 function Settings({ token }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {<RegisterForm token={token} />}
+      <RegisterForm token={token} />
       <RulesComponent token={token} />
       <ComponentsAccess token={token} />
     </div>
@@ -32,10 +32,10 @@ export async function getServerSideProps(context) {
   }
 
   const componentPermission = await checkUserPermission(token, {
-    componentNames: ['AdminPanel'],
+    componentNames: ['VIEW_ADMIN'],
   })
 
-  if (!componentPermission.AdminPanel) {
+  if (!componentPermission.VIEW_ADMIN) {
     return {
       notFound: true,
     }

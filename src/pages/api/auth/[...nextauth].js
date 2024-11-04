@@ -2,7 +2,7 @@ import NextAuth from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 
 const BASE_URL = process.env.API_BASE_URL
-const JWT_SECRET = process.env.JWT_SECRET
+const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET
 
 export default NextAuth({
   providers: [
@@ -52,13 +52,13 @@ export default NextAuth({
       return session
     },
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: NEXTAUTH_SECRET,
   session: {
     maxAge: 6 * 24 * 60 * 60,
     jwt: true,
   },
   jwt: {
-    secret: JWT_SECRET,
+    secret: NEXTAUTH_SECRET,
     encryption: true,
   },
 })

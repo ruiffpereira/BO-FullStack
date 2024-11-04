@@ -35,6 +35,9 @@ function Ecommerce({ token, products, orders, error }) {
           {!categoryForm ? <div>Gerir Categorias</div> : <div>Ecommerce</div>}
         </button>
       </div>
+      <div>
+        <div></div>
+      </div>
       {!categoryForm ? (
         <div>
           <Products products={products} />

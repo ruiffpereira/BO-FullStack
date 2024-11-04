@@ -7,6 +7,7 @@ const Sidebar = ({ isOpen, toggleSidebar, permissions }) => {
     await signOut({ redirect: false })
     window.location.href = '/admin/login'
   }
+
   console.log(permissions)
   return (
     <div className="flex fixed inset-y-0 left-0" style={{ zIndex: 1 }}>
@@ -24,7 +25,7 @@ const Sidebar = ({ isOpen, toggleSidebar, permissions }) => {
                 Home
               </Link>
             </li>
-            {permissions.VIEW_ORDERS && permissions.VIEW_PRODUCTS && (
+            {permissions?.VIEW_ORDERS && permissions?.VIEW_PRODUCTS && (
               <li className="mb-2">
                 <Link
                   href="/dashboard/ecommerce"
@@ -35,7 +36,7 @@ const Sidebar = ({ isOpen, toggleSidebar, permissions }) => {
                 </Link>
               </li>
             )}
-            {permissions.VIEW_SCHEDULE && (
+            {permissions?.VIEW_SCHEDULE && (
               <li className="mb-2">
                 <Link
                   href="/dashboard/schedule"
@@ -46,7 +47,7 @@ const Sidebar = ({ isOpen, toggleSidebar, permissions }) => {
                 </Link>
               </li>
             )}
-            {permissions.VIEW_CUSTOMERS && (
+            {permissions?.VIEW_CUSTOMERS && (
               <li className="mb-2">
                 <Link
                   href="/dashboard/customers"
@@ -66,7 +67,7 @@ const Sidebar = ({ isOpen, toggleSidebar, permissions }) => {
                 Settings
               </Link>
             </li>
-            {permissions.VIEW_ADMIN && (
+            {permissions?.VIEW_ADMIN && (
               <li className="mb-2">
                 <Link
                   href="/dashboard/admin"

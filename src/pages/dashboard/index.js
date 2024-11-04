@@ -47,6 +47,8 @@ export async function getServerSideProps(context) {
 
   const { token } = sessionCheckResult.props
 
+  console.log('token', sessionCheckResult.redirect)
+
   try {
     const [clients, orders] = await Promise.all([
       getAllCustomers(token),

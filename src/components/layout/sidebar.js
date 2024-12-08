@@ -8,7 +8,6 @@ const Sidebar = ({ isOpen, toggleSidebar, permissions }) => {
     window.location.href = '/admin/login'
   }
 
-  console.log(permissions)
   return (
     <div className="flex fixed inset-y-0 left-0" style={{ zIndex: 1 }}>
       <div

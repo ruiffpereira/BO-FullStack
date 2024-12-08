@@ -32,11 +32,12 @@ const LoginForm = () => {
     })
 
     if (result?.error) {
-      console.error('Failed to sign in', result)
       return
     }
 
-    router.replace('/')
+    if (result.ok) {
+      router.replace('/')
+    }
     setCredentials({ name: '', password: '' })
   }
 

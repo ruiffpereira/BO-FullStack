@@ -43,9 +43,7 @@ function RulesComponent({ token }) {
     e.preventDefault()
     try {
       await handleAddEditRule({ arg: currentRule })
-    } catch (error) {
-      console.error('Erro ao adicionar/editar regra:', error)
-    }
+    } catch (error) {}
   }
 
   const { trigger: handleAddEditRule } = useSWRMutation(
@@ -100,7 +98,6 @@ function RulesComponent({ token }) {
     {
       onSuccess: async (data) => {
         if (data.error) {
-          console.log('Erro detectado: ', data.error)
           return // Não prossegue se houver um erro
         }
         setErrorMessage(null) // Limpa a mensagem de erro em caso de sucesso

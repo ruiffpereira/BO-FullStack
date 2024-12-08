@@ -48,10 +48,8 @@ const ProductForm = ({ token, product, categories }) => {
   }
 
   const handleSubmit = async (e) => {
-    console.log('Enviando dados do produto:', formData)
     e.preventDefault()
     try {
-      console.log('Enviando dados do produto:', formData)
       await handleSubmitUser()
     } catch (error) {
       console.error('Erro:', error)
@@ -93,8 +91,6 @@ const ProductForm = ({ token, product, categories }) => {
 
       const method = formData.productId ? 'PUT' : 'POST'
 
-      console.log('formDataToSend:', formData.subcategoryId)
-
       const response = await fetch(url, {
         method, // Certifique-se de que o método é PUT para atualização
         headers: {
@@ -114,7 +110,6 @@ const ProductForm = ({ token, product, categories }) => {
     {
       onSuccess: async (data) => {
         if (data.error) {
-          console.log('Erro detectado: ', data.error)
           return // Não prossegue se houver um erro
         }
         setErrorMessage(null) // Limpa a mensagem de erro em caso de sucesso
@@ -122,7 +117,6 @@ const ProductForm = ({ token, product, categories }) => {
         router.push('/dashboard/ecommerce')
       },
       onError: (error) => {
-        console.log('Erro detectado: ', error.message)
         setErrorMessage(error.message) // Captura a mensagem de erro
       },
     },
@@ -146,7 +140,6 @@ const ProductForm = ({ token, product, categories }) => {
     {
       onSuccess: async (data) => {
         if (data.error) {
-          console.log('Erro detectado: ', data.error)
           return // Não prossegue se houver um erro
         }
         setErrorMessage(null) // Limpa a mensagem de erro em caso de sucesso
@@ -154,7 +147,6 @@ const ProductForm = ({ token, product, categories }) => {
         router.push('/dashboard/ecommerce')
       },
       onError: (error) => {
-        console.log('Erro detectado: ', error.message)
         setErrorMessage(error.message) // Captura a mensagem de erro
       },
     },

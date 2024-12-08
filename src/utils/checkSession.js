@@ -11,6 +11,7 @@ export async function checkSession(req) {
       },
     }
   }
+
   return {
     props: {
       token: session.accessToken, // Supondo que o token esteja disponível como accessToken na sessão

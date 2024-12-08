@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { checkSession } from '@/utils/checkSession'
 
 function Client({ customer, orders }) {
-  // console.log(orders)
   const columns = [
     {
       title: 'Referencia',

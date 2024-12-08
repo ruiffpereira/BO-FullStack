@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { checkSession } from '@/utils/checkSession'
 
 function OrderDetails({ order }) {
-  console.log(order)
   const columns = [
     {
       title: 'Produto',

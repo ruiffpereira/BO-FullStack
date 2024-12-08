@@ -41,7 +41,6 @@ export const getOrderById = async (token, orderId) => {
 
 export const getOrderCustomerId = async (token, orderId) => {
   try {
-    // console.log(orderId)
     const response = await fetchWithAuth(
       `${BASE_URL}/orders/customerid/${orderId}`,
       token,

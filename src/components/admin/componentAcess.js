@@ -61,7 +61,6 @@ function ComponentsAccess({ token }) {
   }
 
   const handleDelete = (componentId) => {
-    console.log(componentId)
     handleDeleteComponent({ arg: componentId })
   }
 
@@ -91,7 +90,6 @@ function ComponentsAccess({ token }) {
         const errorData = await response.json()
         const errorMessage = errorData.error || 'An unexpected error occurred'
         setErrorMessage(errorMessage) // Captura a mensagem de erro
-        console.log(errorMessage)
         return { error: errorMessage } // Retorna um objeto de erro
       }
       return response
@@ -99,7 +97,6 @@ function ComponentsAccess({ token }) {
     {
       onSuccess: async (data) => {
         if (data.error) {
-          console.log(data.error)
           return // Não prossegue se houver um erro
         }
         setErrorMessage(null) // Limpa a mensagem de erro em caso de sucesso
@@ -116,7 +113,6 @@ function ComponentsAccess({ token }) {
   const { trigger: handleDeleteComponent } = useSWRMutation(
     urlSWRComponents,
     async (url, { arg: component }) => {
-      console.log(component.arg.componentId)
       const response = await fetch(`${url}/${component.arg}`, {
         method: 'DELETE',
         headers,
@@ -230,7 +226,6 @@ function ComponentsAccess({ token }) {
               <button
                 onClick={() => {
                   handleEdit(component)
-                  console.log(component)
                 }}
                 className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
               >

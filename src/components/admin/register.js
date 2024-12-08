@@ -44,7 +44,6 @@ function Registerform({ token }) {
   }
 
   const handleEdit = async (user) => {
-    console.log('user: ', user)
     setCurrentUser({
       ...user,
       permissionId: user.permissions[0]?.permissionId ?? '',
@@ -77,7 +76,6 @@ function Registerform({ token }) {
       if (!response.ok) {
         const errorData = await response.json()
         const errorMessage = errorData.error || 'An unexpected error occurred'
-        console.log(errorMessage)
         setErrorMessage(errorMessage) // Captura a mensagem de erro
         return { error: errorMessage } // Retorna um objeto de erro
       }
@@ -86,14 +84,12 @@ function Registerform({ token }) {
     {
       onSuccess: async (data) => {
         if (data.error) {
-          console.log('Erro detectado: ', data.error)
           return // Não prossegue se houver um erro
         }
         setErrorMessage(null) // Limpa a mensagem de erro em caso de sucesso
         await mutate(urlSWRUser)
       },
       onError: (error) => {
-        console.log('Erro detectado: ', error.message)
         setErrorMessage(error.message) // Captura a mensagem de erro
       },
     },
@@ -113,17 +109,14 @@ function Registerform({ token }) {
       if (!response.ok) {
         const errorData = await response.json()
         const errorMessage = errorData.error || 'An unexpected error occurred'
-        console.log(errorMessage)
         setErrorMessage(errorMessage) // Captura a mensagem de erro
         return { error: errorMessage } // Retorna um objeto de erro
       }
-      console.log('response submit: ', response)
       return response
     },
     {
       onSuccess: async (data) => {
         if (data.error) {
-          console.log('Erro detectado: ', data.error)
           return // Não prossegue se houver um erro
         }
         setErrorMessage(null) // Limpa a mensagem de erro em caso de sucesso
@@ -137,7 +130,6 @@ function Registerform({ token }) {
         await mutate(urlSWRUser)
       },
       onError: (error) => {
-        console.log('Erro detectado: ', error.message)
         setErrorMessage(error.message) // Captura a mensagem de erro
       },
     },

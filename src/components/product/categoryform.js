@@ -210,8 +210,6 @@ const CategoryManager = ({ token }) => {
   // if (error) return <div>Failed to load</div>
   if (isLoadingCategories) return <div>Loading...</div>
 
-  console.log(dataCategories)
-
   return (
     <div className="p-6 bg-white rounded-xl shadow-md space-y-4 text-left">
       <h1 className="text-xl font-bold">Gerenciador de Categorias</h1>

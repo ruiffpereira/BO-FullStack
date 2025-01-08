@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import useSWR, { useSWRConfig } from 'swr'
 import useSWRMutation from 'swr/mutation'
+import crypto from 'crypto'
+import { FaEye, FaEyeSlash } from 'react-icons/fa'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
@@ -23,6 +25,7 @@ function Registerform({ token }) {
 
   const { data: users, isLoading } = useSWR(urlSWRUser, fetcher)
   const { data: permissions } = useSWR(urlSWRPermissions, fetcher)
+  const [showPassword, setShowPassword] = useState(false)
 
   const [currentUser, setCurrentUser] = useState({
     userId: null,
@@ -30,9 +33,23 @@ function Registerform({ token }) {
     email: '',
     password: '',
     permissionId: '',
+    websitekey: '',
   })
 
   const [errorMessage, setErrorMessage] = useState(null)
+
+  const generateSecretKey = () => {
+    const key = crypto.randomBytes(32).toString('hex')
+    setCurrentUser((prevUser) => ({
+      ...prevUser,
+      websitekey: key,
+    }))
+    console.log(key)
+  }
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword)
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -193,6 +210,33 @@ function Registerform({ token }) {
             required
             className="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
           />
+        )}
+        {!currentUser.userId && (
+          <div className="flex gap-4">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={currentUser.websitekey}
+              onChange={(e) =>
+                setCurrentUser({ ...currentUser, websitekey: e.target.value })
+              }
+              placeholder="key"
+              className="flex-grow shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
+            <button
+              type="button"
+              onClick={togglePasswordVisibility}
+              className="text-xl flex items-center text-gray-700"
+            >
+              {showPassword ? <FaEyeSlash /> : <FaEye />}
+            </button>
+            <button
+              className="bg-slate-500 hover:bg-slate-700 text-white font-bold py-1 px-2 rounded focus:outline-none focus:shadow-outline flex-shrink-0 ml-auto"
+              type="button"
+              onClick={generateSecretKey}
+            >
+              Gerar Key
+            </button>
+          </div>
         )}
         {currentUser.userId && (
           <form

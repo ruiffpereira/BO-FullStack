@@ -17,7 +17,7 @@ function Layout({ children }) {
         </button>
         <div className="text-lg font-bold text-slate-900">CODE FULL STACK</div>
       </div>
-      <div className="grow flex md:pl-52">
+      <div className="grow flex md:pl-52 overflow-hidden">
         <Sidebar
           isOpen={isOpen}
           toggleSidebar={toggleSidebar}

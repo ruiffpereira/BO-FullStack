@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ['localhost', 'api.code-fullstack.com'],
+    domains: ['localhost', 'api.code-fullstack.com', 'lh3.googleusercontent.com'],
   },
   reactStrictMode: true,
   transpilePackages: [

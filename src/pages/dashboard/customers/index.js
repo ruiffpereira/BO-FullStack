@@ -4,9 +4,31 @@ import { Table } from 'antd'
 import Link from 'next/link'
 import { checkSession } from '@/utils/checkSession'
 import { checkUserPermission } from '@/pages/api/userPermission'
+import Image from 'next/image'
 
 function Clients({ customers }) {
+
+  console.log(customers)
+
   const columns = [
+    {
+      title: 'Photo',
+      dataIndex: 'photo',
+      key: 'photo',
+      render: (text, record) => (
+        text && text !== 'N/A' ? (
+          <Image
+            src={record.photo}
+            alt="client photo"
+            width={40}
+            height={40}
+            className='rounded-full overflow-hidden'
+          />
+        ) : (
+          <span>No Photo</span>
+        )
+      ),
+    },
     {
       title: 'Name',
       dataIndex: 'name',
@@ -20,10 +42,6 @@ function Clients({ customers }) {
           {text}
         </Link>
       ),
-    },
-    {
-      title: 'Photo',
-      dataIndex: 'clientID',
     },
     {
       title: 'Email',

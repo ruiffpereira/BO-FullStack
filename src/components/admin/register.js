@@ -33,7 +33,7 @@ function Registerform({ token }) {
     email: '',
     password: '',
     permissionId: '',
-    websitekey: '',
+    secretkeysite: '',
   })
 
   const [errorMessage, setErrorMessage] = useState(null)
@@ -42,7 +42,7 @@ function Registerform({ token }) {
     const key = crypto.randomBytes(32).toString('hex')
     setCurrentUser((prevUser) => ({
       ...prevUser,
-      websitekey: key,
+      secretkeysite: key,
     }))
     console.log(key)
   }
@@ -143,6 +143,7 @@ function Registerform({ token }) {
           email: '',
           password: '',
           permissionId: '',
+          secretkeysite: '',
         })
         await mutate(urlSWRUser)
       },
@@ -211,33 +212,6 @@ function Registerform({ token }) {
             className="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
           />
         )}
-        {!currentUser.userId && (
-          <div className="flex gap-4">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              value={currentUser.websitekey}
-              onChange={(e) =>
-                setCurrentUser({ ...currentUser, websitekey: e.target.value })
-              }
-              placeholder="key"
-              className="flex-grow shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            />
-            <button
-              type="button"
-              onClick={togglePasswordVisibility}
-              className="text-xl flex items-center text-gray-700"
-            >
-              {showPassword ? <FaEyeSlash /> : <FaEye />}
-            </button>
-            <button
-              className="bg-slate-500 hover:bg-slate-700 text-white font-bold py-1 px-2 rounded focus:outline-none focus:shadow-outline flex-shrink-0 ml-auto"
-              type="button"
-              onClick={generateSecretKey}
-            >
-              Gerar Key
-            </button>
-          </div>
-        )}
         {currentUser.userId && (
           <form
             onSubmit={handleChangePassword}
@@ -254,19 +228,47 @@ function Registerform({ token }) {
             />
           </form>
         )}
+
+        <div className="flex gap-4">
+          <input
+            type={showPassword ? 'text' : 'password'}
+            value={currentUser.secretkeysite}
+            onChange={(e) =>
+              setCurrentUser({ ...currentUser, secretkeysite: e.target.value })
+            }
+            placeholder="key"
+            className="flex-grow shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          />
+          <button
+            type="button"
+            onClick={togglePasswordVisibility}
+            className="text-xl flex items-center text-gray-700"
+          >
+            {showPassword ? <FaEyeSlash /> : <FaEye />}
+          </button>
+          <button
+            className="bg-slate-500 hover:bg-slate-700 text-white font-bold py-1 px-2 rounded focus:outline-none focus:shadow-outline flex-shrink-0 ml-auto"
+            type="button"
+            onClick={generateSecretKey}
+          >
+            Gerar Key
+          </button>
+        </div>
         <div className="flex justify-between">
           {currentUser.userId ? (
             <button
               type="button"
-              onClick={() =>
+              onClick={() => {
                 setCurrentUser({
                   userId: null,
                   name: '',
                   email: '',
                   password: '',
                   permissionId: '',
+                  secretkeysite: '',
                 })
-              }
+                setShowPassword(false)
+              }}
               className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
             >
               Cancelar
@@ -300,6 +302,7 @@ function Registerform({ token }) {
               <button
                 onClick={() => {
                   handleEdit(user)
+                  setShowPassword(false)
                 }}
                 className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded focus:outline-none focus:shadow-outline"
               >

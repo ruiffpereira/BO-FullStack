@@ -9,6 +9,27 @@ const URL_RAIZ = process.env.NEXT_PUBLIC_CONTAINERRAIZ
 function AddProduct({ products }) {
   const columns = [
     {
+      title: 'Photos',
+      dataIndex: 'photos',
+      render: (photos, record) => (
+        <Link className="flex gap-2" href={{
+          pathname: '/dashboard/ecommerce/products/' + record.productId,
+        }}>
+          {Array.isArray(photos) && photos.length > 0 ? (
+            <Image
+              width={50}
+              height={50}
+              src={`${URL_RAIZ}/${photos[0]}`}
+              alt="Photo 0"
+              className="w-16 h-16 object-contain rounded-md"
+            />
+          ) : (
+            <span>No photos available</span>
+          )}
+        </Link>
+      ),
+    },
+    {
       title: 'Name',
       dataIndex: 'name',
       render: (text, record) => (
@@ -42,25 +63,6 @@ function AddProduct({ products }) {
       dataIndex: 'categoryname',
       render: (text, record) =>
         record.category ? record.category.name : 'Sem Categoria',
-    },
-    {
-      title: 'Photos',
-      dataIndex: 'photos',
-      render: (photos) => (
-        <div className="flex gap-2">
-          {Array.isArray(photos) && photos.length > 0 ? (
-            <Image
-              width={50}
-              height={50}
-              src={`${URL_RAIZ}/${photos[0]}`}
-              alt="Photo 0"
-              className="w-16 h-16 object-contain rounded-md"
-            />
-          ) : (
-            <span>No photos available</span>
-          )}
-        </div>
-      ),
     },
     // {
     //   title: 'Action',

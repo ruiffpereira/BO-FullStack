@@ -213,6 +213,8 @@ const ProductForm = ({ token, product, categories }) => {
       })),
     })) ?? []
 
+    console.log('formData', formData)
+
   return (
     <form className="space-y-6 p-6 bg-white shadow-lg rounded-lg">
       {errorMessage && <div className="error">{errorMessage}</div>}

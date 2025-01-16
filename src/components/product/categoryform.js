@@ -95,6 +95,7 @@ const CategoryManager = ({ token }) => {
     {
       onSuccess: async () => {
         await mutate(urlSWRCategories)
+        setNewSubcategory('')
       },
       onError: (error) => {
         setErrorMessage(error.message) // Captura a mensagem de erro

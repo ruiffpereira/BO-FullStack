@@ -26,7 +26,7 @@ function Registerform({ token }) {
   const { data: users, isLoading } = useSWR(urlSWRUser, fetcher)
   const { data: permissions } = useSWR(urlSWRPermissions, fetcher)
   const [showPassword, setShowPassword] = useState(false)
-
+  
   const [currentUser, setCurrentUser] = useState({
     userId: null,
     name: '',

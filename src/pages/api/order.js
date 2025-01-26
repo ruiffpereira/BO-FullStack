@@ -52,32 +52,3 @@ export const getOrderCustomerId = async (token, orderId) => {
     throw new Error('An error occurred while fetching order')
   }
 }
-
-// Função para atualizar um pedido
-export const updateOrder = async (token, orderId, orderData) => {
-  try {
-    const response = await fetch(`${BASE_URL}/orders/${orderId}`, token, {
-      method: 'PUT',
-      body: JSON.stringify(orderData),
-    })
-    const data = await response.json()
-    return data
-  } catch (error) {
-    console.error('Error updating order:', error)
-    throw new Error('An error occurred while updating order')
-  }
-}
-
-// Função para apagar um pedido
-export const deleteOrder = async (token, orderId) => {
-  try {
-    const response = await fetch(`${BASE_URL}/orders/${orderId}`, token, {
-      method: 'DELETE',
-    })
-    const data = await response.json()
-    return data
-  } catch (error) {
-    console.error('Error deleting order:', error)
-    throw new Error('An error occurred while deleting order')
-  }
-}

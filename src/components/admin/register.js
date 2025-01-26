@@ -23,8 +23,8 @@ function Registerform({ token }) {
     }).then((res) => res.json())
   }
 
-  const { data: users, isLoading } = useSWR(urlSWRUser, fetcher)
-  const { data: permissions } = useSWR(urlSWRPermissions, fetcher)
+  const { data: users, isLoading : isLoadingUsers } = useSWR(urlSWRUser, fetcher)
+  const { data: permissions, isLoading: isLoadingPermissions } = useSWR(urlSWRPermissions, fetcher)
   const [showPassword, setShowPassword] = useState(false)
   
   const [currentUser, setCurrentUser] = useState({
@@ -153,7 +153,8 @@ function Registerform({ token }) {
     },
   )
 
-  if (isLoading) return <div>Loading...</div>
+  if (isLoadingUsers) return <div>Loading...</div>
+  if (isLoadingPermissions) return <div>Loading...</div>
 
   return (
     <div className="space-y-4 bg-white p-6 rounded-lg shadow-lg w-full">

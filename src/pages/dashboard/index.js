@@ -4,30 +4,12 @@ import { getAllOrders } from '@/pages/api/order'
 import { checkSession } from '@/utils/checkSession'
 import { useSession } from 'next-auth/react'
 import useSWR, { useSWRConfig } from 'swr'
+import { getAllUsers } from '../api/user'
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
 
 function Dashboard({ clients, orders, token }) {
   const { data: status } = useSession()
-
-
-  const urlSWRUser = `${BASE_URL}/clients`
-  const headers = {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  }
-  console.log("aqui", token)
-
-  const fetcher = (url) => {
-    return fetch(url, {
-      headers,
-    }).then((res) => res.json())
-  }
-
-  const { data: users, isLoading } = useSWR(urlSWRUser, fetcher)
-
-  console.log("aqui", users)
 
   if (!clients) {
     return <div>Loading...</div>
@@ -68,7 +50,6 @@ export async function getServerSideProps(context) {
   }
 
   const { token } = sessionCheckResult.props
-  console.log("token", token)
 
   try {
     const [clients, orders] = await Promise.all([
@@ -77,7 +58,7 @@ export async function getServerSideProps(context) {
     ])
 
     return {
-      props: { clients, orders, token },
+      props: { clients, orders,  token },
     }
   } catch (error) {
     console.error('Error fetching data:', error)

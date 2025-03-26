@@ -6,6 +6,8 @@ import Layout from '@/components/layout/layout'
 import { checkUserPermission } from '@/pages/api/userPermission'
 
 export default function MyApp({ Component, pageProps }) {
+
+  //console.log('pageProps', pageProps)
   return (
     <SessionProvider session={pageProps.session}>
       {!pageProps.session ? (

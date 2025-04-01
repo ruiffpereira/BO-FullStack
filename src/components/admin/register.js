@@ -33,19 +33,18 @@ function Registerform({ token }) {
     email: '',
     password: '',
     permissionId: '',
-    secretkeysite: '',
+    secretkeysite: false,
   })
 
   const [errorMessage, setErrorMessage] = useState(null)
 
-  const generateSecretKey = () => {
-    const key = crypto.randomBytes(32).toString('hex')
+  const generateSecretKey = async () => {
     setCurrentUser((prevUser) => ({
       ...prevUser,
-      secretkeysite: key,
-    }))
-    console.log(key)
-  }
+      secretkeysite: true,
+    }));
+
+  };
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword)
@@ -238,6 +237,7 @@ function Registerform({ token }) {
               setCurrentUser({ ...currentUser, secretkeysite: e.target.value })
             }
             placeholder="key"
+            disabled
             className="flex-grow shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
           />
           <button
@@ -266,7 +266,7 @@ function Registerform({ token }) {
                   email: '',
                   password: '',
                   permissionId: '',
-                  secretkeysite: '',
+                  secretkeysite: false,
                 })
                 setShowPassword(false)
               }}

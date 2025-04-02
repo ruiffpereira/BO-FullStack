@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
+    "dev": "kubb generate && next dev",
+    "build": "kubb generate && next build",
+    "start": "kubb generate && next start"
   },
   "dependencies": {
     "@ant-design/cssinjs": "^1.20.0",
@@ -23,6 +23,7 @@
     "@typescript-eslint/eslint-plugin": "^8.28.0",
     "@typescript-eslint/parser": "^8.28.0",
     "antd": "^5.18.0",
+    "axios": "^1.8.4",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.0",
@@ -47,6 +48,8 @@
   "devDependencies": {
     "@kubb/cli": "^3.7.2",
     "@rocketseat/eslint-config": "^2.2.2",
+    "@types/node": "^22.13.17",
+    "@types/react": "^19.0.12",
     "autoprefixer": "^10.0.1",
     "concurrently": "^8.2.2",
     "eslint": "^8.57.0",

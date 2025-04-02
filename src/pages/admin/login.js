@@ -2,17 +2,22 @@ import React, { useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/router'
 import { checkSessionOnLogin } from '@/utils/checkSession'
+import { AiOutlineLoading3Quarters } from "react-icons/ai";
+
 
 const LoginForm = () => {
   const [credentials, setCredentials] = useState({
     name: '',
     password: '',
   })
+  const [isLoading, setIsLoading] = useState(false);
+  const [isError, setIsError] = useState(false);
 
   const router = useRouter()
 
   // Atualiza o estado com os valores dos inputs
   const handleChange = (e) => {
+    setIsError(false);
     const { name, value } = e.target
     setCredentials({
       ...credentials,
@@ -24,14 +29,16 @@ const LoginForm = () => {
   const handleSubmit = async (event) => {
     event.preventDefault()
     event.stopPropagation()
+    setIsLoading(true);
 
     const result = await signIn('credentials', {
       name: credentials.name,
       password: credentials.password,
       redirect: false,
     })
-
+    
     if (result?.error) {
+      setIsError(true);
       return
     }
 
@@ -39,6 +46,7 @@ const LoginForm = () => {
       router.replace('/')
     }
     setCredentials({ name: '', password: '' })
+    setIsLoading(false);
   }
 
   return (
@@ -88,8 +96,12 @@ const LoginForm = () => {
           <div>
             <button
               type="submit"
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className={`group relative w-full flex items-center gap-2 justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white ${isError ? "bg-red-600": "bg-indigo-600"} hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}
             >
+              {isLoading ? (
+                <AiOutlineLoading3Quarters className='animate-spin text-xl'/>  
+              ) : null}
+              
               Sign in
             </button>
           </div>

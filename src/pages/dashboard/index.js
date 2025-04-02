@@ -3,13 +3,9 @@ import { getAllCustomers } from '@/pages/api/customer'
 import { getAllOrders } from '@/pages/api/order'
 import { checkSession } from '@/utils/checkSession'
 import { useSession } from 'next-auth/react'
-import useSWR, { useSWRConfig } from 'swr'
-import { getAllUsers } from '../api/user'
 
 
-
-function Dashboard({ clients, orders, token }) {
-  const { data: status } = useSession()
+function Dashboard({ clients, orders }) {
 
   if (!clients) {
     return <div>Loading...</div>

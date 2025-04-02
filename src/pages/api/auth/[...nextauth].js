@@ -1,8 +1,6 @@
 import NextAuth from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
-
-const BASE_URL = process.env.API_BASE_URL
-const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET
+import { postUsersLogin } from '@/server/backoffice/hooks/usePostUsersLogin'
 
 export default NextAuth({
   providers: [
@@ -10,21 +8,12 @@ export default NextAuth({
       name: 'credentials',
       async authorize(credentials) {
         try {
-          const res = await fetch(`${BASE_URL}/users/login`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              name: credentials.name,
-              password: credentials.password,
-            }),
-            credentials: 'include',
+          const user = await postUsersLogin({
+            name: credentials.name,
+            password: credentials.password,
           })
 
-          const user = await res.json()
-          // console.log('user', user)
-          if (res.ok && user) {
+          if (user) {
             return user
           } else {
             return null
@@ -52,13 +41,13 @@ export default NextAuth({
       return session
     },
   },
-  secret: NEXTAUTH_SECRET,
+  secret: process.env.NEXTAUTH_SECRET,
   session: {
     maxAge: 6 * 24 * 60 * 60,
     jwt: true,
   },
   jwt: {
-    secret: NEXTAUTH_SECRET,
+    secret: process.env.NEXTAUTH_SECRET,
     encryption: true,
   },
 })

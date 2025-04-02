@@ -8,13 +8,13 @@ import 'dotenv/config'
 
 const configs = [
   defineConfig({
-    name: 'Customers',
+    name: 'Backoffice',
     root: '.',
     input: {
-      path: `${process.env.NEXT_PUBLIC_API_BASE_URL}-docs/websites/customers.json`, // URL do Swagger ou OpenAPI
+      path: `${process.env.NEXT_PUBLIC_API_BASE_URL}-docs/backoffice.json`, // URL do Swagger ou OpenAPI
     },
     output: {
-      path: './src/server/customers',
+      path: './src/server/backoffice',
       extension: {
         '.ts': '.js',
       },
@@ -28,29 +28,7 @@ const configs = [
         },
       }), // Gera hooks para React Query
     ],
-  }),
-  defineConfig({
-    name: 'Ecommerce',
-    root: '.',
-    input: {
-      path: `${process.env.NEXT_PUBLIC_API_BASE_URL}-docs/websites/ecommerce.json`, // URL do Swagger ou OpenAPI
-    },
-    output: {
-      path: './src/server/ecommerce',
-      extension: {
-        '.ts': '.js',
-      },
-    },
-    plugins: [
-      pluginOas(), // Processa o OpenAPI/Swagger
-      pluginTs(), // Gera tipos TypeScript
-      pluginReactQuery({
-        client: {
-          baseURL: process.env.NEXT_PUBLIC_API_BASE_URL,
-        },
-      }), // Gera hooks para React Query
-    ],
-  }),
+  })
 ]
 
 export default configs

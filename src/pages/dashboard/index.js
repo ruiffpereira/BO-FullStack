@@ -7,10 +7,7 @@ import { useSession } from 'next-auth/react'
 
 function Dashboard({ clients, orders }) {
 
-  if (!clients) {
-    return <div>Loading...</div>
-  }
-  if (status === 'loading') {
+  if (!clients || !orders) {
     return <div>Loading...</div>
   }
 

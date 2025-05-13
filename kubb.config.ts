@@ -4,7 +4,7 @@ import { pluginTs } from '@kubb/plugin-ts'
 import { pluginReactQuery } from '@kubb/plugin-react-query'
 import 'dotenv/config'
 
-// yarn add @kubb/core @kubb/plugin-oas @kubb/plugin-ts @kubb/plugin-react-query @kubb/plugin-client @tanstack/react-query
+// yarn add @kubb/core axios @kubb/cli @kubb/plugin-oas @kubb/plugin-ts @kubb/plugin-react-query @kubb/plugin-client @tanstack/react-query
 
 const configs = [
   defineConfig({
@@ -28,7 +28,7 @@ const configs = [
         },
       }), // Gera hooks para React Query
     ],
-  })
+  }),
 ]
 
 export default configs

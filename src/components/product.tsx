@@ -7,12 +7,27 @@ import { useState } from 'react'
 export default function ProductPage() {
   const [editing, isEditing] = useState(false)
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100">
-      <div className="w-full max-w-3xl rounded-lg bg-white p-8 shadow-lg">
+      <div className="">
         <h1 className="mb-6 text-2xl font-bold text-gray-800">
           Adicionar Produto
         </h1>
         <form className="space-y-6">
+        <div>
+            <label
+              htmlFor="productName"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Imagem do Produto
+            </label>
+            <input
+              type="text"
+              id="productName"
+              className="mt-1 p-2 block w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              placeholder="Digite o nome do produto"
+              required
+            />
+          </div>
+
           <div>
             <label
               htmlFor="productName"
@@ -23,7 +38,7 @@ export default function ProductPage() {
             <input
               type="text"
               id="productName"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              className="mt-1 p-2 block w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               placeholder="Digite o nome do produto"
               required
             />
@@ -40,7 +55,7 @@ export default function ProductPage() {
             <input
               type="number"
               id="price"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              className="mt-1 p-2 block w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               placeholder="Digite o preço do produto"
               required
             />
@@ -57,7 +72,7 @@ export default function ProductPage() {
             <textarea
               id="description"
               rows={4}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              className="mt-1 p-2 block w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               placeholder="Digite a descrição do produto"
               required
             ></textarea>
@@ -74,6 +89,5 @@ export default function ProductPage() {
           </div>
         </form>
       </div>
-    </div>
   )
 }

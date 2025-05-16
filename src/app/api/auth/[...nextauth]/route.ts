@@ -1,7 +1,6 @@
-import NextAuth, { NextAuthOptions, User } from 'next-auth'
+import NextAuth, { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { postUsersLogin } from '@/server/backoffice/hooks/usePostUsersLogin'
-import { c } from '@kubb/core/dist/logger-BWq-oJU_.js'
 
 declare module 'next-auth' {
   interface User {

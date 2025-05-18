@@ -16,7 +16,6 @@ import SelectComponent, { SelectComponentRef } from './selectComponent'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AiOutlineLoading3Quarters } from 'react-icons/ai'
-import { on } from 'events'
 
 type FileWithPreview = {
   name: string

@@ -1,5 +1,5 @@
-import SquareButton from '@/components/squarebutton'
-import GenericTable from '@/components/table'
+import SquareButton from '@/components/buttons/square-button'
+import GenericTable from '@/components/table/table'
 import routes from '@/routes'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
@@ -13,13 +13,6 @@ export default async function EcommercePage() {
   if (!session) {
     redirect(routes.login)
   }
-  // const { data: products, isLoading } = getProducts({
-  //   client: {
-  //     headers: {
-  //       Authorization: `Bearer ${session?.accessToken}`,
-  //     },
-  //   },
-  // })
 
   try {
     products = await getProducts({
@@ -54,7 +47,7 @@ export default async function EcommercePage() {
       </div>
       <div>
         <GenericTable
-          headers={['productId', 'name', 'stock']}
+          headers={['productId', 'name', 'stock', 'price']}
           data={products.rows ?? []}
         />
       </div>

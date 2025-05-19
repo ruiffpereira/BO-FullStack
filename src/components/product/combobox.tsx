@@ -11,7 +11,7 @@ export type SelectComponentRef = {
   resetCombos: () => void
 }
 
-const SelectComponent = forwardRef<SelectComponentRef, SelectComponentProps>(
+const Combobox = forwardRef<SelectComponentRef, SelectComponentProps>(
   ({ categories, onChange }, ref) => {
     const [selectedCategory, setSelectedCategory] = useState<string>('')
     const [selectedSubcategory, setSelectedSubcategory] = useState<string>('')
@@ -101,4 +101,4 @@ const SelectComponent = forwardRef<SelectComponentRef, SelectComponentProps>(
   },
 )
 
-export default SelectComponent
+export default Combobox

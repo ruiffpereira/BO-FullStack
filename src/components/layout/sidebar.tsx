@@ -3,13 +3,7 @@
 
 import Link from 'next/link'
 import { signOut } from 'next-auth/react'
-import { GetUserpermissions200 } from '@/server/backoffice'
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion'
+import { GetUserpermissions200 } from '@/server/backoffice/types/GetUserpermissions'
 
 const Sidebar = ({
   isOpen,

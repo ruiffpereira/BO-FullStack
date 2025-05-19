@@ -1,5 +1,5 @@
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import ProductPage from '@/components/formComponents/product'
+import ProductPage from '@/components/product/product'
 import routes from '@/routes'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'

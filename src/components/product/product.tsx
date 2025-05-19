@@ -11,8 +11,8 @@ import {
   usePostProducts,
 } from '@/server/backoffice/hooks/usePostProducts'
 import { Session } from 'next-auth'
-import { useImageUploader } from '@/components/formComponents/imageUploader'
-import SelectComponent, { SelectComponentRef } from './selectComponent'
+import { useImageUploader } from '@/components/product/image-uploader'
+import SelectComponent, { SelectComponentRef } from './combobox'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AiOutlineLoading3Quarters } from 'react-icons/ai'

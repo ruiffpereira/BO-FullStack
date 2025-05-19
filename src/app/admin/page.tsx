@@ -1,4 +1,4 @@
-import LoginComponent from '@/components/admin/autentication'
+import LoginComponent from '@/components/login/autentication'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '../api/auth/[...nextauth]/route'
 import { redirect } from 'next/navigation'

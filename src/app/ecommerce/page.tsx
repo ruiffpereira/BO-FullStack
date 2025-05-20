@@ -47,8 +47,15 @@ export default async function EcommercePage() {
       </div>
       <div>
         <GenericTable
-          headers={['productId', 'name', 'stock', 'price']}
+          headers={['photos', 'name', 'stock', 'price']}
           data={products.rows ?? []}
+          onEdit={() => {
+            console.log('edit')
+          }}
+          onDelete={() => {
+            console.log('delete')
+          }}
+          hiperlink={['name', routes.product, 'productId']}
         />
       </div>
     </div>

@@ -7,21 +7,30 @@ import {
   TableRow,
 } from '@/components/shadcn/ui/table'
 import { Product } from '@/server/backoffice/types/Product'
-import { FaTrash, FaPen } from 'react-icons/fa'
+import Link from 'next/link'
+import EditButton from './edit-button'
+import DeleteButton from './delete-button'
 
 type TableProps = {
   headers: string[]
   data: Product[]
   onEdit?: () => void
   onDelete?: () => void
+  hiperlink?: [string, string, string]
 }
 
-export default function GenericTable({ headers, data, onEdit, onDelete }: TableProps) {
+export default function GenericTable({
+  headers,
+  data,
+  onEdit,
+  onDelete,
+  hiperlink,
+}: TableProps) {
   // console.log('headers', headers)
-  //console.log('data', data)
+  // console.log('hiperlink', hiperlink?.[1])
   return (
-    <Table>
-      <TableHeader>
+    <Table className="rounded-lg border-1 border-gray-50 bg-white shadow-md">
+      <TableHeader className="text-lg">
         <TableRow>
           {headers.map((header) => (
             //console.log('header', header),
@@ -36,33 +45,25 @@ export default function GenericTable({ headers, data, onEdit, onDelete }: TableP
           <TableRow key={idx}>
             {headers.map((header) => (
               <TableCell key={header}>
-                {item[header as keyof Product]}
+                {hiperlink && header == hiperlink[0] ? (
+                  <>
+                    <Link
+                      href={`${hiperlink[1]}/${item[hiperlink[2] as keyof Product]}`}
+                    >
+                      {item[header as keyof Product]}
+                    </Link>
+                  </>
+                ) : (
+                  item[header as keyof Product]
+                )}
               </TableCell>
             ))}
             {onEdit && (
               <TableCell>
-                {onDelete && (
-                  <button
-                    onClick={onEdit}
-                    className=" hover:underline"
-                  >
-                    <FaPen />
-                  </button>
-                )}
-            </TableCell>
+                <EditButton />
+              </TableCell>
             )}
-            {onDelete && (
-              <TableCell>
-                {onDelete && (
-                  <button
-                    onClick={onDelete}
-                    className="hover:underline"
-                  >
-                    <FaTrash />
-                  </button>
-                )}
-            </TableCell>
-            )}
+            {onDelete && <TableCell>{/* <DeleteButton  /> */}</TableCell>}
           </TableRow>
         ))}
       </TableBody>

@@ -1,10 +1,11 @@
 import SquareButton from '@/components/buttons/square-button'
-import GenericTable from '@/components/table/table'
 import routes from '@/routes'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { getProducts } from '@/server/backoffice/hooks/useGetProducts'
 import { authOptions } from '../api/auth/[...nextauth]/route'
+import { columns } from '@/components/product/table/columns'
+import { DataTable } from '@/components/product/table/data-table'
 
 export default async function EcommercePage() {
   const session = await getServerSession(authOptions)
@@ -46,17 +47,7 @@ export default async function EcommercePage() {
         />
       </div>
       <div>
-        <GenericTable
-          headers={['photos', 'name', 'stock', 'price']}
-          data={products.rows ?? []}
-          onEdit={() => {
-            console.log('edit')
-          }}
-          onDelete={() => {
-            console.log('delete')
-          }}
-          hiperlink={['name', routes.product, 'productId']}
-        />
+        <DataTable columns={columns} data={products?.rows || []} />
       </div>
     </div>
   )

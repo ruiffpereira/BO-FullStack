@@ -1,8 +1,7 @@
 'use client'
 
-import z, { set } from 'zod'
+import z, { set, string } from 'zod'
 import { useRef, useState } from 'react'
-import { useDropzone } from 'react-dropzone'
 import Image from 'next/image'
 import { useGetCategories } from '@/server/backoffice/hooks/useGetCategories'
 import { PostProductsMutationRequest } from '@/server/backoffice/types/PostProducts'
@@ -22,26 +21,19 @@ type FileWithPreview = {
   preview: string
   size: number
 }
-type ReturnUseImageUploaderProps = {
-  value: FileWithPreview[]
-  setvalue: React.Dispatch<React.SetStateAction<FileWithPreview[]>>
-  getRootProps: () => {}
-  getInputProps: () => {}
-  isDragActive: boolean
-}
+  type ReturnUseImageUploaderProps = {
+    value: FileWithPreview[]
+    setvalue: React.Dispatch<React.SetStateAction<FileWithPreview[]>>
+    getRootProps: () => {}
+    getInputProps: () => {}
+    isDragActive: boolean
+  }
 
 const productSchema = z.object({
   name: z.string().min(1, 'Nome do produto é obrigatório'),
-  files: z
-    .array(
-      z.object({
-        name: z.string(),
-        preview: z.string(),
-        size: z.number(),
-      }),
-    )
-    .min(1, 'Imagem do produto é obrigatória')
-    .optional(),
+  photos: z
+    .array(z.any())
+    .min(1, 'Imagem do produto é obrigatória').optional(),
   reference: z.string().optional(),
   stock: z
     .number()
@@ -95,13 +87,17 @@ export default function ProductPage({ session }: { session: Session }) {
   })
 
   async function onSubmit(data: PostProductsMutationRequest) {
+    const photos = uploader.files
+
+    data.photos = photos
+
     await mutatePosProducts(
       { data },
       {
         onSuccess: () => {
-          reset()
-          uploader.setFiles([])
-          selectRef.current?.resetCombos()
+          //reset()
+          //uploader.setFiles([])
+          //selectRef.current?.resetCombos()
         },
         onError: (error) => {
           console.log('error', error)
@@ -117,8 +113,6 @@ export default function ProductPage({ session }: { session: Session }) {
   if (errorCategories) {
     return <div>Erro a carregar componente</div>
   }
-
-  console.log('categories', errorPostProduct)
 
   return (
     <div className="">

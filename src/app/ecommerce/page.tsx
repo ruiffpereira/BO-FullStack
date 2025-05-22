@@ -6,6 +6,7 @@ import { getProducts } from '@/server/backoffice/hooks/useGetProducts'
 import { authOptions } from '../api/auth/[...nextauth]/route'
 import { columns } from '@/components/product/table/columns'
 import { DataTable } from '@/components/product/table/data-table'
+import PageTableProducts from '@/components/product/table/page-table'
 
 export default async function EcommercePage() {
   const session = await getServerSession(authOptions)
@@ -13,21 +14,6 @@ export default async function EcommercePage() {
 
   if (!session) {
     redirect(routes.login)
-  }
-
-  try {
-    products = await getProducts({
-      headers: {
-        Authorization: `Bearer ${session?.accessToken}`,
-      },
-    })
-  } catch (error) {
-    //console.log('products', error)
-    return (
-      <div className="grid h-full place-items-center text-2xl font-bold">
-        Erro No Servidor
-      </div>
-    )
   }
 
   return (
@@ -47,7 +33,7 @@ export default async function EcommercePage() {
         />
       </div>
       <div>
-        <DataTable columns={columns(session)} data={products?.rows || []} />
+        <PageTableProducts />
       </div>
     </div>
   )

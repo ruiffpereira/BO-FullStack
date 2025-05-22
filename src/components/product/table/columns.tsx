@@ -1,15 +1,17 @@
 'use client'
 
-import { ColumnDef } from '@tanstack/react-table'
+import { ColumnDef, Row } from '@tanstack/react-table'
 import { Product } from '@/server/backoffice/types/Product'
 import Link from 'next/link'
 import routes from '@/routes/index'
 import { PencilIcon, Trash } from 'lucide-react'
+import { useDeleteProductsId } from '@/server/backoffice/hooks/useDeleteProductsId'
 import {
-  useDeleteProductsId,
-  deleteProductsIdMutationKey,
-} from '@/server/backoffice/hooks/useDeleteProductsId'
+  postProductsMutationKey,
+  PostProductsMutationKey,
+} from '@/server/backoffice/hooks/usePostProducts'
 import { useQueryClient } from '@tanstack/react-query'
+import { useSession } from 'next-auth/react' // Importar o hook useSession
 
 // This type is used to define the shape of our data.
 // You can use a Zod schema here if you want.
@@ -18,12 +20,12 @@ export const columns = [
   {
     accessorKey: 'photos',
     header: 'Photos',
-    cell: ({ row }) => {
+    cell: ({ row }: { row: Row<Product> }) => {
       const photos = row.original.photos
       return (
         <div>
           {photos.length > 0 ? (
-            <div>tem fotos </div>
+            <div>tem fotos</div>
           ) : (
             <div className="flex h-16 w-16 items-center justify-center rounded-md bg-gray-200">
               <span className="text-gray-500">No Image</span>
@@ -36,7 +38,7 @@ export const columns = [
   {
     accessorKey: 'name',
     header: 'Namee',
-    cell: ({ row }) => {
+    cell: ({ row }: { row: Row<Product> }) => {
       const productId = row.original.productId
       return (
         <Link
@@ -60,18 +62,24 @@ export const columns = [
   {
     accessorKey: 'options',
     header: 'Options',
-    cell: ({ row }) => {
+    cell: ({ row }: { row: Row<Product> }) => {
       const queryClient = useQueryClient()
+      const { data: session } = useSession()
       const { mutate: deleteProduct, isPending } = useDeleteProductsId({
         mutation: {
           onSuccess: () => {
             queryClient.invalidateQueries({
-              queryKey: [{ queryKey: deleteProductsIdMutationKey() }],
+              queryKey: postProductsMutationKey(),
             })
           },
           onError: (error) => {
             alert('Erro ao apagar produto')
             console.error(error)
+          },
+        },
+        client: {
+          headers: {
+            Authorization: `Bearer ${session?.accessToken}`, // Passar o token aqui
           },
         },
       })

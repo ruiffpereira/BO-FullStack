@@ -47,7 +47,7 @@ export default async function EcommercePage() {
         />
       </div>
       <div>
-        <DataTable columns={columns} data={products?.rows || []} />
+        <DataTable columns={columns(session)} data={products?.rows || []} />
       </div>
     </div>
   )

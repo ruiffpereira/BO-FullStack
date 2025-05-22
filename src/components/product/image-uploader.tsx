@@ -1,11 +1,7 @@
 import { useDropzone } from 'react-dropzone'
 import { useState } from 'react'
 
-export type FileWithPreview = {
-  name: string
-  preview: string
-  size: number
-}
+export type FileWithPreview = File & { preview: string }
 
 type UseImageUploaderProps = FileWithPreview[] | undefined
 

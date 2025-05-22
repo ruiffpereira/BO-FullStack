@@ -1,6 +1,6 @@
 'use client'
 
-import z, { set, string } from 'zod'
+import z, { object, set, string } from 'zod'
 import { useRef, useState } from 'react'
 import Image from 'next/image'
 import { useGetCategories } from '@/server/backoffice/hooks/useGetCategories'
@@ -15,25 +15,23 @@ import SelectComponent, { SelectComponentRef } from './combobox'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AiOutlineLoading3Quarters } from 'react-icons/ai'
+import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
+import routes from '@/routes'
 
-type FileWithPreview = {
-  name: string
-  preview: string
-  size: number
+type FileWithPreview = File & { preview: string }
+
+type ReturnUseImageUploaderProps = {
+  value: FileWithPreview[]
+  setvalue: React.Dispatch<React.SetStateAction<FileWithPreview[]>>
+  getRootProps: () => {}
+  getInputProps: () => {}
+  isDragActive: boolean
 }
-  type ReturnUseImageUploaderProps = {
-    value: FileWithPreview[]
-    setvalue: React.Dispatch<React.SetStateAction<FileWithPreview[]>>
-    getRootProps: () => {}
-    getInputProps: () => {}
-    isDragActive: boolean
-  }
 
 const productSchema = z.object({
   name: z.string().min(1, 'Nome do produto é obrigatório'),
-  photos: z
-    .array(z.any())
-    .min(1, 'Imagem do produto é obrigatória').optional(),
+  photos: z.array(z.any()).min(1, 'Imagem do produto é obrigatória').optional(),
   reference: z.string().optional(),
   stock: z
     .number()
@@ -47,6 +45,9 @@ const productSchema = z.object({
 export default function ProductPage({ session }: { session: Session }) {
   const [editing, isEditing] = useState(false)
   const uploader = useImageUploader()
+  const router = useRouter()
+  const queryClient = useQueryClient()
+
   const {
     data: categories,
     isLoading: loadingCategories,
@@ -87,17 +88,29 @@ export default function ProductPage({ session }: { session: Session }) {
   })
 
   async function onSubmit(data: PostProductsMutationRequest) {
-    const photos = uploader.files
+    const formData = new FormData()
+    formData.append('name', data.name!)
+    formData.append('price', String(data.price))
+    formData.append('stock', String(data.stock))
+    if (data.reference) formData.append('reference', data.reference)
+    if (data.description) formData.append('description', data.description)
+    formData.append('categoryId', data.categoryId!)
+    formData.append('subcategoryId', data.subcategoryId ?? '')
 
-    data.photos = photos
+    // Fotos
+    uploader.files.forEach((file) => {
+      formData.append('photos', file)
+    })
 
     await mutatePosProducts(
-      { data },
+      { data: formData as any },
       {
         onSuccess: () => {
-          //reset()
-          //uploader.setFiles([])
-          //selectRef.current?.resetCombos()
+          reset()
+          uploader.setFiles([])
+          selectRef.current?.resetCombos()
+          queryClient.invalidateQueries({ queryKey: postProductsMutationKey() })
+          router.push(routes.ecommerce)
         },
         onError: (error) => {
           console.log('error', error)

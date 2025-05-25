@@ -1,10 +1,14 @@
 'use client'
 
-import z, { object, set, string } from 'zod'
+import z from 'zod'
 import { useRef, useState } from 'react'
 import Image from 'next/image'
 import { useGetCategories } from '@/server/backoffice/hooks/useGetCategories'
 import { PostProductsMutationRequest } from '@/server/backoffice/types/PostProducts'
+import {
+  usePutProductsId,
+  putProductsIdMutationKey,
+} from '@/server/backoffice/hooks/usePutProductsId'
 import {
   postProductsMutationKey,
   usePostProducts,
@@ -18,8 +22,10 @@ import { AiOutlineLoading3Quarters } from 'react-icons/ai'
 import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import routes from '@/routes'
+import { toast } from 'sonner'
+import { Product } from '@/server/backoffice/types/Product'
 
-type FileWithPreview = File & { preview: string }
+type FileWithPreview = File & { preview: string; name: string }
 
 type ReturnUseImageUploaderProps = {
   value: FileWithPreview[]
@@ -32,21 +38,26 @@ type ReturnUseImageUploaderProps = {
 const productSchema = z.object({
   name: z.string().min(1, 'Nome do produto é obrigatório'),
   photos: z.array(z.any()).min(1, 'Imagem do produto é obrigatória').optional(),
-  reference: z.string().optional(),
+  reference: z.string(),
   stock: z
     .number()
-    .min(0, 'Quantidade em estoque deve ser maior ou igual a zero'),
-  price: z.number().min(0, 'Preço deve ser maior que zero'),
+    .min(1, 'Quantidade em estoque deve ser maior ou igual a zero'),
+  price: z.number().min(1, 'Preço deve ser maior que zero'),
   description: z.string().optional(),
-  categoryId: z.string(),
-  subcategoryId: z.string(),
+  categoryId: z.string().min(1, 'Categoria é obrigatória'),
+  subcategoryId: z.string().optional(),
 }) satisfies z.ZodType<PostProductsMutationRequest>
 
-export default function ProductPage({ session }: { session: Session }) {
-  const [editing, isEditing] = useState(false)
-  const uploader = useImageUploader()
+export default function ProductPage({
+  session,
+  productData,
+}: {
+  session: Session
+  productData?: Product
+}) {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const [photosToRemove, setPhotosToRemove] = useState<string[]>([])
 
   const {
     data: categories,
@@ -74,6 +85,31 @@ export default function ProductPage({ session }: { session: Session }) {
       },
     },
   })
+
+  const {
+    mutateAsync: mutatePutProductsId,
+    error: errorPutProduct,
+    isPending: isPendingPutProduct,
+  } = usePutProductsId({
+    mutation: {
+      mutationKey: putProductsIdMutationKey(),
+    },
+    client: {
+      headers: {
+        Authorization: `Bearer ${session.accessToken}`,
+      },
+    },
+  })
+
+  const existingImages =
+    productData?.photos?.map((photo) => ({
+      name: photo,
+      size: 0,
+      type: 'image',
+      preview: `${process.env.NEXT_PUBLIC_CONTAINERRAIZ}/${photo.slice(2)}`,
+    })) ?? []
+
+  const uploader = useImageUploader(existingImages as FileWithPreview[])
   const selectRef = useRef<SelectComponentRef>(null)
 
   const {
@@ -81,10 +117,16 @@ export default function ProductPage({ session }: { session: Session }) {
     handleSubmit,
     formState: { errors },
     setValue,
-    watch,
     reset,
   } = useForm({
     resolver: zodResolver(productSchema),
+    defaultValues: {
+      name: productData?.name || '',
+      price: productData?.price || 0,
+      stock: productData?.stock || 0,
+      reference: productData?.reference || '',
+      description: productData?.description || '',
+    },
   })
 
   async function onSubmit(data: PostProductsMutationRequest) {
@@ -97,26 +139,66 @@ export default function ProductPage({ session }: { session: Session }) {
     formData.append('categoryId', data.categoryId!)
     formData.append('subcategoryId', data.subcategoryId ?? '')
 
-    // Fotos
     uploader.files.forEach((file) => {
-      formData.append('photos', file)
+      if (file instanceof File) {
+        formData.append('photos', file)
+      }
     })
 
-    await mutatePosProducts(
-      { data: formData as any },
-      {
-        onSuccess: () => {
-          reset()
-          uploader.setFiles([])
-          selectRef.current?.resetCombos()
-          queryClient.invalidateQueries({ queryKey: postProductsMutationKey() })
-          router.push(routes.ecommerce)
+    // Envie as fotos removidas
+    photosToRemove.forEach((photoName) => {
+      formData.append('photosToRemove', photoName)
+    })
+
+    if (!productData) {
+      await mutatePosProducts(
+        { data: formData as any },
+        {
+          onSuccess: () => {
+            toast.success('Add product Sucess', {
+              style: { background: '#22c55e', color: '#fff' },
+            })
+            reset()
+            uploader.setFiles([])
+            selectRef.current?.resetCombos()
+            queryClient.invalidateQueries({
+              queryKey: postProductsMutationKey(),
+            })
+            router.push(routes.ecommerce)
+          },
+          onError: (error) => {
+            //console.log('error', error)
+            toast.error('Erro product Sucess', {
+              style: { background: '#ef4444', color: '#fff' },
+            })
+          },
         },
-        onError: (error) => {
-          console.log('error', error)
+      )
+    } else {
+      await mutatePutProductsId(
+        { id: productData.productId, data: formData as any },
+        {
+          onSuccess: () => {
+            toast.success('Add product Sucess', {
+              style: { background: '#22c55e', color: '#fff' },
+            })
+            reset()
+            uploader.setFiles([])
+            selectRef.current?.resetCombos()
+            queryClient.invalidateQueries({
+              queryKey: postProductsMutationKey(),
+            })
+            router.push(routes.ecommerce)
+          },
+          onError: (error) => {
+            console.log('error', error)
+            toast.error('Erro product Sucess', {
+              style: { background: '#ef4444', color: '#fff' },
+            })
+          },
         },
-      },
-    )
+      )
+    }
   }
 
   if (loadingCategories) {
@@ -144,7 +226,7 @@ export default function ProductPage({ session }: { session: Session }) {
             </label>
             <div className="mt-1 flex h-20 w-full gap-2 rounded-md border border-gray-300 bg-white p-2 focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
               {uploader.files.length > 0 &&
-                uploader.files.map((file, index) => (
+                uploader.files.map((file: FileWithPreview, index: number) => (
                   <div
                     key={index}
                     className="relative h-full w-20 shrink-0 rounded-md"
@@ -158,6 +240,25 @@ export default function ProductPage({ session }: { session: Session }) {
                         URL.revokeObjectURL(file.preview)
                       }}
                     />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Se for imagem antiga (não é File), guarda o nome
+                        if (!(file instanceof File)) {
+                          setPhotosToRemove((prev) => [
+                            ...prev,
+                            (file as FileWithPreview).name,
+                          ])
+                        }
+                        // Remove do uploader
+                        uploader.setFiles((prev) =>
+                          prev.filter((_, i) => i !== index),
+                        )
+                      }}
+                      className="absolute top-0 right-0 cursor-pointer rounded-full bg-red-500 p-1 text-white"
+                    >
+                      X
+                    </button>
                   </div>
                 ))}
               <div
@@ -193,6 +294,9 @@ export default function ProductPage({ session }: { session: Session }) {
               className="mt-1 block w-full rounded-md border border-gray-300 bg-white p-2 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               placeholder="Digite o nome do produto"
             />
+            {errors.name && (
+              <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
+            )}
           </div>
 
           {/* Preço */}
@@ -210,6 +314,11 @@ export default function ProductPage({ session }: { session: Session }) {
               className="mt-1 block w-full rounded-md border border-gray-300 bg-white p-2 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               placeholder="Digite o preço do produto"
             />
+            {errors.price && (
+              <p className="mt-1 text-sm text-red-600">
+                {errors.price.message}
+              </p>
+            )}
           </div>
 
           {/* Referência */}
@@ -227,6 +336,11 @@ export default function ProductPage({ session }: { session: Session }) {
               className="mt-1 block w-full rounded-md border border-gray-300 bg-white p-2 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               placeholder="Digite a referencia do produto"
             />
+            {errors.reference && (
+              <p className="mt-1 text-sm text-red-600">
+                {errors.reference.message}
+              </p>
+            )}
           </div>
 
           {/* Stock */}
@@ -244,6 +358,11 @@ export default function ProductPage({ session }: { session: Session }) {
               className="mt-1 block w-full rounded-md border border-gray-300 bg-white p-2 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               placeholder="Digite o stock do produto"
             />
+            {errors.stock && (
+              <p className="mt-1 text-sm text-red-600">
+                {errors.stock.message}
+              </p>
+            )}
           </div>
 
           {/* Descrição (ocupa 2 colunas) */}
@@ -272,22 +391,21 @@ export default function ProductPage({ session }: { session: Session }) {
               }}
               ref={selectRef}
               categories={categories?.rows}
+              defaultCategoryId={productData?.categoryId || ''}
+              defaultSubcategoryId={productData?.subcategoryId || ''}
             />
+            {errors.categoryId && (
+              <p className="mt-1 text-sm text-red-600">
+                {errors.categoryId.message}
+              </p>
+            )}
+            {errors.subcategoryId && (
+              <p className="mt-1 text-sm text-red-600">
+                {errors.subcategoryId.message}
+              </p>
+            )}
           </div>
         </div>
-
-        {/* Erros do formulário */}
-        {Object.values(errors).length > 0 && (
-          <div className="mb-4 rounded bg-red-100 p-3 text-sm text-red-700">
-            <ul className="list-disc pl-5">
-              {Object.values(errors).map((error, idx) =>
-                error?.message ? (
-                  <li key={idx}>{error.message as string}</li>
-                ) : null,
-              )}
-            </ul>
-          </div>
-        )}
 
         {errorPostProduct && (
           <div className="mb-4 rounded bg-red-100 p-3 text-sm text-red-700">
@@ -298,11 +416,12 @@ export default function ProductPage({ session }: { session: Session }) {
         <div className="flex justify-end">
           <button
             type="submit"
-            className="rounded-md bg-blue-600 px-6 py-2 text-white shadow hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+            className="flex gap-4 rounded-md bg-blue-600 px-6 py-2 text-white shadow hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
           >
-            {isPending && (
-              <AiOutlineLoading3Quarters className="animate-spin text-xl" />
-            )}
+            {isPending ||
+              (isPendingPutProduct && (
+                <AiOutlineLoading3Quarters className="animate-spin text-xl" />
+              ))}
             Adicionar Produto
           </button>
         </div>

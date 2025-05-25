@@ -1,13 +1,13 @@
 {
-  "name": "beer-collection",
+  "name": "bofullstack",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "kubb generate && next dev --turbopack",
-    "build": "kubb generate && next build",
+    "build": "next build",
     "start": "kubb generate && next start",
     "lint": "next lint",
-    "kubb": "kubb"
+    "kubb": "kubb generate && prettier --write src/server"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

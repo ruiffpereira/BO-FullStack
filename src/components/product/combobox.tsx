@@ -4,6 +4,8 @@ import { Category } from '@/server/backoffice/types/Category'
 type SelectComponentProps = {
   categories: Category[] | undefined
   onChange?: (categoryId: string, subcategoryId: string) => void
+  defaultCategoryId?: string
+  defaultSubcategoryId?: string
 }
 
 export type SelectComponentRef = {
@@ -12,9 +14,14 @@ export type SelectComponentRef = {
 }
 
 const Combobox = forwardRef<SelectComponentRef, SelectComponentProps>(
-  ({ categories, onChange }, ref) => {
-    const [selectedCategory, setSelectedCategory] = useState<string>('')
-    const [selectedSubcategory, setSelectedSubcategory] = useState<string>('')
+  (
+    { categories, onChange, defaultCategoryId = '', defaultSubcategoryId = '' },
+    ref,
+  ) => {
+    const [selectedCategory, setSelectedCategory] =
+      useState<string>(defaultCategoryId)
+    const [selectedSubcategory, setSelectedSubcategory] =
+      useState<string>(defaultSubcategoryId)
 
     // Encontra as subcategorias da categoria selecionada
     const subcategories =

@@ -1,12 +1,13 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/app/api/auth/authOptions'
 import Providers from '@/lib/provider'
 import Layout from '@/components/layout/layout'
 import { getUserpermissions } from '@/server/backoffice/hooks/useGetUserpermissions'
-import { GetUserpermissions200 } from '@/server/backoffice'
+import { GetUserpermissions200 } from '@/server/backoffice/types/GetUserpermissions'
 import AuthProvider from '@/context/AuthProvider'
+import { Toaster } from '@/components/shadcn/ui/sonner'
 
 export const metadata: Metadata = {
   title: 'Code Full Stack',
@@ -42,6 +43,7 @@ export default async function RootLayout({
                 <Layout permissions={permissions}>{children}</Layout>
               </Providers>
             </AuthProvider>
+            <Toaster expand={false} position="top-right" />
           </body>
         </html>
       )

@@ -1,7 +1,11 @@
 import { useDropzone } from 'react-dropzone'
 import { useState } from 'react'
 
-export type FileWithPreview = File & { preview: string }
+export type FileWithPreview = File & {
+  preview: string
+  name: string
+  size: number
+}
 
 type UseImageUploaderProps = FileWithPreview[] | undefined
 
@@ -17,6 +21,7 @@ export function useImageUploader(
   data?: UseImageUploaderProps,
 ): ReturnUseImageUploaderProps {
   const [files, setFiles] = useState<FileWithPreview[]>(data ? data : [])
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: (acceptedFiles) => {
       setFiles((prevState) => {

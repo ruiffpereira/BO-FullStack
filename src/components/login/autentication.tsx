@@ -1,20 +1,14 @@
 'use client'
 
-import { PostUsersLoginMutationRequest } from '@/server/backoffice'
 import { signIn } from 'next-auth/react'
 import { useState } from 'react'
 import { AiOutlineLoading3Quarters } from 'react-icons/ai'
 import { z } from 'zod'
-import { redirect } from 'next/navigation'
-import { useSession } from 'next-auth/react'
-import routes from '@/routes'
 
-export const loginSchema: z.ZodSchema<PostUsersLoginMutationRequest> = z.object(
-  {
-    username: z.string().min(1, 'O nome de utilizador é obrigatório'),
-    password: z.string().min(1, 'A palavra-passe é obrigatória'),
-  },
-)
+export const loginSchema: z.ZodSchema = z.object({
+  username: z.string().min(1, 'O nome de utilizador é obrigatório'),
+  password: z.string().min(1, 'A palavra-passe é obrigatória'),
+})
 
 export default function LoginComponent() {
   const [username, setUsername] = useState('')
@@ -52,9 +46,9 @@ export default function LoginComponent() {
   }
 
   return (
-    <div className="flex items-center justify-center h-full ">
-      <div className="w-full max-w-md p-8 ">
-        <h1 className="mb-6 text-3xl font-bold text-center text-gray-800">
+    <div className="flex h-full items-center justify-center">
+      <div className="w-full max-w-md p-8">
+        <h1 className="mb-6 text-center text-3xl font-bold text-gray-800">
           Code Full Stack
         </h1>
         <form onSubmit={handleSubmit} className="flex flex-col">
@@ -64,7 +58,7 @@ export default function LoginComponent() {
               id="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="transition-all h-12 w-full px-4 py-2 bg-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-200"
+              className="h-12 w-full rounded-lg bg-white px-4 py-2 transition-all focus:ring-1 focus:ring-blue-200 focus:outline-none"
               placeholder="Nome de Utilizador"
               required
             />
@@ -75,16 +69,16 @@ export default function LoginComponent() {
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="transition-all h-12 w-full px-4 py-2 bg-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-200"
+              className="h-12 w-full rounded-lg bg-white px-4 py-2 transition-all focus:ring-1 focus:ring-blue-200 focus:outline-none"
               placeholder="Palavra Passe"
             />
           </div>
           {error && (
-            <p className="mb-4 text-sm text-center text-red-500">{error}</p>
+            <p className="mb-4 text-center text-sm text-red-500">{error}</p>
           )}
           <button
             type="submit"
-            className="transition-all cursor-pointer w-2/3 flex justify-center place-self-center px-4 py-2 text-white bg-blue-900 rounded-lg hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="flex w-2/3 cursor-pointer justify-center place-self-center rounded-lg bg-blue-900 px-4 py-2 text-white transition-all hover:bg-blue-800 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
           >
             {loading ? (
               <AiOutlineLoading3Quarters className="animate-spin text-xl" />

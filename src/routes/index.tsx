@@ -4,6 +4,7 @@ const routes = {
   ecommerce: '/ecommerce',
   addProduct: '/ecommerce/addproduct',
   product: '/ecommerce/product/',
+  productEdit: (id: string) => `/ecommerce/product/${id}/edit`,
 }
 
 export default routes

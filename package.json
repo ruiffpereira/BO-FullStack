@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "kubb generate && next dev --turbopack",
-    "build": "next build",
-    "start": "kubb generate && next start",
+    "dev": "next dev --turbopack",
+    "build": "kubb generate && prettier --write src/servers && next build",
+    "start": "kubb generate && prettier --write src/servers && next start",
     "lint": "next lint",
     "kubb": "kubb generate && prettier --write src/servers"
   },

@@ -14,7 +14,7 @@ const configs = [
       path: `${process.env.NEXT_PUBLIC_API_BASE_URL}-docs/backoffice.json`, // URL do Swagger ou OpenAPI
     },
     output: {
-      path: './src/server/backoffice',
+      path: './src/servers/backoffice',
       extension: {
         '.ts': '.js',
       },

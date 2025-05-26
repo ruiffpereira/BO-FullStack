@@ -1,18 +1,18 @@
 'use client'
 
 import { ColumnDef, Row } from '@tanstack/react-table'
-import { Product } from '@/server/backoffice/types/Product'
+import { Product } from '@/servers/backoffice/types/Product'
 import Link from 'next/link'
 import routes from '@/routes/index'
 import { PencilIcon, Trash } from 'lucide-react'
-import { useDeleteProductsId } from '@/server/backoffice/hooks/useDeleteProductsId'
-import { postProductsMutationKey } from '@/server/backoffice/hooks/usePostProducts'
-import { QueryClient, useQueryClient } from '@tanstack/react-query'
+import { useDeleteProductsId } from '@/servers/backoffice/hooks/useDeleteProductsId'
+import { postProductsMutationKey } from '@/servers/backoffice/hooks/usePostProducts'
+import { QueryClient } from '@tanstack/react-query'
 import { AiOutlineLoading3Quarters } from 'react-icons/ai'
 import { toast } from 'sonner'
 import Image from 'next/image'
 
-export const columns = (
+export const Columns = (
   queryClient: QueryClient,
   token: string,
 ): ColumnDef<Product>[] => [
@@ -66,51 +66,63 @@ export const columns = (
   {
     accessorKey: 'options',
     header: 'Options',
-    cell: ({ row }: { row: Row<Product> }) => {
-      const { mutate: deleteProduct, isPending } = useDeleteProductsId({
-        mutation: {
-          onSuccess: () => {
-            queryClient.invalidateQueries({
-              queryKey: postProductsMutationKey(),
-            })
-            toast.success('Delete product success', {
-              style: { background: '#22c55e', color: '#fff' },
-            })
-          },
-          onError: (error) => {
-            toast.error('Error deleting product', {
-              style: { background: '#ef4444', color: '#fff' },
-            })
-            console.error(error)
-          },
-        },
-        client: {
-          headers: {
-            Authorization: `Bearer ${token}`, // Passar o token aqui
-          },
-        },
-      })
-      const productId = row.original.productId
-      return (
-        <div className="flex gap-2">
-          <Link
-            className="cursor-pointer rounded bg-blue-500 px-4 py-2 text-white"
-            href={routes.productEdit(productId)}
-          >
-            <PencilIcon />
-          </Link>
-          <button
-            onClick={() => deleteProduct({ id: productId })}
-            className="cursor-pointer rounded bg-red-500 px-4 py-2 text-white"
-          >
-            {isPending ? (
-              <AiOutlineLoading3Quarters className="animate-spin text-xl" />
-            ) : (
-              <Trash />
-            )}
-          </button>
-        </div>
-      )
-    },
+    cell: ({ row }: { row: Row<Product> }) => (
+      <OptionsCell row={row} queryClient={queryClient} token={token} />
+    ),
   },
 ]
+
+function OptionsCell({
+  row,
+  queryClient,
+  token,
+}: {
+  row: Row<Product>
+  queryClient: QueryClient
+  token: string
+}) {
+  const { mutate: deleteProduct, isPending } = useDeleteProductsId({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: postProductsMutationKey(),
+        })
+        toast.success('Delete product success', {
+          style: { background: '#22c55e', color: '#fff' },
+        })
+      },
+      onError: (error) => {
+        toast.error('Error deleting product', {
+          style: { background: '#ef4444', color: '#fff' },
+        })
+        console.error(error)
+      },
+    },
+    client: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  })
+  const productId = row.original.productId
+  return (
+    <div className="flex gap-2">
+      <Link
+        className="cursor-pointer rounded bg-blue-500 px-4 py-2 text-white"
+        href={routes.productEdit(productId)}
+      >
+        <PencilIcon />
+      </Link>
+      <button
+        onClick={() => deleteProduct({ id: productId })}
+        className="cursor-pointer rounded bg-red-500 px-4 py-2 text-white"
+      >
+        {isPending ? (
+          <AiOutlineLoading3Quarters className="animate-spin text-xl" />
+        ) : (
+          <Trash />
+        )}
+      </button>
+    </div>
+  )
+}

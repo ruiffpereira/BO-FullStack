@@ -1,10 +1,10 @@
 'use client'
 import { ColumnDef } from '@tanstack/react-table'
-import { Customer } from '@/server/backoffice/types/Customer'
+import { Customer } from '@/servers/backoffice/types/Customer'
 import Image from 'next/image'
 
 // Exemplo de columns para a tabela de clientes
-export const columns: ColumnDef<Customer>[] = [
+export const Columns: ColumnDef<Customer>[] = [
   {
     accessorKey: 'photo',
     header: 'Photo',

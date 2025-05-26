@@ -12,8 +12,8 @@ type UseImageUploaderProps = FileWithPreview[] | undefined
 type ReturnUseImageUploaderProps = {
   files: FileWithPreview[]
   setFiles: React.Dispatch<React.SetStateAction<FileWithPreview[]>>
-  getRootProps: () => {}
-  getInputProps: () => {}
+  getRootProps: () => object
+  getInputProps: () => object
   isDragActive: boolean
 }
 

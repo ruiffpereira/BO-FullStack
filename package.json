@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "kubb generate && next start",
     "lint": "next lint",
-    "kubb": "kubb generate && prettier --write src/server"
+    "kubb": "kubb generate && prettier --write src/servers"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

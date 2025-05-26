@@ -1,5 +1,5 @@
 // src/app/api/auth/authOptions.ts
-import { postUsersLogin } from '@/server/backoffice/hooks/usePostUsersLogin'
+import { postUsersLogin } from '@/servers/backoffice/hooks/usePostUsersLogin'
 import { AuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 

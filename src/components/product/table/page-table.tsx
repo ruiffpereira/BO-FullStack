@@ -1,8 +1,8 @@
 'use client'
 
-import { columns } from './columns'
+import { Columns } from './columns'
 import { DataTable } from '../../shadcn/data-table'
-import { useGetProducts } from '@/server/backoffice/hooks/useGetProducts'
+import { useGetProducts } from '@/servers/backoffice/hooks/useGetProducts'
 import { useSession } from 'next-auth/react'
 import { useQueryClient } from '@tanstack/react-query'
 
@@ -28,7 +28,7 @@ export default function PageTableProducts() {
   return (
     <div>
       <DataTable
-        columns={columns(queryClient, session?.accessToken ?? '')}
+        columns={Columns(queryClient, session?.accessToken ?? '')}
         data={products.rows ?? []}
       />
     </div>

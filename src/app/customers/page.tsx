@@ -1,9 +1,12 @@
-import { getCustomers } from '@/server/backoffice/hooks/useGetCustomers'
+import { getCustomers } from '@/servers/backoffice/hooks/useGetCustomers'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/authOptions'
-import { GetCustomers200 } from '@/server/backoffice/types/GetCustomers'
+import { GetCustomers200 } from '@/servers/backoffice/types/GetCustomers'
 import routes from '@/routes'
 import { redirect } from 'next/navigation'
+import { DataTable } from '@/components/shadcn/data-table'
+import { Columns } from './columns'
+import { ColumnDef } from '@tanstack/react-table'
 
 export default async function Customers() {
   const session = await getServerSession(authOptions)
@@ -36,7 +39,21 @@ export default async function Customers() {
   return (
     <div>
       <h1>Customers</h1>
-      {/* <DataTable columns={columns} data={customers.rows} /> */}
+      <DataTable
+        columns={
+          Columns as ColumnDef<
+            {
+              customerId?: string
+              name?: string
+              email?: string
+              contact?: string
+              photo?: string
+            },
+            unknown
+          >[]
+        }
+        data={customers.rows}
+      />
     </div>
   )
 }

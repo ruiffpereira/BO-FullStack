@@ -3,7 +3,7 @@
 
 import Link from 'next/link'
 import { signOut } from 'next-auth/react'
-import { GetUserpermissions200 } from '@/server/backoffice/types/GetUserpermissions'
+import { GetUserpermissions200 } from '@/servers/backoffice/types/GetUserpermissions'
 
 const Sidebar = ({
   isOpen,

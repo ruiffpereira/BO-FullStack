@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/app/api/auth/authOptions'
 import ProductPage from '@/components/product/product'
-import { getProductsId } from '@/server/backoffice/hooks/useGetProductsId'
+import { getProductsId } from '@/servers/backoffice/hooks/useGetProductsId'
 
 export default async function EditProductPage({
   params,
@@ -28,6 +28,7 @@ export default async function EditProductPage({
       },
     })
   } catch (error) {
+    console.error(error)
     return <div>Product not found</div>
   }
 

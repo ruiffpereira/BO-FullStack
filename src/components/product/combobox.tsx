@@ -1,5 +1,5 @@
 import { useState, forwardRef, useImperativeHandle } from 'react'
-import { Category } from '@/server/backoffice/types/Category'
+import { Category } from '@/servers/backoffice/types/Category'
 
 type SelectComponentProps = {
   categories: Category[] | undefined
@@ -107,5 +107,7 @@ const Combobox = forwardRef<SelectComponentRef, SelectComponentProps>(
     )
   },
 )
+
+Combobox.displayName = 'Combobox'
 
 export default Combobox

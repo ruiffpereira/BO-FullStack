@@ -1,6 +1,6 @@
 'use client'
 
-import { GetUserpermissions200 } from '@/server/backoffice/types/GetUserpermissions'
+import { GetUserpermissions200 } from '@/servers/backoffice/types/GetUserpermissions'
 import Sidebar from './sidebar'
 import { useState } from 'react'
 import { FaBars, FaTimes } from 'react-icons/fa'

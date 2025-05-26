@@ -3,16 +3,16 @@
 import z from 'zod'
 import { useRef, useState } from 'react'
 import Image from 'next/image'
-import { useGetCategories } from '@/server/backoffice/hooks/useGetCategories'
-import { PostProductsMutationRequest } from '@/server/backoffice/types/PostProducts'
+import { useGetCategories } from '@/servers/backoffice/hooks/useGetCategories'
+import { PostProductsMutationRequest } from '@/servers/backoffice/types/PostProducts'
 import {
   usePutProductsId,
   putProductsIdMutationKey,
-} from '@/server/backoffice/hooks/usePutProductsId'
+} from '@/servers/backoffice/hooks/usePutProductsId'
 import {
   postProductsMutationKey,
   usePostProducts,
-} from '@/server/backoffice/hooks/usePostProducts'
+} from '@/servers/backoffice/hooks/usePostProducts'
 import { Session } from 'next-auth'
 import { useImageUploader } from '@/components/product/image-uploader'
 import SelectComponent, { SelectComponentRef } from './combobox'
@@ -23,17 +23,10 @@ import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import routes from '@/routes'
 import { toast } from 'sonner'
-import { Product } from '@/server/backoffice/types/Product'
+import { Product } from '@/servers/backoffice/types/Product'
+import { PutProductsIdMutationRequest } from '@/servers/backoffice'
 
 type FileWithPreview = File & { preview: string; name: string }
-
-type ReturnUseImageUploaderProps = {
-  value: FileWithPreview[]
-  setvalue: React.Dispatch<React.SetStateAction<FileWithPreview[]>>
-  getRootProps: () => {}
-  getInputProps: () => {}
-  isDragActive: boolean
-}
 
 const productSchema = z.object({
   name: z.string().min(1, 'Nome do produto é obrigatório'),
@@ -86,20 +79,17 @@ export default function ProductPage({
     },
   })
 
-  const {
-    mutateAsync: mutatePutProductsId,
-    error: errorPutProduct,
-    isPending: isPendingPutProduct,
-  } = usePutProductsId({
-    mutation: {
-      mutationKey: putProductsIdMutationKey(),
-    },
-    client: {
-      headers: {
-        Authorization: `Bearer ${session.accessToken}`,
+  const { mutateAsync: mutatePutProductsId, isPending: isPendingPutProduct } =
+    usePutProductsId({
+      mutation: {
+        mutationKey: putProductsIdMutationKey(),
       },
-    },
-  })
+      client: {
+        headers: {
+          Authorization: `Bearer ${session.accessToken}`,
+        },
+      },
+    })
 
   const existingImages =
     productData?.photos?.map((photo) => ({
@@ -152,7 +142,7 @@ export default function ProductPage({
 
     if (!productData) {
       await mutatePosProducts(
-        { data: formData as any },
+        { data: formData as unknown as PutProductsIdMutationRequest },
         {
           onSuccess: () => {
             toast.success('Add product Sucess', {
@@ -167,7 +157,7 @@ export default function ProductPage({
             router.push(routes.ecommerce)
           },
           onError: (error) => {
-            //console.log('error', error)
+            console.log('error', error)
             toast.error('Erro product Sucess', {
               style: { background: '#ef4444', color: '#fff' },
             })
@@ -176,7 +166,10 @@ export default function ProductPage({
       )
     } else {
       await mutatePutProductsId(
-        { id: productData.productId, data: formData as any },
+        {
+          id: productData.productId,
+          data: formData as unknown as PutProductsIdMutationRequest,
+        },
         {
           onSuccess: () => {
             toast.success('Add product Sucess', {

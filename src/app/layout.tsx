@@ -4,8 +4,8 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/authOptions'
 import Providers from '@/lib/provider'
 import Layout from '@/components/layout/layout'
-import { getUserpermissions } from '@/server/backoffice/hooks/useGetUserpermissions'
-import { GetUserpermissions200 } from '@/server/backoffice/types/GetUserpermissions'
+import { getUserpermissions } from '@/servers/backoffice/hooks/useGetUserpermissions'
+import { GetUserpermissions200 } from '@/servers/backoffice/types/GetUserpermissions'
 import AuthProvider from '@/context/AuthProvider'
 import { Toaster } from '@/components/shadcn/ui/sonner'
 
@@ -48,7 +48,7 @@ export default async function RootLayout({
         </html>
       )
     } catch (error) {
-      //console.error('Erro ao buscar permissões:', error)
+      console.error('Erro ao buscar permissões:', error)
       return (
         <html lang="en">
           <body className="h-dvh bg-gray-100">

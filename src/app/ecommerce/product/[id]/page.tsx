@@ -5,6 +5,7 @@ import routes from '@/routes'
 import { redirect } from 'next/navigation'
 import { AiOutlineLoading3Quarters } from 'react-icons/ai'
 import { use } from 'react'
+import { DataTable } from '@/components/shadcn/data-table'
 
 export default function ProductPageOrder({
   params,
@@ -25,9 +26,37 @@ export default function ProductPageOrder({
   if (!session) {
     redirect(routes.login)
   }
+
   return (
-    <div className="grid h-full place-items-center text-2xl font-bold">
-      Encomendas do produto {id}
-    </div>
+    <>
+      <DataTable columns={columns} data={[]} />
+    </>
   )
 }
+
+export const columns = [
+  {
+    accessorKey: 'photos',
+    header: 'Photos',
+  },
+  {
+    accessorKey: 'name',
+    header: 'Name',
+  },
+  {
+    accessorKey: 'description',
+    header: 'Description',
+  },
+  {
+    accessorKey: 'price',
+    header: 'Price',
+  },
+  {
+    accessorKey: 'quantity',
+    header: 'Quantity',
+  },
+  {
+    accessorKey: 'category',
+    header: 'Category',
+  },
+]

@@ -2,6 +2,8 @@
 import { ColumnDef } from '@tanstack/react-table'
 import { Customer } from '@/servers/backoffice/types/Customer'
 import Image from 'next/image'
+import Link from 'next/link'
+import routes from '@/routes'
 
 // Exemplo de columns para a tabela de clientes
 export const Columns: ColumnDef<Customer>[] = [
@@ -29,6 +31,16 @@ export const Columns: ColumnDef<Customer>[] = [
   {
     accessorKey: 'name',
     header: 'Nome',
+    cell: ({ row }: { row: { original: Customer } }) => {
+      return (
+        <Link
+          className="pointer"
+          href={routes.customer(row.original.customerId)}
+        >
+          {row.original.name || 'N/A'}
+        </Link>
+      )
+    },
   },
   {
     accessorKey: 'email',

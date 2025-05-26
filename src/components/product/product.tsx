@@ -25,6 +25,7 @@ import routes from '@/routes'
 import { toast } from 'sonner'
 import { Product } from '@/servers/backoffice/types/Product'
 import { PutProductsIdMutationRequest } from '@/servers/backoffice'
+import { FaTrashAlt } from 'react-icons/fa'
 
 type FileWithPreview = File & { preview: string; name: string }
 
@@ -116,6 +117,8 @@ export default function ProductPage({
       stock: productData?.stock || 0,
       reference: productData?.reference || '',
       description: productData?.description || '',
+      categoryId:
+        productData?.categoryId === null ? '' : productData?.categoryId,
     },
   })
 
@@ -227,8 +230,9 @@ export default function ProductPage({
                     <Image
                       src={file.preview}
                       alt={`${index}`}
-                      objectFit="contain"
+                      className="object-contain"
                       fill
+                      sizes="80px"
                       onLoad={() => {
                         URL.revokeObjectURL(file.preview)
                       }}
@@ -248,9 +252,9 @@ export default function ProductPage({
                           prev.filter((_, i) => i !== index),
                         )
                       }}
-                      className="absolute top-0 right-0 cursor-pointer rounded-full bg-red-500 p-1 text-white"
+                      className="absolute top-0 right-0 h-6 w-6 cursor-pointer rounded-full bg-red-500 p-1 text-sm text-white"
                     >
-                      X
+                      <FaTrashAlt />
                     </button>
                   </div>
                 ))}
@@ -379,22 +383,25 @@ export default function ProductPage({
           <div className="md:col-span-2">
             <SelectComponent
               onChange={(categoryId, subcategoryId) => {
-                setValue('categoryId', categoryId)
-                setValue('subcategoryId', subcategoryId)
+                setValue('categoryId', categoryId === null ? '' : categoryId)
+                setValue(
+                  'subcategoryId',
+                  subcategoryId === null ? '' : subcategoryId,
+                )
               }}
               ref={selectRef}
               categories={categories?.rows}
-              defaultCategoryId={productData?.categoryId || ''}
-              defaultSubcategoryId={productData?.subcategoryId || ''}
+              defaultCategoryId={productData?.categoryId}
+              defaultSubcategoryId={productData?.subcategoryId}
             />
             {errors.categoryId && (
               <p className="mt-1 text-sm text-red-600">
-                {errors.categoryId.message}
+                categoria {errors.categoryId.message}
               </p>
             )}
             {errors.subcategoryId && (
               <p className="mt-1 text-sm text-red-600">
-                {errors.subcategoryId.message}
+                subcategoria {errors.subcategoryId.message}
               </p>
             )}
           </div>

@@ -43,7 +43,7 @@ const Combobox = forwardRef<SelectComponentRef, SelectComponentProps>(
       const catId = e.target.value
       setSelectedCategory(catId)
       setSelectedSubcategory('')
-      onChange?.(catId, '') // Atualiza no pai
+      onChange?.(catId, '')
     }
 
     function handleSubcategoryChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -63,7 +63,7 @@ const Combobox = forwardRef<SelectComponentRef, SelectComponentProps>(
         <select
           id="categoryId"
           name="categoryId"
-          value={selectedCategory}
+          value={selectedCategory ?? ''}
           onChange={handleCategoryChange}
           className="block w-full rounded-md border border-gray-300 bg-white p-2 shadow-sm focus:ring focus:ring-blue-500 focus:outline-none"
         >
@@ -86,7 +86,7 @@ const Combobox = forwardRef<SelectComponentRef, SelectComponentProps>(
             <select
               id="subcategoryId"
               name="subcategoryId"
-              value={selectedSubcategory}
+              value={selectedSubcategory ?? ''}
               onChange={handleSubcategoryChange}
               className="block w-full rounded-md border border-gray-300 bg-white p-2 shadow-sm focus:ring focus:ring-blue-500 focus:outline-none"
               disabled={!selectedCategory}

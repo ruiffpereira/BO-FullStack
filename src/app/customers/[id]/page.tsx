@@ -1,7 +1,6 @@
 'use client'
 import routes from '@/routes'
 import { useGetOrdersCustomerId } from '@/servers/backoffice/hooks/useGetOrdersCustomerId'
-import { c } from '@kubb/core/dist/logger-BWq-oJU_.js'
 import { useSession } from 'next-auth/react'
 import { redirect, useParams } from 'next/navigation'
 
@@ -32,7 +31,13 @@ export default function CustomersOrders() {
     redirect(routes.login)
   }
 
-  console.log('Customer ID:', orders)
+  if (!id) {
+    return <div>Customer ID is required</div>
+  }
+
+  if (!orders || orders.length === 0) {
+    return <div>No orders found for this customer.</div>
+  }
 
   return (
     <div>
@@ -44,8 +49,6 @@ export default function CustomersOrders() {
           {/* Add more order details as needed */}
         </div>
       ))}
-      <h1>Customers Orders</h1>
-      <p>Orders for customers will be displayed here.</p>
     </div>
   )
 }

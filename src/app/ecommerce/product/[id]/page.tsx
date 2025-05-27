@@ -1,30 +1,45 @@
-'use client'
-
-import { useSession } from 'next-auth/react'
 import routes from '@/routes'
-import { redirect } from 'next/navigation'
-import { AiOutlineLoading3Quarters } from 'react-icons/ai'
-import { use } from 'react'
 import { DataTable } from '@/components/shadcn/data-table'
+import { getOrdersproductProductidId } from '@/servers/backoffice/hooks/useGetOrdersproductProductidId'
+import { GetOrdersproductProductidId200 } from '@/servers/backoffice/types/GetOrdersproductProductidId'
+import { authOptions } from '@/app/api/auth/authOptions'
+import { getServerSession } from 'next-auth'
+import { redirect } from 'next/navigation'
 
-export default function ProductPageOrder({
+export default async function ProductPageOrder({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
-  const { data: session, status } = useSession()
-  const { id } = use(params)
-
-  if (status === 'loading') {
-    return (
-      <div>
-        <AiOutlineLoading3Quarters />
-      </div>
-    )
-  }
+  const { id } = await params
+  let productOrders: GetOrdersproductProductidId200 | null = null
+  const session = await getServerSession(authOptions)
+  let error = null
 
   if (!session) {
     redirect(routes.login)
+  }
+
+  if (!id) {
+    return <div>Product ID is required</div>
+  }
+
+  try {
+    productOrders = await getOrdersproductProductidId(id, {
+      headers: {
+        Authorization: `Bearer ${session.accessToken}`,
+      },
+    })
+  } catch (error) {
+    error = error
+  }
+
+  if (error) {
+    return <div>Ocorreu um erro ao buscar as encomendas do produto.</div>
+  }
+
+  if (productOrders && productOrders.length === 0) {
+    return <div>Product orders not found</div>
   }
 
   return (

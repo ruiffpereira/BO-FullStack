@@ -13,9 +13,15 @@ export const Columns: ColumnDef<Customer>[] = [
     cell: ({ row }: { row: { original: Customer } }) => {
       return (
         <>
-          {row.original.photo ? (
+          {/* {row.original.photo ? (
             <Image
-              src={row.original.photo}
+              src={
+                row.original.photo &&
+                (row.original.photo.startsWith('/') ||
+                  row.original.photo.startsWith('http'))
+                  ? row.original.photo
+                  : '/default-avatar.png' // coloque aqui uma imagem padrão do seu projeto
+              }
               alt="Customer Photo"
               className="h-10 w-10 rounded-full"
               width={40}
@@ -23,7 +29,8 @@ export const Columns: ColumnDef<Customer>[] = [
             />
           ) : (
             <span className="text-gray-500">No Image</span>
-          )}
+          )} */}
+          <span className="text-gray-500">No Image</span>
         </>
       )
     },

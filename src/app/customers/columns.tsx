@@ -13,7 +13,7 @@ export const Columns: ColumnDef<Customer>[] = [
     cell: ({ row }: { row: { original: Customer } }) => {
       return (
         <>
-          {/* {row.original.photo ? (
+          {row.original.photo ? (
             <Image
               src={
                 row.original.photo &&
@@ -29,7 +29,7 @@ export const Columns: ColumnDef<Customer>[] = [
             />
           ) : (
             <span className="text-gray-500">No Image</span>
-          )} */}
+          )}
           <span className="text-gray-500">No Image</span>
         </>
       )

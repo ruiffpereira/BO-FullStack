@@ -5,6 +5,7 @@ import { GetOrdersproductProductidId200 } from '@/servers/backoffice/types/GetOr
 import { authOptions } from '@/app/api/auth/authOptions'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
+import { columns } from './columns'
 
 export default async function ProductPageOrder({
   params,
@@ -30,8 +31,8 @@ export default async function ProductPageOrder({
         Authorization: `Bearer ${session.accessToken}`,
       },
     })
-  } catch (error) {
-    error = error
+  } catch (errors) {
+    error = errors
   }
 
   if (error) {
@@ -48,30 +49,3 @@ export default async function ProductPageOrder({
     </>
   )
 }
-
-export const columns = [
-  {
-    accessorKey: 'photos',
-    header: 'Photos',
-  },
-  {
-    accessorKey: 'name',
-    header: 'Name',
-  },
-  {
-    accessorKey: 'description',
-    header: 'Description',
-  },
-  {
-    accessorKey: 'price',
-    header: 'Price',
-  },
-  {
-    accessorKey: 'quantity',
-    header: 'Quantity',
-  },
-  {
-    accessorKey: 'category',
-    header: 'Category',
-  },
-]

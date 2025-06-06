@@ -10,7 +10,7 @@ import { useDeleteCategoriesId } from '@/servers/backoffice/hooks/useDeleteCateg
 import { usePutSubcategoriesId } from '@/servers/backoffice/hooks/usePutSubcategoriesId'
 import { useDeleteSubcategoriesId } from '@/servers/backoffice/hooks/useDeleteSubcategoriesId'
 import { useForm } from 'react-hook-form'
-import { set, z } from 'zod'
+import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 
 import { Category } from '@/servers/backoffice/types/Category'
@@ -20,7 +20,6 @@ import {
   DeleteSubcategoriesIdPathParams,
   DeleteCategoriesIdPathParams,
 } from '@/servers/backoffice'
-import { c } from '@kubb/core/dist/logger-BWq-oJU_.js'
 
 const categorySchema = z.object({
   name: z.string().min(1, 'Categoria é obrigatória'),
@@ -36,7 +35,6 @@ type SubCategoryFormData = z.infer<typeof subCategorySchema>
 export default function CategoriesForm({ session }: { session: Session }) {
   const queryClient = useQueryClient()
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [inputValue, setInputValue] = useState('')
 
   const {
     data: categories,
@@ -50,11 +48,7 @@ export default function CategoriesForm({ session }: { session: Session }) {
     },
   })
 
-  const {
-    mutate: mutateAddCategory,
-    error: errorAddCategory,
-    isPending: isPendingAddCategory,
-  } = usePutCategoriesId({
+  const { mutate: mutateAddCategory } = usePutCategoriesId({
     client: {
       headers: {
         Authorization: `Bearer ${session.accessToken}`,
@@ -62,11 +56,7 @@ export default function CategoriesForm({ session }: { session: Session }) {
     },
   })
 
-  const {
-    mutate: mutateDeleteCategory,
-    error: errorDeleteCategory,
-    isPending: isPendingDeleteCategory,
-  } = useDeleteCategoriesId({
+  const { mutate: mutateDeleteCategory } = useDeleteCategoriesId({
     client: {
       headers: {
         Authorization: `Bearer ${session.accessToken}`,
@@ -74,11 +64,7 @@ export default function CategoriesForm({ session }: { session: Session }) {
     },
   })
 
-  const {
-    mutate: mutateAddSubcategory,
-    error: errorAddSubcategory,
-    isPending: isPendingAddSubcategory,
-  } = usePutSubcategoriesId({
+  const { mutate: mutateAddSubcategory } = usePutSubcategoriesId({
     client: {
       headers: {
         Authorization: `Bearer ${session.accessToken}`,
@@ -86,11 +72,7 @@ export default function CategoriesForm({ session }: { session: Session }) {
     },
   })
 
-  const {
-    mutate: mutateDeleteSubcategory,
-    error: errorDeleteSubcategory,
-    isPending: isPendingDeleteSubcategory,
-  } = useDeleteSubcategoriesId({
+  const { mutate: mutateDeleteSubcategory } = useDeleteSubcategoriesId({
     client: {
       headers: {
         Authorization: `Bearer ${session.accessToken}`,
@@ -119,7 +101,6 @@ export default function CategoriesForm({ session }: { session: Session }) {
   const {
     register: registerSubCategory,
     handleSubmit: handleSubmitSubCategory,
-    reset: resetSubCategory,
     setValue: setValueSubCategory,
     formState: { errors: errorSubCategory },
   } = useForm<SubCategoryFormData>({
@@ -130,7 +111,6 @@ export default function CategoriesForm({ session }: { session: Session }) {
     register: updateSubCategory,
     handleSubmit: handleSubmitUpdateSubCategory,
     reset: resetUpdateSubCategory,
-    formState: { errors: errorsUpdateSubCategory },
   } = useForm<SubCategoryFormData>({
     resolver: zodResolver(subCategorySchema),
   })
@@ -138,7 +118,7 @@ export default function CategoriesForm({ session }: { session: Session }) {
   function onSubmitCategory(data: CategoryFormData) {
     mutateAddCategory(
       {
-        id: undefined,
+        id: '',
         data: { name: data.name },
       },
       {
@@ -190,7 +170,7 @@ export default function CategoriesForm({ session }: { session: Session }) {
   function onSubmitNewSubCategory(data: SubCategoryFormData) {
     mutateAddSubcategory(
       {
-        id: undefined,
+        id: '',
         data: { categoryId: data.categoryId, name: data.name },
       },
       {
@@ -402,7 +382,6 @@ export default function CategoriesForm({ session }: { session: Session }) {
                     <div className="flex gap-2">
                       <button
                         onClick={() => {
-                          setInputValue(category.name)
                           setEditingId(category.categoryId)
                           resetUpdateCategory({ name: category.name })
                         }}

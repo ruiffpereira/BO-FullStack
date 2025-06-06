@@ -1,7 +1,6 @@
 import { authOptions } from '@/app/api/auth/authOptions'
 import { OrdersByCustomer } from '@/components/orders/ordersByCustomers'
 import routes from '@/routes'
-import { useGetOrdersCustomeridId } from '@/servers/backoffice/hooks/useGetOrdersCustomeridId'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 

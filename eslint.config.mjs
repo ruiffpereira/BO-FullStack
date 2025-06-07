@@ -11,7 +11,7 @@ const compat = new FlatCompat({
 
 const eslintConfig = [
   {
-    ignores: ['src/servers/**'], // Ignora todos os arquivos dentro de src/server
+    ignores: ['src/servers/**', 'src/components/shadcn/**'], // Ignora todos os arquivos dentro de src/server
   },
   ...compat.extends(
     'next/core-web-vitals',

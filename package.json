@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "kubb generate && next build",
     "start": "kubb generate && next start",
     "lint": "next lint",
     "kubb": "kubb generate && prettier --write src/servers"

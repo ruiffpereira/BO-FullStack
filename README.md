@@ -1,95 +1,91 @@
 # BO-FullStack
 
-Este é um projeto fullstack desenvolvido com [Next.js](https://nextjs.org), focado em gestão de backoffice para e-commerce, incluindo administração de produtos, categorias, clientes, encomendas e integração com pagamentos.
+This is a fullstack project developed with [Next.js](https://nextjs.org), focused on backoffice management for e-commerce, including administration of products, categories, customers, orders, and payment integration.
 
 ---
 
-## 🚀 Propósito
+## 🚀 Purpose
 
-O objetivo deste projeto é fornecer uma plataforma de gestão completa para lojas online, permitindo ao administrador:
+The goal of this project is to provide a complete management platform for online stores, allowing the administrator to:
 
-- Gerir produtos e respetivas categorias/subcategorias
-- Gerir clientes e encomendas
-- Visualizar estatísticas de vendas e faturação
-- Integrar métodos de pagamento (Stripe)
-- Gerir autenticação e permissões de utilizadores
-- Ter uma interface moderna, responsiva e fácil de usar
+- Manage products and their categories/subcategories
+- Manage customers and orders
+- View sales and revenue statistics
+- Integrate payment methods (Stripe)
+- Manage user authentication and permissions
+- Have a modern, responsive, and easy-to-use interface
 
 ---
 
-## 🛠️ Tecnologias Utilizadas
+## 🛠️ Technologies Used
 
 - **Next.js** (App Router)
-- **React** (com hooks e componentes funcionais)
+- **React** (with hooks and functional components)
 - **TypeScript**
-- **TailwindCSS** (design moderno e responsivo)
-- **Radix UI** e **shadcn/ui** (componentes de UI acessíveis)
-- **React Hook Form** + **Zod** (validação de formulários)
+- **TailwindCSS** (modern and responsive design)
+- **Radix UI** and **shadcn/ui** (accessible UI components)
+- **React Hook Form** + **Zod** (form validation)
 - **Zustand** (state management)
-- **NextAuth.js** (autenticação)
-- **Stripe** (pagamentos)
-- **date-fns** (manipulação de datas)
-- **ESLint** + **Prettier** (qualidade e formatação de código)
-- **Docker/Nixpacks** (deploy e ambiente de produção)
-- **pnpm** (gestor de pacotes)
+- **NextAuth.js** (authentication)
+- **Stripe** (payments)
+- **date-fns** (date manipulation)
+- **ESLint** + **Prettier** (code quality and formatting)
+- **Docker/Nixpacks** (deployment and production environment)
+- **pnpm** (package manager)
 
 ---
 
-## ✨ Funcionalidades
+## ✨ Features
 
-- **Gestão de Produtos:**  
-  Adicionar, editar, remover produtos, upload de imagens, gestão de stock e preços.
+- **Product Management:**  
+  Add, edit, remove products, image upload, stock and price management.
 
-- **Gestão de Categorias/Subcategorias:**  
-  Organização hierárquica de produtos.
+- **Category/Subcategory Management:**  
+  Hierarchical organization of products.
 
-- **Gestão de Clientes:**  
-  Visualização, pesquisa e edição de dados de clientes.
+- **Customer Management:**  
+  View, search, and edit customer data.
 
-- **Gestão de Encomendas:**  
-  Listagem, detalhe, atualização de estado e faturação.
+- **Order Management:**  
+  Listing, details, status updates, and invoicing.
 
-- **Dashboard e Estatísticas:**  
-  Visualização de totais de vendas, faturação, clientes e encomendas.
+- **Dashboard and Statistics:**  
+  View sales, revenue, customer, and order totals.
 
-- **Pagamentos Online:**  
-  Integração com Stripe para checkout seguro.
+- **Online Payments:**  
+  Integration with Stripe for secure checkout.
 
-- **Autenticação e Sessão:**  
-  Login seguro com NextAuth.js, proteção de rotas e permissões.
+- **Authentication and Session:**  
+  Secure login with NextAuth.js, route protection, and permissions.
 
-- **Interface Moderna:**  
-  UI responsiva, dark mode, componentes acessíveis e experiência de utilizador otimizada.
+- **Modern Interface:**  
+  Responsive UI, dark mode, accessible components, and optimized user experience.
 
 ---
 
-## ▶️ Como começar
+## ▶️ Getting Started
 
-1. Instale as dependências:
+1. Install dependencies:
 
    ```bash
    pnpm install
-   # ou
-   npm install
    ```
 
-2. Configure as variáveis de ambiente no arquivo `.env` (veja o exemplo em `.env.example`).
+2. Configure the environment variables in the `.env` file (see the example in `.env.example`).
 
-3. Inicie o servidor de desenvolvimento:
+3. Start the development server:
 
    ```bash
    pnpm dev
-   # ou
-   npm run dev
    ```
 
-4. Acesse [http://localhost:3000](http://localhost:3000) no navegador.
+4. Access [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 📦 Deploy
+## 📦 Deployment
 
-- Suporta deploy automático em plataformas como [Vercel](https://vercel.com/) e [Railway](https://railway.app/).
-- Pronto para produção com Docker/Nixpacks.
+- Supports automatic deployment on platforms like [Vercel](https://vercel.com/) and [Railway](https://railway.app/).
+- Ready for production with Docker/Nixpacks.
 
 ---

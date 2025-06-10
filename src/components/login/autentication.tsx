@@ -83,7 +83,7 @@ export default function LoginComponent() {
             {loading ? (
               <AiOutlineLoading3Quarters className="animate-spin text-xl" />
             ) : (
-              'Entrar'
+              'Login'
             )}
           </button>
         </form>

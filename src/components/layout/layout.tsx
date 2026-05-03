@@ -44,9 +44,7 @@ function Layout({
           className={` ${isOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-0 md:hidden`}
           onClick={handleInvisibleUnderlayClick}
         ></div>
-        <div className="min-w-0 flex-grow overflow-auto bg-slate-100 p-4">
-          {children}
-        </div>
+        <div className="min-w-0 grow overflow-auto bg-slate-100 p-4">{children}</div>
       </div>
     </div>
   )

@@ -61,6 +61,7 @@ export default function LoginComponent() {
               className="h-12 w-full rounded-lg bg-white px-4 py-2 transition-all focus:ring-1 focus:ring-blue-200 focus:outline-none"
               placeholder="Nome de Utilizador"
               required
+              suppressHydrationWarning
             />
           </div>
           <div className="mb-6">
@@ -71,6 +72,8 @@ export default function LoginComponent() {
               onChange={(e) => setPassword(e.target.value)}
               className="h-12 w-full rounded-lg bg-white px-4 py-2 transition-all focus:ring-1 focus:ring-blue-200 focus:outline-none"
               placeholder="Palavra Passe"
+              required
+              suppressHydrationWarning
             />
           </div>
           {error && (

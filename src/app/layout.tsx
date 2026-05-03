@@ -24,40 +24,40 @@ export default async function RootLayout({
     return (
       <html lang="en">
         <body className="h-dvh bg-gray-100">
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider session={null}>
+            <Providers>{children}</Providers>
+          </AuthProvider>
         </body>
       </html>
     )
   }
 
-  if (session && session.accessToken) {
-    try {
-      const permissions: GetUserpermissions200 = await getUserpermissions({
-        headers: { Authorization: `Bearer ${session.accessToken}` },
-      })
-      return (
-        <html lang="en">
-          <body className="h-dvh bg-gray-100">
-            <AuthProvider>
-              <Providers>
-                <Layout permissions={permissions}>{children}</Layout>
-              </Providers>
-            </AuthProvider>
-            <Toaster expand={false} position="top-right" />
-          </body>
-        </html>
-      )
-    } catch (error) {
-      console.error('Erro ao buscar permissões:', error)
-      return (
-        <html lang="en">
-          <body className="h-dvh bg-gray-100">
-            <div className="grid h-full place-items-center text-2xl font-bold">
-              Erro No Servidor
-            </div>
-          </body>
-        </html>
-      )
-    }
+  try {
+    const permissions: GetUserpermissions200 = await getUserpermissions({
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+    })
+    return (
+      <html lang="en">
+        <body className="h-dvh bg-gray-100">
+          <AuthProvider session={session}>
+            <Providers>
+              <Layout permissions={permissions}>{children}</Layout>
+            </Providers>
+          </AuthProvider>
+          <Toaster expand={false} position="top-right" />
+        </body>
+      </html>
+    )
+  } catch (error) {
+    console.error('Erro ao buscar permissões:', error)
+    return (
+      <html lang="en">
+        <body className="h-dvh bg-gray-100">
+          <div className="grid h-full place-items-center text-2xl font-bold">
+            Erro No Servidor
+          </div>
+        </body>
+      </html>
+    )
   }
 }

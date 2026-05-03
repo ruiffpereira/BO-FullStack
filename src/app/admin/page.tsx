@@ -11,9 +11,5 @@ export default async function AdminLoginPage() {
     redirect(routes.dashboard)
   }
 
-  return (
-    <>
-      <LoginComponent />
-    </>
-  )
+  return <LoginComponent />
 }

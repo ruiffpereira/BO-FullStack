@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'api.code-fullstack.com',
+        hostname: 'api.rufvision.com',
       },
     ],
   },

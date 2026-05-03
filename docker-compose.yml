@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: bofullstack-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/.next
+    environment:
+      - NODE_ENV=development
+    env_file:
+      - .env
+    command: pnpm dev
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  app-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: bofullstack-prod
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - app-network
+    profiles:
+      - production
+
+networks:
+  app-network:
+    driver: bridge

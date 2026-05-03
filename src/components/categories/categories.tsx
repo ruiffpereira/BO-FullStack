@@ -288,7 +288,7 @@ export default function CategoriesForm({ session }: { session: Session }) {
           className="flex gap-2"
           onSubmit={handleSubmitCategory(onSubmitCategory)}
         >
-          <div className="g-1 flex flex-grow flex-col">
+          <div className="g-1 flex grow flex-col">
             <input
               type="text"
               placeholder="Nome da categoria"
@@ -343,7 +343,7 @@ export default function CategoriesForm({ session }: { session: Session }) {
               )}
             </div>
           )}
-          <div className="g-2 flex flex-grow flex-col">
+          <div className="g-2 flex grow flex-col">
             <input
               {...registerSubCategory('name')}
               type="text"
@@ -406,7 +406,7 @@ export default function CategoriesForm({ session }: { session: Session }) {
                     onSubmit={handleSubmitUpdateCategory(
                       onSubmitUpdateCategory,
                     )}
-                    className="flex flex-grow items-center gap-2"
+                    className="flex grow items-center gap-2"
                   >
                     <input
                       {...updateCategory('name')}
@@ -479,7 +479,7 @@ export default function CategoriesForm({ session }: { session: Session }) {
                           onSubmit={handleSubmitUpdateSubCategory(
                             onSubmitUpdateSubCategory,
                           )}
-                          className="flex flex-grow items-center gap-2"
+                          className="flex grow items-center gap-2"
                         >
                           <input
                             {...updateSubCategory('name')}

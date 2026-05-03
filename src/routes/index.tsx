@@ -9,6 +9,10 @@ const routes = {
   orders: '/orders',
   ordersCustomerId: (customerId: string) => `/orders/${customerId}`,
   categories: '/ecommerce/categories',
+  schedule: '/schedule',
+  scheduleServices: '/schedule/services',
+  scheduleSettings: '/schedule/settings',
+  management: '/management',
 }
 
 export default routes

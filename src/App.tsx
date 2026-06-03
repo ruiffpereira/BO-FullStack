@@ -17,7 +17,7 @@ const PERM_TO_ROUTE: Record<string, string> = {
 
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
-    (localStorage.getItem('bo-theme') as 'light' | 'dark') || 'light',
+    (localStorage.getItem('bo-theme') as 'light' | 'dark') || 'dark',
   )
   const { accessToken, permissions } = useAuth()
   const [route, setRoute] = useState('dashboard')

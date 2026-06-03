@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { getApiError } from "../lib/apiError";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { Icon } from "../ui/icons.jsx";
@@ -188,7 +189,7 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
         setForm(emptyUserForm);
         invalidate();
       },
-      onError: () => toast.error("Erro ao criar"),
+      onError: (error) => toast.error(getApiError(error)),
     },
   });
   const updateM = usePutUsers({
@@ -199,7 +200,7 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
         setEditOpen(false);
         invalidate();
       },
-      onError: () => toast.error("Erro ao actualizar"),
+      onError: (error) => toast.error(getApiError(error)),
     },
   });
   const deleteM = useDeleteUsersUserid({
@@ -210,7 +211,7 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
         setDeleteOpen(false);
         invalidate();
       },
-      onError: () => toast.error("Erro ao eliminar"),
+      onError: (error) => toast.error(getApiError(error)),
     },
   });
   const rotateM = usePutUsers({
@@ -220,7 +221,7 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
         toast.success("Chave renovada");
         setRotateOpen(false);
       },
-      onError: () => toast.error("Erro ao renovar"),
+      onError: (error) => toast.error(getApiError(error)),
     },
   });
 
@@ -510,7 +511,7 @@ function PermissoesTab({ headers }: { headers: Record<string, string> }) {
         setForm(emptyPermForm);
         invalidate();
       },
-      onError: () => toast.error("Erro ao criar"),
+      onError: (error) => toast.error(getApiError(error)),
     },
   });
   const updateM = usePutPermissionsId({
@@ -521,7 +522,7 @@ function PermissoesTab({ headers }: { headers: Record<string, string> }) {
         setEditOpen(false);
         invalidate();
       },
-      onError: () => toast.error("Erro ao actualizar"),
+      onError: (error) => toast.error(getApiError(error)),
     },
   });
   const deleteM = useDeletePermissionsId({
@@ -531,7 +532,7 @@ function PermissoesTab({ headers }: { headers: Record<string, string> }) {
         toast.success("Eliminada");
         invalidate();
       },
-      onError: () => toast.error("Erro ao eliminar"),
+      onError: (error) => toast.error(getApiError(error)),
     },
   });
   return (
@@ -715,7 +716,7 @@ function ComponentesTab({ headers }: { headers: Record<string, string> }) {
         setForm(emptyCompForm);
         invalidate();
       },
-      onError: () => toast.error("Erro ao criar"),
+      onError: (error) => toast.error(getApiError(error)),
     },
   });
   const updateM = usePutComponentsId({
@@ -726,7 +727,7 @@ function ComponentesTab({ headers }: { headers: Record<string, string> }) {
         setEditOpen(false);
         invalidate();
       },
-      onError: () => toast.error("Erro ao actualizar"),
+      onError: (error) => toast.error(getApiError(error)),
     },
   });
   const deleteM = useDeleteComponentsId({
@@ -736,7 +737,7 @@ function ComponentesTab({ headers }: { headers: Record<string, string> }) {
         toast.success("Eliminado");
         invalidate();
       },
-      onError: () => toast.error("Erro ao eliminar"),
+      onError: (error) => toast.error(getApiError(error)),
     },
   });
 

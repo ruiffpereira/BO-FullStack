@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
+import { getApiError } from '../lib/apiError'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { Icon } from '../ui/icons.jsx'
@@ -123,9 +124,9 @@ export function Loja() {
   const invalidateProducts = () => qc.invalidateQueries({ queryKey: getProductsQueryKey() })
   const invalidateOrders = () => qc.invalidateQueries({ queryKey: getOrdersQueryKey() })
 
-  const createProduct = usePostProducts({ client: { headers }, mutation: { onSuccess: () => { toast.success('Produto criado'); invalidateProducts() }, onError: () => toast.error('Erro ao criar produto') } })
-  const updateProduct = usePutProductsId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Produto actualizado'); invalidateProducts() }, onError: () => toast.error('Erro ao actualizar produto') } })
-  const deleteProduct = useDeleteProductsId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Produto eliminado'); invalidateProducts() }, onError: () => toast.error('Erro ao eliminar produto') } })
+  const createProduct = usePostProducts({ client: { headers }, mutation: { onSuccess: () => { toast.success('Produto criado'); invalidateProducts() }, onError: (error) => toast.error(getApiError(error)) } })
+  const updateProduct = usePutProductsId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Produto actualizado'); invalidateProducts() }, onError: (error) => toast.error(getApiError(error)) } })
+  const deleteProduct = useDeleteProductsId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Produto eliminado'); invalidateProducts() }, onError: (error) => toast.error(getApiError(error)) } })
 
   const filtered = useMemo(() => products.filter((p) => p.name.toLowerCase().includes(q.toLowerCase())), [products, q])
 

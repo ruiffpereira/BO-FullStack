@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { format, addDays, startOfWeek, isSameDay, addWeeks, subWeeks } from 'date-fns'
 import { pt } from 'date-fns/locale'
 import { toast } from 'sonner'
+import { getApiError } from '../lib/apiError'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { Icon } from '../ui/icons.jsx'
@@ -138,9 +139,9 @@ function CalendarioView() {
   const { data: services = [] } = useGetScheduleServices({ client: { headers } })
 
   const invalidate = () => qc.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() })
-  const createAppt = usePostScheduleAppointments({ client: { headers }, mutation: { onSuccess: () => { toast.success('Marcação criada'); invalidate() }, onError: () => toast.error('Erro ao criar marcação') } })
-  const updateAppt = usePutScheduleAppointmentsId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Estado actualizado'); invalidate(); setSelAppt(null) }, onError: () => toast.error('Erro ao actualizar') } })
-  const deleteAppt = useDeleteScheduleAppointmentsId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Marcação eliminada'); invalidate(); setSelAppt(null) }, onError: () => toast.error('Erro ao eliminar') } })
+  const createAppt = usePostScheduleAppointments({ client: { headers }, mutation: { onSuccess: () => { toast.success('Marcação criada'); invalidate() }, onError: (error) => toast.error(getApiError(error)) } })
+  const updateAppt = usePutScheduleAppointmentsId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Estado actualizado'); invalidate(); setSelAppt(null) }, onError: (error) => toast.error(getApiError(error)) } })
+  const deleteAppt = useDeleteScheduleAppointmentsId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Marcação eliminada'); invalidate(); setSelAppt(null) }, onError: (error) => toast.error(getApiError(error)) } })
 
   const pending = appointments.filter((a) => a.status === 'pending')
 
@@ -249,9 +250,9 @@ function ServicosPanel() {
 
   const { data: services = [], isLoading } = useGetScheduleServices({ client: { headers } })
   const invalidate = () => qc.invalidateQueries({ queryKey: getScheduleServicesQueryKey() })
-  const create = usePostScheduleServices({ client: { headers }, mutation: { onSuccess: () => { toast.success('Serviço criado'); invalidate(); setModal(false) }, onError: () => toast.error('Erro ao criar') } })
-  const update = usePutScheduleServicesId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Serviço actualizado'); invalidate(); setModal(false) }, onError: () => toast.error('Erro ao actualizar') } })
-  const remove = useDeleteScheduleServicesId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Serviço eliminado'); invalidate() }, onError: () => toast.error('Erro ao eliminar') } })
+  const create = usePostScheduleServices({ client: { headers }, mutation: { onSuccess: () => { toast.success('Serviço criado'); invalidate(); setModal(false) }, onError: (error) => toast.error(getApiError(error)) } })
+  const update = usePutScheduleServicesId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Serviço actualizado'); invalidate(); setModal(false) }, onError: (error) => toast.error(getApiError(error)) } })
+  const remove = useDeleteScheduleServicesId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Serviço eliminado'); invalidate() }, onError: (error) => toast.error(getApiError(error)) } })
 
   const openEdit = (s: Service) => { setEditing(s); setForm({ name: s.name, duration: String(s.duration), price: String(s.price), description: s.description ?? '', active: s.active ?? true }); setModal(true) }
   const handleSave = () => {
@@ -308,7 +309,7 @@ function ConfiguracoesPanel() {
   const DEFAULT_HOURS: WorkingHours[] = FULL_DAY_NAMES.map((_, i) => ({ dayOfWeek: i, startTime: '09:00', endTime: '18:00', isActive: i !== 0 }))
 
   const { data: savedHours, isLoading: loadingHours } = useGetScheduleWorkingHours({ client: { headers } })
-  const saveHours = usePostScheduleWorkingHours({ client: { headers }, mutation: { onSuccess: () => { toast.success('Horários guardados'); qc.invalidateQueries({ queryKey: getScheduleWorkingHoursQueryKey() }) }, onError: () => toast.error('Erro ao guardar') } })
+  const saveHours = usePostScheduleWorkingHours({ client: { headers }, mutation: { onSuccess: () => { toast.success('Horários guardados'); qc.invalidateQueries({ queryKey: getScheduleWorkingHoursQueryKey() }) }, onError: (error) => toast.error(getApiError(error)) } })
   const [hours, setHours] = useState<WorkingHours[]>(DEFAULT_HOURS)
 
   useEffect(() => {
@@ -318,8 +319,8 @@ function ConfiguracoesPanel() {
   const updateDay = (dayOfWeek: number, patch: Partial<WorkingHours>) => setHours((prev) => prev.map((h) => h.dayOfWeek === dayOfWeek ? { ...h, ...patch } : h))
 
   const { data: blockedSlots = [], isLoading: loadingSlots } = useGetScheduleBlockedSlots(undefined, { client: { headers } })
-  const createSlot = usePostScheduleBlockedSlots({ client: { headers }, mutation: { onSuccess: () => { toast.success('Dia bloqueado'); qc.invalidateQueries({ queryKey: getScheduleBlockedSlotsQueryKey() }) }, onError: () => toast.error('Erro ao bloquear') } })
-  const deleteSlot = useDeleteScheduleBlockedSlotsId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Bloqueio removido'); qc.invalidateQueries({ queryKey: getScheduleBlockedSlotsQueryKey() }) }, onError: () => toast.error('Erro ao remover') } })
+  const createSlot = usePostScheduleBlockedSlots({ client: { headers }, mutation: { onSuccess: () => { toast.success('Dia bloqueado'); qc.invalidateQueries({ queryKey: getScheduleBlockedSlotsQueryKey() }) }, onError: (error) => toast.error(getApiError(error)) } })
+  const deleteSlot = useDeleteScheduleBlockedSlotsId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Bloqueio removido'); qc.invalidateQueries({ queryKey: getScheduleBlockedSlotsQueryKey() }) }, onError: (error) => toast.error(getApiError(error)) } })
   const [newSlot, setNewSlot] = useState({ date: '', startTime: '', endTime: '', reason: '' })
 
   return (

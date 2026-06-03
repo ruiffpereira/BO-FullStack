@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { axiosInstance } from '@kubb/plugin-client/clients/axios'
+import { queryClient } from '../lib/queryClient'
 import { postUsersLogin } from '../gen/backoffice/hooks/usePostUsersLogin.js'
 import { postUsersRefresh } from '../gen/backoffice/hooks/usePostUsersRefresh.js'
 import { postUsersLogout } from '../gen/backoffice/hooks/usePostUsersLogout.js'
@@ -71,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
     setAuth({ accessToken: null, refreshToken: null, userId: null, username: null, permissions: [] })
     clearStorage()
+    queryClient.clear()
   }, [])
 
   const logout = useCallback(() => {

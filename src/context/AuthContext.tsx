@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import { axiosInstance } from '@kubb/plugin-client/clients/axios'
 import { postUsersLogin } from '../gen/backoffice/hooks/usePostUsersLogin.js'
 import { postUsersRefresh } from '../gen/backoffice/hooks/usePostUsersRefresh.js'
 import { postUsersLogout } from '../gen/backoffice/hooks/usePostUsersLogout.js'
@@ -31,6 +32,7 @@ interface AuthCtx extends AuthState {
 const AuthContext = createContext<AuthCtx | null>(null)
 
 const STORAGE_KEY = 'bo_auth'
+const SKIP_401 = ['/users/login', '/users/refresh', '/users/logout']
 
 function loadFromStorage(): AuthState {
   try {
@@ -48,7 +50,6 @@ function clearStorage() {
   localStorage.removeItem(STORAGE_KEY)
 }
 
-// Parse JWT expiry (epoch ms)
 function getJwtExpiry(token: string): number {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]))
@@ -63,18 +64,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Ref so the axios interceptor always has the latest logout without re-registering
+  const logoutRef = useRef<() => void>(() => {})
 
+  const clearSession = useCallback(() => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+    setAuth({ accessToken: null, refreshToken: null, userId: null, username: null, permissions: [] })
+    clearStorage()
+  }, [])
+
+  const logout = useCallback(() => {
+    const token = auth.accessToken
+    clearSession()
+    if (token) {
+      postUsersLogout({ headers: { Authorization: `Bearer ${token}` } }).catch(() => {})
+    }
+  }, [auth.accessToken, clearSession])
+
+  // Keep the ref in sync so the interceptor always calls the latest logout
+  useEffect(() => { logoutRef.current = logout }, [logout])
+
+  // ─── Axios 401 interceptor ─────────────────────────────────────────────────
+  useEffect(() => {
+    const id = axiosInstance.interceptors.response.use(
+      (res) => res,
+      (err) => {
+        const url: string = err?.config?.url ?? ''
+        const is401 = err?.response?.status === 401
+        const isAuthEndpoint = SKIP_401.some((path) => url.includes(path))
+        if (is401 && !isAuthEndpoint) {
+          logoutRef.current()
+        }
+        return Promise.reject(err)
+      },
+    )
+    return () => axiosInstance.interceptors.response.eject(id)
+  }, [])
+
+  // ─── Token refresh scheduler ───────────────────────────────────────────────
   const scheduleRefresh = useCallback((accessToken: string, refreshToken: string) => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
     const expiry = getJwtExpiry(accessToken)
-    const delay = expiry - Date.now() - 60_000 // 1 min before expiry
+    const delay = expiry - Date.now() - 60_000
     if (delay <= 0) return
 
     refreshTimerRef.current = setTimeout(async () => {
       try {
         const res = await postUsersRefresh({ refreshToken })
         const newToken = res?.accessToken
-        if (!newToken) return
+        if (!newToken) { clearSession(); return }
         setAuth((prev) => {
           const next = { ...prev, accessToken: newToken }
           saveToStorage(next)
@@ -82,12 +120,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         })
         scheduleRefresh(newToken, refreshToken)
       } catch {
-        // Refresh failed silently — user stays logged in until a 401 forces logout
+        // Refresh token inválido → terminar sessão
+        clearSession()
       }
     }, delay)
-  }, [])
+  }, [clearSession])
 
-  // On mount — re-schedule refresh if we have stored tokens
+  // Re-schedule on mount if stored tokens exist
   useEffect(() => {
     if (auth.accessToken && auth.refreshToken) {
       scheduleRefresh(auth.accessToken, auth.refreshToken)
@@ -95,27 +134,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => { if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ─── Login ─────────────────────────────────────────────────────────────────
   const login = useCallback(async (username: string, password: string) => {
     setLoading(true)
     setError(null)
     try {
-      // Use Kubb-generated function — no direct axios
       const loginRes = await postUsersLogin({ username, password })
       const { accessToken, refreshToken, userId, username: uname } = loginRes ?? {}
       if (!accessToken) throw new Error('Sem token de acesso')
 
-      // Fetch permissions using Kubb-generated function
       const perms = await getUserpermissions({
         headers: { Authorization: `Bearer ${accessToken}` },
       })
-      const permissions: Permission[] = perms ?? []
 
       const next: AuthState = {
         accessToken,
         refreshToken: refreshToken ?? null,
         userId: userId ?? null,
         username: uname ?? null,
-        permissions,
+        permissions: perms ?? [],
       }
       setAuth(next)
       saveToStorage(next)
@@ -128,18 +165,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false)
     }
   }, [scheduleRefresh])
-
-  const logout = useCallback(() => {
-    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
-    // Best-effort server logout using Kubb-generated function
-    if (auth.accessToken) {
-      postUsersLogout({
-        headers: { Authorization: `Bearer ${auth.accessToken}` },
-      }).catch(() => {})
-    }
-    setAuth({ accessToken: null, refreshToken: null, userId: null, username: null, permissions: [] })
-    clearStorage()
-  }, [auth.accessToken])
 
   const authHeader = useCallback(() => ({
     Authorization: `Bearer ${auth.accessToken}`,

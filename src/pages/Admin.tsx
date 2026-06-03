@@ -100,14 +100,12 @@ type UserForm = {
   email: string;
   password: string;
   permissionId: string;
-  siteUrl: string;
 };
 const emptyUserForm: UserForm = {
   name: "",
   email: "",
   password: "",
   permissionId: "",
-  siteUrl: "",
 };
 
 function UserFormFields({
@@ -163,14 +161,6 @@ function UserFormFields({
           ))}
         </select>
       </div>
-      {isEdit && (
-        <Input
-          label="URL do website"
-          value={form.siteUrl}
-          onChange={(e: any) => setForm({ ...form, siteUrl: e.target.value })}
-          placeholder="https://exemplo.pt"
-        />
-      )}
     </div>
   );
 }
@@ -240,13 +230,11 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
       name: u.name,
       email: u.email,
       password: "",
-      permissionId: u.permissionId,
-      siteUrl: "",
+      permissionId: u.permissions?.[0]?.permissionId ?? "",
     });
     setEditOpen(true);
   };
 
-  console.log(permissions);
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
@@ -292,10 +280,13 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
                 <CopyBtn value={u.userId} />
               </td>
               <td className="px-4 py-3.5">
-                <Badge tone="blue">
-                  {permissions.find((p) => p.permissionId === u.permissionId)
-                    ?.name ?? u.permissionId.slice(0, 8)}
-                </Badge>
+                <div className="flex flex-wrap gap-1">
+                  {u.permissions?.length
+                    ? u.permissions.map((p) => (
+                        <Badge key={p.permissionId} tone="blue">{p.name}</Badge>
+                      ))
+                    : <span className="text-xs text-zinc-400">—</span>}
+                </div>
               </td>
               <td className="px-4 py-3.5">
                 <div className="flex justify-end gap-1">
@@ -390,7 +381,6 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
                 if (form.email) p.email = form.email;
                 if (form.password) p.password = form.password;
                 if (form.permissionId) p.permissionId = form.permissionId;
-                p.siteUrl = form.siteUrl || null;
                 updateM.mutate({ data: p });
               }}
             >
@@ -712,7 +702,7 @@ function ComponentesTab({ headers }: { headers: Record<string, string> }) {
     setForm({
       name: c.name,
       description: c.description ?? "",
-      selectedPermissions: c.permissions ?? [],
+      selectedPermissions: c.permissions?.map((p) => p.permissionId) ?? [],
     });
     setEditOpen(true);
   };
@@ -868,16 +858,11 @@ function ComponentesTab({ headers }: { headers: Record<string, string> }) {
               </div>
               {c.permissions && c.permissions.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-3 pt-3 border-t border-zinc-50 dark:border-zinc-800">
-                  {c.permissions.map((permId) => {
-                    const perm = permissions.find(
-                      (p) => p.permissionId === permId,
-                    );
-                    return (
-                      <Badge key={permId} tone="neutral">
-                        {perm?.name ?? permId.slice(0, 8)}
-                      </Badge>
-                    );
-                  })}
+                  {c.permissions.map((perm) => (
+                    <Badge key={perm.permissionId} tone="neutral">
+                      {perm.name}
+                    </Badge>
+                  ))}
                 </div>
               )}
             </Card>

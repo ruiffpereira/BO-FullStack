@@ -154,7 +154,9 @@ function UserFormFields({
       <Input
         label="Nome de remetente nos emails"
         value={form.emailSenderName}
-        onChange={(e: any) => setForm({ ...form, emailSenderName: e.target.value })}
+        onChange={(e: any) =>
+          setForm({ ...form, emailSenderName: e.target.value })
+        }
         placeholder="Ex: Barbearia Tiago (deixar em branco para usar o Nome)"
       />
       <Input
@@ -168,7 +170,7 @@ function UserFormFields({
         label="URL do site"
         value={form.siteUrl}
         onChange={(e: any) => setForm({ ...form, siteUrl: e.target.value })}
-        placeholder="https://barber-tiago.com"
+        placeholder="https://google.com"
       />
       <div>
         <p className="text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
@@ -310,11 +312,15 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
               </td>
               <td className="px-4 py-3.5">
                 <div className="flex flex-wrap gap-1">
-                  {u.permissions?.length
-                    ? u.permissions.map((p) => (
-                        <Badge key={p.permissionId} tone="blue">{p.name}</Badge>
-                      ))
-                    : <span className="text-xs text-zinc-400">—</span>}
+                  {u.permissions?.length ? (
+                    u.permissions.map((p) => (
+                      <Badge key={p.permissionId} tone="blue">
+                        {p.name}
+                      </Badge>
+                    ))
+                  ) : (
+                    <span className="text-xs text-zinc-400">—</span>
+                  )}
                 </div>
               </td>
               <td className="px-4 py-3.5">
@@ -470,7 +476,7 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
               onClick={() =>
                 selected &&
                 rotateM.mutate({
-                  data: { userId: selected.userId, secretkeysite: true },
+                  data: { userId: selected.userId },
                 })
               }
             >

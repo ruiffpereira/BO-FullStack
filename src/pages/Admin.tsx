@@ -101,12 +101,18 @@ type UserForm = {
   email: string;
   password: string;
   permissionId: string;
+  emailSenderName: string;
+  fromEmail: string;
+  siteUrl: string;
 };
 const emptyUserForm: UserForm = {
   name: "",
   email: "",
   password: "",
   permissionId: "",
+  emailSenderName: "",
+  fromEmail: "",
+  siteUrl: "",
 };
 
 function UserFormFields({
@@ -144,6 +150,25 @@ function UserFormFields({
         type="password"
         value={form.password}
         onChange={(e: any) => setForm({ ...form, password: e.target.value })}
+      />
+      <Input
+        label="Nome de remetente nos emails"
+        value={form.emailSenderName}
+        onChange={(e: any) => setForm({ ...form, emailSenderName: e.target.value })}
+        placeholder="Ex: Barbearia Tiago (deixar em branco para usar o Nome)"
+      />
+      <Input
+        label="Email de envio (deve ser de domínio verificado no Resend)"
+        type="email"
+        value={form.fromEmail}
+        onChange={(e: any) => setForm({ ...form, fromEmail: e.target.value })}
+        placeholder="noreply@teudominio.com"
+      />
+      <Input
+        label="URL do site"
+        value={form.siteUrl}
+        onChange={(e: any) => setForm({ ...form, siteUrl: e.target.value })}
+        placeholder="https://barber-tiago.com"
       />
       <div>
         <p className="text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
@@ -232,6 +257,9 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
       email: u.email,
       password: "",
       permissionId: u.permissions?.[0]?.permissionId ?? "",
+      emailSenderName: (u as any).emailSenderName ?? "",
+      fromEmail: (u as any).fromEmail ?? "",
+      siteUrl: (u as any).siteUrl ?? "",
     });
     setEditOpen(true);
   };
@@ -382,6 +410,9 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
                 if (form.email) p.email = form.email;
                 if (form.password) p.password = form.password;
                 if (form.permissionId) p.permissionId = form.permissionId;
+                p.emailSenderName = form.emailSenderName || null;
+                p.fromEmail = form.fromEmail || null;
+                p.siteUrl = form.siteUrl || null;
                 updateM.mutate({ data: p });
               }}
             >

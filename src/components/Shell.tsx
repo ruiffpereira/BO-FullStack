@@ -1,31 +1,37 @@
 import { useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { Icon } from '../ui/icons.jsx'
 import { IconButton, Avatar } from '../ui/ui.jsx'
 import { useAuth } from '../context/AuthContext'
 
+const PERM_TO_PATH: Record<string, string> = {
+  VIEW_CUSTOMERS: '/clientes',
+  VIEW_PRODUCTS:  '/loja',
+  VIEW_SCHEDULE:  '/agenda',
+  VIEW_ADMIN:     '/admin',
+}
+
 const ROUTE_META: Record<string, { nome: string; icon: string }> = {
-  dashboard: { nome: 'Dashboard', icon: 'dashboard' },
-  clientes:  { nome: 'Clientes',  icon: 'users' },
-  loja:      { nome: 'Loja',      icon: 'store' },
-  agenda:    { nome: 'Agenda',    icon: 'calendar' },
-  admin:     { nome: 'Admin',     icon: 'shield' },
+  '/dashboard': { nome: 'Dashboard', icon: 'dashboard' },
+  '/clientes':  { nome: 'Clientes',  icon: 'users' },
+  '/loja':      { nome: 'Loja',      icon: 'store' },
+  '/agenda':    { nome: 'Agenda',    icon: 'calendar' },
+  '/admin':     { nome: 'Admin',     icon: 'shield' },
 }
 
 interface Props {
-  route: string
-  setRoute: (r: string) => void
-  accessibleRoutes: string[]
   theme: 'light' | 'dark'
   onToggleTheme: () => void
   children: React.ReactNode
 }
 
-function NavItem({ id, active, onClick, collapsed }: { id: string; active: boolean; onClick: () => void; collapsed: boolean }) {
-  const meta = ROUTE_META[id]
+function NavItem({ path, active, collapsed }: { path: string; active: boolean; collapsed: boolean }) {
+  const meta = ROUTE_META[path]
+  const navigate = useNavigate()
   if (!meta) return null
   return (
     <button
-      onClick={onClick}
+      onClick={() => navigate(path)}
       title={collapsed ? meta.nome : undefined}
       className={`w-full flex items-center gap-3 rounded-lg text-sm font-medium transition-colors relative ${collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5'} ${active ? 'bg-accent/10 text-accent dark:bg-accent/15' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 hover:text-zinc-900 dark:hover:text-zinc-100'}`}
     >
@@ -36,11 +42,13 @@ function NavItem({ id, active, onClick, collapsed }: { id: string; active: boole
   )
 }
 
-function SidebarContent({ route, setRoute, accessibleRoutes, collapsed, onLogout }: {
-  route: string; setRoute: (r: string) => void; accessibleRoutes: string[]
-  collapsed: boolean; onLogout: () => void
+function SidebarContent({ accessiblePaths, collapsed, onLogout }: {
+  accessiblePaths: string[]
+  collapsed: boolean
+  onLogout: () => void
 }) {
   const { username, permissions } = useAuth()
+  const location = useLocation()
   const permLabel = permissions.length > 0 ? permissions[0].name?.replace('VIEW_', '') : 'Admin'
 
   return (
@@ -55,8 +63,8 @@ function SidebarContent({ route, setRoute, accessibleRoutes, collapsed, onLogout
       <div className={`mt-2 ${collapsed ? 'px-2' : 'px-3'}`}>
         {!collapsed && <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Menu</p>}
         <nav className="space-y-1">
-          {accessibleRoutes.map((id) => (
-            <NavItem key={id} id={id} active={route === id} onClick={() => setRoute(id)} collapsed={collapsed} />
+          {accessiblePaths.map((path) => (
+            <NavItem key={path} path={path} active={location.pathname === path} collapsed={collapsed} />
           ))}
         </nav>
       </div>
@@ -85,11 +93,14 @@ function SidebarContent({ route, setRoute, accessibleRoutes, collapsed, onLogout
   )
 }
 
-function Topbar({ title, theme, onToggleTheme, onMenu, onCollapse }: {
-  title: string; theme: string; onToggleTheme: () => void
-  onMenu: () => void; onCollapse: () => void; collapsed?: boolean
+function Topbar({ theme, onToggleTheme, onMenu, onCollapse }: {
+  theme: string; onToggleTheme: () => void
+  onMenu: () => void; onCollapse: () => void
 }) {
   const { username } = useAuth()
+  const location = useLocation()
+  const title = ROUTE_META[location.pathname]?.nome ?? ''
+
   return (
     <header className="h-16 shrink-0 border-b border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur sticky top-0 z-30 flex items-center gap-3 px-4 sm:px-6">
       <button onClick={onMenu} className="lg:hidden -ml-1">
@@ -116,19 +127,35 @@ function Topbar({ title, theme, onToggleTheme, onMenu, onCollapse }: {
   )
 }
 
-export function Shell({ route, setRoute, accessibleRoutes, theme, onToggleTheme, children }: Props) {
-  const { logout } = useAuth()
+export function Shell({ theme, onToggleTheme, children }: Props) {
+  const { logout, permissions } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
   const [drawer, setDrawer] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
 
-  useEffect(() => { setDrawer(false) }, [route])
+  const accessiblePaths = [
+    '/dashboard',
+    ...permissions
+      .map((p) => PERM_TO_PATH[p.name ?? ''])
+      .filter(Boolean)
+      .filter((v, i, arr) => arr.indexOf(v) === i),
+  ]
 
-  const activeTitle = ROUTE_META[route]?.nome ?? ''
+  // Fecha o drawer ao navegar
+  useEffect(() => { setDrawer(false) }, [location.pathname])
+
+  // Redirige para rota acessível se a actual não o for
+  useEffect(() => {
+    if (accessiblePaths.length && !accessiblePaths.includes(location.pathname)) {
+      navigate(accessiblePaths[0], { replace: true })
+    }
+  }, [location.pathname, permissions]) // eslint-disable-line
 
   return (
     <div className="flex h-screen bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
       <aside className={`hidden lg:flex flex-col shrink-0 border-r border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-[width] duration-200 ${collapsed ? 'w-[72px]' : 'w-64'}`}>
-        <SidebarContent route={route} setRoute={setRoute} accessibleRoutes={accessibleRoutes} collapsed={collapsed} onLogout={logout} />
+        <SidebarContent accessiblePaths={accessiblePaths} collapsed={collapsed} onLogout={logout} />
       </aside>
 
       {drawer && (
@@ -138,19 +165,17 @@ export function Shell({ route, setRoute, accessibleRoutes, theme, onToggleTheme,
             <button onClick={() => setDrawer(false)} className="absolute top-4 right-3 z-10">
               <IconButton icon="x" label="Fechar" />
             </button>
-            <SidebarContent route={route} setRoute={setRoute} accessibleRoutes={accessibleRoutes} collapsed={false} onLogout={logout} />
+            <SidebarContent accessiblePaths={accessiblePaths} collapsed={false} onLogout={logout} />
           </aside>
         </div>
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar
-          title={activeTitle}
           theme={theme}
           onToggleTheme={onToggleTheme}
           onMenu={() => setDrawer(true)}
           onCollapse={() => setCollapsed(!collapsed)}
-          collapsed={collapsed}
         />
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">

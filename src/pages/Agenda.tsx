@@ -1,9 +1,10 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { format, addDays, startOfWeek, isSameDay, addWeeks, subWeeks } from 'date-fns'
 import { pt } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, useMutation } from '@tanstack/react-query'
+import kubbFetch from '@kubb/plugin-client/clients/axios'
 import { useAuth } from '../context/AuthContext'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Button, IconButton, Badge, Avatar, Modal, Input, Select, PageHeader } from '../ui/ui.jsx'
@@ -40,7 +41,53 @@ const FULL_DAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sex
 
 function colorForService(serviceId: string, services: Service[]) {
   const idx = services.findIndex((s) => s.serviceId === serviceId)
-  return SERVICE_COLORS[idx % SERVICE_COLORS.length] ?? '#2A6FDB'
+  const svc = services[idx]
+  return svc?.color ?? SERVICE_COLORS[idx % SERVICE_COLORS.length] ?? '#2A6FDB'
+}
+
+// ─── Overlap layout ───────────────────────────────────────────────────────────
+// 1px = 1min quando AG_ROW_H=60. O min-height de 24px equivale a 24min visuais —
+// usamos isso como end mínimo para detectar sobreposições visuais de serviços curtos.
+const MIN_VISUAL_MINS = Math.ceil((24 / AG_ROW_H) * 60) // = 24min
+
+function apptMinutes(appt: Appointment) {
+  const [h, m] = appt.time.split(':').map(Number)
+  return h * 60 + m
+}
+function apptVisualEnd(appt: Appointment, services: Service[]) {
+  const svc = services.find((s) => s.serviceId === appt.serviceId)
+  return apptMinutes(appt) + Math.max(svc?.duration ?? 30, MIN_VISUAL_MINS)
+}
+function overlaps(a: Appointment, b: Appointment, services: Service[]) {
+  return apptMinutes(a) < apptVisualEnd(b, services) && apptMinutes(b) < apptVisualEnd(a, services)
+}
+
+function computeColumns(appts: Appointment[], services: Service[]) {
+  const sorted = [...appts].sort((a, b) => apptMinutes(a) - apptMinutes(b))
+  const result: { appt: Appointment; col: number; totalCols: number }[] = []
+
+  // Group appointments that overlap with any member of the group
+  const groups: Appointment[][] = []
+  for (const appt of sorted) {
+    const grp = groups.find((g) => g.some((x) => overlaps(x, appt, services)))
+    if (grp) grp.push(appt)
+    else groups.push([appt])
+  }
+
+  for (const group of groups) {
+    const cols: Appointment[][] = []
+    for (const appt of group) {
+      let ci = cols.findIndex((col) => !col.some((x) => overlaps(x, appt, services)))
+      if (ci === -1) { ci = cols.length; cols.push([]) }
+      cols[ci].push(appt)
+      result.push({ appt, col: ci, totalCols: 0 })
+    }
+    const n = cols.length
+    for (const r of result) {
+      if (group.includes(r.appt)) r.totalCols = n
+    }
+  }
+  return result
 }
 
 // ─── Appointment detail modal ─────────────────────────────────────────────────
@@ -146,9 +193,10 @@ function CalendarioView() {
   const pending = appointments.filter((a) => a.status === 'pending')
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-4">
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+    <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-4 h-[calc(100vh-17rem)] min-h-[420px]">
+      <Card className="overflow-hidden flex flex-col min-h-0">
+        {/* ── Navegação ── */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
           <div className="flex items-center gap-1">
             <IconButton icon="chevronLeft" label="Semana anterior" onClick={() => setWeekStart((d) => subWeeks(d, 1))} />
             <Button variant="outline" size="sm" onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>Hoje</Button>
@@ -156,9 +204,12 @@ function CalendarioView() {
           </div>
           <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 capitalize">{format(weekStart, 'MMMM yyyy', { locale: pt })}</span>
         </div>
-        <div className="overflow-x-auto">
+
+        {/* ── Área com scroll ── */}
+        <div className="overflow-auto flex-1 min-h-0">
           <div className="min-w-[600px]">
-            <div className="grid border-b border-zinc-100 dark:border-zinc-800" style={{ gridTemplateColumns: `48px repeat(6, 1fr)` }}>
+            {/* cabeçalho dos dias — sticky */}
+            <div className="grid sticky top-0 z-20 bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-zinc-800" style={{ gridTemplateColumns: `48px repeat(6, 1fr)` }}>
               <div />
               {days.map((day) => {
                 const isToday = isSameDay(day, new Date())
@@ -170,31 +221,53 @@ function CalendarioView() {
                 )
               })}
             </div>
+
+            {/* grelha de horas */}
             <div className="grid relative" style={{ gridTemplateColumns: `48px repeat(6, 1fr)` }}>
-              <div>{hours.map((h) => <div key={h} className="text-right pr-2 text-[10px] text-zinc-400 tabular-nums" style={{ height: AG_ROW_H }}><span className="-translate-y-2 inline-block">{String(h).padStart(2, '0')}:00</span></div>)}</div>
+              <div>
+                {hours.map((h) => (
+                  <div key={h} className="text-right pr-2 text-[10px] text-zinc-400 tabular-nums" style={{ height: AG_ROW_H }}>
+                    <span className="-translate-y-2 inline-block">{String(h).padStart(2, '0')}:00</span>
+                  </div>
+                ))}
+              </div>
               {days.map((day) => {
                 const dayAppts = appointments.filter((a) => isSameDay(new Date(a.date + 'T00:00:00'), day) && a.status !== 'cancelled')
+                const layout = computeColumns(dayAppts, services)
                 return (
                   <div key={day.toISOString()} className="relative border-l border-zinc-50 dark:border-zinc-800/50">
                     {hours.map((h) => <div key={h} className="border-b border-zinc-50 dark:border-zinc-800/40" style={{ height: AG_ROW_H }} />)}
                     <button onClick={() => setNovaDate(day)} className="absolute inset-0 w-full opacity-0 hover:opacity-100 transition-opacity z-0" aria-label={`Nova marcação ${format(day, 'dd/MM')}`} />
-                    {isLoading ? <div className="absolute inset-2 top-2 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800 h-10" /> :
-                      dayAppts.map((appt) => {
-                        const svc = services.find((s) => s.serviceId === appt.serviceId)
-                        const color = colorForService(appt.serviceId, services)
-                        const [hh, mm] = appt.time.split(':').map(Number)
-                        const top = ((hh + mm / 60) - AG_H_START) * AG_ROW_H
-                        const height = ((svc?.duration ?? 30) / 60) * AG_ROW_H - 4
-                        return (
-                          <button key={appt.appointmentId} onClick={(e) => { e.stopPropagation(); setSelAppt(appt) }}
-                            className="absolute left-1 right-1 rounded-lg px-2 py-1 text-left overflow-hidden z-10 hover:shadow-md hover:z-20 transition-shadow"
-                            style={{ top: top + 2, height: Math.max(height, 24), background: `${color}18`, borderLeft: `3px solid ${color}`, border: `1px solid ${color}30` }}
-                          >
-                            <p className="text-[10px] font-semibold leading-tight truncate text-zinc-800 dark:text-zinc-100">{appt.time} {appt.clientName}</p>
-                            {svc && <p className="text-[9px] text-zinc-500 truncate">{svc.name}</p>}
-                          </button>
-                        )
-                      })}
+                    {isLoading
+                      ? <div className="absolute inset-2 top-2 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800 h-10" />
+                      : layout.map(({ appt, col, totalCols }) => {
+                          const svc = services.find((s) => s.serviceId === appt.serviceId)
+                          const color = colorForService(appt.serviceId, services)
+                          const [hh, mm] = appt.time.split(':').map(Number)
+                          const top = ((hh + mm / 60) - AG_H_START) * AG_ROW_H
+                          const height = ((svc?.duration ?? 30) / 60) * AG_ROW_H - 4
+                          const leftPct = (col / totalCols) * 100
+                          const widthPct = (1 / totalCols) * 100
+                          return (
+                            <button
+                              key={appt.appointmentId}
+                              onClick={(e) => { e.stopPropagation(); setSelAppt(appt) }}
+                              className="absolute rounded-lg px-2 py-1 text-left overflow-hidden z-10 hover:shadow-md hover:z-20 transition-shadow"
+                              style={{
+                                top: top + 2,
+                                height: Math.max(height, 24),
+                                left: `calc(${leftPct}% + 2px)`,
+                                width: `calc(${widthPct}% - 4px)`,
+                                background: `${color}18`,
+                                borderLeft: `3px solid ${color}`,
+                                border: `1px solid ${color}30`,
+                              }}
+                            >
+                              <p className="text-[10px] font-semibold leading-tight truncate text-zinc-800 dark:text-zinc-100">{appt.time} {appt.clientName}</p>
+                              {svc && <p className="text-[9px] text-zinc-500 truncate">{svc.name}</p>}
+                            </button>
+                          )
+                        })}
                   </div>
                 )
               })}
@@ -203,7 +276,7 @@ function CalendarioView() {
         </div>
       </Card>
 
-      <div className="space-y-4">
+      <div className="space-y-4 overflow-y-auto min-h-0">
         <Card className="p-4">
           <h3 className="font-semibold text-zinc-900 dark:text-white text-sm flex items-center gap-2">
             <Icon name="clock" className="w-4 h-4 text-amber-500" />Por confirmar{pending.length > 0 && <Badge tone="amber">{pending.length}</Badge>}
@@ -234,11 +307,14 @@ function CalendarioView() {
       {novaDate && <NovaApptModal date={novaDate} open onClose={() => setNovaDate(null)} services={services} onCreate={(data) => createAppt.mutate({ data })} isPending={createAppt.isPending} />}
     </div>
   )
+
 }
 
 // ─── Services panel ───────────────────────────────────────────────────────────
-type SvcForm = { name: string; duration: string; price: string; description: string; active: boolean }
-const emptySvcForm: SvcForm = { name: '', duration: '30', price: '', description: '', active: true }
+type SvcForm = { name: string; duration: string; price: string; description: string; active: boolean; color: string }
+const emptySvcForm: SvcForm = { name: '', duration: '30', price: '', description: '', active: true, color: '#2A6FDB' }
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001/api'
 
 function ServicosPanel() {
   const { authHeader } = useAuth()
@@ -247,32 +323,82 @@ function ServicosPanel() {
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState<Service | null>(null)
   const [form, setForm] = useState<SvcForm>(emptySvcForm)
+  const [localOrder, setLocalOrder] = useState<string[]>([])
+  const dragIndexRef = useRef<number | null>(null)
 
   const { data: services = [], isLoading } = useGetScheduleServices({ client: { headers } })
   const invalidate = () => qc.invalidateQueries({ queryKey: getScheduleServicesQueryKey() })
+
+  useEffect(() => {
+    if (services.length) setLocalOrder(services.map((s) => s.serviceId))
+  }, [services])
+
+  const orderedServices = localOrder
+    .map((id) => services.find((s) => s.serviceId === id))
+    .filter((s): s is Service => !!s)
+
+  const reorder = useMutation({
+    mutationFn: async (order: string[]) => {
+      const res = await kubbFetch<unknown, Error, { order: string[] }>({
+        method: 'PATCH', url: '/schedule/services/reorder', baseURL: API_BASE,
+        data: { order }, headers: authHeader(),
+      })
+      return res.data
+    },
+    onSuccess: () => invalidate(),
+    onError: () => { toast.error('Erro ao reordenar'); setLocalOrder(services.map((s) => s.serviceId)) },
+  })
+
   const create = usePostScheduleServices({ client: { headers }, mutation: { onSuccess: () => { toast.success('Serviço criado'); invalidate(); setModal(false) }, onError: (error) => toast.error(getApiError(error)) } })
   const update = usePutScheduleServicesId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Serviço actualizado'); invalidate(); setModal(false) }, onError: (error) => toast.error(getApiError(error)) } })
   const remove = useDeleteScheduleServicesId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Serviço eliminado'); invalidate() }, onError: (error) => toast.error(getApiError(error)) } })
 
-  const openEdit = (s: Service) => { setEditing(s); setForm({ name: s.name, duration: String(s.duration), price: String(s.price), description: s.description ?? '', active: s.active ?? true }); setModal(true) }
+  const openEdit = (s: Service) => {
+    setEditing(s)
+    setForm({ name: s.name, duration: String(s.duration), price: String(s.price), description: s.description ?? '', active: s.active ?? true, color: s.color ?? '#2A6FDB' })
+    setModal(true)
+  }
   const handleSave = () => {
-    const data = { name: form.name, duration: parseInt(form.duration), price: parseFloat(form.price), description: form.description || undefined, active: form.active }
+    const data = { name: form.name, duration: parseInt(form.duration), price: parseFloat(form.price), description: form.description || undefined, active: form.active, color: form.color }
     if (editing) update.mutate({ id: editing.serviceId, data })
     else create.mutate({ data })
   }
 
+  const handleDragStart = (index: number) => { dragIndexRef.current = index }
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    const from = dragIndexRef.current
+    if (from === null || from === index) return
+    const next = [...localOrder]
+    const [moved] = next.splice(from, 1)
+    next.splice(index, 0, moved)
+    setLocalOrder(next)
+    dragIndexRef.current = index
+  }
+  const handleDrop = () => { reorder.mutate(localOrder); dragIndexRef.current = null }
+  const handleDragEnd = () => { dragIndexRef.current = null }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-zinc-500">{services.length} serviços</p>
+        <p className="text-sm text-zinc-500">{services.length} serviços · arrasta para reordenar</p>
         <Button icon="plus" size="sm" onClick={() => { setEditing(null); setForm(emptySvcForm); setModal(true) }}>Novo serviço</Button>
       </div>
       {isLoading ? Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" />) :
         services.length === 0 ? <Card className="p-8 text-center text-sm text-zinc-400">Ainda não há serviços.</Card> :
           <div className="space-y-2">
-            {services.map((s, i) => (
-              <Card key={s.serviceId} className={`p-4 flex items-center gap-3 ${!s.active ? 'opacity-50' : ''}`}>
-                <span className="w-3 h-3 rounded-full shrink-0" style={{ background: SERVICE_COLORS[i % SERVICE_COLORS.length] }} />
+            {orderedServices.map((s, i) => (
+              <Card
+                key={s.serviceId}
+                draggable
+                onDragStart={() => handleDragStart(i)}
+                onDragOver={(e: React.DragEvent) => handleDragOver(e, i)}
+                onDrop={handleDrop}
+                onDragEnd={handleDragEnd}
+                className={`p-4 flex items-center gap-3 select-none ${!s.active ? 'opacity-50' : ''}`}
+              >
+                <Icon name="grip" className="w-4 h-4 text-zinc-300 dark:text-zinc-600 shrink-0 cursor-grab active:cursor-grabbing" />
+                <span className="w-3 h-3 rounded-full shrink-0" style={{ background: s.color ?? SERVICE_COLORS[i % SERVICE_COLORS.length] }} />
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-zinc-900 dark:text-white text-sm">{s.name}</p>
                   <p className="text-xs text-zinc-400">{s.duration} min · {Number(s.price).toFixed(2)}€{s.description ? ` · ${s.description}` : ''}</p>
@@ -295,6 +421,28 @@ function ServicosPanel() {
             <Input label="Preço (€)" type="number" min={0} step={0.5} value={form.price} onChange={(e: any) => setForm((f) => ({ ...f, price: e.target.value }))} />
           </div>
           <Input label="Descrição (opcional)" value={form.description} onChange={(e: any) => setForm((f) => ({ ...f, description: e.target.value }))} />
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Cor do serviço</label>
+            <div className="flex items-center gap-3 flex-wrap">
+              <input
+                type="color"
+                value={form.color}
+                onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
+                className="w-10 h-10 rounded-lg border border-zinc-200 dark:border-zinc-700 cursor-pointer p-0.5 bg-white dark:bg-zinc-900 shrink-0"
+              />
+              <div className="flex flex-wrap gap-2">
+                {SERVICE_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, color: c }))}
+                    className={`w-7 h-7 rounded-full transition-transform ${form.color === c ? 'scale-125 ring-2 ring-offset-2 ring-zinc-400 dark:ring-offset-zinc-800' : 'hover:scale-110'}`}
+                    style={{ background: c }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </Modal>
     </div>

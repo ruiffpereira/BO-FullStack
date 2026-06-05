@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { Shell } from './components/Shell'
 import { Login } from './components/Login'
@@ -8,19 +9,11 @@ import { Loja } from './pages/Loja'
 import { Agenda } from './pages/Agenda'
 import { Admin } from './pages/Admin'
 
-const PERM_TO_ROUTE: Record<string, string> = {
-  VIEW_CUSTOMERS: 'clientes',
-  VIEW_PRODUCTS:  'loja',
-  VIEW_SCHEDULE:  'agenda',
-  VIEW_ADMIN:     'admin',
-}
-
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
     (localStorage.getItem('bo-theme') as 'light' | 'dark') || 'dark',
   )
-  const { accessToken, permissions } = useAuth()
-  const [route, setRoute] = useState('dashboard')
+  const { accessToken } = useAuth()
 
   useEffect(() => {
     const root = document.documentElement
@@ -31,42 +24,23 @@ function App() {
     localStorage.setItem('bo-theme', theme)
   }, [theme])
 
-  const accessibleRoutes = [
-    'dashboard',
-    ...permissions
-      .map((p) => PERM_TO_ROUTE[p.name ?? ''])
-      .filter(Boolean)
-      .filter((v, i, arr) => arr.indexOf(v) === i),
-  ]
-
-  useEffect(() => {
-    if (accessToken && !accessibleRoutes.includes(route)) {
-      setRoute(accessibleRoutes[0] ?? 'dashboard')
-    }
-  }, [accessToken, permissions]) // eslint-disable-line
+  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
 
   if (!accessToken) {
-    return (
-      <Login
-        theme={theme}
-        onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-      />
-    )
+    return <Login theme={theme} onToggleTheme={toggleTheme} />
   }
 
   return (
-    <Shell
-      route={route}
-      setRoute={setRoute}
-      accessibleRoutes={accessibleRoutes}
-      theme={theme}
-      onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-    >
-      {route === 'dashboard' && <Dashboard />}
-      {route === 'clientes' && <Clientes />}
-      {route === 'loja' && <Loja />}
-      {route === 'agenda' && <Agenda />}
-      {route === 'admin' && <Admin />}
+    <Shell theme={theme} onToggleTheme={toggleTheme}>
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/clientes" element={<Clientes />} />
+        <Route path="/loja" element={<Loja />} />
+        <Route path="/agenda" element={<Agenda />} />
+        <Route path="/admin" element={<Admin />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
     </Shell>
   )
 }

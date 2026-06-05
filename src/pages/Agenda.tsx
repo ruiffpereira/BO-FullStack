@@ -39,10 +39,15 @@ const SERVICE_COLORS = ['#2A6FDB', '#1F8A5B', '#D97757', '#7C5CDB', '#E6B450', '
 const DAY_NAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const FULL_DAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
+function stableColorForId(serviceId: string): string {
+  let h = 0
+  for (let i = 0; i < serviceId.length; i++) h = (h * 31 + serviceId.charCodeAt(i)) >>> 0
+  return SERVICE_COLORS[h % SERVICE_COLORS.length]
+}
+
 function colorForService(serviceId: string, services: Service[]) {
-  const idx = services.findIndex((s) => s.serviceId === serviceId)
-  const svc = services[idx]
-  return svc?.color ?? SERVICE_COLORS[idx % SERVICE_COLORS.length] ?? '#2A6FDB'
+  const svc = services.find((s) => s.serviceId === serviceId)
+  return svc?.color ?? stableColorForId(serviceId)
 }
 
 // ─── Overlap layout ───────────────────────────────────────────────────────────
@@ -398,7 +403,7 @@ function ServicosPanel() {
                 className={`p-4 flex items-center gap-3 select-none ${!s.active ? 'opacity-50' : ''}`}
               >
                 <Icon name="grip" className="w-4 h-4 text-zinc-300 dark:text-zinc-600 shrink-0 cursor-grab active:cursor-grabbing" />
-                <span className="w-3 h-3 rounded-full shrink-0" style={{ background: s.color ?? SERVICE_COLORS[i % SERVICE_COLORS.length] }} />
+                <span className="w-3 h-3 rounded-full shrink-0" style={{ background: s.color ?? stableColorForId(s.serviceId) }} />
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-zinc-900 dark:text-white text-sm">{s.name}</p>
                   <p className="text-xs text-zinc-400">{s.duration} min · {Number(s.price).toFixed(2)}€{s.description ? ` · ${s.description}` : ''}</p>

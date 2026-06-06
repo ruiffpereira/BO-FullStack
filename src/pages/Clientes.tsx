@@ -53,7 +53,8 @@ const STATUS_PT: Record<string, string> = { pending: 'Pendente', confirmed: 'Con
 const STATUS_TONE: Record<string, string> = { pending: 'amber', confirmed: 'green', completed: 'green', cancelled: 'red' }
 
 export function Clientes() {
-  const { authHeader } = useAuth()
+  const { authHeader, hasPermission } = useAuth()
+  const canSchedule = hasPermission('VIEW_SCHEDULE')
   const qc = useQueryClient()
   const headers = authHeader()
 
@@ -67,7 +68,7 @@ export function Clientes() {
   const [selAppt, setSelAppt] = useState<HistoryAppt | null>(null)
 
   const { data, isLoading, isError } = useGetCustomers({ client: { headers } })
-  const { data: svcData } = useGetScheduleServices({ client: { headers } })
+  const { data: svcData } = useGetScheduleServices({ query: { enabled: canSchedule }, client: { headers } })
   const services = svcData ?? []
   const customers = data?.rows ?? []
 
@@ -159,6 +160,7 @@ export function Clientes() {
 
   const openProfile = async (id: string) => {
     setProfileId(id)
+    if (!canSchedule) { setLoadingHistory(false); return }
     setLoadingHistory(true)
     setHistory(null)
     try {
@@ -324,12 +326,13 @@ export function Clientes() {
               </div>
             )}
 
-            {/* Stats */}
-            {loadingHistory ? (
+            {/* Stats — only when schedule module is active */}
+            {canSchedule && loadingHistory && (
               <div className="grid grid-cols-3 gap-3">
                 {[1, 2, 3].map((i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" />)}
               </div>
-            ) : history && (
+            )}
+            {canSchedule && !loadingHistory && history && (
               <>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
@@ -352,7 +355,7 @@ export function Clientes() {
                 {/* Appointment history */}
                 {history.appointments.length > 0 && (
                   <div>
-                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">Histórico</p>
+                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">Histórico de marcações</p>
                     <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
                       {history.appointments.map((a) => {
                         const paid = a.paidAt ? (Number(a.paymentCash || 0) + Number(a.paymentMbway || 0) + Number(a.paymentCard || 0)) : null
@@ -424,8 +427,8 @@ export function Clientes() {
         </Modal>
       )}
 
-      {/* ── Appointment detail modal ── */}
-      {selAppt && (
+      {/* ── Appointment detail modal — only when schedule is available ── */}
+      {canSchedule && selAppt && (
         <ApptModal
           appt={selAppt as unknown as Appointment}
           services={services}

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { Shell } from './components/Shell'
 import { Login } from './components/Login'
+import { SetupPassword } from './pages/SetupPassword'
 import { Dashboard } from './pages/Dashboard'
 import { Clientes } from './pages/Clientes'
 import { Loja } from './pages/Loja'
@@ -16,6 +17,7 @@ function App() {
     (localStorage.getItem('bo-theme') as 'light' | 'dark') || 'dark',
   )
   const { accessToken } = useAuth()
+  const location = useLocation()
 
   useEffect(() => {
     const root = document.documentElement
@@ -27,6 +29,11 @@ function App() {
   }, [theme])
 
   const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
+
+  // Public routes — accessible without authentication
+  if (location.pathname === '/setup-password') {
+    return <SetupPassword theme={theme} onToggleTheme={toggleTheme} />
+  }
 
   if (!accessToken) {
     return <Login theme={theme} onToggleTheme={toggleTheme} />

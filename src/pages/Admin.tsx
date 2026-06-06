@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { getApiError } from "../lib/apiError";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { Icon } from "../ui/icons.jsx";
 import {
@@ -99,7 +99,6 @@ function CopyBtn({ value }: { value: string }) {
 type UserForm = {
   name: string;
   email: string;
-  password: string;
   permissionId: string;
   emailSenderName: string;
   fromEmail: string;
@@ -108,7 +107,6 @@ type UserForm = {
 const emptyUserForm: UserForm = {
   name: "",
   email: "",
-  password: "",
   permissionId: "",
   emailSenderName: "",
   fromEmail: "",
@@ -141,16 +139,14 @@ function UserFormFields({
         onChange={(e: any) => setForm({ ...form, email: e.target.value })}
         placeholder="email@exemplo.com"
       />
-      <Input
-        label={
-          isEdit
-            ? "Nova palavra-passe (em branco para manter)"
-            : "Palavra-passe"
-        }
-        type="password"
-        value={form.password}
-        onChange={(e: any) => setForm({ ...form, password: e.target.value })}
-      />
+      {!isEdit && (
+        <div className="flex items-start gap-2.5 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 px-3.5 py-3">
+          <Icon name="mail" className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            O utilizador receberá um email para criar a sua palavra-passe.
+          </p>
+        </div>
+      )}
       <Input
         label="Nome de remetente nos emails"
         value={form.emailSenderName}
@@ -241,6 +237,16 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
       onError: (error) => toast.error(getApiError(error)),
     },
   });
+  const apiBase = ((import.meta as any).env?.VITE_API_BASE_URL ?? 'http://localhost:3001/api') as string
+  const sendResetM = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await fetch(`${apiBase}/users/${userId}/send-reset`, { method: 'POST', headers })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Erro') }
+    },
+    onSuccess: () => toast.success('Email de reset enviado'),
+    onError: (e: any) => toast.error(e.message),
+  })
+
   const rotateM = usePutUsers({
     client: { headers },
     mutation: {
@@ -257,7 +263,6 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
     setForm({
       name: u.name,
       email: u.email,
-      password: "",
       permissionId: u.permissions?.[0]?.permissionId ?? "",
       emailSenderName: (u as any).emailSenderName ?? "",
       fromEmail: (u as any).fromEmail ?? "",
@@ -299,7 +304,8 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
           {(users as User[]).map((u) => (
             <tr
               key={u.userId}
-              className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 transition"
+              onClick={() => openEdit(u)}
+              className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 transition cursor-pointer"
             >
               <td className="px-4 py-3.5 font-medium text-zinc-900 dark:text-white">
                 {u.name}
@@ -323,8 +329,14 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
                   )}
                 </div>
               </td>
-              <td className="px-4 py-3.5">
+              <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
                 <div className="flex justify-end gap-1">
+                  <IconButton
+                    title="Enviar email de reset de password"
+                    icon="key"
+                    label="Reset password"
+                    onClick={() => sendResetM.mutate(u.userId)}
+                  />
                   <IconButton
                     title="Renovar chave API"
                     icon="star"
@@ -367,22 +379,16 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
             <Button
               disabled={createM.isPending}
               onClick={() => {
-                if (
-                  !form.name ||
-                  !form.email ||
-                  !form.password ||
-                  !form.permissionId
-                ) {
-                  toast.error("Preenche todos os campos");
+                if (!form.name || !form.email || !form.permissionId) {
+                  toast.error("Nome, email e permissão são obrigatórios");
                   return;
                 }
                 createM.mutate({
                   data: {
                     name: form.name,
                     email: form.email,
-                    password: form.password,
                     permissionId: form.permissionId,
-                  },
+                  } as any,
                 });
               }}
             >
@@ -414,7 +420,6 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
                 const p: any = { userId: selected.userId };
                 if (form.name) p.name = form.name;
                 if (form.email) p.email = form.email;
-                if (form.password) p.password = form.password;
                 if (form.permissionId) p.permissionId = form.permissionId;
                 p.emailSenderName = form.emailSenderName || null;
                 p.fromEmail = form.fromEmail || null;

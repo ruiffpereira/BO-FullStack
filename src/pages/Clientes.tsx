@@ -1,9 +1,18 @@
 import { useState, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useQueryClient, useMutation } from '@tanstack/react-query'
+import kubbFetch from '@kubb/plugin-client/clients/axios'
+import { toast } from 'sonner'
+import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
-import { Card, Badge, Avatar, Modal, PageHeader, EmptyState, Button } from '../ui/ui.jsx'
-import { useGetCustomers } from '../gen/backoffice/hooks/useGetCustomers.js'
+import { Card, Badge, Avatar, Modal, Input, Button, IconButton, PageHeader, EmptyState } from '../ui/ui.jsx'
+import { useGetCustomers, getCustomersQueryKey } from '../gen/backoffice/hooks/useGetCustomers.js'
+import { useGetScheduleServices } from '../gen/backoffice/hooks/useGetScheduleServices.js'
 import type { Customer } from '../gen/backoffice/types/Customer.js'
+import type { Appointment } from '../gen/backoffice/types/Appointment.js'
+import { ApptModal } from '../components/ApptModal.js'
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001/api'
 
 function colorFromName(name: string) {
   const colors = ['#2A6FDB', '#1F8A5B', '#D97757', '#7C5CDB', '#E6B450', '#0EA5A4']
@@ -25,23 +34,167 @@ function SkeletonRow() {
   )
 }
 
+type CustomerForm = { name: string; email: string; contact: string; nif: string; birthday: string; notes: string }
+const emptyForm: CustomerForm = { name: '', email: '', contact: '', nif: '', birthday: '', notes: '' }
+
+type HistoryAppt = {
+  appointmentId: string; serviceId: string; date: string; time: string; status: string
+  clientName: string; clientEmail: string; clientPhone: string; notes?: string | null
+  paymentCash?: number | null; paymentMbway?: number | null; paymentCard?: number | null; paidAt?: string | null
+  service?: { name: string; price: number }
+}
+type CustomerHistory = {
+  customer: Customer
+  stats: { visitCount: number; totalSpent: number; lastVisit: string | null; favoriteServiceId: string | null }
+  appointments: HistoryAppt[]
+}
+
+const STATUS_PT: Record<string, string> = { pending: 'Pendente', confirmed: 'Confirmada', completed: 'Concluída', cancelled: 'Cancelada' }
+const STATUS_TONE: Record<string, string> = { pending: 'amber', confirmed: 'green', completed: 'green', cancelled: 'red' }
+
 export function Clientes() {
   const { authHeader } = useAuth()
+  const qc = useQueryClient()
+  const headers = authHeader()
+
   const [q, setQ] = useState('')
-  const [sel, setSel] = useState<Customer | null>(null)
+  const [profileId, setProfileId] = useState<string | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [editCustomer, setEditCustomer] = useState<Customer | null>(null)
+  const [form, setForm] = useState<CustomerForm>(emptyForm)
+  const [history, setHistory] = useState<CustomerHistory | null>(null)
+  const [loadingHistory, setLoadingHistory] = useState(false)
+  const [selAppt, setSelAppt] = useState<HistoryAppt | null>(null)
 
-  const { data, isLoading, isError } = useGetCustomers({
-    client: { headers: authHeader() },
-  })
-
+  const { data, isLoading, isError } = useGetCustomers({ client: { headers } })
+  const { data: svcData } = useGetScheduleServices({ client: { headers } })
+  const services = svcData ?? []
   const customers = data?.rows ?? []
 
   const filtered = useMemo(() =>
     customers.filter((c) =>
       c.name.toLowerCase().includes(q.toLowerCase()) ||
-      c.email.toLowerCase().includes(q.toLowerCase()),
+      (c.email ?? '').toLowerCase().includes(q.toLowerCase()) ||
+      (c.contact ?? '').includes(q),
     ),
   [customers, q])
+
+  const createMut = useMutation({
+    mutationFn: async (data: CustomerForm) => {
+      const res = await kubbFetch<Customer, Error, Partial<CustomerForm>>({
+        method: 'POST', url: '/customers', baseURL: API_BASE,
+        data: { name: data.name, email: data.email || undefined, contact: data.contact || undefined, nif: data.nif || undefined, birthday: data.birthday || undefined, notes: data.notes || undefined },
+        headers: authHeader(),
+      })
+      return res.data
+    },
+    onSuccess: () => {
+      toast.success('Cliente criado')
+      qc.invalidateQueries({ queryKey: getCustomersQueryKey() })
+      setCreateOpen(false)
+      setForm(emptyForm)
+    },
+    onError: (e: any) => toast.error(getApiError(e)),
+  })
+
+  const updateMut = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<CustomerForm> }) => {
+      const res = await kubbFetch<unknown, Error, Partial<CustomerForm>>({
+        method: 'PATCH', url: `/customers/${id}`, baseURL: API_BASE,
+        data, headers: authHeader(),
+      })
+      return res.data
+    },
+    onSuccess: () => {
+      toast.success('Cliente actualizado')
+      qc.invalidateQueries({ queryKey: getCustomersQueryKey() })
+      setEditCustomer(null)
+      if (profileId) openProfile(profileId)
+    },
+    onError: (e: any) => toast.error(getApiError(e)),
+  })
+
+  const updateApptMut = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
+      await kubbFetch<unknown, Error, typeof data>({
+        method: 'PUT', url: `/schedule/appointments/${id}`, baseURL: API_BASE,
+        data, headers: authHeader(),
+      })
+    },
+    onSuccess: () => {
+      toast.success('Marcação actualizada')
+      if (profileId) openProfile(profileId)
+    },
+    onError: (e: any) => toast.error(getApiError(e)),
+  })
+
+  const deleteApptMut = useMutation({
+    mutationFn: async (id: string) => {
+      await kubbFetch<unknown, Error, void>({
+        method: 'DELETE', url: `/schedule/appointments/${id}`, baseURL: API_BASE, headers: authHeader(),
+      })
+    },
+    onSuccess: () => {
+      toast.success('Marcação eliminada')
+      setSelAppt(null)
+      if (profileId) openProfile(profileId)
+    },
+    onError: (e: any) => toast.error(getApiError(e)),
+  })
+
+  const blockMut = useMutation({
+    mutationFn: async ({ id, blocked }: { id: string; blocked: boolean }) => {
+      await kubbFetch<unknown, Error, { blocked: boolean }>({
+        method: 'PATCH', url: `/customers/${id}`, baseURL: API_BASE,
+        data: { blocked }, headers: authHeader(),
+      })
+    },
+    onSuccess: (_d, { id, blocked }) => {
+      toast.success(blocked ? 'Cliente bloqueado' : 'Cliente desbloqueado')
+      qc.invalidateQueries({ queryKey: getCustomersQueryKey() })
+      if (profileId) openProfile(profileId)
+    },
+    onError: (e: any) => toast.error(getApiError(e)),
+  })
+
+  const openProfile = async (id: string) => {
+    setProfileId(id)
+    setLoadingHistory(true)
+    setHistory(null)
+    try {
+      const res = await kubbFetch<CustomerHistory, Error, void>({
+        method: 'GET', url: `/customers/${id}/history`, baseURL: API_BASE, headers: authHeader(),
+      })
+      setHistory(res.data as CustomerHistory)
+    } catch (e: any) {
+      toast.error(getApiError(e))
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
+
+  const openEdit = (c: Customer) => {
+    setEditCustomer(c)
+    setForm({ name: c.name, email: c.email ?? '', contact: c.contact ?? '', nif: c.nif ?? '', birthday: c.birthday ?? '', notes: c.notes ?? '' })
+  }
+
+  const set = (k: keyof CustomerForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }))
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.name) { toast.error('O nome é obrigatório'); return }
+    createMut.mutate(form)
+  }
+
+  const handleUpdate = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editCustomer) return
+    updateMut.mutate({ id: editCustomer.customerId, data: form })
+  }
+
+  const profileCustomer = profileId ? (history?.customer ?? customers.find((c) => c.customerId === profileId)) : null
+  const favoriteService = history?.appointments.find((a) => a.service && a.serviceId === history.stats.favoriteServiceId)?.service
 
   return (
     <div>
@@ -56,10 +209,11 @@ export function Clientes() {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Procurar por nome ou email…"
+              placeholder="Procurar por nome, email ou telefone…"
               className="w-full bg-zinc-50 dark:bg-zinc-800/60 border border-transparent rounded-lg text-sm pl-10 pr-3 py-2 focus:bg-white dark:focus:bg-zinc-900 focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none text-zinc-800 dark:text-zinc-100"
             />
           </div>
+          <Button icon="plus" size="sm" onClick={() => { setForm(emptyForm); setCreateOpen(true) }}>Novo cliente</Button>
         </div>
 
         <div className="overflow-x-auto">
@@ -75,23 +229,22 @@ export function Clientes() {
             <tbody>
               {isLoading && Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
               {isError && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-red-500 text-sm">
-                    Erro ao carregar clientes.
-                  </td>
-                </tr>
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-red-500 text-sm">Erro ao carregar clientes.</td></tr>
               )}
               {!isLoading && !isError && filtered.map((c) => (
                 <tr
                   key={c.customerId}
-                  onClick={() => setSel(c)}
+                  onClick={() => openProfile(c.customerId)}
                   className="border-b border-zinc-50 dark:border-zinc-800/50 last:border-0 hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 transition cursor-pointer"
                 >
                   <td className="px-4 sm:px-5 py-3.5">
                     <div className="flex items-center gap-3">
                       <Avatar name={c.name} color={colorFromName(c.name)} size={36} />
                       <div className="min-w-0">
-                        <p className="font-medium text-zinc-900 dark:text-white truncate">{c.name}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium text-zinc-900 dark:text-white truncate">{c.name}</p>
+                          {c.blocked && <Badge tone="red" className="shrink-0">Bloqueado</Badge>}
+                        </div>
                         <p className="text-xs text-zinc-400 truncate md:hidden">{c.email}</p>
                       </div>
                     </div>
@@ -111,39 +264,215 @@ export function Clientes() {
         </div>
       </Card>
 
-      {sel && (
+      {/* ── Customer profile modal ── */}
+      {profileId && profileCustomer && (
         <Modal
           open
-          onClose={() => setSel(null)}
+          onClose={() => { setProfileId(null); setHistory(null) }}
           title="Ficha de cliente"
-          width="max-w-md"
-          footer={<Button variant="outline" onClick={() => setSel(null)}>Fechar</Button>}
+          width="max-w-lg"
+          footer={
+            <>
+              <Button variant="outline" icon="edit" onClick={() => openEdit(profileCustomer)}>Editar</Button>
+              <Button
+                variant="outline"
+                disabled={blockMut.isPending}
+                onClick={() => blockMut.mutate({ id: profileCustomer.customerId, blocked: !profileCustomer.blocked })}
+                className={profileCustomer.blocked ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50' : 'text-red-500 border-red-200 hover:bg-red-50'}
+              >
+                {blockMut.isPending ? '…' : profileCustomer.blocked ? 'Desbloquear' : 'Bloquear'}
+              </Button>
+              <div className="flex-1" />
+              <Button variant="ghost" onClick={() => { setProfileId(null); setHistory(null) }}>Fechar</Button>
+            </>
+          }
         >
-          <div className="flex items-center gap-4 mb-5">
-            <Avatar name={sel.name} color={colorFromName(sel.name)} size={56} />
-            <div>
-              <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">{sel.name}</h3>
-              <Badge tone="green" dot>Activo</Badge>
+          <div className="space-y-5">
+            {/* Header */}
+            <div className="flex items-center gap-4">
+              <Avatar name={profileCustomer.name} color={colorFromName(profileCustomer.name)} size={56} />
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">{profileCustomer.name}</h3>
+                  {profileCustomer.blocked && (
+                    <Badge tone="red"><Icon name="ban" className="w-3 h-3 inline mr-0.5" />Bloqueado</Badge>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {profileCustomer.birthday && (
+                    <span className="text-xs text-zinc-400 flex items-center gap-1">
+                      <Icon name="star" className="w-3 h-3" />
+                      {new Date(profileCustomer.birthday + 'T00:00:00').toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' })}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="space-y-2.5 text-sm">
-            <div className="flex items-center gap-2.5 text-zinc-600 dark:text-zinc-300">
-              <Icon name="mail" className="w-4 h-4 text-zinc-400" />{sel.email}
+
+            {/* Contact info */}
+            <div className="space-y-2 text-sm text-zinc-600 dark:text-zinc-300">
+              {profileCustomer.email && <div className="flex items-center gap-2.5"><Icon name="mail" className="w-4 h-4 text-zinc-400" />{profileCustomer.email}</div>}
+              {profileCustomer.contact && <div className="flex items-center gap-2.5"><Icon name="phone" className="w-4 h-4 text-zinc-400" />{profileCustomer.contact}</div>}
+              {profileCustomer.nif && <div className="flex items-center gap-2.5"><Icon name="layers" className="w-4 h-4 text-zinc-400" />NIF {profileCustomer.nif}</div>}
             </div>
-            {sel.contact && (
-              <div className="flex items-center gap-2.5 text-zinc-600 dark:text-zinc-300">
-                <Icon name="phone" className="w-4 h-4 text-zinc-400" />{sel.contact}
+
+            {/* Notes */}
+            {profileCustomer.notes && (
+              <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-xl p-3 text-sm text-amber-900 dark:text-amber-200">
+                <p className="text-xs font-medium text-amber-600 dark:text-amber-400 mb-1">Notas</p>
+                {profileCustomer.notes}
               </div>
             )}
-            <div className="flex items-center gap-2.5 text-zinc-400">
-              <Icon name="layers" className="w-4 h-4 text-zinc-400" />
-              <span className="font-mono text-xs">{sel.customerId}</span>
-            </div>
+
+            {/* Stats */}
+            {loadingHistory ? (
+              <div className="grid grid-cols-3 gap-3">
+                {[1, 2, 3].map((i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" />)}
+              </div>
+            ) : history && (
+              <>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
+                    <p className="text-2xl font-bold text-zinc-900 dark:text-white">{history.stats.visitCount}</p>
+                    <p className="text-xs text-zinc-400 mt-0.5">visitas</p>
+                  </div>
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
+                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{history.stats.totalSpent.toFixed(0)}€</p>
+                    <p className="text-xs text-zinc-400 mt-0.5">gasto total</p>
+                  </div>
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
+                    <p className="text-sm font-bold text-zinc-900 dark:text-white leading-tight">{favoriteService?.name ?? '—'}</p>
+                    <p className="text-xs text-zinc-400 mt-0.5">serviço favorito</p>
+                  </div>
+                </div>
+                {history.stats.lastVisit && (
+                  <p className="text-xs text-zinc-400 text-center -mt-1">Última visita: {new Date(history.stats.lastVisit + 'T00:00:00').toLocaleDateString('pt-PT', { dateStyle: 'long' })}</p>
+                )}
+
+                {/* Appointment history */}
+                {history.appointments.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">Histórico</p>
+                    <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                      {history.appointments.map((a) => {
+                        const paid = a.paidAt ? (Number(a.paymentCash || 0) + Number(a.paymentMbway || 0) + Number(a.paymentCard || 0)) : null
+                        return (
+                          <button
+                            key={a.appointmentId}
+                            onClick={() => setSelAppt(a)}
+                            className="w-full flex items-center gap-3 p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/40 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition text-left"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-zinc-800 dark:text-zinc-100">{a.date} · {a.time}</p>
+                              <p className="text-xs text-zinc-400 truncate">{a.service?.name ?? '—'}</p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <Badge tone={STATUS_TONE[a.status] as any ?? 'zinc'}>{STATUS_PT[a.status] ?? a.status}</Badge>
+                              {paid != null && <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">{paid.toFixed(2)} €</p>}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+                {history.appointments.length === 0 && (
+                  <p className="text-sm text-zinc-400 text-center py-2">Sem marcações registadas para este cliente.</p>
+                )}
+              </>
+            )}
           </div>
-          {/*
-            TODO: Histórico de encomendas/visitas.
-            Requer endpoint GET /customers/:id/history ou filtros dedicados na API.
-          */}
+        </Modal>
+      )}
+
+      {/* ── Create customer modal ── */}
+      {createOpen && (
+        <Modal
+          open
+          onClose={() => setCreateOpen(false)}
+          title="Novo cliente"
+          width="max-w-sm"
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setCreateOpen(false)}>Cancelar</Button>
+              <Button type="submit" form="create-customer-form" disabled={createMut.isPending}>
+                {createMut.isPending ? 'A criar…' : 'Criar cliente'}
+              </Button>
+            </>
+          }
+        >
+          <form id="create-customer-form" onSubmit={handleCreate} className="space-y-3">
+            <Input label="Nome *" value={form.name} onChange={set('name')} placeholder="João Mendes" />
+            <Input label="Email (opcional)" type="email" value={form.email} onChange={set('email')} placeholder="joao@email.com" />
+            <Input label="Telefone (opcional)" value={form.contact} onChange={set('contact')} placeholder="912 345 678" />
+            <Input label="NIF (opcional)" value={form.nif} onChange={set('nif')} placeholder="123456789" />
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Data de nascimento (opcional)</label>
+              <input type="date" value={form.birthday} onChange={set('birthday')} className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Notas internas (opcional)</label>
+              <textarea
+                value={form.notes}
+                onChange={set('notes')}
+                rows={2}
+                placeholder="Preferências, alergias, observações…"
+                className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent resize-none"
+              />
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* ── Appointment detail modal ── */}
+      {selAppt && (
+        <ApptModal
+          appt={selAppt as unknown as Appointment}
+          services={services}
+          onClose={() => setSelAppt(null)}
+          onSave={(id, data) => updateApptMut.mutate({ id, data })}
+          onDelete={(id) => deleteApptMut.mutate(id)}
+          isSaving={updateApptMut.isPending}
+          isPendingDelete={deleteApptMut.isPending}
+        />
+      )}
+
+      {/* ── Edit customer modal ── */}
+      {editCustomer && (
+        <Modal
+          open
+          onClose={() => setEditCustomer(null)}
+          title="Editar cliente"
+          width="max-w-sm"
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setEditCustomer(null)}>Cancelar</Button>
+              <Button type="submit" form="edit-customer-form" disabled={updateMut.isPending}>
+                {updateMut.isPending ? 'A guardar…' : 'Guardar'}
+              </Button>
+            </>
+          }
+        >
+          <form id="edit-customer-form" onSubmit={handleUpdate} className="space-y-3">
+            <Input label="Nome" value={form.name} onChange={set('name')} />
+            <Input label="Email" type="email" value={form.email} onChange={set('email')} />
+            <Input label="Telefone" value={form.contact} onChange={set('contact')} />
+            <Input label="NIF" value={form.nif} onChange={set('nif')} />
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Data de nascimento</label>
+              <input type="date" value={form.birthday} onChange={set('birthday')} className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Notas internas</label>
+              <textarea
+                value={form.notes}
+                onChange={set('notes')}
+                rows={3}
+                placeholder="Preferências, alergias, observações…"
+                className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent resize-none"
+              />
+            </div>
+          </form>
         </Modal>
       )}
     </div>

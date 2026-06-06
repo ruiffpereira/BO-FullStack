@@ -8,6 +8,8 @@ import { Clientes } from './pages/Clientes'
 import { Loja } from './pages/Loja'
 import { Agenda } from './pages/Agenda'
 import { Admin } from './pages/Admin'
+import { Conteudos } from './pages/Conteudos'
+import { Tokens } from './pages/Tokens'
 
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
@@ -38,6 +40,8 @@ function App() {
         <Route path="/clientes" element={<Clientes />} />
         <Route path="/loja" element={<Loja />} />
         <Route path="/agenda" element={<Agenda />} />
+        <Route path="/conteudos" element={<Conteudos />} />
+        <Route path="/tokens" element={<Tokens />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

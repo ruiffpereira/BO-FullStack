@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { format, addDays, startOfWeek, isSameDay, addWeeks, subWeeks } from 'date-fns'
+import { format, addDays, startOfWeek, isSameDay, addWeeks, subWeeks, startOfMonth, eachDayOfInterval, isSameMonth, addMonths, subMonths } from 'date-fns'
 import { pt } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
@@ -22,38 +22,35 @@ import { usePostScheduleWorkingHours } from '../gen/backoffice/hooks/usePostSche
 import { useGetScheduleBlockedSlots, getScheduleBlockedSlotsQueryKey } from '../gen/backoffice/hooks/useGetScheduleBlockedSlots.js'
 import { usePostScheduleBlockedSlots } from '../gen/backoffice/hooks/usePostScheduleBlockedSlots.js'
 import { useDeleteScheduleBlockedSlotsId } from '../gen/backoffice/hooks/useDeleteScheduleBlockedSlotsId.js'
+import { useGetCustomers, getCustomersQueryKey } from '../gen/backoffice/hooks/useGetCustomers.js'
 
-import type { Appointment, AppointmentStatusEnum } from '../gen/backoffice/types/Appointment.js'
+import type { Appointment } from '../gen/backoffice/types/Appointment.js'
 import type { Service } from '../gen/backoffice/types/Service.js'
 import type { WorkingHours } from '../gen/backoffice/types/WorkingHours.js'
+import type { Customer } from '../gen/backoffice/types/Customer.js'
+import { ApptModal, colorForService, STATUS_LABELS } from '../components/ApptModal.js'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const AG_H_START = 8
 const AG_H_END = 20
-const AG_ROW_H = 60
+const AG_ROW_H = 48
 
-const STATUS_LABELS: Record<AppointmentStatusEnum, string> = {
-  pending: 'Pendente', confirmed: 'Confirmada', completed: 'Concluída', cancelled: 'Cancelada',
-}
 const SERVICE_COLORS = ['#2A6FDB', '#1F8A5B', '#D97757', '#7C5CDB', '#E6B450', '#0EA5A4', '#DB2A6F', '#5C2ADB']
-const DAY_NAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-const FULL_DAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
-
-function stableColorForId(serviceId: string): string {
+function stableColorForId(id: string): string {
   let h = 0
-  for (let i = 0; i < serviceId.length; i++) h = (h * 31 + serviceId.charCodeAt(i)) >>> 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
   return SERVICE_COLORS[h % SERVICE_COLORS.length]
 }
+const DAY_NAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+const FULL_DAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001/api'
 
-function colorForService(serviceId: string, services: Service[]) {
-  const svc = services.find((s) => s.serviceId === serviceId)
-  return svc?.color ?? stableColorForId(serviceId)
+function minuteToTime(min: number) {
+  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
 }
 
 // ─── Overlap layout ───────────────────────────────────────────────────────────
-// 1px = 1min quando AG_ROW_H=60. O min-height de 24px equivale a 24min visuais —
-// usamos isso como end mínimo para detectar sobreposições visuais de serviços curtos.
-const MIN_VISUAL_MINS = Math.ceil((24 / AG_ROW_H) * 60) // = 24min
+const MIN_VISUAL_MINS = Math.ceil((24 / AG_ROW_H) * 60)
 
 function apptMinutes(appt: Appointment) {
   const [h, m] = appt.time.split(':').map(Number)
@@ -61,7 +58,7 @@ function apptMinutes(appt: Appointment) {
 }
 function apptVisualEnd(appt: Appointment, services: Service[]) {
   const svc = services.find((s) => s.serviceId === appt.serviceId)
-  return apptMinutes(appt) + Math.max(svc?.duration ?? 30, MIN_VISUAL_MINS)
+  return apptMinutes(appt) + Math.max(appt.duration ?? svc?.duration ?? 30, MIN_VISUAL_MINS)
 }
 function overlaps(a: Appointment, b: Appointment, services: Service[]) {
   return apptMinutes(a) < apptVisualEnd(b, services) && apptMinutes(b) < apptVisualEnd(a, services)
@@ -71,7 +68,6 @@ function computeColumns(appts: Appointment[], services: Service[]) {
   const sorted = [...appts].sort((a, b) => apptMinutes(a) - apptMinutes(b))
   const result: { appt: Appointment; col: number; totalCols: number }[] = []
 
-  // Group appointments that overlap with any member of the group
   const groups: Appointment[][] = []
   for (const appt of sorted) {
     const grp = groups.find((g) => g.some((x) => overlaps(x, appt, services)))
@@ -95,79 +91,168 @@ function computeColumns(appts: Appointment[], services: Service[]) {
   return result
 }
 
-// ─── Appointment detail modal ─────────────────────────────────────────────────
-function ApptModal({ appt, services, onClose, onStatusChange, onDelete, isPendingUpdate, isPendingDelete }: {
-  appt: Appointment; services: Service[]; onClose: () => void
-  onStatusChange: (id: string, status: AppointmentStatusEnum) => void
-  onDelete: (id: string) => void; isPendingUpdate: boolean; isPendingDelete: boolean
-}) {
-  const svc = services.find((s) => s.serviceId === appt.serviceId)
-  const status = appt.status ?? 'pending'
-  return (
-    <Modal open onClose={onClose} title="Marcação" width="max-w-sm"
-      footer={<><Button variant="danger" disabled={isPendingDelete} onClick={() => onDelete(appt.appointmentId)}>{isPendingDelete ? 'A eliminar…' : 'Eliminar'}</Button><div className="flex-1" /><Button variant="ghost" onClick={onClose}>Fechar</Button></>}
-    >
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <Avatar name={appt.clientName} color={colorForService(appt.serviceId, services)} size={44} />
-          <div>
-            <p className="font-semibold text-zinc-900 dark:text-white">{appt.clientName}</p>
-            <Badge tone={status === 'confirmed' || status === 'completed' ? 'green' : status === 'cancelled' ? 'red' : 'amber'} dot>{STATUS_LABELS[status]}</Badge>
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-2 text-sm">
-          {[['Serviço', svc?.name ?? '—'], ['Data', appt.date], ['Hora', appt.time]].map(([k, v]) => (
-            <div key={k} className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-2.5">
-              <p className="text-xs text-zinc-400">{k}</p>
-              <p className="font-medium text-zinc-800 dark:text-zinc-100 mt-0.5">{v}</p>
-            </div>
-          ))}
-        </div>
-        <div className="space-y-1.5 text-sm text-zinc-600 dark:text-zinc-300">
-          <div className="flex items-center gap-2"><Icon name="mail" className="w-4 h-4 text-zinc-400" />{appt.clientEmail}</div>
-          <div className="flex items-center gap-2"><Icon name="phone" className="w-4 h-4 text-zinc-400" />{appt.clientPhone}</div>
-          {appt.notes && <div className="flex items-start gap-2"><Icon name="edit" className="w-4 h-4 text-zinc-400 mt-0.5 shrink-0" />{appt.notes}</div>}
-        </div>
-        {status !== 'cancelled' && (
-          <div>
-            <p className="text-xs font-medium text-zinc-500 mb-1.5">Alterar estado</p>
-            <div className="flex flex-wrap gap-1.5">
-              {(['pending', 'confirmed', 'completed', 'cancelled'] as AppointmentStatusEnum[]).map((s) => (
-                <button key={s} disabled={isPendingUpdate || s === status} onClick={() => onStatusChange(appt.appointmentId, s)} className={`px-3 py-1 rounded-full text-xs font-medium border transition disabled:opacity-40 ${s === status ? 'bg-accent text-white border-accent cursor-default' : 'border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}>{STATUS_LABELS[s]}</button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </Modal>
-  )
-}
 
 // ─── New appointment modal ────────────────────────────────────────────────────
-function NovaApptModal({ date, open, onClose, services, onCreate, isPending }: {
+function colorFromName(name: string) {
+  const cols = ['#2A6FDB', '#1F8A5B', '#D97757', '#7C5CDB', '#E6B450', '#0EA5A4']
+  let h = 0; for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h)
+  return cols[Math.abs(h) % cols.length]
+}
+
+function NovaApptModal({ date, open, onClose, services, onCreate, isPending, initialTime }: {
   date: Date; open: boolean; onClose: () => void
   services: Service[]; onCreate: (data: any) => void; isPending: boolean
+  initialTime?: string
 }) {
-  const [form, setForm] = useState({ time: '09:00', serviceId: '', clientName: '', clientEmail: '', clientPhone: '', notes: '' })
+  const { authHeader } = useAuth()
+  const qc = useQueryClient()
+  const headers = authHeader()
+
+  const [form, setForm] = useState({ time: initialTime ?? '09:00', serviceId: '', notes: '' })
+  const [q, setQ] = useState('')
+  const [showDrop, setShowDrop] = useState(false)
+  const [selCustomer, setSelCustomer] = useState<Customer | null>(null)
+  const [showNewCust, setShowNewCust] = useState(false)
+  const [newCust, setNewCust] = useState({ name: '', email: '', contact: '' })
+
+  useEffect(() => { if (initialTime) setForm((f) => ({ ...f, time: initialTime })) }, [initialTime])
+
+  const { data: custData, isError: custError } = useGetCustomers({ client: { headers } })
+  const allCustomers = custData?.rows ?? []
+
+  const dropList = q.trim()
+    ? allCustomers.filter((c) =>
+        c.name.toLowerCase().includes(q.toLowerCase()) ||
+        c.email.toLowerCase().includes(q.toLowerCase()) ||
+        (c.contact ?? '').includes(q)
+      ).slice(0, 6)
+    : []
+
+  const createCustMut = useMutation({
+    mutationFn: async (data: { name: string; email: string; contact: string }) => {
+      const res = await kubbFetch<Customer, Error, typeof data>({
+        method: 'POST', url: '/customers', baseURL: API_BASE,
+        data, headers: authHeader(),
+      })
+      return res.data as Customer
+    },
+    onSuccess: (c: Customer) => {
+      qc.invalidateQueries({ queryKey: getCustomersQueryKey() })
+      selectCustomer(c)
+      setShowNewCust(false)
+      setNewCust({ name: '', email: '', contact: '' })
+      toast.success('Cliente criado')
+    },
+    onError: (e: any) => toast.error(getApiError(e)),
+  })
+
+  const selectCustomer = (c: Customer) => {
+    setSelCustomer(c)
+    setQ(''); setShowDrop(false)
+  }
+
+  const deselectCustomer = () => {
+    setSelCustomer(null)
+  }
+
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm((f) => ({ ...f, [k]: e.target.value }))
+  const setNC = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setNewCust((f) => ({ ...f, [k]: e.target.value }))
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.serviceId || !form.clientName || !form.clientEmail || !form.clientPhone) { toast.error('Preenche todos os campos obrigatórios.'); return }
-    onCreate({ ...form, date: format(date, 'yyyy-MM-dd') })
+    if (!selCustomer) { toast.error('Seleciona um cliente.'); return }
+    if (!form.serviceId) { toast.error('Seleciona um serviço.'); return }
+    onCreate({
+      time: form.time,
+      serviceId: form.serviceId,
+      notes: form.notes || undefined,
+      date: format(date, 'yyyy-MM-dd'),
+      customerId: selCustomer.customerId,
+      clientName: selCustomer.name,
+      clientEmail: selCustomer.email,
+      clientPhone: selCustomer.contact ?? '',
+    })
   }
+
+  const handleCreateCust = () => {
+    if (!newCust.name || !newCust.email || !newCust.contact) { toast.error('Nome, email e telefone obrigatórios'); return }
+    createCustMut.mutate(newCust)
+  }
+
   return (
     <Modal open={open} onClose={onClose} title={`Nova marcação — ${format(date, 'dd MMM', { locale: pt })}`} width="max-w-sm"
       footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><Button type="submit" form="nova-appt-form" disabled={isPending}>{isPending ? 'A guardar…' : 'Criar marcação'}</Button></>}
     >
       <form id="nova-appt-form" onSubmit={handleSubmit} className="space-y-3">
+        {/* ── Customer selector ── */}
+        <div>
+          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Cliente</p>
+          {selCustomer ? (
+            <div className="flex items-center gap-2 p-2 bg-zinc-50 dark:bg-zinc-800/60 rounded-lg border border-zinc-200 dark:border-zinc-700">
+              <Avatar name={selCustomer.name} color={colorFromName(selCustomer.name)} size={28} />
+              <span className="flex-1 text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{selCustomer.name}</span>
+              <button type="button" onClick={deselectCustomer} className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-lg leading-none px-1">×</button>
+            </div>
+          ) : (
+            <div className="relative">
+              <input
+                type="text"
+                value={q}
+                onChange={(e) => { setQ(e.target.value); setShowDrop(true) }}
+                onFocus={() => setShowDrop(true)}
+                onBlur={() => setTimeout(() => setShowDrop(false), 150)}
+                placeholder="Procurar cliente existente…"
+                className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent"
+              />
+              {showDrop && q.trim() && (
+                <div className="absolute top-full left-0 right-0 z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg mt-1 overflow-hidden">
+                  {custError ? (
+                    <p className="px-3 py-2 text-sm text-red-500">Erro ao carregar clientes</p>
+                  ) : dropList.length === 0 ? (
+                    <p className="px-3 py-2 text-sm text-zinc-400">Sem resultados</p>
+                  ) : dropList.map((c) => (
+                    <button
+                      key={c.customerId}
+                      type="button"
+                      onMouseDown={() => selectCustomer(c)}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 text-left"
+                    >
+                      <Avatar name={c.name} color={colorFromName(c.name)} size={24} />
+                      <div className="min-w-0">
+                        <p className="font-medium text-zinc-800 dark:text-zinc-100 truncate">{c.name}</p>
+                        <p className="text-xs text-zinc-400 truncate">{c.contact ?? c.email}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {!selCustomer && (
+            <button type="button" onClick={() => setShowNewCust((v) => !v)} className="mt-1 text-xs text-accent hover:underline">
+              {showNewCust ? '− Cancelar' : '+ Criar novo cliente'}
+            </button>
+          )}
+          {showNewCust && (
+            <div className="mt-2 p-3 rounded-lg border border-zinc-200 dark:border-zinc-700 space-y-2 bg-zinc-50 dark:bg-zinc-800/40">
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Novo cliente</p>
+              <input value={newCust.name} onChange={setNC('name')} placeholder="Nome *" className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" />
+              <input type="email" value={newCust.email} onChange={setNC('email')} placeholder="Email *" className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" />
+              <input value={newCust.contact} onChange={setNC('contact')} placeholder="Telefone *" className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" />
+              <Button size="sm" className="w-full" disabled={createCustMut.isPending} onClick={handleCreateCust}>
+                {createCustMut.isPending ? 'A criar…' : 'Criar e selecionar'}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <hr className="border-zinc-100 dark:border-zinc-800" />
+
         <Select label="Serviço *" value={form.serviceId} onChange={set('serviceId')}>
           <option value="">Escolher serviço</option>
           {services.filter((s) => s.active !== false).map((s) => <option key={s.serviceId} value={s.serviceId}>{s.name} ({s.duration}min — {Number(s.price).toFixed(2)}€)</option>)}
         </Select>
         <Input label="Hora *" type="time" value={form.time} onChange={set('time')} />
-        <Input label="Nome do cliente *" value={form.clientName} onChange={set('clientName')} placeholder="João Mendes" />
-        <Input label="Email *" type="email" value={form.clientEmail} onChange={set('clientEmail')} placeholder="joao@email.com" />
-        <Input label="Telefone *" value={form.clientPhone} onChange={set('clientPhone')} placeholder="912 345 678" />
         <Input label="Notas (opcional)" value={form.notes} onChange={set('notes')} />
       </form>
     </Modal>
@@ -175,6 +260,10 @@ function NovaApptModal({ date, open, onClose, services, onCreate, isPending }: {
 }
 
 // ─── Calendar view ────────────────────────────────────────────────────────────
+type DragRef = { day: Date; colEl: HTMLElement; startMin: number; endMin: number; active: boolean }
+type DragSel = { day: Date; startMin: number; endMin: number }
+type DragAction = { x: number; y: number; day: Date; startMin: number; endMin: number }
+
 function CalendarioView() {
   const { authHeader } = useAuth()
   const qc = useQueryClient()
@@ -182,6 +271,23 @@ function CalendarioView() {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }))
   const [selAppt, setSelAppt] = useState<Appointment | null>(null)
   const [novaDate, setNovaDate] = useState<Date | null>(null)
+  const [novaTime, setNovaTime] = useState<string | null>(null)
+
+  // Mini calendar
+  const [showMiniCal, setShowMiniCal] = useState(false)
+  const [miniCalMonth, setMiniCalMonth] = useState(() => startOfMonth(weekStart))
+  const miniCalBtnRef = useRef<HTMLButtonElement>(null)
+
+  // Drag-to-select state
+  const dragRef = useRef<DragRef | null>(null)
+  const [dragSel, setDragSel] = useState<DragSel | null>(null)
+  const [dragAction, setDragAction] = useState<DragAction | null>(null)
+
+  // Stable ref setters for use inside useEffect with empty deps
+  const setNovaDateRef = useRef(setNovaDate)
+  const setNovaTimeRef = useRef(setNovaTime)
+  const setDragSelRef = useRef(setDragSel)
+  const setDragActionRef = useRef(setDragAction)
 
   const month = format(weekStart, 'yyyy-MM')
   const days = Array.from({ length: 6 }, (_, i) => addDays(weekStart, i))
@@ -189,26 +295,168 @@ function CalendarioView() {
 
   const { data: appointments = [], isLoading } = useGetScheduleAppointments({ month }, { client: { headers } })
   const { data: services = [] } = useGetScheduleServices({ client: { headers } })
+  const { data: blockedSlots = [] } = useGetScheduleBlockedSlots({ month }, { client: { headers } })
+  const { data: workingHours = [] } = useGetScheduleWorkingHours({ client: { headers } })
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() })
-  const createAppt = usePostScheduleAppointments({ client: { headers }, mutation: { onSuccess: () => { toast.success('Marcação criada'); invalidate() }, onError: (error) => toast.error(getApiError(error)) } })
-  const updateAppt = usePutScheduleAppointmentsId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Estado actualizado'); invalidate(); setSelAppt(null) }, onError: (error) => toast.error(getApiError(error)) } })
-  const deleteAppt = useDeleteScheduleAppointmentsId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Marcação eliminada'); invalidate(); setSelAppt(null) }, onError: (error) => toast.error(getApiError(error)) } })
+  const invalidateAppts = () => qc.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() })
+  const invalidateSlots = () => qc.invalidateQueries({ queryKey: getScheduleBlockedSlotsQueryKey() })
+
+  const createAppt = usePostScheduleAppointments({
+    client: { headers },
+    mutation: {
+      onSuccess: () => { toast.success('Marcação criada'); invalidateAppts(); setNovaDate(null); setNovaTime(null) },
+      onError: (error) => toast.error(getApiError(error)),
+    }
+  })
+  const updateAppt = usePutScheduleAppointmentsId({
+    client: { headers },
+    mutation: {
+      onSuccess: () => { toast.success('Marcação actualizada'); invalidateAppts(); setSelAppt(null) },
+      onError: (error) => toast.error(getApiError(error)),
+    }
+  })
+  const deleteAppt = useDeleteScheduleAppointmentsId({
+    client: { headers },
+    mutation: {
+      onSuccess: () => { toast.success('Marcação eliminada'); invalidateAppts(); setSelAppt(null) },
+      onError: (error) => toast.error(getApiError(error)),
+    }
+  })
+  const blockSlot = usePostScheduleBlockedSlots({
+    client: { headers },
+    mutation: {
+      onSuccess: () => { toast.success('Horário bloqueado'); invalidateSlots() },
+      onError: (error) => toast.error(getApiError(error)),
+    }
+  })
+
+  // Global drag handlers (stable refs → no stale closure issues)
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const d = dragRef.current
+      if (!d || !d.active) return
+      const rect = d.colEl.getBoundingClientRect()
+      const y = Math.max(0, e.clientY - rect.top)
+      const totalMin = (y / AG_ROW_H) * 60 + AG_H_START * 60
+      const snapped = Math.min(Math.max(Math.round(totalMin / 15) * 15, AG_H_START * 60), AG_H_END * 60)
+      d.endMin = snapped
+      const startMin = Math.min(d.startMin, d.endMin)
+      const endMin = Math.max(d.startMin, d.endMin)
+      setDragSelRef.current({ day: d.day, startMin, endMin })
+    }
+    const onUp = (e: MouseEvent) => {
+      const d = dragRef.current
+      if (!d || !d.active) return
+      d.active = false
+      const startMin = Math.min(d.startMin, d.endMin)
+      const endMin = Math.max(d.startMin, d.endMin)
+      const day = d.day
+      dragRef.current = null
+      setDragSelRef.current(null)
+      if (endMin - startMin >= 15) {
+        setDragActionRef.current({ x: e.clientX, y: e.clientY, day, startMin, endMin })
+      } else {
+        // Simple click — open new appointment at that time
+        setNovaDateRef.current(day)
+        setNovaTimeRef.current(minuteToTime(startMin))
+      }
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [])
 
   const pending = appointments.filter((a) => a.status === 'pending')
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-4 h-[calc(100vh-17rem)] min-h-[420px]">
-      <Card className="overflow-hidden flex flex-col min-h-0">
+    <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-4 items-start">
+      <Card className="overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 17.5rem)', minHeight: 480 }}>
         {/* ── Navegação ── */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 shrink-0 relative">
           <div className="flex items-center gap-1">
             <IconButton icon="chevronLeft" label="Semana anterior" onClick={() => setWeekStart((d) => subWeeks(d, 1))} />
             <Button variant="outline" size="sm" onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>Hoje</Button>
             <IconButton icon="chevronRight" label="Próxima semana" onClick={() => setWeekStart((d) => addWeeks(d, 1))} />
           </div>
-          <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 capitalize">{format(weekStart, 'MMMM yyyy', { locale: pt })}</span>
+          <button
+            ref={miniCalBtnRef}
+            onClick={() => { setMiniCalMonth(startOfMonth(weekStart)); setShowMiniCal((v) => !v) }}
+            className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800 dark:text-zinc-100 capitalize hover:text-accent transition px-2 py-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            {format(weekStart, 'MMMM yyyy', { locale: pt })}
+            <Icon name="chevronDown" className={`w-3.5 h-3.5 transition-transform ${showMiniCal ? 'rotate-180' : ''}`} />
+          </button>
         </div>
+
+        {/* ── Mini calendar popup ── */}
+        {showMiniCal && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowMiniCal(false)} />
+            <div className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl p-3 w-64"
+              style={(() => {
+                const btn = miniCalBtnRef.current
+                if (!btn) return { top: 100, right: 24 }
+                const r = btn.getBoundingClientRect()
+                return { top: r.bottom + 6, left: r.right - 256 }
+              })()}
+            >
+              {/* Month nav */}
+              <div className="flex items-center justify-between mb-2">
+                <button onClick={() => setMiniCalMonth((m) => subMonths(m, 1))}
+                  className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500">
+                  <Icon name="chevronLeft" className="w-4 h-4" />
+                </button>
+                <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 capitalize">
+                  {format(miniCalMonth, 'MMMM yyyy', { locale: pt })}
+                </span>
+                <button onClick={() => setMiniCalMonth((m) => addMonths(m, 1))}
+                  className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500">
+                  <Icon name="chevronRight" className="w-4 h-4" />
+                </button>
+              </div>
+              {/* Day-of-week headers */}
+              <div className="grid grid-cols-7 mb-1">
+                {['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map((d) => (
+                  <div key={d} className="text-center text-[10px] font-medium text-zinc-400 py-0.5">{d}</div>
+                ))}
+              </div>
+              {/* Day grid */}
+              {(() => {
+                const monthStart = miniCalMonth
+                const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 })
+                const gridEnd = addDays(gridStart, 41)
+                const gridDays = eachDayOfInterval({ start: gridStart, end: gridEnd })
+                const today = new Date()
+                return (
+                  <div className="grid grid-cols-7 gap-y-0.5">
+                    {gridDays.map((day) => {
+                      const isToday = isSameDay(day, today)
+                      const isCurrentWeek = days.some((d) => isSameDay(d, day))
+                      const inMonth = isSameMonth(day, miniCalMonth)
+                      return (
+                        <button key={day.toISOString()} onClick={() => {
+                          setWeekStart(startOfWeek(day, { weekStartsOn: 1 }))
+                          setShowMiniCal(false)
+                        }}
+                          className={`text-xs rounded py-1 font-medium transition
+                            ${isCurrentWeek ? 'bg-accent text-white' : ''}
+                            ${isToday && !isCurrentWeek ? 'text-accent font-bold' : ''}
+                            ${!inMonth ? 'text-zinc-300 dark:text-zinc-600' : !isCurrentWeek ? 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800' : ''}
+                          `}
+                        >
+                          {format(day, 'd')}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
+          </>
+        )}
 
         {/* ── Área com scroll ── */}
         <div className="overflow-auto flex-1 min-h-0">
@@ -235,29 +483,108 @@ function CalendarioView() {
                     <span className="-translate-y-2 inline-block">{String(h).padStart(2, '0')}:00</span>
                   </div>
                 ))}
+                {/* End-time cap label */}
+                <div className="text-right pr-2 text-[10px] text-zinc-400 tabular-nums" style={{ height: 0 }}>
+                  <span className="-translate-y-2 inline-block">{String(AG_H_END).padStart(2, '0')}:00</span>
+                </div>
               </div>
               {days.map((day) => {
                 const dayAppts = appointments.filter((a) => isSameDay(new Date(a.date + 'T00:00:00'), day) && a.status !== 'cancelled')
                 const layout = computeColumns(dayAppts, services)
+                const dayBlocked = blockedSlots.filter((bs) => isSameDay(new Date((bs as any).date + 'T00:00:00'), day))
+                const hasDragSel = dragSel && isSameDay(dragSel.day, day)
+
                 return (
-                  <div key={day.toISOString()} className="relative border-l border-zinc-50 dark:border-zinc-800/50">
+                  <div
+                    key={day.toISOString()}
+                    className="relative border-l border-zinc-50 dark:border-zinc-800/50 cursor-crosshair select-none"
+                    onMouseDown={(e) => {
+                      if (e.button !== 0) return
+                      e.preventDefault()
+                      const rect = e.currentTarget.getBoundingClientRect()
+                      const y = Math.max(0, e.clientY - rect.top)
+                      const totalMin = (y / AG_ROW_H) * 60 + AG_H_START * 60
+                      const snapped = Math.round(totalMin / 15) * 15
+                      dragRef.current = { day, colEl: e.currentTarget, startMin: snapped, endMin: snapped, active: true }
+                    }}
+                  >
+                    {/* Hour grid lines */}
                     {hours.map((h) => <div key={h} className="border-b border-zinc-50 dark:border-zinc-800/40" style={{ height: AG_ROW_H }} />)}
-                    <button onClick={() => setNovaDate(day)} className="absolute inset-0 w-full opacity-0 hover:opacity-100 transition-opacity z-0" aria-label={`Nova marcação ${format(day, 'dd/MM')}`} />
+
+                    {/* Blocked slots overlay */}
+                    {dayBlocked.map((bs: any) => {
+                      if (!bs.startTime || !bs.endTime) {
+                        return (
+                          <div
+                            key={bs.blockedSlotId}
+                            className="absolute inset-0 bg-zinc-400/8 dark:bg-zinc-600/15 border-l-2 border-zinc-300 dark:border-zinc-600 pointer-events-none z-[5]"
+                          />
+                        )
+                      }
+                      const [sh, sm] = bs.startTime.split(':').map(Number)
+                      const [eh, em] = bs.endTime.split(':').map(Number)
+                      const startMinBs = sh * 60 + sm
+                      const endMinBs = eh * 60 + em
+                      const top = ((startMinBs - AG_H_START * 60) / 60) * AG_ROW_H
+                      const height = ((endMinBs - startMinBs) / 60) * AG_ROW_H
+                      return (
+                        <div
+                          key={bs.blockedSlotId}
+                          className="absolute inset-x-0 bg-zinc-400/12 dark:bg-zinc-600/20 border-l-2 border-zinc-300 dark:border-zinc-600 pointer-events-none z-[5]"
+                          style={{ top: Math.max(top, 0), height: Math.max(height, 4) }}
+                        />
+                      )
+                    })}
+
+                    {/* Lunch break overlay */}
+                    {(() => {
+                      const wh = workingHours.find((h) => h.dayOfWeek === day.getDay())
+                      if (!wh?.lunchStart || !wh?.lunchEnd) return null
+                      const [sh, sm] = wh.lunchStart.split(':').map(Number)
+                      const [eh, em] = wh.lunchEnd.split(':').map(Number)
+                      const startMin = sh * 60 + sm
+                      const endMin = eh * 60 + em
+                      const top = ((startMin - AG_H_START * 60) / 60) * AG_ROW_H
+                      const height = ((endMin - startMin) / 60) * AG_ROW_H
+                      return (
+                        <div
+                          className="absolute inset-x-0 bg-amber-400/10 dark:bg-amber-500/15 border-l-2 border-amber-300 dark:border-amber-500/40 pointer-events-none z-[5] flex items-center"
+                          style={{ top: Math.max(top, 0), height: Math.max(height, 8) }}
+                        >
+                          <span className="text-[9px] font-medium text-amber-500/60 dark:text-amber-400/50 pl-1.5 leading-none select-none">Almoço</span>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Drag selection highlight */}
+                    {hasDragSel && (() => {
+                      const top = ((dragSel!.startMin - AG_H_START * 60) / 60) * AG_ROW_H
+                      const height = ((dragSel!.endMin - dragSel!.startMin) / 60) * AG_ROW_H
+                      return (
+                        <div
+                          className="absolute inset-x-0 bg-blue-500/20 border border-blue-400 dark:border-blue-500 rounded pointer-events-none z-[6]"
+                          style={{ top, height: Math.max(height, 2) }}
+                        />
+                      )
+                    })()}
+
+                    {/* Appointments */}
                     {isLoading
                       ? <div className="absolute inset-2 top-2 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800 h-10" />
                       : layout.map(({ appt, col, totalCols }) => {
-                          const svc = services.find((s) => s.serviceId === appt.serviceId)
+                          const svcItem = services.find((s) => s.serviceId === appt.serviceId)
                           const color = colorForService(appt.serviceId, services)
                           const [hh, mm] = appt.time.split(':').map(Number)
                           const top = ((hh + mm / 60) - AG_H_START) * AG_ROW_H
-                          const height = ((svc?.duration ?? 30) / 60) * AG_ROW_H - 4
+                          const height = ((appt.duration ?? svcItem?.duration ?? 30) / 60) * AG_ROW_H - 4
                           const leftPct = (col / totalCols) * 100
                           const widthPct = (1 / totalCols) * 100
                           return (
                             <button
                               key={appt.appointmentId}
+                              onMouseDown={(e) => e.stopPropagation()}
                               onClick={(e) => { e.stopPropagation(); setSelAppt(appt) }}
-                              className="absolute rounded-lg px-2 py-1 text-left overflow-hidden z-10 hover:shadow-md hover:z-20 transition-shadow"
+                              className="absolute rounded-lg px-2 py-1 text-left overflow-hidden z-10 hover:shadow-md hover:z-20 transition-shadow cursor-pointer"
                               style={{
                                 top: top + 2,
                                 height: Math.max(height, 24),
@@ -268,8 +595,11 @@ function CalendarioView() {
                                 border: `1px solid ${color}30`,
                               }}
                             >
-                              <p className="text-[10px] font-semibold leading-tight truncate text-zinc-800 dark:text-zinc-100">{appt.time} {appt.clientName}</p>
-                              {svc && <p className="text-[9px] text-zinc-500 truncate">{svc.name}</p>}
+                              <p className="text-[10px] font-semibold leading-tight truncate text-zinc-800 dark:text-zinc-100">
+                                {appt.time} {appt.clientName}
+                                {appt.paidAt && <span className="ml-1 text-emerald-600 dark:text-emerald-400">€</span>}
+                              </p>
+                              {svcItem && <p className="text-[9px] text-zinc-500 truncate">{svcItem.name}</p>}
                             </button>
                           )
                         })}
@@ -281,7 +611,7 @@ function CalendarioView() {
         </div>
       </Card>
 
-      <div className="space-y-4 overflow-y-auto min-h-0">
+      <div className="space-y-4 overflow-y-auto xl:max-h-[calc(100vh-17.5rem)]">
         <Card className="p-4">
           <h3 className="font-semibold text-zinc-900 dark:text-white text-sm flex items-center gap-2">
             <Icon name="clock" className="w-4 h-4 text-amber-500" />Por confirmar{pending.length > 0 && <Badge tone="amber">{pending.length}</Badge>}
@@ -291,35 +621,104 @@ function CalendarioView() {
               pending.map((a) => {
                 const svc = services.find((s) => s.serviceId === a.serviceId)
                 return (
-                  <div key={a.appointmentId} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                  <button key={a.appointmentId} onClick={() => setSelAppt(a)} className="w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-left">
                     <span className="w-1.5 h-9 rounded-full shrink-0" style={{ background: colorForService(a.serviceId, services) }} />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{a.clientName}</p>
                       <p className="text-xs text-zinc-400">{a.date} · {a.time}{svc ? ` · ${svc.name}` : ''}</p>
                     </div>
-                    <IconButton icon="check" label="Confirmar" onClick={() => updateAppt.mutate({ id: a.appointmentId, data: { status: 'confirmed' } })} className="text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10" />
-                  </div>
+                    <span onClickCapture={(e) => { e.stopPropagation() }}><IconButton icon="check" label="Confirmar" onClick={() => updateAppt.mutate({ id: a.appointmentId, data: { status: 'confirmed' } })} className="text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10" /></span>
+                  </button>
                 )
               })}
           </div>
         </Card>
         <Card className="p-4">
-          <Button className="w-full" icon="plus" onClick={() => setNovaDate(new Date())}>Nova marcação</Button>
+          <Button className="w-full" icon="plus" onClick={() => { setNovaDate(new Date()); setNovaTime(null) }}>Nova marcação</Button>
         </Card>
       </div>
 
-      {selAppt && <ApptModal appt={selAppt} services={services} onClose={() => setSelAppt(null)} onStatusChange={(id, status) => updateAppt.mutate({ id, data: { status } })} onDelete={(id) => deleteAppt.mutate({ id })} isPendingUpdate={updateAppt.isPending} isPendingDelete={deleteAppt.isPending} />}
-      {novaDate && <NovaApptModal date={novaDate} open onClose={() => setNovaDate(null)} services={services} onCreate={(data) => createAppt.mutate({ data })} isPending={createAppt.isPending} />}
+      {/* Drag action popup */}
+      {dragAction && (
+        <>
+          <div className="fixed inset-0 z-40" onMouseDown={() => setDragAction(null)} />
+          <div
+            className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl p-2 min-w-[210px]"
+            style={{
+              left: Math.min(dragAction.x + 8, window.innerWidth - 230),
+              top: Math.min(dragAction.y - 10, window.innerHeight - 140),
+            }}
+          >
+            <p className="text-xs text-zinc-400 px-2 py-1 mb-1 font-medium">
+              {minuteToTime(dragAction.startMin)} — {minuteToTime(dragAction.endMin)}
+            </p>
+            <button
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => {
+                setNovaDate(dragAction.day)
+                setNovaTime(minuteToTime(dragAction.startMin))
+                setDragAction(null)
+              }}
+              className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-2 text-zinc-800 dark:text-zinc-100"
+            >
+              <Icon name="plus" className="w-4 h-4 text-accent" /> Nova marcação
+            </button>
+            <button
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => {
+                blockSlot.mutate({
+                  data: {
+                    date: format(dragAction.day, 'yyyy-MM-dd'),
+                    startTime: minuteToTime(dragAction.startMin),
+                    endTime: minuteToTime(dragAction.endMin),
+                  }
+                })
+                setDragAction(null)
+              }}
+              className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-2 text-zinc-800 dark:text-zinc-100"
+            >
+              <Icon name="ban" className="w-4 h-4 text-red-400" /> Bloquear horário
+            </button>
+            <button
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => setDragAction(null)}
+              className="w-full text-left px-3 py-2 text-sm text-zinc-400 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            >
+              Cancelar
+            </button>
+          </div>
+        </>
+      )}
+
+      {selAppt && (
+        <ApptModal
+          appt={appointments.find((a) => a.appointmentId === selAppt.appointmentId) ?? selAppt}
+          services={services}
+          onClose={() => setSelAppt(null)}
+          onSave={(id, data) => updateAppt.mutate({ id, data })}
+          onDelete={(id) => deleteAppt.mutate({ id })}
+          isSaving={updateAppt.isPending}
+          isPendingDelete={deleteAppt.isPending}
+        />
+      )}
+      {novaDate && (
+        <NovaApptModal
+          date={novaDate}
+          open
+          onClose={() => { setNovaDate(null); setNovaTime(null) }}
+          services={services}
+          onCreate={(data) => createAppt.mutate({ data })}
+          isPending={createAppt.isPending}
+          initialTime={novaTime ?? undefined}
+        />
+      )}
     </div>
   )
-
 }
 
 // ─── Services panel ───────────────────────────────────────────────────────────
 type SvcForm = { name: string; duration: string; price: string; description: string; active: boolean; color: string }
 const emptySvcForm: SvcForm = { name: '', duration: '30', price: '', description: '', active: true, color: '#2A6FDB' }
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001/api'
 
 function ServicosPanel() {
   const { authHeader } = useAuth()
@@ -459,7 +858,7 @@ function ConfiguracoesPanel() {
   const { authHeader } = useAuth()
   const qc = useQueryClient()
   const headers = authHeader()
-  const DEFAULT_HOURS: WorkingHours[] = FULL_DAY_NAMES.map((_, i) => ({ dayOfWeek: i, startTime: '09:00', endTime: '18:00', isActive: i !== 0 }))
+  const DEFAULT_HOURS: WorkingHours[] = FULL_DAY_NAMES.map((_, i) => ({ dayOfWeek: i, startTime: '09:00', endTime: '18:00', isActive: i !== 0, lunchStart: null, lunchEnd: null }))
 
   const { data: savedHours, isLoading: loadingHours } = useGetScheduleWorkingHours({ client: { headers } })
   const saveHours = usePostScheduleWorkingHours({ client: { headers }, mutation: { onSuccess: () => { toast.success('Horários guardados'); qc.invalidateQueries({ queryKey: getScheduleWorkingHoursQueryKey() }) }, onError: (error) => toast.error(getApiError(error)) } })
@@ -476,8 +875,38 @@ function ConfiguracoesPanel() {
   const deleteSlot = useDeleteScheduleBlockedSlotsId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Bloqueio removido'); qc.invalidateQueries({ queryKey: getScheduleBlockedSlotsQueryKey() }) }, onError: (error) => toast.error(getApiError(error)) } })
   const [newSlot, setNewSlot] = useState({ date: '', startTime: '', endTime: '', reason: '' })
 
+  // Vacation range
+  const [vacationForm, setVacationForm] = useState({ startDate: '', endDate: '', reason: '' })
+  const vacation = useMutation({
+    mutationFn: async (data: { startDate: string; endDate: string; reason?: string }) => {
+      const res = await kubbFetch<{ message: string; count: number }, Error, typeof data>({
+        method: 'POST',
+        url: '/schedule/blocked-slots/vacation',
+        baseURL: API_BASE,
+        data,
+        headers: authHeader(),
+      })
+      return res.data as { message: string; count: number }
+    },
+    onSuccess: (data) => {
+      toast.success(data.message)
+      qc.invalidateQueries({ queryKey: getScheduleBlockedSlotsQueryKey() })
+      setVacationForm({ startDate: '', endDate: '', reason: '' })
+    },
+    onError: (error: any) => toast.error(getApiError(error)),
+  })
+
+  const vacDays = useMemo(() => {
+    if (!vacationForm.startDate || !vacationForm.endDate) return 0
+    const s = new Date(vacationForm.startDate + 'T00:00:00')
+    const e = new Date(vacationForm.endDate + 'T00:00:00')
+    if (e < s) return 0
+    return Math.floor((e.getTime() - s.getTime()) / 86_400_000) + 1
+  }, [vacationForm.startDate, vacationForm.endDate])
+
   return (
-    <div className="space-y-8 max-w-2xl">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+      {/* ── Left: Working hours ── */}
       <section>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-zinc-900 dark:text-white">Horário de trabalho</h3>
@@ -485,59 +914,338 @@ function ConfiguracoesPanel() {
         </div>
         {loadingHours ? Array.from({ length: 7 }).map((_, i) => <div key={i} className="h-12 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800 mb-2" />) :
           <div className="space-y-2">
-            {hours.map((h) => (
-              <Card key={h.dayOfWeek} className="p-3 flex items-center gap-3">
-                <button onClick={() => updateDay(h.dayOfWeek, { isActive: !h.isActive })} className={`w-9 h-5 rounded-full transition-colors ${h.isActive ? 'bg-accent' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
-                  <span className={`block w-3.5 h-3.5 rounded-full bg-white mx-0.5 transition-transform ${h.isActive ? 'translate-x-4' : 'translate-x-0'}`} />
-                </button>
-                <span className="w-16 text-sm font-medium text-zinc-700 dark:text-zinc-200">{FULL_DAY_NAMES[h.dayOfWeek]}</span>
-                {h.isActive ? (
-                  <div className="flex flex-1 items-center gap-2">
-                    <input type="time" value={h.startTime} onChange={(e) => updateDay(h.dayOfWeek, { startTime: e.target.value })} className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" />
-                    <span className="text-zinc-400 text-sm">até</span>
-                    <input type="time" value={h.endTime} onChange={(e) => updateDay(h.dayOfWeek, { endTime: e.target.value })} className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" />
+            {hours.map((h) => {
+              const hasLunch = !!(h.lunchStart && h.lunchEnd)
+              return (
+                <Card key={h.dayOfWeek} className="p-3">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => updateDay(h.dayOfWeek, { isActive: !h.isActive })} className={`shrink-0 w-9 h-5 rounded-full transition-colors ${h.isActive ? 'bg-accent' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+                      <span className={`block w-3.5 h-3.5 rounded-full bg-white mx-0.5 transition-transform ${h.isActive ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </button>
+                    <span className="w-14 shrink-0 text-sm font-medium text-zinc-700 dark:text-zinc-200">{FULL_DAY_NAMES[h.dayOfWeek]}</span>
+                    {h.isActive ? (
+                      <div className="flex flex-wrap flex-1 items-center gap-x-2 gap-y-1.5">
+                        <input type="time" value={h.startTime} onChange={(e) => updateDay(h.dayOfWeek, { startTime: e.target.value })} className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-2 py-1 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" />
+                        <span className="text-zinc-400 text-xs">até</span>
+                        <input type="time" value={h.endTime} onChange={(e) => updateDay(h.dayOfWeek, { endTime: e.target.value })} className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-2 py-1 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" />
+                        <button
+                          onClick={() => hasLunch
+                            ? updateDay(h.dayOfWeek, { lunchStart: null, lunchEnd: null })
+                            : updateDay(h.dayOfWeek, { lunchStart: '12:00', lunchEnd: '13:00' })
+                          }
+                          title={hasLunch ? 'Remover pausa de almoço' : 'Adicionar pausa de almoço'}
+                          className={`flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition ${hasLunch ? 'border-accent/40 text-accent bg-accent/5 dark:bg-accent/10' : 'border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:border-zinc-300 hover:text-zinc-600'}`}
+                        >
+                          <Icon name="clock" className="w-3 h-3" /> Almoço
+                        </button>
+                        {hasLunch && (
+                          <>
+                            <input type="time" value={h.lunchStart ?? ''} onChange={(e) => updateDay(h.dayOfWeek, { lunchStart: e.target.value })} className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-2 py-1 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" />
+                            <span className="text-zinc-400 text-xs">–</span>
+                            <input type="time" value={h.lunchEnd ?? ''} onChange={(e) => updateDay(h.dayOfWeek, { lunchEnd: e.target.value })} className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-2 py-1 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" />
+                          </>
+                        )}
+                      </div>
+                    ) : <span className="flex-1 text-sm text-zinc-400">Fechado</span>}
                   </div>
-                ) : <span className="flex-1 text-sm text-zinc-400">Fechado</span>}
-              </Card>
-            ))}
+                </Card>
+              )
+            })}
           </div>}
       </section>
 
-      <section>
-        <h3 className="font-semibold text-zinc-900 dark:text-white mb-1">Dias / horas bloqueadas</h3>
-        <p className="text-sm text-zinc-400 mb-4">Férias, feriados ou pausas. Deixa a hora em branco para bloquear o dia inteiro.</p>
-        <form onSubmit={(e) => { e.preventDefault(); if (!newSlot.date) return; createSlot.mutate({ data: { date: newSlot.date, startTime: newSlot.startTime || undefined, endTime: newSlot.endTime || undefined, reason: newSlot.reason || undefined } }) }} className="flex flex-wrap gap-3 mb-4">
-          <div><p className="text-xs text-zinc-500 mb-1">Data *</p><input type="date" required value={newSlot.date} onChange={(e) => setNewSlot((s) => ({ ...s, date: e.target.value }))} className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" /></div>
-          <div><p className="text-xs text-zinc-500 mb-1">Início</p><input type="time" value={newSlot.startTime} onChange={(e) => setNewSlot((s) => ({ ...s, startTime: e.target.value }))} className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" /></div>
-          <div><p className="text-xs text-zinc-500 mb-1">Fim</p><input type="time" value={newSlot.endTime} onChange={(e) => setNewSlot((s) => ({ ...s, endTime: e.target.value }))} className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" /></div>
-          <div><p className="text-xs text-zinc-500 mb-1">Motivo</p><input value={newSlot.reason} onChange={(e) => setNewSlot((s) => ({ ...s, reason: e.target.value }))} placeholder="Ex: Férias" className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" /></div>
-          <div className="flex items-end"><Button type="submit" size="sm" icon="plus" disabled={createSlot.isPending}>Bloquear</Button></div>
-        </form>
-        {loadingSlots ? <div className="h-10 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" /> :
-          blockedSlots.length === 0 ? <p className="text-sm text-zinc-400">Nenhum bloqueio activo.</p> :
-            <div className="space-y-2">
-              {blockedSlots.map((slot) => (
-                <Card key={slot.blockedSlotId} className="p-3 flex items-center justify-between text-sm">
-                  <div>
-                    <span className="font-medium text-zinc-800 dark:text-zinc-100">{slot.date}</span>
-                    {slot.startTime && slot.endTime && <span className="ml-2 text-zinc-400">{slot.startTime} — {slot.endTime}</span>}
-                    {!slot.startTime && <span className="ml-2 text-zinc-400">Dia inteiro</span>}
-                    {slot.reason && <span className="ml-2 text-zinc-500">({slot.reason})</span>}
-                  </div>
-                  <IconButton icon="trash" label="Remover" onClick={() => deleteSlot.mutate({ id: slot.blockedSlotId })} className="hover:text-red-500" />
-                </Card>
-              ))}
-            </div>}
-      </section>
+      {/* ── Right: Vacation + blocked slots ── */}
+      <div className="space-y-8">
+        <section>
+          <h3 className="font-semibold text-zinc-900 dark:text-white mb-1">Férias</h3>
+          <p className="text-sm text-zinc-400 mb-4">Bloqueia vários dias consecutivos de uma só vez.</p>
+          <Card className="p-4">
+            <div className="flex flex-wrap gap-3 items-end">
+              <div>
+                <p className="text-xs text-zinc-500 mb-1">De *</p>
+                <input
+                  type="date"
+                  value={vacationForm.startDate}
+                  onChange={(e) => setVacationForm((f) => ({ ...f, startDate: e.target.value }))}
+                  className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent"
+                />
+              </div>
+              <div>
+                <p className="text-xs text-zinc-500 mb-1">Até *</p>
+                <input
+                  type="date"
+                  value={vacationForm.endDate}
+                  min={vacationForm.startDate}
+                  onChange={(e) => setVacationForm((f) => ({ ...f, endDate: e.target.value }))}
+                  className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent"
+                />
+              </div>
+              <div>
+                <p className="text-xs text-zinc-500 mb-1">Motivo (opcional)</p>
+                <input
+                  value={vacationForm.reason}
+                  onChange={(e) => setVacationForm((f) => ({ ...f, reason: e.target.value }))}
+                  placeholder="Ex: Férias de verão"
+                  className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent"
+                />
+              </div>
+              <Button
+                icon="ban"
+                size="sm"
+                disabled={vacation.isPending || !vacationForm.startDate || !vacationForm.endDate || vacDays === 0}
+                onClick={() => vacation.mutate({ startDate: vacationForm.startDate, endDate: vacationForm.endDate, reason: vacationForm.reason || undefined })}
+              >
+                {vacation.isPending ? 'A bloquear…' : vacDays > 0 ? `Bloquear ${vacDays} dia${vacDays > 1 ? 's' : ''}` : 'Bloquear dias'}
+              </Button>
+            </div>
+          </Card>
+        </section>
+
+        <section>
+          <h3 className="font-semibold text-zinc-900 dark:text-white mb-1">Bloqueios pontuais</h3>
+          <p className="text-sm text-zinc-400 mb-4">Feriados, pausas ou dias específicos. Deixa a hora em branco para bloquear o dia inteiro.</p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!newSlot.date) return
+              createSlot.mutate({ data: { date: newSlot.date, startTime: newSlot.startTime || undefined, endTime: newSlot.endTime || undefined, reason: newSlot.reason || undefined } })
+              setNewSlot({ date: '', startTime: '', endTime: '', reason: '' })
+            }}
+            className="flex flex-wrap gap-3 mb-4"
+          >
+            <div><p className="text-xs text-zinc-500 mb-1">Data *</p><input type="date" required value={newSlot.date} onChange={(e) => setNewSlot((s) => ({ ...s, date: e.target.value }))} className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" /></div>
+            <div><p className="text-xs text-zinc-500 mb-1">Início</p><input type="time" value={newSlot.startTime} onChange={(e) => setNewSlot((s) => ({ ...s, startTime: e.target.value }))} className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" /></div>
+            <div><p className="text-xs text-zinc-500 mb-1">Fim</p><input type="time" value={newSlot.endTime} onChange={(e) => setNewSlot((s) => ({ ...s, endTime: e.target.value }))} className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" /></div>
+            <div><p className="text-xs text-zinc-500 mb-1">Motivo</p><input value={newSlot.reason} onChange={(e) => setNewSlot((s) => ({ ...s, reason: e.target.value }))} placeholder="Ex: Feriado" className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" /></div>
+            <div className="flex items-end"><Button type="submit" size="sm" icon="plus" disabled={createSlot.isPending}>Bloquear</Button></div>
+          </form>
+
+          {loadingSlots ? <div className="h-10 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" /> :
+            blockedSlots.length === 0 ? <p className="text-sm text-zinc-400">Nenhum bloqueio activo.</p> :
+              <div className="space-y-2">
+                {(blockedSlots as any[]).map((slot) => {
+                  const isFullDay = !slot.startTime && !slot.endTime
+                  return (
+                    <Card key={slot.blockedSlotId} className="p-3 flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-1.5 h-full min-h-[1.5rem] rounded-full ${isFullDay ? 'bg-red-400' : 'bg-amber-400'}`} />
+                        <div>
+                          <span className="font-medium text-zinc-800 dark:text-zinc-100">{slot.date}</span>
+                          {isFullDay
+                            ? <span className="ml-2 text-xs text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">Dia inteiro</span>
+                            : <span className="ml-2 text-zinc-400">{slot.startTime} — {slot.endTime}</span>}
+                          {slot.reason && <span className="ml-2 text-zinc-500">· {slot.reason}</span>}
+                        </div>
+                      </div>
+                      <IconButton icon="trash" label="Remover" onClick={() => deleteSlot.mutate({ id: slot.blockedSlotId })} className="hover:text-red-500" />
+                    </Card>
+                  )
+                })}
+              </div>}
+        </section>
+      </div>
+    </div>
+  )
+}
+
+// ─── Marcações list panel ─────────────────────────────────────────────────────
+function MarcacoesPanel() {
+  const { authHeader } = useAuth()
+  const qc = useQueryClient()
+  const headers = authHeader()
+
+  const [q, setQ] = useState('')
+  const [filterStatus, setFilterStatus] = useState<'' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
+  const [filterServiceId, setFilterServiceId] = useState('')
+  const [selAppt, setSelAppt] = useState<Appointment | null>(null)
+
+  const { data: allAppts = [], isLoading } = useGetScheduleAppointments(undefined, { client: { headers } })
+  const { data: services = [] } = useGetScheduleServices({ client: { headers } })
+
+  const updateAppt = usePutScheduleAppointmentsId({
+    client: { headers },
+    mutation: {
+      onSuccess: () => { toast.success('Marcação actualizada'); qc.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() }) },
+      onError: (error) => toast.error(getApiError(error)),
+    }
+  })
+  const deleteAppt = useDeleteScheduleAppointmentsId({
+    client: { headers },
+    mutation: {
+      onSuccess: () => { toast.success('Marcação eliminada'); qc.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() }); setSelAppt(null) },
+      onError: (error) => toast.error(getApiError(error)),
+    }
+  })
+
+  const filtered = useMemo(() => {
+    let list = allAppts as Appointment[]
+    if (filterStatus) list = list.filter((a) => a.status === filterStatus)
+    if (filterDateFrom) list = list.filter((a) => a.date >= filterDateFrom)
+    if (filterDateTo) list = list.filter((a) => a.date <= filterDateTo)
+    if (filterServiceId) list = list.filter((a) => a.serviceId === filterServiceId)
+    if (q.trim()) {
+      const ql = q.toLowerCase()
+      list = list.filter((a) =>
+        a.clientName.toLowerCase().includes(ql) ||
+        a.clientEmail.toLowerCase().includes(ql) ||
+        (a.clientPhone ?? '').includes(q)
+      )
+    }
+    return list
+  }, [allAppts, filterStatus, filterDateFrom, filterDateTo, filterServiceId, q])
+
+  const hasFilters = q || filterStatus || filterDateFrom || filterDateTo || filterServiceId
+  const clearFilters = () => { setQ(''); setFilterStatus(''); setFilterDateFrom(''); setFilterDateTo(''); setFilterServiceId('') }
+
+  const STATUS_PILLS = [
+    { value: '' as const, label: 'Todas' },
+    { value: 'pending' as const, label: 'Pendentes' },
+    { value: 'confirmed' as const, label: 'Confirmadas' },
+    { value: 'completed' as const, label: 'Concluídas' },
+    { value: 'cancelled' as const, label: 'Canceladas' },
+  ]
+
+  return (
+    <div className="space-y-4">
+      {/* Filter bar */}
+      <Card className="p-4 space-y-3">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex-1 min-w-[200px]">
+            <p className="text-xs text-zinc-500 mb-1">Procurar</p>
+            <div className="relative">
+              <Icon name="search" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Nome, email ou telefone…"
+                className="w-full pl-8 pr-3 py-2 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent"
+              />
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-zinc-500 mb-1">De</p>
+            <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)}
+              className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" />
+          </div>
+          <div>
+            <p className="text-xs text-zinc-500 mb-1">Até</p>
+            <input type="date" value={filterDateTo} min={filterDateFrom} onChange={(e) => setFilterDateTo(e.target.value)}
+              className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" />
+          </div>
+          <div>
+            <p className="text-xs text-zinc-500 mb-1">Serviço</p>
+            <select value={filterServiceId} onChange={(e) => setFilterServiceId(e.target.value)}
+              className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent">
+              <option value="">Todos</option>
+              {services.map((s) => <option key={s.serviceId} value={s.serviceId}>{s.name}</option>)}
+            </select>
+          </div>
+          {hasFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>Limpar filtros</Button>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {STATUS_PILLS.map(({ value, label }) => (
+            <button key={value} onClick={() => setFilterStatus(value)}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition ${filterStatus === value ? 'bg-accent text-white border-accent' : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      <p className="text-sm text-zinc-400 px-1">
+        {isLoading ? 'A carregar…' : `${filtered.length} marcaç${filtered.length === 1 ? 'ão' : 'ões'}`}
+      </p>
+
+      {isLoading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" />)}
+        </div>
+      ) : filtered.length === 0 ? (
+        <Card className="p-10 text-center">
+          <p className="text-zinc-400 text-sm">Nenhuma marcação encontrada.</p>
+        </Card>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-100 dark:border-zinc-800">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Data / Hora</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Cliente</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide hidden sm:table-cell">Serviço</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Estado</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide hidden md:table-cell">Pago</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((a) => {
+                const svc = services.find((s) => s.serviceId === a.serviceId)
+                const status = (a.status ?? 'pending') as keyof typeof STATUS_LABELS
+                const isPaid = !!a.paidAt
+                const color = colorForService(a.serviceId, services)
+                return (
+                  <tr
+                    key={a.appointmentId}
+                    onClick={() => setSelAppt(a)}
+                    className="border-b border-zinc-50 dark:border-zinc-800/50 last:border-0 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 cursor-pointer transition-colors"
+                  >
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                        <div>
+                          <p className="font-medium text-zinc-800 dark:text-zinc-100">{a.date}</p>
+                          <p className="text-xs text-zinc-400">{a.time}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-zinc-800 dark:text-zinc-100">{a.clientName}</p>
+                      <p className="text-xs text-zinc-400">{a.clientPhone}</p>
+                    </td>
+                    <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300 hidden sm:table-cell">{svc?.name ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      <Badge tone={status === 'confirmed' || status === 'completed' ? 'green' : status === 'cancelled' ? 'red' : 'amber'}>
+                        {STATUS_LABELS[status]}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      {isPaid ? (
+                        <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                          <Icon name="euro" className="w-3 h-3" /> Pago
+                        </span>
+                      ) : <span className="text-xs text-zinc-400">—</span>}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {selAppt && (
+        <ApptModal
+          appt={allAppts.find((a) => a.appointmentId === selAppt.appointmentId) ?? selAppt}
+          services={services}
+          onClose={() => setSelAppt(null)}
+          onSave={(id, data) => updateAppt.mutate({ id, data })}
+          onDelete={(id) => deleteAppt.mutate({ id })}
+          isSaving={updateAppt.isPending}
+          isPendingDelete={deleteAppt.isPending}
+        />
+      )}
     </div>
   )
 }
 
 // ─── Agenda root ──────────────────────────────────────────────────────────────
-const TABS = [['cal', 'Calendário', 'calendar'], ['servicos', 'Serviços', 'scissors'], ['config', 'Configurações', 'clock']] as const
+const TABS = [['cal', 'Calendário', 'calendar'], ['marcacoes', 'Marcações', 'grid'], ['servicos', 'Serviços', 'scissors'], ['config', 'Configurações', 'clock']] as const
 
 export function Agenda() {
-  const [vista, setVista] = useState<'cal' | 'servicos' | 'config'>('cal')
+  const [vista, setVista] = useState<'cal' | 'marcacoes' | 'servicos' | 'config'>('cal')
   return (
     <div>
       <PageHeader title="Agenda" subtitle="Marcações, serviços e horários." />
@@ -549,6 +1257,7 @@ export function Agenda() {
         ))}
       </div>
       {vista === 'cal' && <CalendarioView />}
+      {vista === 'marcacoes' && <MarcacoesPanel />}
       {vista === 'servicos' && <ServicosPanel />}
       {vista === 'config' && <ConfiguracoesPanel />}
     </div>

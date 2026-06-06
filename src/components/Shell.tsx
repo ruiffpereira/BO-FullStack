@@ -8,15 +8,18 @@ const PERM_TO_PATH: Record<string, string> = {
   VIEW_CUSTOMERS: '/clientes',
   VIEW_PRODUCTS:  '/loja',
   VIEW_SCHEDULE:  '/agenda',
+  VIEW_CMS:       '/conteudos',
   VIEW_ADMIN:     '/admin',
 }
 
 const ROUTE_META: Record<string, { nome: string; icon: string }> = {
-  '/dashboard': { nome: 'Dashboard', icon: 'dashboard' },
-  '/clientes':  { nome: 'Clientes',  icon: 'users' },
-  '/loja':      { nome: 'Loja',      icon: 'store' },
-  '/agenda':    { nome: 'Agenda',    icon: 'calendar' },
-  '/admin':     { nome: 'Admin',     icon: 'shield' },
+  '/dashboard':  { nome: 'Dashboard',  icon: 'dashboard' },
+  '/clientes':   { nome: 'Clientes',   icon: 'users' },
+  '/loja':       { nome: 'Loja',       icon: 'store' },
+  '/agenda':     { nome: 'Agenda',     icon: 'calendar' },
+  '/conteudos':  { nome: 'Conteúdos',  icon: 'layers' },
+  '/tokens':     { nome: 'Tokens',     icon: 'key' },
+  '/admin':      { nome: 'Admin',      icon: 'shield' },
 }
 
 interface Props {
@@ -140,6 +143,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
       .map((p) => PERM_TO_PATH[p.name ?? ''])
       .filter(Boolean)
       .filter((v, i, arr) => arr.indexOf(v) === i),
+    '/tokens',
   ]
 
   // Fecha o drawer ao navegar

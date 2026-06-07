@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Icon } from '../ui/icons.jsx'
 import { IconButton, Avatar } from '../ui/ui.jsx'
 import { useAuth } from '../context/AuthContext'
+import { NotificationBell } from './NotificationBell'
+import { useSSE } from '../hooks/useSSE'
 
 const PERM_TO_PATH: Record<string, string> = {
   VIEW_CUSTOMERS: '/clientes',
@@ -122,6 +124,7 @@ function Topbar({ theme, onToggleTheme, onMenu, onCollapse }: {
       </div>
 
       <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+        <NotificationBell />
         <IconButton icon={theme === 'dark' ? 'sun' : 'moon'} onClick={onToggleTheme} label="Tema" />
         <div className="w-px h-6 bg-zinc-200 dark:bg-zinc-800 mx-0.5 hidden sm:block" />
         <Avatar name={username ?? '?'} color="#2A6FDB" size={34} />
@@ -130,12 +133,24 @@ function Topbar({ theme, onToggleTheme, onMenu, onCollapse }: {
   )
 }
 
+function SwRegistrar() {
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {})
+    }
+  }, [])
+  return null
+}
+
 export function Shell({ theme, onToggleTheme, children }: Props) {
   const { logout, permissions } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [drawer, setDrawer] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+
+  // Start SSE stream for real-time events
+  useSSE()
 
   const accessiblePaths = [
     '/dashboard',
@@ -157,6 +172,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
 
   return (
     <div className="flex h-screen bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
+      <SwRegistrar />
       <aside className={`hidden lg:flex flex-col shrink-0 border-r border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-[width] duration-200 ${collapsed ? 'w-[72px]' : 'w-64'}`}>
         <SidebarContent accessiblePaths={accessiblePaths} collapsed={collapsed} onLogout={logout} />
       </aside>

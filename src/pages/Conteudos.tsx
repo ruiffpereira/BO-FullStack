@@ -19,7 +19,7 @@ type SectionForm = { name: string; parentId: string | null }
 
 const LOCALES = ['pt', 'en', 'es', 'fr', 'de', 'it']
 const LOCALE_LABEL: Record<string, string> = { pt: 'PT', en: 'EN', es: 'ES', fr: 'FR', de: 'DE', it: 'IT' }
-const TYPE_LABEL: Record<string, string> = { text: 'Texto', richtext: 'Texto rico', image: 'Imagem' }
+const TYPE_LABEL: Record<string, string> = { text: 'Texto', image: 'Imagem' }
 
 const emptyEntry = (sectionId: string | null): EntryForm => ({
   key: '', type: 'text', translations: [{ locale: 'pt', value: '' }], sectionId,
@@ -332,10 +332,10 @@ export function Conteudos() {
         subtitle="Organiza o conteúdo dos sites em secções hierárquicas. Cada entrada suporta múltiplos idiomas."
       />
 
-      <div className="flex gap-4 items-start">
+      <div className="flex flex-col lg:flex-row gap-4 items-start">
 
         {/* ── Left: section tree ── */}
-        <div className="w-56 shrink-0">
+        <div className="w-full lg:w-56 lg:shrink-0">
           <Card className="overflow-hidden">
             <div className="flex items-center justify-between px-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800">
               <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Secções</span>
@@ -578,7 +578,6 @@ export function Conteudos() {
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Tipo</label>
                 <select value={entryForm.type} onChange={(e) => setEntryForm((f) => ({ ...f, type: e.target.value }))} className={inputCls}>
                   <option value="text">Texto</option>
-                  <option value="richtext">Texto rico</option>
                   <option value="image">Imagem</option>
                 </select>
               </div>
@@ -620,7 +619,23 @@ export function Conteudos() {
                     {LOCALE_LABEL[t.locale] ?? (t.locale ? t.locale.toUpperCase() : '—')}
                   </span>
 
-                  {entryForm.type === 'image' ? (
+                  {entryForm.type === 'text' ? (
+                    <textarea
+                      value={t.value}
+                      onChange={(e) => {
+                        setTranslation(i, 'value', e.target.value)
+                        e.target.style.height = 'auto'
+                        e.target.style.height = `${Math.min(e.target.scrollHeight, 320)}px`
+                      }}
+                      onFocus={(e) => {
+                        e.target.style.height = 'auto'
+                        e.target.style.height = `${Math.min(e.target.scrollHeight, 320)}px`
+                      }}
+                      placeholder="Valor…"
+                      rows={3}
+                      className={`${inputCls} flex-1 resize-none overflow-y-auto min-h-[80px] max-h-[320px]`}
+                    />
+                  ) : entryForm.type === 'image' ? (
                     <div className="flex-1 space-y-1.5">
                       <label className="block cursor-pointer group">
                         <input
@@ -651,22 +666,7 @@ export function Conteudos() {
                         )}
                       </label>
                     </div>
-                  ) : entryForm.type === 'richtext' ? (
-                    <textarea
-                      value={t.value}
-                      onChange={(e) => setTranslation(i, 'value', e.target.value)}
-                      rows={3}
-                      placeholder="Texto…"
-                      className={`${inputCls} flex-1 resize-none`}
-                    />
-                  ) : (
-                    <input
-                      value={t.value}
-                      onChange={(e) => setTranslation(i, 'value', e.target.value)}
-                      placeholder="Valor…"
-                      className={`${inputCls} flex-1`}
-                    />
-                  )}
+                  ) : null}
 
                   {entryForm.translations.length > 1 && (
                     <button type="button" onClick={() => removeTranslation(i)}

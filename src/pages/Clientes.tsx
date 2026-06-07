@@ -68,7 +68,7 @@ export function Clientes() {
 
   const { data, isLoading, isError } = useGetCustomers()
   const { data: svcData } = useGetScheduleServices({ query: { enabled: canSchedule } })
-  const { data: history, isLoading: loadingHistory } = useGetCustomersIdHistory(
+  const { data: history, isLoading: loadingHistory } = useGetCustomersIdHistory<CustomerHistory>(
     profileId ?? '',
     { query: { enabled: !!profileId && canSchedule } },
   )

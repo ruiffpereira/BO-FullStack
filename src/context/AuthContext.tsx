@@ -82,7 +82,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const logoutRef = useRef<() => void>(() => {});
-  const isRefreshingRef = useRef(false);
+  // Shared refresh promise — deduplicates concurrent refresh attempts (fixes mobile race condition)
+  const refreshPromiseRef = useRef<Promise<string | null> | null>(null);
 
   const clearSession = useCallback(() => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
@@ -137,34 +138,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [clearSession],
   );
 
+  // Shared refresh execution — all concurrent callers await the same promise
+  const doRefresh = useCallback(
+    (refreshToken: string): Promise<string | null> => {
+      if (refreshPromiseRef.current) return refreshPromiseRef.current;
+
+      refreshPromiseRef.current = (async () => {
+        try {
+          const res = await postUsersRefresh({ refreshToken });
+          const newToken = res?.accessToken ?? null;
+          if (!newToken) return null;
+          setAuth((prev) => {
+            const next = { ...prev, accessToken: newToken };
+            saveToStorage(next);
+            return next;
+          });
+          scheduleRefresh(newToken, refreshToken);
+          return newToken;
+        } catch {
+          return null;
+        } finally {
+          refreshPromiseRef.current = null;
+        }
+      })();
+
+      return refreshPromiseRef.current;
+    },
+    [scheduleRefresh],
+  );
+
   // Eagerly refresh when token is about to expire (handles mobile/background tabs)
   const tryRefreshNow = useCallback(async () => {
-    if (isRefreshingRef.current) return;
     const stored = loadFromStorage();
     if (!stored.accessToken || !stored.refreshToken) return;
     const expiry = getJwtExpiry(stored.accessToken);
     if (expiry - Date.now() > 90_000) return; // Still fresh, no need
 
-    isRefreshingRef.current = true;
-    try {
-      const res = await postUsersRefresh({ refreshToken: stored.refreshToken });
-      const newToken = res?.accessToken;
-      if (!newToken) {
-        clearSession();
-        return;
-      }
-      setAuth((prev) => {
-        const next = { ...prev, accessToken: newToken };
-        saveToStorage(next);
-        return next;
-      });
-      scheduleRefresh(newToken, stored.refreshToken);
-    } catch {
-      clearSession();
-    } finally {
-      isRefreshingRef.current = false;
-    }
-  }, [clearSession, scheduleRefresh]);
+    const newToken = await doRefresh(stored.refreshToken);
+    if (!newToken) clearSession();
+  }, [clearSession, doRefresh]);
 
   // Re-schedule on mount + handle page visibility (fixes mobile Chrome)
   useEffect(() => {
@@ -185,9 +197,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       document.removeEventListener("visibilitychange", handleVisibility);
   }, [tryRefreshNow]);
 
-  // ─── Axios 401 interceptor ─────────────────────────────────────────────────
+  // ─── Axios interceptors ────────────────────────────────────────────────────
   useEffect(() => {
-    const id = axiosInstance.interceptors.response.use(
+    // Request: attach token from storage so all Kubb-generated hooks are covered
+    const reqId = axiosInstance.interceptors.request.use((config) => {
+      const url: string = config.url ?? "";
+      const isAuthEndpoint = SKIP_401.some((path) => url.includes(path));
+      if (!isAuthEndpoint && !config.headers.Authorization) {
+        const stored = loadFromStorage();
+        if (stored.accessToken) {
+          config.headers.Authorization = `Bearer ${stored.accessToken}`;
+        }
+      }
+      return config;
+    });
+
+    // Response: on 401 all concurrent requests await the same refresh promise,
+    // then retry — none of them trigger logout prematurely
+    const resId = axiosInstance.interceptors.response.use(
       (res) => res,
       async (err) => {
         const url: string = err?.config?.url ?? "";
@@ -195,33 +222,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const isAuthEndpoint = SKIP_401.some((path) => url.includes(path));
 
         if (is401 && !isAuthEndpoint) {
-          // Try to refresh before logging out
-          if (!isRefreshingRef.current) {
-            isRefreshingRef.current = true;
-            try {
-              const stored = loadFromStorage();
-              if (stored.refreshToken) {
-                const res = await postUsersRefresh({
-                  refreshToken: stored.refreshToken,
-                });
-                const newToken = res?.accessToken;
-                if (newToken) {
-                  setAuth((prev) => {
-                    const next = { ...prev, accessToken: newToken };
-                    saveToStorage(next);
-                    return next;
-                  });
-                  scheduleRefresh(newToken, stored.refreshToken);
-                  // Retry original request with new token
-                  err.config.headers.Authorization = `Bearer ${newToken}`;
-                  isRefreshingRef.current = false;
-                  return axiosInstance(err.config);
-                }
-              }
-            } catch {
-              // Fall through to logout
-            } finally {
-              isRefreshingRef.current = false;
+          const stored = loadFromStorage();
+          if (stored.refreshToken) {
+            const newToken = await doRefresh(stored.refreshToken);
+            if (newToken) {
+              err.config.headers.Authorization = `Bearer ${newToken}`;
+              return axiosInstance(err.config);
             }
           }
           logoutRef.current();
@@ -229,8 +235,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return Promise.reject(err);
       },
     );
-    return () => axiosInstance.interceptors.response.eject(id);
-  }, [scheduleRefresh]);
+
+    return () => {
+      axiosInstance.interceptors.request.eject(reqId);
+      axiosInstance.interceptors.response.eject(resId);
+    };
+  }, [doRefresh]);
 
   // ─── Login ─────────────────────────────────────────────────────────────────
   const login = useCallback(

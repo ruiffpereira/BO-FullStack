@@ -141,7 +141,7 @@ export function NotificationBell() {
   const { permission, requestAndSubscribe, unsubscribe } = usePushSubscription();
 
   const unread = data?.unread ?? 0;
-  const notifications = data?.notifications ?? [];
+  const notifications = (data?.notifications as Notification[] | undefined) ?? [];
 
   // Close on outside click
   useEffect(() => {

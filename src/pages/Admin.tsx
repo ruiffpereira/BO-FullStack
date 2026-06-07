@@ -100,6 +100,7 @@ function CopyBtn({ value }: { value: string }) {
 type UserForm = {
   name: string;
   email: string;
+  phone: string;
   permissionId: string;
   emailSenderName: string;
   fromEmail: string;
@@ -108,6 +109,7 @@ type UserForm = {
 const emptyUserForm: UserForm = {
   name: "",
   email: "",
+  phone: "",
   permissionId: "",
   emailSenderName: "",
   fromEmail: "",
@@ -139,6 +141,13 @@ function UserFormFields({
         value={form.email}
         onChange={(e: any) => setForm({ ...form, email: e.target.value })}
         placeholder="email@exemplo.com"
+      />
+      <Input
+        label="Telemóvel"
+        type="tel"
+        value={form.phone}
+        onChange={(e: any) => setForm({ ...form, phone: e.target.value })}
+        placeholder="912 345 678"
       />
       {!isEdit && (
         <div className="flex items-start gap-2.5 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 px-3.5 py-3">
@@ -264,6 +273,7 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
     setForm({
       name: u.name,
       email: u.email,
+      phone: (u as any).phone ?? "",
       permissionId: u.permissions?.[0]?.permissionId ?? "",
       emailSenderName: (u as any).emailSenderName ?? "",
       fromEmail: (u as any).fromEmail ?? "",
@@ -291,6 +301,7 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
           <tr>
             <th className="px-4 py-3">Nome</th>
             <th className="px-4 py-3 hidden md:table-cell">Email</th>
+            <th className="px-4 py-3 hidden xl:table-cell">Telemóvel</th>
             <th className="px-4 py-3 hidden lg:table-cell">User ID</th>
             <th className="px-4 py-3">Permissão</th>
             <th className="px-4 py-3 text-right">Ações</th>
@@ -298,9 +309,9 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
         </thead>
         <tbody className="divide-y divide-zinc-50 dark:divide-zinc-800/50">
           {isLoading ? (
-            <SkeletonRows cols={5} />
+            <SkeletonRows cols={6} />
           ) : users.length === 0 ? (
-            <EmptyRow cols={5} />
+            <EmptyRow cols={6} />
           ) : null}
           {(users as User[]).map((u) => (
             <tr
@@ -314,7 +325,10 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
               <td className="px-4 py-3.5 text-zinc-500 hidden md:table-cell">
                 {u.email}
               </td>
-              <td className="px-4 py-3.5 hidden lg:table-cell">
+              <td className="px-4 py-3.5 text-zinc-500 hidden xl:table-cell">
+                {(u as any).phone ?? "—"}
+              </td>
+              <td className="px-4 py-3.5 hidden lg:table-cell" onClick={(e) => e.stopPropagation()}>
                 <CopyBtn value={u.userId} />
               </td>
               <td className="px-4 py-3.5">
@@ -388,6 +402,7 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
                   data: {
                     name: form.name,
                     email: form.email,
+                    phone: form.phone || undefined,
                     permissionId: form.permissionId,
                   } as any,
                 });
@@ -421,6 +436,7 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
                 const p: any = { userId: selected.userId };
                 if (form.name) p.name = form.name;
                 if (form.email) p.email = form.email;
+                p.phone = form.phone || null;
                 if (form.permissionId) p.permissionId = form.permissionId;
                 p.emailSenderName = form.emailSenderName || null;
                 p.fromEmail = form.fromEmail || null;

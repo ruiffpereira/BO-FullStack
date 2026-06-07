@@ -9,6 +9,7 @@ import { Icon } from '../ui/icons.jsx'
 import { Card, Button, IconButton, Badge, Avatar, Modal, Input, Select, PageHeader } from '../ui/ui.jsx'
 
 import { useGetScheduleAppointments, getScheduleAppointmentsQueryKey } from '../gen/backoffice/hooks/useGetScheduleAppointments.js'
+import { usePostScheduleAppointmentsIdNotify } from '../gen/backoffice/hooks/usePostScheduleAppointmentsIdNotify.js'
 import { usePostScheduleAppointments } from '../gen/backoffice/hooks/usePostScheduleAppointments.js'
 import { usePutScheduleAppointmentsId } from '../gen/backoffice/hooks/usePutScheduleAppointmentsId.js'
 import { useDeleteScheduleAppointmentsId } from '../gen/backoffice/hooks/useDeleteScheduleAppointmentsId.js'
@@ -45,8 +46,6 @@ function stableColorForId(id: string): string {
 }
 const DAY_NAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const FULL_DAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001/api'
-
 function minuteToTime(min: number) {
   return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
 }
@@ -266,7 +265,6 @@ type DragSel = { day: Date; startMin: number; endMin: number }
 type DragAction = { x: number; y: number; day: Date; startMin: number; endMin: number }
 
 function CalendarioView() {
-  const { authHeader } = useAuth()
   const qc = useQueryClient()
   const [weekStart, setWeekStart] = useState(() => {
     const ws = startOfWeek(new Date(), { weekStartsOn: 1 })
@@ -329,6 +327,26 @@ function CalendarioView() {
       onError: (error) => toast.error(getApiError(error)),
     }
   })
+  const notifyAppt = usePostScheduleAppointmentsIdNotify({
+    mutation: {
+      onSuccess: () => {
+        toast.success('Marcação guardada e cliente notificado')
+        setIsNotifying(false)
+        setPendingReschedule(null)
+        setRescheduledFrom(null)
+        setSelAppt(null)
+      },
+      onError: (error) => {
+        toast.success('Marcação guardada')
+        toast.error(getApiError(error) || 'Erro ao enviar email ao cliente')
+        setIsNotifying(false)
+        setPendingReschedule(null)
+        setRescheduledFrom(null)
+        setSelAppt(null)
+      },
+    }
+  })
+
   const updateAppt = usePutScheduleAppointmentsId({
     mutation: {
       onSuccess: () => {
@@ -337,26 +355,7 @@ function CalendarioView() {
         if (notifyId) {
           notifyAfterSaveRef.current = null
           setIsNotifying(true)
-          fetch(`${API_BASE}/schedule/appointments/${notifyId}/notify`, {
-            method: 'POST',
-            headers: authHeader(),
-          }).then(async (res) => {
-            if (res.ok) {
-              toast.success('Marcação guardada e cliente notificado')
-            } else {
-              const body = await res.json().catch(() => ({}))
-              toast.success('Marcação guardada')
-              toast.error(body.error ?? 'Erro ao enviar email ao cliente')
-            }
-          }).catch(() => {
-            toast.success('Marcação guardada')
-            toast.error('Erro ao enviar email ao cliente')
-          }).finally(() => {
-            setIsNotifying(false)
-            setPendingReschedule(null)
-            setRescheduledFrom(null)
-            setSelAppt(null)
-          })
+          notifyAppt.mutate({ id: notifyId })
         } else {
           toast.success('Marcação actualizada')
           setPendingReschedule(null)

@@ -12,8 +12,7 @@ import { useDeleteCmsEntriesKey } from '../gen/backoffice/hooks/useDeleteCmsEntr
 import { postCmsSections } from '../gen/backoffice/hooks/usePostCmsSections.js'
 import { patchCmsSectionsId } from '../gen/backoffice/hooks/usePatchCmsSectionsId.js'
 import { useDeleteCmsSectionsId } from '../gen/backoffice/hooks/useDeleteCmsSectionsId.js'
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001/api'
+import { postUploadsPresign } from '../gen/backoffice/hooks/usePostUploadsPresign.js'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -269,13 +268,9 @@ export function Conteudos() {
   const handleImagePick = async (file: File, idx: number) => {
     setUploadingIdx(idx)
     try {
-      const presignRes = await fetch(`${API_BASE}/uploads/presign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeader() },
-        body: JSON.stringify({ filename: file.name, contentType: file.type, module: 'cms', fileSize: file.size }),
+      const { uploadUrl, fileUrl } = await postUploadsPresign({
+        filename: file.name, contentType: file.type, module: 'cms', fileSize: file.size,
       })
-      if (!presignRes.ok) throw new Error('Erro ao obter URL de upload')
-      const { uploadUrl, fileUrl } = await presignRes.json() as { uploadUrl: string; fileUrl: string }
       const uploadRes = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
       if (!uploadRes.ok) throw new Error('Erro ao fazer upload')
       setTranslation(idx, 'value', fileUrl)

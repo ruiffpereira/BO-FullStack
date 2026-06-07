@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
+import { getNotificationsQueryKey } from "./useNotifications";
 
 const STORAGE_KEY = "bo_auth";
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
@@ -83,7 +84,7 @@ export function useSSE() {
 
       if (event.type === "notification") {
         // Always refresh the notification bell
-        queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        queryClient.invalidateQueries({ queryKey: getNotificationsQueryKey() });
 
         // Also refresh the relevant data list
         const notifType = event.data?.type;

@@ -17,8 +17,7 @@ import { useGetOrders, getOrdersQueryKey } from '../gen/backoffice/hooks/useGetO
 import type { Product } from '../gen/backoffice/types/Product.js'
 import type { Category } from '../gen/backoffice/types/Category.js'
 import type { Subcategory } from '../gen/backoffice/types/Subcategory.js'
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL as string
+import { postUploadsPresign } from '../gen/backoffice/hooks/usePostUploadsPresign.js'
 
 const fmtEur = (n: number) =>
   '€' + n.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -289,18 +288,12 @@ export function Loja() {
       // 1. Upload da foto ao SeaweedFS se houver ficheiro novo
       let newPhotoUrl: string | null = null
       if (form.photo) {
-        const presignRes = await fetch(`${API_BASE}/uploads/presign`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...headers },
-          body: JSON.stringify({
-            filename: form.photo.name,
-            contentType: form.photo.type,
-            module: 'products',
-            fileSize: form.photo.size,
-          }),
-        })
-        if (!presignRes.ok) throw new Error('Erro ao obter URL de upload')
-        const { uploadUrl, fileUrl } = await presignRes.json() as { uploadUrl: string; fileUrl: string }
+        const { uploadUrl, fileUrl } = await postUploadsPresign({
+          filename: form.photo.name,
+          contentType: form.photo.type,
+          module: 'products',
+          fileSize: form.photo.size,
+        }) as { uploadUrl: string; fileUrl: string }
 
         const uploadRes = await fetch(uploadUrl, {
           method: 'PUT',

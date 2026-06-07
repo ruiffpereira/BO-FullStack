@@ -20,7 +20,6 @@ const ROUTE_META: Record<string, { nome: string; icon: string }> = {
   '/loja':       { nome: 'Loja',       icon: 'store' },
   '/agenda':     { nome: 'Agenda',     icon: 'calendar' },
   '/conteudos':  { nome: 'Conteúdos',  icon: 'layers' },
-  '/tokens':     { nome: 'Tokens',     icon: 'key' },
   '/admin':      { nome: 'Admin',      icon: 'shield' },
 }
 

@@ -212,7 +212,6 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [rotateOpen, setRotateOpen] = useState(false);
   const [selected, setSelected] = useState<User | null>(null);
   const [form, setForm] = useState<UserForm>(emptyUserForm);
 
@@ -259,17 +258,6 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
     onSuccess: () => toast.success('Email de reset enviado'),
     onError: (e: any) => toast.error(e.message),
   })
-
-  const rotateM = usePutUsers({
-    client: { headers },
-    mutation: {
-      onSuccess: () => {
-        toast.success("Chave renovada");
-        setRotateOpen(false);
-      },
-      onError: (error) => toast.error(getApiError(error)),
-    },
-  });
 
   const openEdit = (u: User) => {
     setSelected(u);
@@ -354,15 +342,6 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
                     icon="key"
                     label="Reset password"
                     onClick={() => sendResetM.mutate(u.userId)}
-                  />
-                  <IconButton
-                    title="Renovar chave API"
-                    icon="star"
-                    label="Renovar chave"
-                    onClick={() => {
-                      setSelected(u);
-                      setRotateOpen(true);
-                    }}
                   />
                   <IconButton
                     icon="edit"
@@ -487,34 +466,6 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
         </p>
       </Modal>
 
-      <Modal
-        open={rotateOpen}
-        onClose={() => setRotateOpen(false)}
-        title="Renovar chave de API"
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setRotateOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              disabled={rotateM.isPending}
-              onClick={() =>
-                selected &&
-                rotateM.mutate({
-                  data: { userId: selected.userId },
-                })
-              }
-            >
-              {rotateM.isPending ? "A renovar…" : "Renovar"}
-            </Button>
-          </>
-        }
-      >
-        <p className="text-sm text-zinc-600 dark:text-zinc-300">
-          Vai gerar uma nova chave de API para <strong>{selected?.name}</strong>
-          . A chave anterior deixará de funcionar imediatamente.
-        </p>
-      </Modal>
     </div>
   );
 }

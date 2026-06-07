@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { getApiError } from "../lib/apiError";
-import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
-import kubbFetch from "@kubb/plugin-client/clients/axios";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { Icon } from "../ui/icons.jsx";
 import {
@@ -36,6 +35,10 @@ import {
 import { usePostComponents } from "../gen/backoffice/hooks/usePostComponents.js";
 import { usePutComponentsId } from "../gen/backoffice/hooks/usePutComponentsId.js";
 import { useDeleteComponentsId } from "../gen/backoffice/hooks/useDeleteComponentsId.js";
+import { useGetSiteTokens, getSiteTokensQueryKey } from "../gen/backoffice/hooks/useGetSiteTokens.js";
+import { usePostSiteTokens } from "../gen/backoffice/hooks/usePostSiteTokens.js";
+import { usePatchSiteTokensIdRevoke } from "../gen/backoffice/hooks/usePatchSiteTokensIdRevoke.js";
+import { useDeleteSiteTokensId } from "../gen/backoffice/hooks/useDeleteSiteTokensId.js";
 
 import type { User } from "../gen/backoffice/types/User.js";
 import type { Permission } from "../gen/backoffice/types/Permission.js";
@@ -1011,7 +1014,6 @@ function formatDate(d: string | null) {
 
 function TokensTab({ headers }: { headers: Record<string, string> }) {
   const qc = useQueryClient()
-  const API_BASE_T = ((import.meta as any).env?.VITE_API_BASE_URL ?? "http://localhost:3001/api") as string
 
   const { data: users = [] } = useGetUsers({ client: { headers } })
   const [selectedUserId, setSelectedUserId] = useState("")
@@ -1020,47 +1022,33 @@ function TokensTab({ headers }: { headers: Record<string, string> }) {
   const [newToken, setNewToken] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const { data: tokens = [], isLoading } = useQuery<SiteTokenRecord[]>({
-    queryKey: ["site-tokens", selectedUserId],
-    queryFn: async () => {
-      const url = selectedUserId ? `/site-tokens?userId=${selectedUserId}` : "/site-tokens"
-      const res = await kubbFetch<SiteTokenRecord[]>({ method: "GET", url, baseURL: API_BASE_T, headers })
-      return res.data as SiteTokenRecord[]
+  const { data: tokens = [], isLoading } = useGetSiteTokens(selectedUserId ? { userId: selectedUserId } : undefined)
+
+  const createMut = usePostSiteTokens({
+    mutation: {
+      onSuccess: (data: any) => {
+        qc.invalidateQueries({ queryKey: getSiteTokensQueryKey() })
+        setCreateOpen(false)
+        setLabel("")
+        setNewToken(data.token ?? null)
+        setCopied(false)
+      },
+      onError: (e: any) => toast.error(getApiError(e)),
     },
   })
 
-  const createMut = useMutation({
-    mutationFn: async ({ label, userId }: { label: string; userId: string }) => {
-      const res = await kubbFetch<{ token: string } & SiteTokenRecord>({
-        method: "POST", url: "/site-tokens", baseURL: API_BASE_T,
-        data: { label, userId }, headers,
-      })
-      return res.data as { token: string } & SiteTokenRecord
+  const revokeMut = usePatchSiteTokensIdRevoke({
+    mutation: {
+      onSuccess: () => { toast.success("Token revogado"); qc.invalidateQueries({ queryKey: getSiteTokensQueryKey() }) },
+      onError: (e: any) => toast.error(getApiError(e)),
     },
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["site-tokens"] })
-      setCreateOpen(false)
-      setLabel("")
-      setNewToken(data.token)
-      setCopied(false)
-    },
-    onError: (e: any) => toast.error(getApiError(e)),
   })
 
-  const revokeMut = useMutation({
-    mutationFn: async (id: string) => {
-      await kubbFetch({ method: "PATCH", url: `/site-tokens/${id}/revoke`, baseURL: API_BASE_T, headers })
+  const deleteMut = useDeleteSiteTokensId({
+    mutation: {
+      onSuccess: () => { toast.success("Token eliminado"); qc.invalidateQueries({ queryKey: getSiteTokensQueryKey() }) },
+      onError: (e: any) => toast.error(getApiError(e)),
     },
-    onSuccess: () => { toast.success("Token revogado"); qc.invalidateQueries({ queryKey: ["site-tokens"] }) },
-    onError: (e: any) => toast.error(getApiError(e)),
-  })
-
-  const deleteMut = useMutation({
-    mutationFn: async (id: string) => {
-      await kubbFetch({ method: "DELETE", url: `/site-tokens/${id}`, baseURL: API_BASE_T, headers })
-    },
-    onSuccess: () => { toast.success("Token eliminado"); qc.invalidateQueries({ queryKey: ["site-tokens"] }) },
-    onError: (e: any) => toast.error(getApiError(e)),
   })
 
   const copy = async () => {
@@ -1128,14 +1116,14 @@ function TokensTab({ headers }: { headers: Record<string, string> }) {
                         icon="x"
                         label="Revogar"
                         title="Revogar token"
-                        onClick={() => window.confirm(`Revogar "${t.label}"?`) && revokeMut.mutate(t.tokenId)}
+                        onClick={() => window.confirm(`Revogar "${t.label}"?`) && revokeMut.mutate({ id: t.tokenId })}
                         className="hover:text-amber-500"
                       />
                     )}
                     <IconButton
                       icon="trash"
                       label="Eliminar"
-                      onClick={() => window.confirm(`Eliminar "${t.label}"?`) && deleteMut.mutate(t.tokenId)}
+                      onClick={() => window.confirm(`Eliminar "${t.label}"?`) && deleteMut.mutate({ id: t.tokenId })}
                       className="hover:text-red-500"
                     />
                   </div>
@@ -1159,7 +1147,7 @@ function TokensTab({ headers }: { headers: Record<string, string> }) {
                 disabled={createMut.isPending}
                 onClick={() => {
                   if (!label.trim()) { toast.error("Introduz um nome para o token"); return }
-                  createMut.mutate({ label: label.trim(), userId: selectedUserId })
+                  createMut.mutate({ data: { label: label.trim(), userId: selectedUserId } })
                 }}
               >
                 {createMut.isPending ? "A gerar…" : "Gerar token"}

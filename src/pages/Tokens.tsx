@@ -1,21 +1,15 @@
 import { useState } from 'react'
-import { useAuth } from '../context/AuthContext'
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import kubbFetch from '@kubb/plugin-client/clients/axios'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Modal, Input, Button, Badge, PageHeader, EmptyState } from '../ui/ui.jsx'
+import { useGetSiteTokens, getSiteTokensQueryKey } from '../gen/backoffice/hooks/useGetSiteTokens.js'
+import { usePostSiteTokens } from '../gen/backoffice/hooks/usePostSiteTokens.js'
+import { usePatchSiteTokensIdRevoke } from '../gen/backoffice/hooks/usePatchSiteTokensIdRevoke.js'
+import { useDeleteSiteTokensId } from '../gen/backoffice/hooks/useDeleteSiteTokensId.js'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001/api'
-
-type SiteToken = {
-  tokenId: string
-  label: string
-  lastUsedAt: string | null
-  revokedAt: string | null
-  createdAt: string
-}
+type SiteToken = { tokenId: string; label: string; lastUsedAt: string | null; revokedAt: string | null; createdAt: string }
 
 function formatDate(d: string | null) {
   if (!d) return '—'
@@ -23,7 +17,6 @@ function formatDate(d: string | null) {
 }
 
 export function Tokens() {
-  const { authHeader } = useAuth()
   const qc = useQueryClient()
 
   const [createOpen, setCreateOpen] = useState(false)
@@ -31,58 +24,39 @@ export function Tokens() {
   const [newToken, setNewToken] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const { data: tokens = [], isLoading } = useQuery<SiteToken[]>({
-    queryKey: ['site-tokens'],
-    queryFn: async () => {
-      const res = await kubbFetch<SiteToken[]>({
-        method: 'GET', url: '/site-tokens', baseURL: API_BASE, headers: authHeader(),
-      })
-      return res.data as SiteToken[]
+  const { data: tokens = [], isLoading } = useGetSiteTokens()
+
+  const createMut = usePostSiteTokens({
+    mutation: {
+      onSuccess: (data) => {
+        qc.invalidateQueries({ queryKey: getSiteTokensQueryKey() })
+        setCreateOpen(false)
+        setLabel('')
+        setNewToken((data as any).token ?? null)
+        setCopied(false)
+      },
+      onError: (e: any) => toast.error(getApiError(e)),
     },
   })
 
-  const createMut = useMutation({
-    mutationFn: async (l: string) => {
-      const res = await kubbFetch<{ token: string } & SiteToken>({
-        method: 'POST', url: '/site-tokens', baseURL: API_BASE,
-        data: { label: l }, headers: authHeader(),
-      })
-      return res.data as { token: string } & SiteToken
+  const revokeMut = usePatchSiteTokensIdRevoke({
+    mutation: {
+      onSuccess: () => {
+        toast.success('Token revogado')
+        qc.invalidateQueries({ queryKey: getSiteTokensQueryKey() })
+      },
+      onError: (e: any) => toast.error(getApiError(e)),
     },
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ['site-tokens'] })
-      setCreateOpen(false)
-      setLabel('')
-      setNewToken(data.token)
-      setCopied(false)
-    },
-    onError: (e: any) => toast.error(getApiError(e)),
   })
 
-  const revokeMut = useMutation({
-    mutationFn: async (id: string) => {
-      await kubbFetch({
-        method: 'PATCH', url: `/site-tokens/${id}/revoke`, baseURL: API_BASE, headers: authHeader(),
-      })
+  const deleteMut = useDeleteSiteTokensId({
+    mutation: {
+      onSuccess: () => {
+        toast.success('Token eliminado')
+        qc.invalidateQueries({ queryKey: getSiteTokensQueryKey() })
+      },
+      onError: (e: any) => toast.error(getApiError(e)),
     },
-    onSuccess: () => {
-      toast.success('Token revogado')
-      qc.invalidateQueries({ queryKey: ['site-tokens'] })
-    },
-    onError: (e: any) => toast.error(getApiError(e)),
-  })
-
-  const deleteMut = useMutation({
-    mutationFn: async (id: string) => {
-      await kubbFetch({
-        method: 'DELETE', url: `/site-tokens/${id}`, baseURL: API_BASE, headers: authHeader(),
-      })
-    },
-    onSuccess: () => {
-      toast.success('Token eliminado')
-      qc.invalidateQueries({ queryKey: ['site-tokens'] })
-    },
-    onError: (e: any) => toast.error(getApiError(e)),
   })
 
   const copy = async () => {
@@ -95,11 +69,11 @@ export function Tokens() {
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault()
     if (!label.trim()) { toast.error('Introduz um nome para o token'); return }
-    createMut.mutate(label.trim())
+    createMut.mutate({ data: { label: label.trim() } as any })
   }
 
-  const active = tokens.filter((t) => !t.revokedAt)
-  const revoked = tokens.filter((t) => t.revokedAt)
+  const active = (tokens as SiteToken[]).filter((t) => !t.revokedAt)
+  const revoked = (tokens as SiteToken[]).filter((t) => t.revokedAt)
 
   return (
     <div>
@@ -136,11 +110,11 @@ export function Tokens() {
                   <td /><td />
                 </tr>
               ))}
-              {!isLoading && tokens.map((t) => (
+              {!isLoading && (tokens as SiteToken[]).map((t) => (
                 <tr key={t.tokenId} className="border-b border-zinc-50 dark:border-zinc-800/50 last:border-0">
                   <td className="px-5 py-3.5 font-medium text-zinc-800 dark:text-zinc-100">{t.label}</td>
                   <td className="px-4 py-3.5 text-zinc-500 hidden sm:table-cell text-xs">{formatDate(t.createdAt)}</td>
-                  <td className="px-4 py-3.5 text-zinc-500 hidden md:table-cell text-xs">{formatDate(t.lastUsedAt)}</td>
+                  <td className="px-4 py-3.5 text-zinc-500 hidden md:table-cell text-xs">{formatDate(t.lastUsedAt ?? null)}</td>
                   <td className="px-4 py-3.5">
                     {t.revokedAt
                       ? <Badge tone="red">Revogado</Badge>
@@ -150,7 +124,7 @@ export function Tokens() {
                     <div className="flex items-center justify-end gap-1">
                       {!t.revokedAt && (
                         <button
-                          onClick={() => { if (window.confirm(`Revogar "${t.label}"? O site deixará de conseguir aceder à API.`)) revokeMut.mutate(t.tokenId) }}
+                          onClick={() => { if (window.confirm(`Revogar "${t.label}"? O site deixará de conseguir aceder à API.`)) revokeMut.mutate({ id: t.tokenId }) }}
                           className="p-1.5 rounded-lg text-zinc-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition"
                           title="Revogar"
                         >
@@ -158,7 +132,7 @@ export function Tokens() {
                         </button>
                       )}
                       <button
-                        onClick={() => { if (window.confirm(`Eliminar "${t.label}" permanentemente?`)) deleteMut.mutate(t.tokenId) }}
+                        onClick={() => { if (window.confirm(`Eliminar "${t.label}" permanentemente?`)) deleteMut.mutate({ id: t.tokenId }) }}
                         className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition"
                         title="Eliminar"
                       >
@@ -170,7 +144,7 @@ export function Tokens() {
               ))}
             </tbody>
           </table>
-          {!isLoading && tokens.length === 0 && (
+          {!isLoading && (tokens as SiteToken[]).length === 0 && (
             <EmptyState icon="shield" title="Sem tokens" desc="Cria o primeiro token para ligar o teu site à API." />
           )}
         </Card>

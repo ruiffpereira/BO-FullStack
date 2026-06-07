@@ -4,7 +4,6 @@ import { pt } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
-import kubbFetch from '@kubb/plugin-client/clients/axios'
 import { useAuth } from '../context/AuthContext'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Button, IconButton, Badge, Avatar, Modal, Input, Select, PageHeader } from '../ui/ui.jsx'
@@ -23,6 +22,9 @@ import { useGetScheduleBlockedSlots, getScheduleBlockedSlotsQueryKey } from '../
 import { usePostScheduleBlockedSlots } from '../gen/backoffice/hooks/usePostScheduleBlockedSlots.js'
 import { useDeleteScheduleBlockedSlotsId } from '../gen/backoffice/hooks/useDeleteScheduleBlockedSlotsId.js'
 import { useGetCustomers, getCustomersQueryKey } from '../gen/backoffice/hooks/useGetCustomers.js'
+import { postCustomers } from '../gen/backoffice/hooks/usePostCustomers.js'
+import { patchScheduleServicesReorder } from '../gen/backoffice/hooks/usePatchScheduleServicesReorder.js'
+import { usePostScheduleBlockedSlotsVacation } from '../gen/backoffice/hooks/usePostScheduleBlockedSlotsVacation.js'
 
 import type { Appointment } from '../gen/backoffice/types/Appointment.js'
 import type { Service } from '../gen/backoffice/types/Service.js'
@@ -104,9 +106,7 @@ function NovaApptModal({ date, open, onClose, services, onCreate, isPending, ini
   services: Service[]; onCreate: (data: any) => void; isPending: boolean
   initialTime?: string
 }) {
-  const { authHeader } = useAuth()
   const qc = useQueryClient()
-  const headers = authHeader()
 
   const [editDate, setEditDate] = useState(format(date, 'yyyy-MM-dd'))
   const [form, setForm] = useState({ time: initialTime ?? '09:00', serviceId: '', notes: '' })
@@ -119,7 +119,7 @@ function NovaApptModal({ date, open, onClose, services, onCreate, isPending, ini
   useEffect(() => { setEditDate(format(date, 'yyyy-MM-dd')) }, [date])
   useEffect(() => { if (initialTime) setForm((f) => ({ ...f, time: initialTime })) }, [initialTime])
 
-  const { data: custData, isError: custError } = useGetCustomers({ client: { headers } })
+  const { data: custData, isError: custError } = useGetCustomers()
   const allCustomers = custData?.rows ?? []
 
   const dropList = q.trim()
@@ -131,13 +131,8 @@ function NovaApptModal({ date, open, onClose, services, onCreate, isPending, ini
     : []
 
   const createCustMut = useMutation({
-    mutationFn: async (data: { name: string; email: string; contact: string }) => {
-      const res = await kubbFetch<Customer, Error, typeof data>({
-        method: 'POST', url: '/customers', baseURL: API_BASE,
-        data, headers: authHeader(),
-      })
-      return res.data as Customer
-    },
+    mutationFn: (data: { name: string; email: string; contact: string }) =>
+      postCustomers(data as any),
     onSuccess: (c: Customer) => {
       qc.invalidateQueries({ queryKey: getCustomersQueryKey() })
       selectCustomer(c)
@@ -273,7 +268,6 @@ type DragAction = { x: number; y: number; day: Date; startMin: number; endMin: n
 function CalendarioView() {
   const { authHeader } = useAuth()
   const qc = useQueryClient()
-  const headers = authHeader()
   const [weekStart, setWeekStart] = useState(() => {
     const ws = startOfWeek(new Date(), { weekStartsOn: 1 })
     return new Date().getDay() === 0 ? addWeeks(ws, 1) : ws
@@ -321,23 +315,21 @@ function CalendarioView() {
   const days = Array.from({ length: 6 }, (_, i) => addDays(weekStart, i))
   const hours = Array.from({ length: AG_H_END - AG_H_START }, (_, i) => AG_H_START + i)
 
-  const { data: appointments = [], isLoading } = useGetScheduleAppointments({ month }, { client: { headers } })
-  const { data: services = [] } = useGetScheduleServices({ client: { headers } })
-  const { data: blockedSlots = [] } = useGetScheduleBlockedSlots({ month }, { client: { headers } })
-  const { data: workingHours = [] } = useGetScheduleWorkingHours({ client: { headers } })
+  const { data: appointments = [], isLoading } = useGetScheduleAppointments({ month })
+  const { data: services = [] } = useGetScheduleServices()
+  const { data: blockedSlots = [] } = useGetScheduleBlockedSlots({ month })
+  const { data: workingHours = [] } = useGetScheduleWorkingHours()
 
   const invalidateAppts = () => qc.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() })
   const invalidateSlots = () => qc.invalidateQueries({ queryKey: getScheduleBlockedSlotsQueryKey() })
 
   const createAppt = usePostScheduleAppointments({
-    client: { headers },
     mutation: {
       onSuccess: () => { toast.success('Marcação criada'); invalidateAppts(); setNovaDate(null); setNovaTime(null) },
       onError: (error) => toast.error(getApiError(error)),
     }
   })
   const updateAppt = usePutScheduleAppointmentsId({
-    client: { headers },
     mutation: {
       onSuccess: () => {
         invalidateAppts()
@@ -379,14 +371,12 @@ function CalendarioView() {
     }
   })
   const deleteAppt = useDeleteScheduleAppointmentsId({
-    client: { headers },
     mutation: {
       onSuccess: () => { toast.success('Marcação eliminada'); invalidateAppts(); setSelAppt(null) },
       onError: (error) => toast.error(getApiError(error)),
     }
   })
   const blockSlot = usePostScheduleBlockedSlots({
-    client: { headers },
     mutation: {
       onSuccess: () => { toast.success('Horário bloqueado'); invalidateSlots() },
       onError: (error) => toast.error(getApiError(error)),
@@ -956,16 +946,14 @@ type SvcForm = { name: string; duration: string; price: string; description: str
 const emptySvcForm: SvcForm = { name: '', duration: '30', price: '', description: '', active: true, color: '#2A6FDB' }
 
 function ServicosPanel() {
-  const { authHeader } = useAuth()
   const qc = useQueryClient()
-  const headers = authHeader()
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState<Service | null>(null)
   const [form, setForm] = useState<SvcForm>(emptySvcForm)
   const [localOrder, setLocalOrder] = useState<string[]>([])
   const dragIndexRef = useRef<number | null>(null)
 
-  const { data: services = [], isLoading } = useGetScheduleServices({ client: { headers } })
+  const { data: services = [], isLoading } = useGetScheduleServices()
   const invalidate = () => qc.invalidateQueries({ queryKey: getScheduleServicesQueryKey() })
 
   useEffect(() => {
@@ -977,20 +965,14 @@ function ServicosPanel() {
     .filter((s): s is Service => !!s)
 
   const reorder = useMutation({
-    mutationFn: async (order: string[]) => {
-      const res = await kubbFetch<unknown, Error, { order: string[] }>({
-        method: 'PATCH', url: '/schedule/services/reorder', baseURL: API_BASE,
-        data: { order }, headers: authHeader(),
-      })
-      return res.data
-    },
+    mutationFn: (order: string[]) => patchScheduleServicesReorder({ order } as any),
     onSuccess: () => invalidate(),
     onError: () => { toast.error('Erro ao reordenar'); setLocalOrder(services.map((s) => s.serviceId)) },
   })
 
-  const create = usePostScheduleServices({ client: { headers }, mutation: { onSuccess: () => { toast.success('Serviço criado'); invalidate(); setModal(false) }, onError: (error) => toast.error(getApiError(error)) } })
-  const update = usePutScheduleServicesId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Serviço actualizado'); invalidate(); setModal(false) }, onError: (error) => toast.error(getApiError(error)) } })
-  const remove = useDeleteScheduleServicesId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Serviço eliminado'); invalidate() }, onError: (error) => toast.error(getApiError(error)) } })
+  const create = usePostScheduleServices({ mutation: { onSuccess: () => { toast.success('Serviço criado'); invalidate(); setModal(false) }, onError: (error) => toast.error(getApiError(error)) } })
+  const update = usePutScheduleServicesId({ mutation: { onSuccess: () => { toast.success('Serviço actualizado'); invalidate(); setModal(false) }, onError: (error) => toast.error(getApiError(error)) } })
+  const remove = useDeleteScheduleServicesId({ mutation: { onSuccess: () => { toast.success('Serviço eliminado'); invalidate() }, onError: (error) => toast.error(getApiError(error)) } })
 
   const openEdit = (s: Service) => {
     setEditing(s)
@@ -1090,13 +1072,11 @@ function ServicosPanel() {
 
 // ─── Settings panel ───────────────────────────────────────────────────────────
 function ConfiguracoesPanel() {
-  const { authHeader } = useAuth()
   const qc = useQueryClient()
-  const headers = authHeader()
   const DEFAULT_HOURS: WorkingHours[] = FULL_DAY_NAMES.map((_, i) => ({ dayOfWeek: i, startTime: '09:00', endTime: '18:00', isActive: i !== 0, lunchStart: null, lunchEnd: null }))
 
-  const { data: savedHours, isLoading: loadingHours } = useGetScheduleWorkingHours({ client: { headers } })
-  const saveHours = usePostScheduleWorkingHours({ client: { headers }, mutation: { onSuccess: () => { toast.success('Horários guardados'); qc.invalidateQueries({ queryKey: getScheduleWorkingHoursQueryKey() }) }, onError: (error) => toast.error(getApiError(error)) } })
+  const { data: savedHours, isLoading: loadingHours } = useGetScheduleWorkingHours()
+  const saveHours = usePostScheduleWorkingHours({ mutation: { onSuccess: () => { toast.success('Horários guardados'); qc.invalidateQueries({ queryKey: getScheduleWorkingHoursQueryKey() }) }, onError: (error) => toast.error(getApiError(error)) } })
   const [hours, setHours] = useState<WorkingHours[]>(DEFAULT_HOURS)
 
   useEffect(() => {
@@ -1105,30 +1085,21 @@ function ConfiguracoesPanel() {
 
   const updateDay = (dayOfWeek: number, patch: Partial<WorkingHours>) => setHours((prev) => prev.map((h) => h.dayOfWeek === dayOfWeek ? { ...h, ...patch } : h))
 
-  const { data: blockedSlots = [], isLoading: loadingSlots } = useGetScheduleBlockedSlots(undefined, { client: { headers } })
-  const createSlot = usePostScheduleBlockedSlots({ client: { headers }, mutation: { onSuccess: () => { toast.success('Dia bloqueado'); qc.invalidateQueries({ queryKey: getScheduleBlockedSlotsQueryKey() }) }, onError: (error) => toast.error(getApiError(error)) } })
-  const deleteSlot = useDeleteScheduleBlockedSlotsId({ client: { headers }, mutation: { onSuccess: () => { toast.success('Bloqueio removido'); qc.invalidateQueries({ queryKey: getScheduleBlockedSlotsQueryKey() }) }, onError: (error) => toast.error(getApiError(error)) } })
+  const { data: blockedSlots = [], isLoading: loadingSlots } = useGetScheduleBlockedSlots(undefined)
+  const createSlot = usePostScheduleBlockedSlots({ mutation: { onSuccess: () => { toast.success('Dia bloqueado'); qc.invalidateQueries({ queryKey: getScheduleBlockedSlotsQueryKey() }) }, onError: (error) => toast.error(getApiError(error)) } })
+  const deleteSlot = useDeleteScheduleBlockedSlotsId({ mutation: { onSuccess: () => { toast.success('Bloqueio removido'); qc.invalidateQueries({ queryKey: getScheduleBlockedSlotsQueryKey() }) }, onError: (error) => toast.error(getApiError(error)) } })
   const [newSlot, setNewSlot] = useState({ date: '', startTime: '', endTime: '', reason: '' })
 
-  // Vacation range
   const [vacationForm, setVacationForm] = useState({ startDate: '', endDate: '', reason: '' })
-  const vacation = useMutation({
-    mutationFn: async (data: { startDate: string; endDate: string; reason?: string }) => {
-      const res = await kubbFetch<{ message: string; count: number }, Error, typeof data>({
-        method: 'POST',
-        url: '/schedule/blocked-slots/vacation',
-        baseURL: API_BASE,
-        data,
-        headers: authHeader(),
-      })
-      return res.data as { message: string; count: number }
+  const vacation = usePostScheduleBlockedSlotsVacation({
+    mutation: {
+      onSuccess: (data: any) => {
+        toast.success(data.message)
+        qc.invalidateQueries({ queryKey: getScheduleBlockedSlotsQueryKey() })
+        setVacationForm({ startDate: '', endDate: '', reason: '' })
+      },
+      onError: (error: any) => toast.error(getApiError(error)),
     },
-    onSuccess: (data) => {
-      toast.success(data.message)
-      qc.invalidateQueries({ queryKey: getScheduleBlockedSlotsQueryKey() })
-      setVacationForm({ startDate: '', endDate: '', reason: '' })
-    },
-    onError: (error: any) => toast.error(getApiError(error)),
   })
 
   const vacDays = useMemo(() => {
@@ -1228,7 +1199,7 @@ function ConfiguracoesPanel() {
                 icon="ban"
                 size="sm"
                 disabled={vacation.isPending || !vacationForm.startDate || !vacationForm.endDate || vacDays === 0}
-                onClick={() => vacation.mutate({ startDate: vacationForm.startDate, endDate: vacationForm.endDate, reason: vacationForm.reason || undefined })}
+                onClick={() => vacation.mutate({ data: { startDate: vacationForm.startDate, endDate: vacationForm.endDate, reason: vacationForm.reason || undefined } as any })}
               >
                 {vacation.isPending ? 'A bloquear…' : vacDays > 0 ? `Bloquear ${vacDays} dia${vacDays > 1 ? 's' : ''}` : 'Bloquear dias'}
               </Button>
@@ -1285,9 +1256,7 @@ function ConfiguracoesPanel() {
 
 // ─── Marcações list panel ─────────────────────────────────────────────────────
 function MarcacoesPanel() {
-  const { authHeader } = useAuth()
   const qc = useQueryClient()
-  const headers = authHeader()
 
   const [q, setQ] = useState('')
   const [filterStatus, setFilterStatus] = useState<'' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('')
@@ -1296,18 +1265,16 @@ function MarcacoesPanel() {
   const [filterServiceId, setFilterServiceId] = useState('')
   const [selAppt, setSelAppt] = useState<Appointment | null>(null)
 
-  const { data: allAppts = [], isLoading } = useGetScheduleAppointments(undefined, { client: { headers } })
-  const { data: services = [] } = useGetScheduleServices({ client: { headers } })
+  const { data: allAppts = [], isLoading } = useGetScheduleAppointments(undefined)
+  const { data: services = [] } = useGetScheduleServices()
 
   const updateAppt = usePutScheduleAppointmentsId({
-    client: { headers },
     mutation: {
       onSuccess: () => { toast.success('Marcação actualizada'); qc.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() }) },
       onError: (error) => toast.error(getApiError(error)),
     }
   })
   const deleteAppt = useDeleteScheduleAppointmentsId({
-    client: { headers },
     mutation: {
       onSuccess: () => { toast.success('Marcação eliminada'); qc.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() }); setSelAppt(null) },
       onError: (error) => toast.error(getApiError(error)),

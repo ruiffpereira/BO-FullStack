@@ -1,18 +1,20 @@
 import { useState, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
-import kubbFetch from '@kubb/plugin-client/clients/axios'
 import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Badge, Avatar, Modal, Input, Button, IconButton, PageHeader, EmptyState } from '../ui/ui.jsx'
 import { useGetCustomers, getCustomersQueryKey } from '../gen/backoffice/hooks/useGetCustomers.js'
 import { useGetScheduleServices } from '../gen/backoffice/hooks/useGetScheduleServices.js'
+import { useGetCustomersIdHistory, getCustomersIdHistoryQueryKey } from '../gen/backoffice/hooks/useGetCustomersIdHistory.js'
+import { postCustomers } from '../gen/backoffice/hooks/usePostCustomers.js'
+import { patchCustomersId } from '../gen/backoffice/hooks/usePatchCustomersId.js'
+import { putScheduleAppointmentsId } from '../gen/backoffice/hooks/usePutScheduleAppointmentsId.js'
+import { deleteScheduleAppointmentsId } from '../gen/backoffice/hooks/useDeleteScheduleAppointmentsId.js'
 import type { Customer } from '../gen/backoffice/types/Customer.js'
 import type { Appointment } from '../gen/backoffice/types/Appointment.js'
 import { ApptModal } from '../components/ApptModal.js'
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001/api'
 
 function colorFromName(name: string) {
   const colors = ['#2A6FDB', '#1F8A5B', '#D97757', '#7C5CDB', '#E6B450', '#0EA5A4']
@@ -53,22 +55,23 @@ const STATUS_PT: Record<string, string> = { pending: 'Pendente', confirmed: 'Con
 const STATUS_TONE: Record<string, string> = { pending: 'amber', confirmed: 'green', completed: 'green', cancelled: 'red' }
 
 export function Clientes() {
-  const { authHeader, hasPermission } = useAuth()
+  const { hasPermission } = useAuth()
   const canSchedule = hasPermission('VIEW_SCHEDULE')
   const qc = useQueryClient()
-  const headers = authHeader()
 
   const [q, setQ] = useState('')
   const [profileId, setProfileId] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [editCustomer, setEditCustomer] = useState<Customer | null>(null)
   const [form, setForm] = useState<CustomerForm>(emptyForm)
-  const [history, setHistory] = useState<CustomerHistory | null>(null)
-  const [loadingHistory, setLoadingHistory] = useState(false)
   const [selAppt, setSelAppt] = useState<HistoryAppt | null>(null)
 
-  const { data, isLoading, isError } = useGetCustomers({ client: { headers } })
-  const { data: svcData } = useGetScheduleServices({ query: { enabled: canSchedule }, client: { headers } })
+  const { data, isLoading, isError } = useGetCustomers()
+  const { data: svcData } = useGetScheduleServices({ query: { enabled: canSchedule } })
+  const { data: history, isLoading: loadingHistory } = useGetCustomersIdHistory(
+    profileId ?? '',
+    { query: { enabled: !!profileId && canSchedule } },
+  )
   const services = svcData ?? []
   const customers = data?.rows ?? []
 
@@ -81,14 +84,14 @@ export function Clientes() {
   [customers, q])
 
   const createMut = useMutation({
-    mutationFn: async (data: CustomerForm) => {
-      const res = await kubbFetch<Customer, Error, Partial<CustomerForm>>({
-        method: 'POST', url: '/customers', baseURL: API_BASE,
-        data: { name: data.name, email: data.email || undefined, contact: data.contact || undefined, nif: data.nif || undefined, birthday: data.birthday || undefined, notes: data.notes || undefined },
-        headers: authHeader(),
-      })
-      return res.data
-    },
+    mutationFn: (data: CustomerForm) => postCustomers({
+      name: data.name,
+      email: data.email || undefined,
+      contact: data.contact || undefined,
+      nif: data.nif || undefined,
+      birthday: data.birthday || undefined,
+      notes: data.notes || undefined,
+    } as any),
     onSuccess: () => {
       toast.success('Cliente criado')
       qc.invalidateQueries({ queryKey: getCustomersQueryKey() })
@@ -99,81 +102,47 @@ export function Clientes() {
   })
 
   const updateMut = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<CustomerForm> }) => {
-      const res = await kubbFetch<unknown, Error, Partial<CustomerForm>>({
-        method: 'PATCH', url: `/customers/${id}`, baseURL: API_BASE,
-        data, headers: authHeader(),
-      })
-      return res.data
-    },
+    mutationFn: ({ id, data }: { id: string; data: Partial<CustomerForm> }) => patchCustomersId(id, data as any),
     onSuccess: () => {
       toast.success('Cliente actualizado')
       qc.invalidateQueries({ queryKey: getCustomersQueryKey() })
+      if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
       setEditCustomer(null)
-      if (profileId) openProfile(profileId)
     },
     onError: (e: any) => toast.error(getApiError(e)),
   })
 
   const updateApptMut = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
-      await kubbFetch<unknown, Error, typeof data>({
-        method: 'PUT', url: `/schedule/appointments/${id}`, baseURL: API_BASE,
-        data, headers: authHeader(),
-      })
-    },
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+      putScheduleAppointmentsId(id, data as any),
     onSuccess: () => {
       toast.success('Marcação actualizada')
-      if (profileId) openProfile(profileId)
+      if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
     },
     onError: (e: any) => toast.error(getApiError(e)),
   })
 
   const deleteApptMut = useMutation({
-    mutationFn: async (id: string) => {
-      await kubbFetch<unknown, Error, void>({
-        method: 'DELETE', url: `/schedule/appointments/${id}`, baseURL: API_BASE, headers: authHeader(),
-      })
-    },
+    mutationFn: (id: string) => deleteScheduleAppointmentsId(id),
     onSuccess: () => {
       toast.success('Marcação eliminada')
       setSelAppt(null)
-      if (profileId) openProfile(profileId)
+      if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
     },
     onError: (e: any) => toast.error(getApiError(e)),
   })
 
   const blockMut = useMutation({
-    mutationFn: async ({ id, blocked }: { id: string; blocked: boolean }) => {
-      await kubbFetch<unknown, Error, { blocked: boolean }>({
-        method: 'PATCH', url: `/customers/${id}`, baseURL: API_BASE,
-        data: { blocked }, headers: authHeader(),
-      })
-    },
-    onSuccess: (_d, { id, blocked }) => {
+    mutationFn: ({ id, blocked }: { id: string; blocked: boolean }) => patchCustomersId(id, { blocked } as any),
+    onSuccess: (_d, { blocked }) => {
       toast.success(blocked ? 'Cliente bloqueado' : 'Cliente desbloqueado')
       qc.invalidateQueries({ queryKey: getCustomersQueryKey() })
-      if (profileId) openProfile(profileId)
+      if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
     },
     onError: (e: any) => toast.error(getApiError(e)),
   })
 
-  const openProfile = async (id: string) => {
-    setProfileId(id)
-    if (!canSchedule) { setLoadingHistory(false); return }
-    setLoadingHistory(true)
-    setHistory(null)
-    try {
-      const res = await kubbFetch<CustomerHistory, Error, void>({
-        method: 'GET', url: `/customers/${id}/history`, baseURL: API_BASE, headers: authHeader(),
-      })
-      setHistory(res.data as CustomerHistory)
-    } catch (e: any) {
-      toast.error(getApiError(e))
-    } finally {
-      setLoadingHistory(false)
-    }
-  }
+  const openProfile = (id: string) => setProfileId(id)
 
   const openEdit = (c: Customer) => {
     setEditCustomer(c)
@@ -270,7 +239,7 @@ export function Clientes() {
       {profileId && profileCustomer && (
         <Modal
           open
-          onClose={() => { setProfileId(null); setHistory(null) }}
+          onClose={() => { setProfileId(null) }}
           title="Ficha de cliente"
           width="max-w-lg"
           footer={
@@ -285,7 +254,7 @@ export function Clientes() {
                 {blockMut.isPending ? '…' : profileCustomer.blocked ? 'Desbloquear' : 'Bloquear'}
               </Button>
               <div className="flex-1" />
-              <Button variant="ghost" onClick={() => { setProfileId(null); setHistory(null) }}>Fechar</Button>
+              <Button variant="ghost" onClick={() => { setProfileId(null) }}>Fechar</Button>
             </>
           }
         >

@@ -199,8 +199,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // ─── Axios interceptors ────────────────────────────────────────────────────
   useEffect(() => {
-    // Request: attach token from storage so all Kubb-generated hooks are covered
+    // Request: fix hardcoded baseURL in Kubb-generated hooks + attach token
     const reqId = axiosInstance.interceptors.request.use((config) => {
+      config.baseURL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
       const url: string = config.url ?? "";
       const isAuthEndpoint = SKIP_401.some((path) => url.includes(path));
       if (!isAuthEndpoint && !config.headers.Authorization) {

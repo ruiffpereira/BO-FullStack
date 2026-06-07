@@ -1,11 +1,17 @@
 import { useState, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import kubbFetch from '@kubb/plugin-client/clients/axios'
+import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Modal, Input, Button, PageHeader, EmptyState } from '../ui/ui.jsx'
+import { useGetCmsSections, getCmsSectionsQueryKey } from '../gen/backoffice/hooks/useGetCmsSections.js'
+import { useGetCmsEntries, getCmsEntriesQueryKey } from '../gen/backoffice/hooks/useGetCmsEntries.js'
+import { putCmsEntries } from '../gen/backoffice/hooks/usePutCmsEntries.js'
+import { useDeleteCmsEntriesKey } from '../gen/backoffice/hooks/useDeleteCmsEntriesKey.js'
+import { postCmsSections } from '../gen/backoffice/hooks/usePostCmsSections.js'
+import { patchCmsSectionsId } from '../gen/backoffice/hooks/usePatchCmsSectionsId.js'
+import { useDeleteCmsSectionsId } from '../gen/backoffice/hooks/useDeleteCmsSectionsId.js'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001/api'
 
@@ -143,21 +149,8 @@ export function Conteudos() {
 
   // ─── Queries ───────────────────────────────────────────────────────────────
 
-  const { data: sections = [], isLoading: sectionsLoading } = useQuery<Section[]>({
-    queryKey: ['cms-sections'],
-    queryFn: async () => {
-      const res = await kubbFetch<Section[]>({ method: 'GET', url: '/cms/sections', baseURL: API_BASE, headers: authHeader() })
-      return res.data as Section[]
-    },
-  })
-
-  const { data: entries = [], isLoading: entriesLoading } = useQuery<ContentEntry[]>({
-    queryKey: ['cms-entries'],
-    queryFn: async () => {
-      const res = await kubbFetch<ContentEntry[]>({ method: 'GET', url: '/cms/entries', baseURL: API_BASE, headers: authHeader() })
-      return res.data as ContentEntry[]
-    },
-  })
+  const { data: sections = [], isLoading: sectionsLoading } = useGetCmsSections()
+  const { data: entries = [], isLoading: entriesLoading } = useGetCmsEntries()
 
   const rootSections = useMemo(() =>
     sections.filter((s) => !s.parentId).sort((a, b) => a.sortOrder - b.sortOrder),
@@ -200,48 +193,42 @@ export function Conteudos() {
       const toSave = f.translations.filter((t) => t.value.trim())
       if (!toSave.length) throw new Error('Adiciona pelo menos um valor')
       for (const t of toSave) {
-        await kubbFetch({
-          method: 'PUT', url: '/cms/entries', baseURL: API_BASE,
-          data: { key: f.key.trim(), locale: t.locale || null, value: t.value, type: f.type, sectionId: f.sectionId },
-          headers: authHeader(),
-        })
+        await putCmsEntries({ key: f.key.trim(), locale: t.locale || null, value: t.value, type: f.type, sectionId: f.sectionId } as any)
       }
     },
-    onSuccess: () => { toast.success('Entrada guardada'); qc.invalidateQueries({ queryKey: ['cms-entries'] }); closeEntryModal() },
+    onSuccess: () => { toast.success('Entrada guardada'); qc.invalidateQueries({ queryKey: getCmsEntriesQueryKey() }); closeEntryModal() },
     onError: (e: any) => toast.error(e.message ?? getApiError(e)),
   })
 
-  const deleteEntryMut = useMutation({
-    mutationFn: async (key: string) => {
-      await kubbFetch({ method: 'DELETE', url: `/cms/entries/${encodeURIComponent(key)}`, baseURL: API_BASE, headers: authHeader() })
+  const deleteEntryMut = useDeleteCmsEntriesKey({
+    mutation: {
+      onSuccess: () => { toast.success('Entrada eliminada'); qc.invalidateQueries({ queryKey: getCmsEntriesQueryKey() }) },
+      onError: (e: any) => toast.error(getApiError(e)),
     },
-    onSuccess: () => { toast.success('Entrada eliminada'); qc.invalidateQueries({ queryKey: ['cms-entries'] }) },
-    onError: (e: any) => toast.error(getApiError(e)),
   })
 
   const saveSectionMut = useMutation({
     mutationFn: async (f: SectionForm & { id?: string }) => {
       if (f.id) {
-        await kubbFetch({ method: 'PATCH', url: `/cms/sections/${f.id}`, baseURL: API_BASE, data: { name: f.name, parentId: f.parentId }, headers: authHeader() })
+        await patchCmsSectionsId(f.id, { name: f.name, parentId: f.parentId } as any)
       } else {
-        await kubbFetch({ method: 'POST', url: '/cms/sections', baseURL: API_BASE, data: { name: f.name, parentId: f.parentId }, headers: authHeader() })
+        await postCmsSections({ name: f.name, parentId: f.parentId } as any)
       }
     },
-    onSuccess: () => { toast.success('Secção guardada'); qc.invalidateQueries({ queryKey: ['cms-sections'] }); closeSectionModal() },
+    onSuccess: () => { toast.success('Secção guardada'); qc.invalidateQueries({ queryKey: getCmsSectionsQueryKey() }); closeSectionModal() },
     onError: (e: any) => toast.error(getApiError(e)),
   })
 
-  const deleteSectionMut = useMutation({
-    mutationFn: async (id: string) => {
-      await kubbFetch({ method: 'DELETE', url: `/cms/sections/${id}`, baseURL: API_BASE, headers: authHeader() })
+  const deleteSectionMut = useDeleteCmsSectionsId({
+    mutation: {
+      onSuccess: (_, { id }) => {
+        toast.success('Secção eliminada')
+        qc.invalidateQueries({ queryKey: getCmsSectionsQueryKey() })
+        qc.invalidateQueries({ queryKey: getCmsEntriesQueryKey() })
+        if (selectedSectionId === id) setSelectedSectionId(null)
+      },
+      onError: (e: any) => toast.error(getApiError(e)),
     },
-    onSuccess: (_, id) => {
-      toast.success('Secção eliminada')
-      qc.invalidateQueries({ queryKey: ['cms-sections'] })
-      qc.invalidateQueries({ queryKey: ['cms-entries'] })
-      if (selectedSectionId === id) setSelectedSectionId(null)
-    },
-    onError: (e: any) => toast.error(getApiError(e)),
   })
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -273,7 +260,7 @@ export function Conteudos() {
 
   const handleDeleteSection = (s: Section) => {
     if (window.confirm(`Eliminar "${s.name}"? As entradas dentro desta secção ficam sem secção.`))
-      deleteSectionMut.mutate(s.sectionId)
+      deleteSectionMut.mutate({ id: s.sectionId })
   }
 
   const setTranslation = (i: number, field: 'locale' | 'value', val: string) =>
@@ -517,7 +504,7 @@ export function Conteudos() {
                             <Icon name="edit" className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => { if (window.confirm(`Eliminar "${grp.key}"?`)) deleteEntryMut.mutate(grp.key) }}
+                            onClick={() => { if (window.confirm(`Eliminar "${grp.key}"?`)) deleteEntryMut.mutate({ key: grp.key }) }}
                             className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition"
                           >
                             <Icon name="trash" className="w-4 h-4" />

@@ -43,7 +43,7 @@ export function FileUpload({
       const presignRes = await fetch(`${API_BASE}/uploads/presign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader() },
-        body: JSON.stringify({ filename: file.name, contentType: file.type, module }),
+        body: JSON.stringify({ filename: file.name, contentType: file.type, module, fileSize: file.size }),
       })
       if (!presignRes.ok) {
         const err = await presignRes.json().catch(() => ({}))
@@ -51,7 +51,7 @@ export function FileUpload({
       }
       const { uploadUrl, fileUrl, key } = await presignRes.json()
 
-      // 2 — upload directly to MinIO using the presigned PUT URL
+      // 2 — upload directly to SeaweedFS using the presigned PUT URL
       const uploadRes = await fetch(uploadUrl, {
         method: 'PUT',
         headers: { 'Content-Type': file.type },

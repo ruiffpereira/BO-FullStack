@@ -33,7 +33,7 @@ import { ApptModal, colorForService, STATUS_LABELS } from '../components/ApptMod
 // ─── Constants ────────────────────────────────────────────────────────────────
 const AG_H_START = 8
 const AG_H_END = 20
-const AG_ROW_H = 48
+const AG_ROW_H = 80
 
 const SERVICE_COLORS = ['#2A6FDB', '#1F8A5B', '#D97757', '#7C5CDB', '#E6B450', '#0EA5A4', '#DB2A6F', '#5C2ADB']
 function stableColorForId(id: string): string {
@@ -108,6 +108,7 @@ function NovaApptModal({ date, open, onClose, services, onCreate, isPending, ini
   const qc = useQueryClient()
   const headers = authHeader()
 
+  const [editDate, setEditDate] = useState(format(date, 'yyyy-MM-dd'))
   const [form, setForm] = useState({ time: initialTime ?? '09:00', serviceId: '', notes: '' })
   const [q, setQ] = useState('')
   const [showDrop, setShowDrop] = useState(false)
@@ -115,6 +116,7 @@ function NovaApptModal({ date, open, onClose, services, onCreate, isPending, ini
   const [showNewCust, setShowNewCust] = useState(false)
   const [newCust, setNewCust] = useState({ name: '', email: '', contact: '' })
 
+  useEffect(() => { setEditDate(format(date, 'yyyy-MM-dd')) }, [date])
   useEffect(() => { if (initialTime) setForm((f) => ({ ...f, time: initialTime })) }, [initialTime])
 
   const { data: custData, isError: custError } = useGetCustomers({ client: { headers } })
@@ -160,13 +162,14 @@ function NovaApptModal({ date, open, onClose, services, onCreate, isPending, ini
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!editDate) { toast.error('Seleciona uma data.'); return }
     if (!selCustomer) { toast.error('Seleciona um cliente.'); return }
     if (!form.serviceId) { toast.error('Seleciona um serviço.'); return }
     onCreate({
       time: form.time,
       serviceId: form.serviceId,
       notes: form.notes || undefined,
-      date: format(date, 'yyyy-MM-dd'),
+      date: editDate,
       customerId: selCustomer.customerId,
       clientName: selCustomer.name,
       clientEmail: selCustomer.email,
@@ -180,10 +183,14 @@ function NovaApptModal({ date, open, onClose, services, onCreate, isPending, ini
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={`Nova marcação — ${format(date, 'dd MMM', { locale: pt })}`} width="max-w-sm"
+    <Modal open={open} onClose={onClose} title="Nova marcação" width="max-w-sm"
       footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><Button type="submit" form="nova-appt-form" disabled={isPending}>{isPending ? 'A guardar…' : 'Criar marcação'}</Button></>}
     >
       <form id="nova-appt-form" onSubmit={handleSubmit} className="space-y-3">
+        <div className="flex gap-2">
+          <div className="flex-1"><Input label="Data *" type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} /></div>
+          <div className="w-28"><Input label="Hora *" type="time" value={form.time} onChange={set('time')} /></div>
+        </div>
         {/* ── Customer selector ── */}
         <div>
           <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Cliente</p>
@@ -252,7 +259,6 @@ function NovaApptModal({ date, open, onClose, services, onCreate, isPending, ini
           <option value="">Escolher serviço</option>
           {services.filter((s) => s.active !== false).map((s) => <option key={s.serviceId} value={s.serviceId}>{s.name} ({s.duration}min — {Number(s.price).toFixed(2)}€)</option>)}
         </Select>
-        <Input label="Hora *" type="time" value={form.time} onChange={set('time')} />
         <Input label="Notas (opcional)" value={form.notes} onChange={set('notes')} />
       </form>
     </Modal>
@@ -268,8 +274,15 @@ function CalendarioView() {
   const { authHeader } = useAuth()
   const qc = useQueryClient()
   const headers = authHeader()
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }))
+  const [weekStart, setWeekStart] = useState(() => {
+    const ws = startOfWeek(new Date(), { weekStartsOn: 1 })
+    return new Date().getDay() === 0 ? addWeeks(ws, 1) : ws
+  })
   const [selAppt, setSelAppt] = useState<Appointment | null>(null)
+  const [rescheduledFrom, setRescheduledFrom] = useState<{ date: string; time: string } | null>(null)
+  const [pendingReschedule, setPendingReschedule] = useState<{ appointmentId: string; newDate: string; newTime: string } | null>(null)
+  const [isNotifying, setIsNotifying] = useState(false)
+  const notifyAfterSaveRef = useRef<string | null>(null)
   const [novaDate, setNovaDate] = useState<Date | null>(null)
   const [novaTime, setNovaTime] = useState<string | null>(null)
 
@@ -288,6 +301,21 @@ function CalendarioView() {
   const setNovaTimeRef = useRef(setNovaTime)
   const setDragSelRef = useRef(setDragSel)
   const setDragActionRef = useRef(setDragAction)
+
+  // Appointment reschedule drag
+  type ApptDragMeta = {
+    appt: Appointment; offsetMin: number; grabYInGhost: number
+    ghostW: number; ghostH: number; active: boolean; moved: boolean; startX: number; startY: number
+  }
+  const apptDragMeta = useRef<ApptDragMeta | null>(null)
+  const apptDragTargetRef = useRef<{ day: Date; min: number } | null>(null)
+  const [apptDragState, setApptDragState] = useState<{
+    appt: Appointment; mouseX: number; mouseY: number; grabYInGhost: number
+    ghostW: number; ghostH: number; targetDay: Date | null; targetMin: number | null
+  } | null>(null)
+  const setApptDragStateRef = useRef(setApptDragState)
+  const setSelApptRef = useRef(setSelAppt)
+  const dayColRefs = useRef<Map<string, HTMLElement>>(new Map())
 
   const month = format(weekStart, 'yyyy-MM')
   const days = Array.from({ length: 6 }, (_, i) => addDays(weekStart, i))
@@ -311,8 +339,43 @@ function CalendarioView() {
   const updateAppt = usePutScheduleAppointmentsId({
     client: { headers },
     mutation: {
-      onSuccess: () => { toast.success('Marcação actualizada'); invalidateAppts(); setSelAppt(null) },
-      onError: (error) => toast.error(getApiError(error)),
+      onSuccess: () => {
+        invalidateAppts()
+        const notifyId = notifyAfterSaveRef.current
+        if (notifyId) {
+          notifyAfterSaveRef.current = null
+          setIsNotifying(true)
+          fetch(`${API_BASE}/schedule/appointments/${notifyId}/notify`, {
+            method: 'POST',
+            headers: authHeader(),
+          }).then(async (res) => {
+            if (res.ok) {
+              toast.success('Marcação guardada e cliente notificado')
+            } else {
+              const body = await res.json().catch(() => ({}))
+              toast.success('Marcação guardada')
+              toast.error(body.error ?? 'Erro ao enviar email ao cliente')
+            }
+          }).catch(() => {
+            toast.success('Marcação guardada')
+            toast.error('Erro ao enviar email ao cliente')
+          }).finally(() => {
+            setIsNotifying(false)
+            setPendingReschedule(null)
+            setRescheduledFrom(null)
+            setSelAppt(null)
+          })
+        } else {
+          toast.success('Marcação actualizada')
+          setPendingReschedule(null)
+          setRescheduledFrom(null)
+          setSelAppt(null)
+        }
+      },
+      onError: (error) => {
+        notifyAfterSaveRef.current = null
+        toast.error(getApiError(error))
+      },
     }
   })
   const deleteAppt = useDeleteScheduleAppointmentsId({
@@ -333,43 +396,107 @@ function CalendarioView() {
   // Global drag handlers (stable refs → no stale closure issues)
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
+      // ── Drag-to-create ──
       const d = dragRef.current
-      if (!d || !d.active) return
-      const rect = d.colEl.getBoundingClientRect()
-      const y = Math.max(0, e.clientY - rect.top)
-      const totalMin = (y / AG_ROW_H) * 60 + AG_H_START * 60
-      const snapped = Math.min(Math.max(Math.round(totalMin / 15) * 15, AG_H_START * 60), AG_H_END * 60)
-      d.endMin = snapped
-      const startMin = Math.min(d.startMin, d.endMin)
-      const endMin = Math.max(d.startMin, d.endMin)
-      setDragSelRef.current({ day: d.day, startMin, endMin })
+      if (d && d.active) {
+        const rect = d.colEl.getBoundingClientRect()
+        const y = Math.max(0, e.clientY - rect.top)
+        const totalMin = (y / AG_ROW_H) * 60 + AG_H_START * 60
+        const snapped = Math.min(Math.max(Math.round(totalMin / 15) * 15, AG_H_START * 60), AG_H_END * 60)
+        d.endMin = snapped
+        const startMin = Math.min(d.startMin, d.endMin)
+        const endMin = Math.max(d.startMin, d.endMin)
+        setDragSelRef.current({ day: d.day, startMin, endMin })
+        return
+      }
+      // ── Appointment reschedule drag ──
+      const ad = apptDragMeta.current
+      if (!ad || !ad.active) return
+      const dx = e.clientX - ad.startX
+      const dy = e.clientY - ad.startY
+      if (!ad.moved && Math.sqrt(dx * dx + dy * dy) > 5) {
+        ad.moved = true
+        document.body.style.cursor = 'grabbing'
+        setApptDragStateRef.current({
+          appt: ad.appt, mouseX: e.clientX, mouseY: e.clientY,
+          grabYInGhost: ad.grabYInGhost, ghostW: ad.ghostW, ghostH: ad.ghostH,
+          targetDay: null, targetMin: null,
+        })
+        return
+      }
+      if (!ad.moved) return
+      let targetDay: Date | null = null
+      let targetMin: number | null = null
+      for (const [dayStr, el] of dayColRefs.current) {
+        const r = el.getBoundingClientRect()
+        if (e.clientX >= r.left && e.clientX <= r.right) {
+          targetDay = new Date(dayStr + 'T00:00:00')
+          const rawMin = ((e.clientY - r.top - ad.grabYInGhost) / AG_ROW_H) * 60 + AG_H_START * 60
+          targetMin = Math.min(Math.max(Math.round(rawMin / 15) * 15, AG_H_START * 60), (AG_H_END - 1) * 60)
+          break
+        }
+      }
+      apptDragTargetRef.current = targetDay && targetMin !== null ? { day: targetDay, min: targetMin } : null
+      setApptDragStateRef.current((prev) => prev ? { ...prev, mouseX: e.clientX, mouseY: e.clientY, targetDay, targetMin } : null)
     }
+
     const onUp = (e: MouseEvent) => {
+      // ── Drag-to-create ──
       const d = dragRef.current
-      if (!d || !d.active) return
-      d.active = false
-      const startMin = Math.min(d.startMin, d.endMin)
-      const endMin = Math.max(d.startMin, d.endMin)
-      const day = d.day
-      dragRef.current = null
-      setDragSelRef.current(null)
-      if (endMin - startMin >= 15) {
-        setDragActionRef.current({ x: e.clientX, y: e.clientY, day, startMin, endMin })
-      } else {
-        // Simple click — open new appointment at that time
-        setNovaDateRef.current(day)
-        setNovaTimeRef.current(minuteToTime(startMin))
+      if (d && d.active) {
+        d.active = false
+        const startMin = Math.min(d.startMin, d.endMin)
+        const endMin = Math.max(d.startMin, d.endMin)
+        const day = d.day
+        dragRef.current = null
+        setDragSelRef.current(null)
+        if (endMin - startMin >= 15) {
+          setDragActionRef.current({ x: e.clientX, y: e.clientY, day, startMin, endMin })
+        } else {
+          setNovaDateRef.current(day)
+          setNovaTimeRef.current(minuteToTime(startMin))
+        }
+        return
+      }
+      // ── Appointment reschedule drag ──
+      const ad = apptDragMeta.current
+      if (!ad || !ad.active) return
+      ad.active = false
+      apptDragMeta.current = null
+      document.body.style.cursor = ''
+      setApptDragStateRef.current(null)
+      const target = apptDragTargetRef.current
+      apptDragTargetRef.current = null
+      if (ad.moved && target) {
+        const newDate = format(target.day, 'yyyy-MM-dd')
+        const newTime = minuteToTime(target.min)
+        if (newDate !== ad.appt.date || newTime !== ad.appt.time) {
+          // Don't save yet — open modal for confirmation
+          setPendingReschedule({ appointmentId: ad.appt.appointmentId, newDate, newTime })
+          setRescheduledFrom({ date: ad.appt.date, time: ad.appt.time })
+          setSelApptRef.current(ad.appt)
+        }
+      } else if (!ad.moved) {
+        setSelApptRef.current(ad.appt)
       }
     }
+
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
     return () => {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
     }
   }, [])
 
-  const pending = appointments.filter((a) => a.status === 'pending')
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const upcoming = useMemo(() =>
+    (appointments as Appointment[])
+      .filter((a) => a.status !== 'cancelled' && (a.date > today || (a.date === today && a.time >= format(new Date(), 'HH:mm'))))
+      .sort((a, b) => a.date !== b.date ? a.date.localeCompare(b.date) : a.time.localeCompare(b.time))
+      .slice(0, 10)
+  , [appointments, today])
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-4 items-start">
@@ -378,7 +505,10 @@ function CalendarioView() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 shrink-0 relative">
           <div className="flex items-center gap-1">
             <IconButton icon="chevronLeft" label="Semana anterior" onClick={() => setWeekStart((d) => subWeeks(d, 1))} />
-            <Button variant="outline" size="sm" onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>Hoje</Button>
+            <Button variant="outline" size="sm" onClick={() => {
+              const ws = startOfWeek(new Date(), { weekStartsOn: 1 })
+              setWeekStart(new Date().getDay() === 0 ? addWeeks(ws, 1) : ws)
+            }}>Hoje</Button>
             <IconButton icon="chevronRight" label="Próxima semana" onClick={() => setWeekStart((d) => addWeeks(d, 1))} />
           </div>
           <button
@@ -467,9 +597,13 @@ function CalendarioView() {
               {days.map((day) => {
                 const isToday = isSameDay(day, new Date())
                 return (
-                  <div key={day.toISOString()} className="px-2 py-2 text-center border-l border-zinc-50 dark:border-zinc-800/50">
-                    <p className="text-xs text-zinc-400 uppercase tracking-wide">{DAY_NAMES[day.getDay()]}</p>
-                    <p className={`text-lg font-semibold leading-tight ${isToday ? 'text-accent' : 'text-zinc-800 dark:text-zinc-100'}`}>{day.getDate()}</p>
+                  <div key={day.toISOString()} className={`px-2 py-2 text-center border-l border-zinc-50 dark:border-zinc-800/50 ${isToday ? 'bg-accent/[0.06] dark:bg-accent/[0.10]' : ''}`}>
+                    <p className={`text-xs uppercase tracking-wide ${isToday ? 'text-accent font-semibold' : 'text-zinc-400'}`}>{DAY_NAMES[day.getDay()]}</p>
+                    <div className="flex justify-center mt-0.5">
+                      <span className={`text-lg font-semibold leading-none w-8 h-8 flex items-center justify-center rounded-full ${isToday ? 'bg-accent text-white' : 'text-zinc-800 dark:text-zinc-100'}`}>
+                        {day.getDate()}
+                      </span>
+                    </div>
                   </div>
                 )
               })}
@@ -489,15 +623,29 @@ function CalendarioView() {
                 </div>
               </div>
               {days.map((day) => {
-                const dayAppts = appointments.filter((a) => isSameDay(new Date(a.date + 'T00:00:00'), day) && a.status !== 'cancelled')
-                const layout = computeColumns(dayAppts, services)
+                const isToday = isSameDay(day, new Date())
+                const dayDateStr = format(day, 'yyyy-MM-dd')
+                const dayAppts = (appointments as Appointment[]).filter((a) => {
+                  const effectiveDate = pendingReschedule?.appointmentId === a.appointmentId ? pendingReschedule.newDate : a.date
+                  return effectiveDate === dayDateStr && a.status !== 'cancelled'
+                })
+                const effectiveAppts = dayAppts.map((a) =>
+                  pendingReschedule?.appointmentId === a.appointmentId
+                    ? { ...a, date: pendingReschedule.newDate, time: pendingReschedule.newTime }
+                    : a
+                )
+                const layout = computeColumns(effectiveAppts, services)
                 const dayBlocked = blockedSlots.filter((bs) => isSameDay(new Date((bs as any).date + 'T00:00:00'), day))
                 const hasDragSel = dragSel && isSameDay(dragSel.day, day)
 
                 return (
                   <div
                     key={day.toISOString()}
-                    className="relative border-l border-zinc-50 dark:border-zinc-800/50 cursor-crosshair select-none"
+                    ref={(el) => {
+                      if (el) dayColRefs.current.set(format(day, 'yyyy-MM-dd'), el)
+                      else dayColRefs.current.delete(format(day, 'yyyy-MM-dd'))
+                    }}
+                    className={`relative border-l border-zinc-50 dark:border-zinc-800/50 cursor-crosshair select-none ${isToday ? 'bg-accent/[0.04] dark:bg-accent/[0.07]' : ''}`}
                     onMouseDown={(e) => {
                       if (e.button !== 0) return
                       e.preventDefault()
@@ -568,6 +716,22 @@ function CalendarioView() {
                       )
                     })()}
 
+                    {/* Reschedule drop indicator */}
+                    {apptDragState?.targetDay && isSameDay(apptDragState.targetDay, day) && apptDragState.targetMin !== null && (() => {
+                      const da = apptDragState.appt
+                      const svc = services.find((s) => s.serviceId === da.serviceId)
+                      const dur = da.duration ?? svc?.duration ?? 30
+                      const top = ((apptDragState.targetMin! - AG_H_START * 60) / 60) * AG_ROW_H
+                      const height = (dur / 60) * AG_ROW_H - 4
+                      const color = colorForService(da.serviceId, services)
+                      return (
+                        <div
+                          className="absolute inset-x-1 rounded-lg pointer-events-none z-[8]"
+                          style={{ top, height: Math.max(height, 20), background: `${color}20`, borderLeft: `3px solid ${color}`, border: `1px solid ${color}60` }}
+                        />
+                      )
+                    })()}
+
                     {/* Appointments */}
                     {isLoading
                       ? <div className="absolute inset-2 top-2 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800 h-10" />
@@ -579,12 +743,22 @@ function CalendarioView() {
                           const height = ((appt.duration ?? svcItem?.duration ?? 30) / 60) * AG_ROW_H - 4
                           const leftPct = (col / totalCols) * 100
                           const widthPct = (1 / totalCols) * 100
+                          const isBeingDragged = apptDragState?.appt.appointmentId === appt.appointmentId
                           return (
                             <button
                               key={appt.appointmentId}
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onClick={(e) => { e.stopPropagation(); setSelAppt(appt) }}
-                              className="absolute rounded-lg px-2 py-1 text-left overflow-hidden z-10 hover:shadow-md hover:z-20 transition-shadow cursor-pointer"
+                              onMouseDown={(e) => {
+                                e.stopPropagation()
+                                e.preventDefault()
+                                const rect = e.currentTarget.getBoundingClientRect()
+                                const yInAppt = Math.max(0, e.clientY - rect.top)
+                                apptDragMeta.current = {
+                                  appt, offsetMin: Math.round((yInAppt / AG_ROW_H) * 60),
+                                  grabYInGhost: yInAppt, ghostW: rect.width, ghostH: rect.height,
+                                  active: true, moved: false, startX: e.clientX, startY: e.clientY,
+                                }
+                              }}
+                              className={`absolute group rounded-lg px-2 py-1 text-left z-10 hover:shadow-md hover:z-20 transition-all cursor-grab active:cursor-grabbing ${isBeingDragged ? 'opacity-25' : ''}`}
                               style={{
                                 top: top + 2,
                                 height: Math.max(height, 24),
@@ -595,11 +769,17 @@ function CalendarioView() {
                                 border: `1px solid ${color}30`,
                               }}
                             >
-                              <p className="text-[10px] font-semibold leading-tight truncate text-zinc-800 dark:text-zinc-100">
+                              <p className="text-[10px] font-semibold leading-tight truncate text-zinc-800 dark:text-zinc-100 pr-4">
                                 {appt.time} {appt.clientName}
                                 {appt.paidAt && <span className="ml-1 text-emerald-600 dark:text-emerald-400">€</span>}
                               </p>
                               {svcItem && <p className="text-[9px] text-zinc-500 truncate">{svcItem.name}</p>}
+                              <span
+                                title="Nova marcação à mesma hora"
+                                onMouseDown={(e) => { e.stopPropagation(); e.preventDefault() }}
+                                onClick={(e) => { e.stopPropagation(); setNovaDate(day); setNovaTime(appt.time) }}
+                                className="absolute top-0.5 right-0.5 w-4 h-4 flex items-center justify-center rounded text-[11px] font-bold opacity-0 group-hover:opacity-80 hover:!opacity-100 transition-opacity bg-white/70 dark:bg-zinc-900/70 text-zinc-500 hover:text-accent cursor-pointer"
+                              >+</span>
                             </button>
                           )
                         })}
@@ -613,28 +793,48 @@ function CalendarioView() {
 
       <div className="space-y-4 overflow-y-auto xl:max-h-[calc(100vh-17.5rem)]">
         <Card className="p-4">
-          <h3 className="font-semibold text-zinc-900 dark:text-white text-sm flex items-center gap-2">
-            <Icon name="clock" className="w-4 h-4 text-amber-500" />Por confirmar{pending.length > 0 && <Badge tone="amber">{pending.length}</Badge>}
-          </h3>
-          <div className="mt-3 space-y-2">
-            {pending.length === 0 ? <p className="text-sm text-zinc-400">Tudo confirmado ✓</p> :
-              pending.map((a) => {
-                const svc = services.find((s) => s.serviceId === a.serviceId)
-                return (
-                  <button key={a.appointmentId} onClick={() => setSelAppt(a)} className="w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-left">
-                    <span className="w-1.5 h-9 rounded-full shrink-0" style={{ background: colorForService(a.serviceId, services) }} />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{a.clientName}</p>
-                      <p className="text-xs text-zinc-400">{a.date} · {a.time}{svc ? ` · ${svc.name}` : ''}</p>
-                    </div>
-                    <span onClickCapture={(e) => { e.stopPropagation() }}><IconButton icon="check" label="Confirmar" onClick={() => updateAppt.mutate({ id: a.appointmentId, data: { status: 'confirmed' } })} className="text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10" /></span>
-                  </button>
-                )
-              })}
-          </div>
+          <Button className="w-full" icon="plus" onClick={() => { setNovaDate(new Date()); setNovaTime(null) }}>Nova marcação</Button>
         </Card>
         <Card className="p-4">
-          <Button className="w-full" icon="plus" onClick={() => { setNovaDate(new Date()); setNovaTime(null) }}>Nova marcação</Button>
+          <h3 className="font-semibold text-zinc-900 dark:text-white text-sm flex items-center gap-2 mb-3">
+            <Icon name="calendar" className="w-4 h-4 text-accent" />
+            Próximas vagas
+            {upcoming.length > 0 && <Badge tone="blue">{upcoming.length}</Badge>}
+          </h3>
+          <div className="space-y-1">
+            {upcoming.length === 0
+              ? <p className="text-sm text-zinc-400">Sem vagas futuras.</p>
+              : upcoming.map((a) => {
+                  const svc = services.find((s) => s.serviceId === a.serviceId)
+                  const color = colorForService(a.serviceId, services)
+                  const isToday = a.date === today
+                  return (
+                    <button
+                      key={a.appointmentId}
+                      onClick={() => setSelAppt(a)}
+                      className="w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-left transition-colors"
+                    >
+                      <span className="w-1 h-8 rounded-full shrink-0" style={{ background: color }} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{a.clientName}</p>
+                        <p className="text-xs text-zinc-400 truncate">
+                          {isToday ? 'Hoje' : a.date} · {a.time}{svc ? ` · ${svc.name}` : ''}
+                        </p>
+                      </div>
+                      {a.status === 'pending' && (
+                        <span onClickCapture={(e) => e.stopPropagation()}>
+                          <IconButton
+                            icon="check"
+                            label="Confirmar"
+                            onClick={() => updateAppt.mutate({ id: a.appointmentId, data: { status: 'confirmed' } })}
+                            className="text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 shrink-0"
+                          />
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+          </div>
         </Card>
       </div>
 
@@ -690,13 +890,48 @@ function CalendarioView() {
         </>
       )}
 
+      {/* Appointment drag ghost */}
+      {apptDragState && (() => {
+        const { appt: da, mouseX, mouseY, grabYInGhost, ghostW, ghostH, targetMin } = apptDragState
+        const color = colorForService(da.serviceId, services)
+        const svcItem = services.find((s) => s.serviceId === da.serviceId)
+        return (
+          <div
+            className="fixed pointer-events-none z-[100] rounded-lg px-2 py-1 shadow-xl"
+            style={{
+              left: mouseX - ghostW / 2,
+              top: mouseY - grabYInGhost,
+              width: ghostW,
+              height: Math.max(ghostH, 24),
+              background: `${color}22`,
+              borderLeft: `3px solid ${color}`,
+              border: `1px solid ${color}60`,
+              opacity: 0.9,
+            }}
+          >
+            <p className="text-[10px] font-semibold leading-tight truncate text-zinc-800 dark:text-zinc-100">
+              {targetMin !== null ? minuteToTime(targetMin) : da.time} {da.clientName}
+            </p>
+            {svcItem && <p className="text-[9px] text-zinc-500 truncate">{svcItem.name}</p>}
+          </div>
+        )
+      })()}
+
       {selAppt && (
         <ApptModal
-          appt={appointments.find((a) => a.appointmentId === selAppt.appointmentId) ?? selAppt}
+          appt={rescheduledFrom ? selAppt : (appointments.find((a) => a.appointmentId === selAppt.appointmentId) ?? selAppt)}
           services={services}
-          onClose={() => setSelAppt(null)}
+          onClose={() => { setSelAppt(null); setRescheduledFrom(null); setPendingReschedule(null) }}
           onSave={(id, data) => updateAppt.mutate({ id, data })}
           onDelete={(id) => deleteAppt.mutate({ id })}
+          rescheduledFrom={rescheduledFrom ?? undefined}
+          initialDate={pendingReschedule?.newDate}
+          initialTime={pendingReschedule?.newTime}
+          onSaveAndNotify={(id, data) => {
+            notifyAfterSaveRef.current = id
+            updateAppt.mutate({ id, data })
+          }}
+          isNotifying={isNotifying}
           isSaving={updateAppt.isPending}
           isPendingDelete={deleteAppt.isPending}
         />
@@ -1093,7 +1328,11 @@ function MarcacoesPanel() {
         (a.clientPhone ?? '').includes(q)
       )
     }
-    return list
+    return [...list].sort((a, b) => {
+      const ua = (a as any).updatedAt ?? (a.date + 'T' + a.time)
+      const ub = (b as any).updatedAt ?? (b.date + 'T' + b.time)
+      return ub.localeCompare(ua)
+    })
   }, [allAppts, filterStatus, filterDateFrom, filterDateTo, filterServiceId, q])
 
   const hasFilters = q || filterStatus || filterDateFrom || filterDateTo || filterServiceId
@@ -1169,9 +1408,9 @@ function MarcacoesPanel() {
           <p className="text-zinc-400 text-sm">Nenhuma marcação encontrada.</p>
         </Card>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm">
+        <div className="overflow-auto rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm" style={{ maxHeight: 'calc(100vh - 22rem)' }}>
           <table className="w-full text-sm">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-white dark:bg-zinc-900">
               <tr className="border-b border-zinc-100 dark:border-zinc-800">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Data / Hora</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Cliente</th>

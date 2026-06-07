@@ -143,7 +143,6 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
       .map((p) => PERM_TO_PATH[p.name ?? ''])
       .filter(Boolean)
       .filter((v, i, arr) => arr.indexOf(v) === i),
-    '/tokens',
   ]
 
   // Fecha o drawer ao navegar

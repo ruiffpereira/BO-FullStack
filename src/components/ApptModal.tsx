@@ -25,10 +25,15 @@ export function colorForService(serviceId: string, services: Service[]): string 
 
 const DAY_NAMES_SHORT = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
 
-export function ApptModal({ appt, services, onClose, onSave, onDelete, isSaving, isPendingDelete }: {
+export function ApptModal({ appt, services, onClose, onSave, onDelete, isSaving, isPendingDelete, rescheduledFrom, initialDate, initialTime, onSaveAndNotify, isNotifying }: {
   appt: Appointment; services: Service[]; onClose: () => void
   onSave: (id: string, data: Record<string, unknown>) => void
   onDelete: (id: string) => void; isSaving: boolean; isPendingDelete: boolean
+  rescheduledFrom?: { date: string; time: string }
+  initialDate?: string
+  initialTime?: string
+  onSaveAndNotify?: (id: string, data: Record<string, unknown>) => void
+  isNotifying?: boolean
 }) {
   const [editServiceId, setEditServiceId] = useState(appt.serviceId)
   const svc = services.find((s) => s.serviceId === editServiceId)
@@ -36,10 +41,10 @@ export function ApptModal({ appt, services, onClose, onSave, onDelete, isSaving,
   const canEdit = status === 'pending' || status === 'confirmed'
   const [tab, setTab] = useState<'details' | 'payment'>('details')
 
-  const [editTime, setEditTime] = useState(appt.time)
-  const [editDate, setEditDate] = useState(appt.date)
+  const [editTime, setEditTime] = useState(initialTime ?? appt.time)
+  const [editDate, setEditDate] = useState(initialDate ?? appt.date)
   const [showDatePicker, setShowDatePicker] = useState(false)
-  const [pickerMonth, setPickerMonth] = useState(() => startOfMonth(parseISO(appt.date)))
+  const [pickerMonth, setPickerMonth] = useState(() => startOfMonth(parseISO(initialDate ?? appt.date)))
   const datePickerBtnRef = useRef<HTMLButtonElement>(null)
 
   const originalDuration = appt.duration ?? svc?.duration ?? 30
@@ -48,10 +53,14 @@ export function ApptModal({ appt, services, onClose, onSave, onDelete, isSaving,
   const [cash, setCash] = useState(appt.paymentCash != null ? String(appt.paymentCash) : '')
   const [mbway, setMbway] = useState(appt.paymentMbway != null ? String(appt.paymentMbway) : '')
   const [card, setCard] = useState(appt.paymentCard != null ? String(appt.paymentCard) : '')
+  const [tip, setTip] = useState('')
 
   const isPaid = !!appt.paidAt
-  const payTotal = (parseFloat(cash) || 0) + (parseFloat(mbway) || 0) + (parseFloat(card) || 0)
+  const tipVal = parseFloat(tip) || 0
+  const payTotal = (parseFloat(cash) || 0) + (parseFloat(mbway) || 0) + (parseFloat(card) || 0) + tipVal
   const price = Number(svc?.price ?? 0)
+  const isExact = payTotal > 0 && Math.abs(payTotal - price) < 0.01
+  const isOver = payTotal > price + 0.01
   const detailsChanged =
     editTime !== appt.time ||
     editDate !== appt.date ||
@@ -71,11 +80,20 @@ export function ApptModal({ appt, services, onClose, onSave, onDelete, isSaving,
     if (Object.keys(data).length) onSave(appt.appointmentId, data)
   }
 
+  const handleSaveAndNotify = () => {
+    const data: Record<string, unknown> = {}
+    if (editTime !== appt.time) data.time = editTime
+    if (editDate !== appt.date) data.date = editDate
+    if (editServiceId !== appt.serviceId) data.serviceId = editServiceId
+    if (editDuration !== originalDuration) data.duration = editDuration
+    if (Object.keys(data).length && onSaveAndNotify) onSaveAndNotify(appt.appointmentId, data)
+  }
+
   const handleStatusChange = (s: AppointmentStatusEnum) => onSave(appt.appointmentId, { status: s })
 
   const handleRegisterPayment = () => {
     onSave(appt.appointmentId, {
-      paymentCash: parseFloat(cash) || 0,
+      paymentCash: (parseFloat(cash) || 0) + tipVal,
       paymentMbway: parseFloat(mbway) || 0,
       paymentCard: parseFloat(card) || 0,
     })
@@ -200,10 +218,33 @@ export function ApptModal({ appt, services, onClose, onSave, onDelete, isSaving,
                 {appt.notes && <div className="flex items-start gap-2"><Icon name="edit" className="w-4 h-4 text-zinc-400 mt-0.5 shrink-0" />{appt.notes}</div>}
               </div>
 
-              {canEdit && detailsChanged && (
+              {canEdit && detailsChanged && !rescheduledFrom && (
                 <Button className="w-full" disabled={isSaving} onClick={handleSaveDetails}>
                   {isSaving ? 'A guardar…' : 'Guardar alterações'}
                 </Button>
+              )}
+
+              {rescheduledFrom && (
+                <div className="rounded-xl border border-accent/20 bg-accent/[0.05] dark:bg-accent/[0.08] p-3 space-y-2.5">
+                  <div className="flex items-center gap-2 text-accent">
+                    <Icon name="calendar" className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-xs font-semibold uppercase tracking-wide">Reagendado</span>
+                  </div>
+                  <div className="text-xs text-zinc-600 dark:text-zinc-300 space-y-0.5">
+                    <p className="line-through text-zinc-400">{format(parseISO(rescheduledFrom.date), 'EEE d MMM', { locale: pt })} · {rescheduledFrom.time}</p>
+                    <p className="font-semibold text-zinc-800 dark:text-zinc-100">{format(parseISO(editDate), 'EEE d MMM', { locale: pt })} · {editTime}</p>
+                  </div>
+                  {canEdit && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button variant="outline" disabled={isSaving || isNotifying} onClick={handleSaveDetails}>
+                        {isSaving ? 'A guardar…' : 'Guardar'}
+                      </Button>
+                      <Button disabled={isSaving || isNotifying} onClick={handleSaveAndNotify}>
+                        {isSaving || isNotifying ? 'A enviar…' : 'Guardar e notificar'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
               )}
 
               <div>
@@ -239,12 +280,27 @@ export function ApptModal({ appt, services, onClose, onSave, onDelete, isSaving,
                     {appt.paymentCard != null && Number(appt.paymentCard) > 0 && (
                       <div className="flex justify-between"><span className="text-zinc-500">Cartão</span><span className="font-medium">{Number(appt.paymentCard).toFixed(2)} €</span></div>
                     )}
-                    <div className="flex justify-between pt-2 border-t border-zinc-200 dark:border-zinc-700 font-semibold">
-                      <span>Total recebido</span>
-                      <span className={`${(Number(appt.paymentCash ?? 0) + Number(appt.paymentMbway ?? 0) + Number(appt.paymentCard ?? 0)) >= price ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-500'}`}>
-                        {(Number(appt.paymentCash ?? 0) + Number(appt.paymentMbway ?? 0) + Number(appt.paymentCard ?? 0)).toFixed(2)} €
-                      </span>
-                    </div>
+                    {(() => {
+                      const paidTotal = Number(appt.paymentCash ?? 0) + Number(appt.paymentMbway ?? 0) + Number(appt.paymentCard ?? 0)
+                      const paidTip = paidTotal - price
+                      const hasTip = paidTip > 0.01
+                      return (
+                        <>
+                          {hasTip && (
+                            <div className="flex justify-between text-zinc-500">
+                              <span>Gorjeta</span>
+                              <span className="font-medium text-emerald-600 dark:text-emerald-400">{paidTip.toFixed(2)} €</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between pt-2 border-t border-zinc-200 dark:border-zinc-700 font-semibold">
+                            <span>Total recebido</span>
+                            <span className="text-emerald-600 dark:text-emerald-400">
+                              {paidTotal.toFixed(2)} €
+                            </span>
+                          </div>
+                        </>
+                      )
+                    })()}
                   </div>
                   <p className="text-xs text-zinc-400">Registado em {new Date(appt.paidAt!).toLocaleDateString('pt-PT', { dateStyle: 'medium' })}</p>
                   <div className="grid grid-cols-3 gap-2">
@@ -282,12 +338,33 @@ export function ApptModal({ appt, services, onClose, onSave, onDelete, isSaving,
                       </div>
                     ))}
                   </div>
+                  <div>
+                    <p className="text-xs text-zinc-500 mb-1 flex items-center gap-1">
+                      Gorjeta <span className="text-zinc-300 dark:text-zinc-600">(opcional)</span>
+                    </p>
+                    <div className="flex items-center border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden w-28">
+                      <input type="number" min={0} step={0.01} value={tip} onChange={(e) => setTip(e.target.value)} placeholder="0.00"
+                        className="flex-1 px-2 py-1.5 text-sm bg-white dark:bg-zinc-900 focus:outline-none w-0" />
+                      <span className="px-2 text-xs text-zinc-400 bg-zinc-50 dark:bg-zinc-800 self-stretch flex items-center">€</span>
+                    </div>
+                  </div>
                   {payTotal > 0 && (
-                    <div className="flex justify-between text-sm font-medium px-1">
-                      <span className="text-zinc-500">Total</span>
-                      <span className={payTotal >= price ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-500'}>
-                        {payTotal.toFixed(2)} € {payTotal < price ? `(faltam ${(price - payTotal).toFixed(2)} €)` : '✓'}
-                      </span>
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-sm font-medium px-1">
+                        <span className="text-zinc-500">Total</span>
+                        <span className={isExact ? 'text-emerald-600 dark:text-emerald-400' : isOver ? 'text-orange-500 dark:text-orange-400' : 'text-amber-500'}>
+                          {payTotal.toFixed(2)} €
+                          {isExact && ' ✓'}
+                          {!isExact && !isOver && ` (faltam ${(price - payTotal).toFixed(2)} €)`}
+                          {isOver && !tipVal && ` (+${(payTotal - price).toFixed(2)} € gorjeta)`}
+                        </span>
+                      </div>
+                      {isOver && !tipVal && (
+                        <div className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20 rounded-lg px-2.5 py-2">
+                          <Icon name="alertCircle" className="w-3.5 h-3.5 shrink-0" />
+                          O valor excede o preço em {(payTotal - price).toFixed(2)} €. Se for gorjeta, usa o campo acima.
+                        </div>
+                      )}
                     </div>
                   )}
                   <Button className="w-full" disabled={isSaving || payTotal <= 0} onClick={handleRegisterPayment}>

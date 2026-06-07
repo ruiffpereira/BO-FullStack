@@ -76,7 +76,9 @@ export function usePushSubscription() {
     return subscribe();
   }, [subscribe]);
 
-  // Auto-subscribe when the service worker is ready and authenticated
+  // Auto-subscribe when the service worker is ready and authenticated.
+  // Always re-sends existing browser subscription to the server (server does upsert),
+  // so the DB stays in sync even if the table was created after the user first subscribed.
   useEffect(() => {
     if (!isAuthenticated) return;
     if (!("serviceWorker" in navigator)) return;
@@ -84,7 +86,13 @@ export function usePushSubscription() {
 
     navigator.serviceWorker.ready.then(async (reg) => {
       const existing = await reg.pushManager.getSubscription();
-      if (existing) return;
+      if (existing) {
+        const json = existing.toJSON();
+        axiosInstance
+          .post(`${BASE}/push/subscribe`, { endpoint: json.endpoint, keys: json.keys })
+          .catch(() => {});
+        return;
+      }
       subscribe().catch(() => {});
     });
   }, [isAuthenticated, subscribe]);

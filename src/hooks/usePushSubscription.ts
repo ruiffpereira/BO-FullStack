@@ -69,6 +69,7 @@ export function usePushSubscription() {
   }, []);
 
   const requestAndSubscribe = useCallback(async (): Promise<boolean> => {
+    if (typeof Notification === "undefined") return false;
     if (Notification.permission === "denied") return false;
     const perm = await Notification.requestPermission();
     setPermission(perm);
@@ -82,6 +83,7 @@ export function usePushSubscription() {
   useEffect(() => {
     if (!isAuthenticated) return;
     if (!("serviceWorker" in navigator)) return;
+    if (typeof Notification === "undefined") return;
     if (Notification.permission !== "granted") return;
 
     navigator.serviceWorker.ready.then(async (reg) => {

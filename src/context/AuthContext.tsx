@@ -31,6 +31,7 @@ interface AuthCtx extends AuthState {
   hasPermission: (name: string) => boolean;
   loading: boolean;
   error: string | null;
+  initializing: boolean;
 }
 
 const AuthContext = createContext<AuthCtx | null>(null);
@@ -76,8 +77,29 @@ function getJwtExpiry(token: string): number {
   }
 }
 
+// Treats unparseable tokens as expired. 5s margin to avoid using a token
+// that's about to die mid-request.
+function isExpired(token: string): boolean {
+  return Date.now() >= getJwtExpiry(token) - 5_000;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [auth, setAuth] = useState<AuthState>(loadFromStorage);
+  // If the stored access token is already expired, don't expose it — otherwise
+  // the app renders the authenticated UI and fires requests that all 401.
+  const [auth, setAuth] = useState<AuthState>(() => {
+    const stored = loadFromStorage();
+    if (stored.accessToken && isExpired(stored.accessToken)) {
+      return { ...stored, accessToken: null };
+    }
+    return stored;
+  });
+  // True while we attempt a silent refresh on startup (expired access token but
+  // a refresh token is present). Prevents flashing the login screen.
+  const [initializing, setInitializing] = useState<boolean>(() => {
+    const stored = loadFromStorage();
+    if (stored.accessToken && !isExpired(stored.accessToken)) return false;
+    return !!stored.refreshToken;
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -180,9 +202,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Re-schedule on mount + handle page visibility (fixes mobile Chrome)
   useEffect(() => {
-    if (auth.accessToken && auth.refreshToken) {
-      scheduleRefresh(auth.accessToken, auth.refreshToken);
+    const stored = loadFromStorage();
+
+    // Healthy session — just keep refreshing.
+    if (stored.accessToken && !isExpired(stored.accessToken) && stored.refreshToken) {
+      scheduleRefresh(stored.accessToken, stored.refreshToken);
+      setInitializing(false);
+      return () => {
+        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      };
     }
+
+    // Access token expired/missing — try a silent refresh before showing any UI.
+    if (stored.refreshToken) {
+      doRefresh(stored.refreshToken)
+        .then((tok) => {
+          if (!tok) clearSession();
+        })
+        .finally(() => setInitializing(false));
+    } else if (stored.accessToken || stored.userId) {
+      // Stale leftovers with no way to refresh — wipe them.
+      clearSession();
+      setInitializing(false);
+    } else {
+      setInitializing(false);
+    }
+
     return () => {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     };
@@ -309,6 +354,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         hasPermission,
         loading,
         error,
+        initializing,
       }}
     >
       {children}

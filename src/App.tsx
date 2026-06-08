@@ -15,7 +15,7 @@ function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
     (localStorage.getItem('bo-theme') as 'light' | 'dark') || 'dark',
   )
-  const { accessToken } = useAuth()
+  const { accessToken, initializing } = useAuth()
   const location = useLocation()
 
   useEffect(() => {
@@ -32,6 +32,15 @@ function App() {
   // Public routes — accessible without authentication
   if (location.pathname === '/setup-password') {
     return <SetupPassword theme={theme} onToggleTheme={toggleTheme} />
+  }
+
+  // Restoring session (silent refresh on startup) — avoid flashing the login screen
+  if (initializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+        <div className="h-8 w-8 rounded-full border-2 border-zinc-300 border-t-accent animate-spin dark:border-zinc-700 dark:border-t-accent" />
+      </div>
+    )
   }
 
   if (!accessToken) {

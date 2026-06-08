@@ -83,6 +83,16 @@ function isExpired(token: string): boolean {
   return Date.now() >= getJwtExpiry(token) - 5_000;
 }
 
+// True only when the token is a JWT whose exp is already in the past.
+// Opaque (non-JWT) tokens return false — we can't tell, so a refresh is worth trying.
+// Used to skip a pointless silent-refresh (and its loading flash) when the
+// refresh token is provably dead.
+function isRefreshTokenDead(token: string): boolean {
+  const exp = getJwtExpiry(token);
+  if (!exp) return false; // not a JWT / no exp claim → can't decide
+  return Date.now() >= exp;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   // If the stored access token is already expired, don't expose it — otherwise
   // the app renders the authenticated UI and fires requests that all 401.
@@ -98,7 +108,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [initializing, setInitializing] = useState<boolean>(() => {
     const stored = loadFromStorage();
     if (stored.accessToken && !isExpired(stored.accessToken)) return false;
-    return !!stored.refreshToken;
+    // Only show the loading state if there's a refresh token that might still work.
+    // A provably-dead JWT refresh token goes straight to login (no flash).
+    return !!stored.refreshToken && !isRefreshTokenDead(stored.refreshToken);
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -205,7 +217,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const stored = loadFromStorage();
 
     // Healthy session — just keep refreshing.
-    if (stored.accessToken && !isExpired(stored.accessToken) && stored.refreshToken) {
+    if (
+      stored.accessToken &&
+      !isExpired(stored.accessToken) &&
+      stored.refreshToken
+    ) {
       scheduleRefresh(stored.accessToken, stored.refreshToken);
       setInitializing(false);
       return () => {
@@ -214,14 +230,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Access token expired/missing — try a silent refresh before showing any UI.
-    if (stored.refreshToken) {
+    if (stored.refreshToken && !isRefreshTokenDead(stored.refreshToken)) {
       doRefresh(stored.refreshToken)
         .then((tok) => {
           if (!tok) clearSession();
         })
         .finally(() => setInitializing(false));
-    } else if (stored.accessToken || stored.userId) {
-      // Stale leftovers with no way to refresh — wipe them.
+    } else if (stored.accessToken || stored.userId || stored.refreshToken) {
+      // Stale leftovers with no usable refresh token — wipe them and show login.
       clearSession();
       setInitializing(false);
     } else {
@@ -246,7 +262,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Request: fix hardcoded baseURL in Kubb-generated hooks + attach token
     const reqId = axiosInstance.interceptors.request.use((config) => {
-      config.baseURL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
+      config.baseURL =
+        import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
       const url: string = config.url ?? "";
       const isAuthEndpoint = SKIP_401.some((path) => url.includes(path));
       if (!isAuthEndpoint && !config.headers.Authorization) {

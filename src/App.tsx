@@ -1,37 +1,43 @@
-import { useState, useEffect } from 'react'
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { useAuth } from './context/AuthContext'
-import { Shell } from './components/Shell'
-import { Login } from './components/Login'
-import { SetupPassword } from './pages/SetupPassword'
-import { Dashboard } from './pages/Dashboard'
-import { Clientes } from './pages/Clientes'
-import { Loja } from './pages/Loja'
-import { Agenda } from './pages/Agenda'
-import { Admin } from './pages/Admin'
-import { Conteudos } from './pages/Conteudos'
+import { useState, useEffect } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
+import { Shell } from "./components/Shell";
+import { Login } from "./components/Login";
+import { SetupPassword } from "./pages/SetupPassword";
+import { Dashboard } from "./pages/Dashboard";
+import { Clientes } from "./pages/Clientes";
+import { Loja } from "./pages/Loja";
+import { Agenda } from "./pages/Agenda";
+import { Admin } from "./pages/Admin";
+import { Conteudos } from "./pages/Conteudos";
 
 function App() {
-  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
-    (localStorage.getItem('bo-theme') as 'light' | 'dark') || 'dark',
-  )
-  const { accessToken, initializing } = useAuth()
-  const location = useLocation()
+  const [theme, setTheme] = useState<"light" | "dark">(
+    () => (localStorage.getItem("bo-theme") as "light" | "dark") || "dark",
+  );
+  const { accessToken, initializing } = useAuth();
+  const location = useLocation();
 
   useEffect(() => {
-    const root = document.documentElement
-    if (theme === 'dark') root.classList.add('dark')
-    else root.classList.remove('dark')
-    root.style.setProperty('--accent-hex', theme === 'dark' ? '#4C86F0' : '#2A6FDB')
-    root.style.setProperty('--accent', theme === 'dark' ? '76 134 240' : '42 111 219')
-    localStorage.setItem('bo-theme', theme)
-  }, [theme])
+    const root = document.documentElement;
+    if (theme === "dark") root.classList.add("dark");
+    else root.classList.remove("dark");
+    root.style.setProperty(
+      "--accent-hex",
+      theme === "dark" ? "#4C86F0" : "#2A6FDB",
+    );
+    root.style.setProperty(
+      "--accent",
+      theme === "dark" ? "76 134 240" : "42 111 219",
+    );
+    localStorage.setItem("bo-theme", theme);
+  }, [theme]);
 
-  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
+  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
 
   // Public routes — accessible without authentication
-  if (location.pathname === '/setup-password') {
-    return <SetupPassword theme={theme} onToggleTheme={toggleTheme} />
+  if (location.pathname === "/setup-password") {
+    return <SetupPassword theme={theme} onToggleTheme={toggleTheme} />;
   }
 
   // Restoring session (silent refresh on startup) — avoid flashing the login screen
@@ -40,11 +46,11 @@ function App() {
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
         <div className="h-8 w-8 rounded-full border-2 border-zinc-300 border-t-accent animate-spin dark:border-zinc-700 dark:border-t-accent" />
       </div>
-    )
+    );
   }
 
   if (!accessToken) {
-    return <Login theme={theme} onToggleTheme={toggleTheme} />
+    return <Login theme={theme} onToggleTheme={toggleTheme} />;
   }
 
   return (
@@ -60,7 +66,7 @@ function App() {
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Shell>
-  )
+  );
 }
 
-export default App
+export default App;

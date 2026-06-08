@@ -32,7 +32,8 @@ export function usePushSubscription() {
       const { data } = await axiosInstance.get<{ publicKey: string }>(
         `${BASE}/push/vapid-public-key`,
       );
-      const applicationServerKey = urlB64ToUint8Array(data.publicKey).buffer as ArrayBuffer;
+      const applicationServerKey = urlB64ToUint8Array(data.publicKey)
+        .buffer as ArrayBuffer;
 
       const registration = await navigator.serviceWorker.ready;
       const sub = await registration.pushManager.subscribe({
@@ -91,7 +92,10 @@ export function usePushSubscription() {
       if (existing) {
         const json = existing.toJSON();
         axiosInstance
-          .post(`${BASE}/push/subscribe`, { endpoint: json.endpoint, keys: json.keys })
+          .post(`${BASE}/push/subscribe`, {
+            endpoint: json.endpoint,
+            keys: json.keys,
+          })
           .catch(() => {});
         return;
       }

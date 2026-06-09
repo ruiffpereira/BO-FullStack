@@ -122,7 +122,11 @@ export function usePushSubscription() {
         { withCredentials: true },
       );
       await sub.unsubscribe();
-      setPermission(typeof Notification !== "undefined" ? Notification.permission : "default");
+      setPermission(
+        typeof Notification !== "undefined"
+          ? Notification.permission
+          : "default",
+      );
     } catch (err) {
       setError(
         err instanceof Error
@@ -194,7 +198,11 @@ export function usePushSubscription() {
       if (!sub) return;
       await sub.unsubscribe().catch(() => {});
       if (cancelled) return;
-      setPermission(typeof Notification !== "undefined" ? Notification.permission : "default");
+      setPermission(
+        typeof Notification !== "undefined"
+          ? Notification.permission
+          : "default",
+      );
     });
 
     return () => {

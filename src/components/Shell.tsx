@@ -52,7 +52,7 @@ function SidebarContent({ accessiblePaths, collapsed, onLogout }: {
   collapsed: boolean
   onLogout: () => void
 }) {
-  const { username, permissions } = useAuth()
+  const { username, permissions, loggingOut } = useAuth()
   const location = useLocation()
   const permLabel = permissions.length > 0 ? permissions[0].name?.replace('VIEW_', '') : 'Admin'
 
@@ -87,11 +87,12 @@ function SidebarContent({ accessiblePaths, collapsed, onLogout }: {
         )}
         <button
           onClick={onLogout}
+          disabled={loggingOut}
           title={collapsed ? 'Sair' : undefined}
-          className={`w-full flex items-center gap-3 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-colors ${collapsed ? 'justify-center py-2.5' : 'px-3 py-2.5'}`}
+          className={`w-full flex items-center gap-3 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50 disabled:cursor-wait disabled:hover:bg-transparent disabled:hover:text-zinc-600 dark:disabled:hover:text-zinc-400 transition-colors ${collapsed ? 'justify-center py-2.5' : 'px-3 py-2.5'}`}
         >
           <Icon name="logout" className="w-[19px] h-[19px] shrink-0" />
-          {!collapsed && <span>Terminar sessão</span>}
+          {!collapsed && <span>{loggingOut ? 'A sair...' : 'Terminar sessão'}</span>}
         </button>
       </div>
     </div>

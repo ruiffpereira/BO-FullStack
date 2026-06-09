@@ -29,6 +29,7 @@ interface AuthCtx extends AuthState {
   authHeader: () => Record<string, string>;
   hasPermission: (name: string) => boolean;
   loading: boolean;
+  loggingOut: boolean;
   error: string | null;
   initializing: boolean;
 }
@@ -113,6 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [auth, setAuth] = useState<AuthState>(emptyAuth);
   const [initializing, setInitializing] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshPromiseRef = useRef<Promise<string | null> | null>(null);
@@ -278,7 +280,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     const accessToken = authRef.current.accessToken;
-    setLoading(true);
+    setLoggingOut(true);
     setError(null);
     authVersionRef.current += 1;
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
@@ -312,7 +314,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (accessToken) scheduleRefresh(accessToken);
       throw err;
     } finally {
-      setLoading(false);
+      setLoggingOut(false);
     }
   }, [clearSession, scheduleRefresh]);
 
@@ -335,6 +337,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authHeader,
         hasPermission,
         loading,
+        loggingOut,
         error,
         initializing,
       }}

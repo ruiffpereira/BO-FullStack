@@ -6,6 +6,7 @@ import {
 } from "../gen/backoffice/hooks/useGetNotifications.js";
 import { useMutation } from "@tanstack/react-query";
 import fetch from "@kubb/plugin-client/clients/axios";
+import { useAuth } from "../context/AuthContext";
 
 export type { GetNotificationsQueryKey } from "../gen/backoffice/hooks/useGetNotifications.js";
 
@@ -23,35 +24,55 @@ export interface Notification {
 export { getNotificationsQueryKey, getNotifications, useGetNotifications };
 
 export function useNotifications(limit = 30, offset = 0) {
+  const { accessToken, authHeader } = useAuth();
+
   return useGetNotifications(
     { limit, offset },
-    { query: { staleTime: 0 } },
+    {
+      client: { headers: authHeader() },
+      query: { staleTime: 0, enabled: Boolean(accessToken) },
+    },
   );
 }
 
 export function useMarkRead() {
   const qc = useQueryClient();
+  const { authHeader } = useAuth();
   return useMutation({
     mutationFn: (id: string) =>
-      fetch<unknown, unknown, unknown>({ method: "PATCH", url: `/notifications/${id}/read` }).then((r) => r.data),
+      fetch<unknown, unknown, unknown>({
+        method: "PATCH",
+        url: `/notifications/${id}/read`,
+        headers: authHeader(),
+      }).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: getNotificationsQueryKey() }),
   });
 }
 
 export function useMarkAllRead() {
   const qc = useQueryClient();
+  const { authHeader } = useAuth();
   return useMutation({
     mutationFn: () =>
-      fetch<unknown, unknown, unknown>({ method: "PATCH", url: `/notifications/read-all` }).then((r) => r.data),
+      fetch<unknown, unknown, unknown>({
+        method: "PATCH",
+        url: `/notifications/read-all`,
+        headers: authHeader(),
+      }).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: getNotificationsQueryKey() }),
   });
 }
 
 export function useDeleteNotification() {
   const qc = useQueryClient();
+  const { authHeader } = useAuth();
   return useMutation({
     mutationFn: (id: string) =>
-      fetch<unknown, unknown, unknown>({ method: "DELETE", url: `/notifications/${id}` }).then((r) => r.data),
+      fetch<unknown, unknown, unknown>({
+        method: "DELETE",
+        url: `/notifications/${id}`,
+        headers: authHeader(),
+      }).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: getNotificationsQueryKey() }),
   });
 }

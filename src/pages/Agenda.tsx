@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { format, addDays, startOfWeek, isSameDay, addWeeks, subWeeks, startOfMonth, eachDayOfInterval, isSameMonth, addMonths, subMonths } from 'date-fns'
 import { pt } from 'date-fns/locale'
 import { toast } from 'sonner'
@@ -46,6 +47,45 @@ function stableColorForId(id: string): string {
 }
 const DAY_NAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const FULL_DAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+const DEFAULT_WORKING_HOURS: WorkingHours[] = FULL_DAY_NAMES.map((_, i) => ({ dayOfWeek: i, startTime: '09:00', endTime: '18:00', isActive: i !== 0, lunchStart: null, lunchEnd: null }))
+
+function normalizeWorkingHours(hours: WorkingHours[]) {
+  return [...hours]
+    .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+    .map((h) => ({
+      dayOfWeek: h.dayOfWeek,
+      startTime: h.startTime || '09:00',
+      endTime: h.endTime || '18:00',
+      isActive: h.isActive !== false,
+      lunchStart: h.lunchStart || null,
+      lunchEnd: h.lunchEnd || null,
+    }))
+}
+
+function workingHoursChanged(current: WorkingHours[], saved: WorkingHours[]) {
+  return JSON.stringify(normalizeWorkingHours(current)) !== JSON.stringify(normalizeWorkingHours(saved))
+}
+
+function weekStartForDate(date: string | null) {
+  if (!date) {
+    const ws = startOfWeek(new Date(), { weekStartsOn: 1 })
+    return new Date().getDay() === 0 ? addWeeks(ws, 1) : ws
+  }
+  const day = new Date(date + 'T00:00:00')
+  return startOfWeek(day, { weekStartsOn: 1 })
+}
+
+function customerIdForAppointment(appt: Appointment, customers: Customer[]) {
+  const runtimeId = (appt as Appointment & { customerId?: string | null }).customerId
+  if (runtimeId) return runtimeId
+  const email = appt.clientEmail?.toLowerCase()
+  const phone = appt.clientPhone
+  return customers.find((c) =>
+    (email && c.email?.toLowerCase() === email) ||
+    (phone && c.contact === phone)
+  )?.customerId ?? null
+}
+
 function minuteToTime(min: number) {
   return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
 }
@@ -269,10 +309,10 @@ type DragAction = { x: number; y: number; day: Date; startMin: number; endMin: n
 
 function CalendarioView() {
   const qc = useQueryClient()
-  const [weekStart, setWeekStart] = useState(() => {
-    const ws = startOfWeek(new Date(), { weekStartsOn: 1 })
-    return new Date().getDay() === 0 ? addWeeks(ws, 1) : ws
-  })
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const focusAppointmentId = searchParams.get('marcacao')
+  const [weekStart, setWeekStart] = useState(() => weekStartForDate(searchParams.get('data')))
   const [selAppt, setSelAppt] = useState<Appointment | null>(null)
   const [rescheduledFrom, setRescheduledFrom] = useState<{ date: string; time: string } | null>(null)
   const [pendingReschedule, setPendingReschedule] = useState<{ appointmentId: string; newDate: string; newTime: string } | null>(null)
@@ -318,11 +358,38 @@ function CalendarioView() {
 
   const { data: appointments = [], isLoading } = useGetScheduleAppointments({ month })
   const { data: services = [] } = useGetScheduleServices()
+  const { data: customersData } = useGetCustomers()
   const { data: blockedSlots = [] } = useGetScheduleBlockedSlots({ month })
   const { data: workingHours = [] } = useGetScheduleWorkingHours()
+  const customers = customersData?.rows ?? []
 
   const invalidateAppts = () => qc.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() })
   const invalidateSlots = () => qc.invalidateQueries({ queryKey: getScheduleBlockedSlotsQueryKey() })
+
+  useEffect(() => {
+    const date = searchParams.get('data')
+    if (date) setWeekStart(weekStartForDate(date))
+  }, [searchParams])
+
+  useEffect(() => {
+    if (!focusAppointmentId || selAppt) return
+    const appt = appointments.find((a) => a.appointmentId === focusAppointmentId)
+    if (appt) setSelAppt(appt)
+  }, [appointments, focusAppointmentId, selAppt])
+
+  const closeSelectedAppt = () => {
+    setSelAppt(null)
+    setRescheduledFrom(null)
+    setPendingReschedule(null)
+    if (focusAppointmentId) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('marcacao')
+        next.delete('data')
+        return next
+      })
+    }
+  }
 
   const createAppt = usePostScheduleAppointments({
     mutation: {
@@ -913,7 +980,7 @@ function CalendarioView() {
         <ApptModal
           appt={rescheduledFrom ? selAppt : (appointments.find((a) => a.appointmentId === selAppt.appointmentId) ?? selAppt)}
           services={services}
-          onClose={() => { setSelAppt(null); setRescheduledFrom(null); setPendingReschedule(null) }}
+          onClose={closeSelectedAppt}
           onSave={(id, data) => updateAppt.mutate({ id, data })}
           onDelete={(id) => deleteAppt.mutate({ id })}
           rescheduledFrom={rescheduledFrom ?? undefined}
@@ -926,6 +993,13 @@ function CalendarioView() {
           isNotifying={isNotifying}
           isSaving={updateAppt.isPending}
           isPendingDelete={deleteAppt.isPending}
+          onOpenCustomer={(() => {
+            const currentAppt = rescheduledFrom ? selAppt : (appointments.find((a) => a.appointmentId === selAppt.appointmentId) ?? selAppt)
+            const customerId = customerIdForAppointment(currentAppt, customers)
+            return customerId ? () => navigate(`/clientes?cliente=${encodeURIComponent(customerId)}`, {
+              state: { returnToAppointment: { appointmentId: currentAppt.appointmentId, date: currentAppt.date } },
+            }) : undefined
+          })()}
         />
       )}
       {novaDate && (
@@ -1075,14 +1149,16 @@ function ServicosPanel() {
 // ─── Settings panel ───────────────────────────────────────────────────────────
 function ConfiguracoesPanel() {
   const qc = useQueryClient()
-  const DEFAULT_HOURS: WorkingHours[] = FULL_DAY_NAMES.map((_, i) => ({ dayOfWeek: i, startTime: '09:00', endTime: '18:00', isActive: i !== 0, lunchStart: null, lunchEnd: null }))
-
   const { data: savedHours, isLoading: loadingHours } = useGetScheduleWorkingHours()
-  const saveHours = usePostScheduleWorkingHours({ mutation: { onSuccess: () => { toast.success('Horários guardados'); qc.invalidateQueries({ queryKey: getScheduleWorkingHoursQueryKey() }) }, onError: (error) => toast.error(getApiError(error)) } })
-  const [hours, setHours] = useState<WorkingHours[]>(DEFAULT_HOURS)
+  const saveHours = usePostScheduleWorkingHours({ mutation: { onSuccess: () => { toast.success('Horários guardados'); setSavedHoursSnapshot(hours); qc.invalidateQueries({ queryKey: getScheduleWorkingHoursQueryKey() }) }, onError: (error) => toast.error(getApiError(error)) } })
+  const [hours, setHours] = useState<WorkingHours[]>(DEFAULT_WORKING_HOURS)
+  const [savedHoursSnapshot, setSavedHoursSnapshot] = useState<WorkingHours[]>(DEFAULT_WORKING_HOURS)
+  const hasUnsavedHours = workingHoursChanged(hours, savedHoursSnapshot)
 
   useEffect(() => {
-    if (savedHours && savedHours.length > 0) setHours(DEFAULT_HOURS.map((def) => savedHours.find((h) => h.dayOfWeek === def.dayOfWeek) ?? def))
+    const next = savedHours && savedHours.length > 0 ? DEFAULT_WORKING_HOURS.map((def) => savedHours.find((h) => h.dayOfWeek === def.dayOfWeek) ?? def) : DEFAULT_WORKING_HOURS
+    setHours(next)
+    setSavedHoursSnapshot(next)
   }, [savedHours])
 
   const updateDay = (dayOfWeek: number, patch: Partial<WorkingHours>) => setHours((prev) => prev.map((h) => h.dayOfWeek === dayOfWeek ? { ...h, ...patch } : h))
@@ -1118,7 +1194,14 @@ function ConfiguracoesPanel() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-zinc-900 dark:text-white">Horário de trabalho</h3>
-          <Button size="sm" onClick={() => saveHours.mutate({ data: { hours } })} disabled={saveHours.isPending || loadingHours}>{saveHours.isPending ? 'A guardar…' : 'Guardar horários'}</Button>
+          <Button
+            size="sm"
+            variant={hasUnsavedHours ? 'primary' : 'secondary'}
+            onClick={() => saveHours.mutate({ data: { hours } })}
+            disabled={saveHours.isPending || loadingHours || !hasUnsavedHours}
+          >
+            {saveHours.isPending ? 'A guardar…' : hasUnsavedHours ? 'Guardar horários' : 'Sem alterações'}
+          </Button>
         </div>
         {loadingHours ? Array.from({ length: 7 }).map((_, i) => <div key={i} className="h-12 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800 mb-2" />) :
           <div className="space-y-2">
@@ -1259,6 +1342,7 @@ function ConfiguracoesPanel() {
 // ─── Marcações list panel ─────────────────────────────────────────────────────
 function MarcacoesPanel() {
   const qc = useQueryClient()
+  const navigate = useNavigate()
 
   const [q, setQ] = useState('')
   const [filterStatus, setFilterStatus] = useState<'' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('')
@@ -1269,6 +1353,8 @@ function MarcacoesPanel() {
 
   const { data: allAppts = [], isLoading } = useGetScheduleAppointments(undefined)
   const { data: services = [] } = useGetScheduleServices()
+  const { data: customersData } = useGetCustomers()
+  const customers = customersData?.rows ?? []
 
   const updateAppt = usePutScheduleAppointmentsId({
     mutation: {
@@ -1443,6 +1529,13 @@ function MarcacoesPanel() {
           onDelete={(id) => deleteAppt.mutate({ id })}
           isSaving={updateAppt.isPending}
           isPendingDelete={deleteAppt.isPending}
+          onOpenCustomer={(() => {
+            const currentAppt = allAppts.find((a) => a.appointmentId === selAppt.appointmentId) ?? selAppt
+            const customerId = customerIdForAppointment(currentAppt, customers)
+            return customerId ? () => navigate(`/clientes?cliente=${encodeURIComponent(customerId)}`, {
+              state: { returnToAppointment: { appointmentId: currentAppt.appointmentId, date: currentAppt.date } },
+            }) : undefined
+          })()}
         />
       )}
     </div>

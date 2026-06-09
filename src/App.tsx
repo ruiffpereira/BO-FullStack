@@ -12,10 +12,8 @@ import { Admin } from "./pages/Admin";
 import { Conteudos } from "./pages/Conteudos";
 
 function App() {
-  const [theme, setTheme] = useState<"light" | "dark">(
-    () => (localStorage.getItem("bo-theme") as "light" | "dark") || "dark",
-  );
-  const { accessToken, initializing } = useAuth();
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const { isAuthenticated, initializing } = useAuth();
   const location = useLocation();
 
   useEffect(() => {
@@ -30,7 +28,6 @@ function App() {
       "--accent",
       theme === "dark" ? "76 134 240" : "42 111 219",
     );
-    localStorage.setItem("bo-theme", theme);
   }, [theme]);
 
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
@@ -49,7 +46,7 @@ function App() {
     );
   }
 
-  if (!accessToken) {
+  if (!isAuthenticated) {
     return <Login theme={theme} onToggleTheme={toggleTheme} />;
   }
 

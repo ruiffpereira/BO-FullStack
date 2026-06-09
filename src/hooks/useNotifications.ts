@@ -24,13 +24,13 @@ export interface Notification {
 export { getNotificationsQueryKey, getNotifications, useGetNotifications };
 
 export function useNotifications(limit = 30, offset = 0) {
-  const { accessToken, authHeader } = useAuth();
+  const { authHeader, isAuthenticated } = useAuth();
 
   return useGetNotifications(
     { limit, offset },
     {
       client: { headers: authHeader() },
-      query: { staleTime: 0, enabled: Boolean(accessToken) },
+      query: { staleTime: 0, enabled: isAuthenticated },
     },
   );
 }

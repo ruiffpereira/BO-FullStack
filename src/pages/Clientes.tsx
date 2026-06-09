@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -58,6 +59,10 @@ export function Clientes() {
   const { hasPermission } = useAuth()
   const canSchedule = hasPermission('VIEW_SCHEDULE')
   const qc = useQueryClient()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const returnToAppointment = (location.state as { returnToAppointment?: { appointmentId: string; date: string } } | null)?.returnToAppointment
 
   const [q, setQ] = useState('')
   const [profileId, setProfileId] = useState<string | null>(null)
@@ -74,6 +79,11 @@ export function Clientes() {
   )
   const services = svcData ?? []
   const customers = data?.rows ?? []
+
+  useEffect(() => {
+    const customerId = searchParams.get('cliente')
+    if (customerId) setProfileId(customerId)
+  }, [searchParams])
 
   const filtered = useMemo(() =>
     customers.filter((c) =>
@@ -142,7 +152,23 @@ export function Clientes() {
     onError: (e: any) => toast.error(getApiError(e)),
   })
 
-  const openProfile = (id: string) => setProfileId(id)
+  const openProfile = (id: string) => {
+    setProfileId(id)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set('cliente', id)
+      return next
+    })
+  }
+
+  const closeProfile = () => {
+    setProfileId(null)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete('cliente')
+      return next
+    })
+  }
 
   const openEdit = (c: Customer) => {
     setEditCustomer(c)
@@ -239,11 +265,20 @@ export function Clientes() {
       {profileId && profileCustomer && (
         <Modal
           open
-          onClose={() => { setProfileId(null) }}
+          onClose={closeProfile}
           title="Ficha de cliente"
           width="max-w-lg"
           footer={
             <>
+              {returnToAppointment && (
+                <Button
+                  variant="outline"
+                  icon="calendar"
+                  onClick={() => navigate(`/agenda?marcacao=${encodeURIComponent(returnToAppointment.appointmentId)}&data=${encodeURIComponent(returnToAppointment.date)}`)}
+                >
+                  Voltar à marcação
+                </Button>
+              )}
               <Button variant="outline" icon="edit" onClick={() => openEdit(profileCustomer)}>Editar</Button>
               <Button
                 variant="outline"
@@ -254,7 +289,7 @@ export function Clientes() {
                 {blockMut.isPending ? '…' : profileCustomer.blocked ? 'Desbloquear' : 'Bloquear'}
               </Button>
               <div className="flex-1" />
-              <Button variant="ghost" onClick={() => { setProfileId(null) }}>Fechar</Button>
+              <Button variant="ghost" onClick={closeProfile}>Fechar</Button>
             </>
           }
         >

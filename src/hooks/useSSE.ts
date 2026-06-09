@@ -3,22 +3,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { getNotificationsQueryKey } from "./useNotifications";
 
-const STORAGE_KEY = "bo_auth";
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
 
-function getStoredToken(): string | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw).accessToken ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export function useSSE() {
-  const { userId } = useAuth();
-  const isAuthenticated = userId !== null;
+  const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const abortRef = useRef<AbortController | null>(null);
 
@@ -30,15 +18,13 @@ export function useSSE() {
 
     async function connect() {
       if (!active) return;
-      const token = getStoredToken();
-      if (!token) return;
 
       const controller = new AbortController();
       abortRef.current = controller;
 
       try {
         const res = await fetch(`${API_BASE}/events/stream`, {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
           signal: controller.signal,
         });
 

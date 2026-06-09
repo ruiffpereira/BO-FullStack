@@ -25,7 +25,7 @@ export function colorForService(serviceId: string, services: Service[]): string 
 
 const DAY_NAMES_SHORT = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
 
-export function ApptModal({ appt, services, onClose, onSave, onDelete, isSaving, isPendingDelete, rescheduledFrom, initialDate, initialTime, onSaveAndNotify, isNotifying }: {
+export function ApptModal({ appt, services, onClose, onSave, onDelete, isSaving, isPendingDelete, rescheduledFrom, initialDate, initialTime, onSaveAndNotify, isNotifying, onOpenCustomer }: {
   appt: Appointment; services: Service[]; onClose: () => void
   onSave: (id: string, data: Record<string, unknown>) => void
   onDelete: (id: string) => void; isSaving: boolean; isPendingDelete: boolean
@@ -34,6 +34,7 @@ export function ApptModal({ appt, services, onClose, onSave, onDelete, isSaving,
   initialTime?: string
   onSaveAndNotify?: (id: string, data: Record<string, unknown>) => void
   isNotifying?: boolean
+  onOpenCustomer?: () => void
 }) {
   const [editServiceId, setEditServiceId] = useState(appt.serviceId)
   const svc = services.find((s) => s.serviceId === editServiceId)
@@ -127,8 +128,18 @@ export function ApptModal({ appt, services, onClose, onSave, onDelete, isSaving,
                 {STATUS_LABELS[status]}
               </Badge>
             </div>
+            {onOpenCustomer && (
+              <button
+                type="button"
+                onClick={onOpenCustomer}
+                className="ml-auto inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border border-zinc-200 dark:border-zinc-700 text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:border-accent hover:text-accent transition"
+              >
+                <Icon name="users" className="w-3.5 h-3.5" />
+                Cliente
+              </button>
+            )}
             {isPaid && (
-              <span className="ml-auto flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-full">
+              <span className={`${onOpenCustomer ? '' : 'ml-auto'} flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-full`}>
                 <Icon name="euro" className="w-3 h-3" /> Pago
               </span>
             )}

@@ -2,8 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { axiosInstance } from "@kubb/plugin-client/clients/axios";
 import { useAuth } from "../context/AuthContext";
 
-const BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
-
 function isIOSDevice(): boolean {
   if (typeof navigator === "undefined") return false;
   return (
@@ -28,8 +26,7 @@ function urlB64ToUint8Array(base64String: string): Uint8Array {
 }
 
 export function usePushSubscription() {
-  const { userId } = useAuth();
-  const isAuthenticated = userId !== null;
+  const { isAuthenticated } = useAuth();
   const [permission, setPermission] =
     useState<NotificationPermission>("default");
   const [isSupported, setIsSupported] = useState(false);
@@ -57,7 +54,8 @@ export function usePushSubscription() {
     try {
       // Get VAPID public key
       const { data } = await axiosInstance.get<{ publicKey: string }>(
-        `${BASE}/push/vapid-public-key`,
+        "/push/vapid-public-key",
+        { withCredentials: true },
       );
       const applicationServerKey = urlB64ToUint8Array(data.publicKey)
         .buffer as ArrayBuffer;
@@ -69,10 +67,14 @@ export function usePushSubscription() {
       });
 
       const json = sub.toJSON();
-      await axiosInstance.post(`${BASE}/push/subscribe`, {
-        endpoint: json.endpoint,
-        keys: json.keys,
-      });
+      await axiosInstance.post(
+        "/push/subscribe",
+        {
+          endpoint: json.endpoint,
+          keys: json.keys,
+        },
+        { withCredentials: true },
+      );
 
       setPermission("granted");
       return true;
@@ -86,9 +88,13 @@ export function usePushSubscription() {
       const registration = await navigator.serviceWorker.ready;
       const sub = await registration.pushManager.getSubscription();
       if (!sub) return;
-      await axiosInstance.post(`${BASE}/push/unsubscribe`, {
-        endpoint: sub.endpoint,
-      });
+      await axiosInstance.post(
+        "/push/unsubscribe",
+        {
+          endpoint: sub.endpoint,
+        },
+        { withCredentials: true },
+      );
       await sub.unsubscribe();
       setPermission("default");
     } catch {
@@ -120,10 +126,14 @@ export function usePushSubscription() {
       if (existing) {
         const json = existing.toJSON();
         axiosInstance
-          .post(`${BASE}/push/subscribe`, {
-            endpoint: json.endpoint,
-            keys: json.keys,
-          })
+          .post(
+            "/push/subscribe",
+            {
+              endpoint: json.endpoint,
+              keys: json.keys,
+            },
+            { withCredentials: true },
+          )
           .catch(() => {});
         return;
       }

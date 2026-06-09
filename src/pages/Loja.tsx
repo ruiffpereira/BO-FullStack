@@ -15,10 +15,14 @@ import { usePutSubcategoriesId } from '../gen/backoffice/hooks/usePutSubcategori
 import { useDeleteSubcategoriesId } from '../gen/backoffice/hooks/useDeleteSubcategoriesId.js'
 import { useGetOrders, getOrdersQueryKey } from '../gen/backoffice/hooks/useGetOrders.js'
 import type { Product } from '../gen/backoffice/types/Product.js'
+import type { ProductImage } from '../gen/backoffice/types/ProductImage.js'
 import type { Category } from '../gen/backoffice/types/Category.js'
 import type { Subcategory } from '../gen/backoffice/types/Subcategory.js'
 import { uploadImage } from '../gen/backoffice/hooks/useUploadImage.js'
 import { pickImageFile } from '../lib/filePicker'
+
+const photoUrl = (photo: ProductImage | string | undefined | null) =>
+  typeof photo === 'string' ? photo : photo?.fileUrl
 
 const fmtEur = (n: number) =>
   '€' + n.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -27,7 +31,7 @@ const fmtEur = (n: number) =>
 
 function ProdutoCard({ p, onEdit, onDelete }: { p: Product; onEdit: () => void; onDelete: () => void }) {
   const low = (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 8
-  const firstPhoto = p.photos?.[0]
+  const firstPhoto = photoUrl(p.photos?.[0])
   return (
     <Card
       className="overflow-hidden cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all group relative"
@@ -73,12 +77,12 @@ type ProdForm = {
   stock: string
   description: string
   categoryId: string
-  photoUrl: string | null
+  photo: ProductImage | null
   photoName: string
 }
 
 const emptyForm: ProdForm = {
-  name: '', reference: '', price: '', stock: '', description: '', categoryId: '', photoUrl: null, photoName: '',
+  name: '', reference: '', price: '', stock: '', description: '', categoryId: '', photo: null, photoName: '',
 }
 
 function ProdutoModal({ open, produto, categories, onClose, onSave, isPending }: {
@@ -103,7 +107,7 @@ function ProdutoModal({ open, produto, categories, onClose, onSave, isPending }:
       stock: String(produto.stock ?? 0),
       description: produto.description ?? '',
       categoryId: produto.categoryId ?? '',
-      photoUrl: null,
+      photo: null,
       photoName: '',
     } : emptyForm)
     setPhotoUploading(false)
@@ -112,17 +116,17 @@ function ProdutoModal({ open, produto, categories, onClose, onSave, isPending }:
   const set = (k: keyof ProdForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  const previewSrc = form.photoUrl ?? produto?.photos?.[0] ?? null
+  const previewSrc = photoUrl(form.photo) ?? photoUrl(produto?.photos?.[0]) ?? null
   const isBusy = isPending || photoUploading
 
   const handlePhotoChange = async (file: File) => {
     setPhotoUploading(true)
     try {
-      const { fileUrl } = await uploadImage({
+      const uploaded = await uploadImage({
         image: file,
         module: 'products',
       })
-      setForm((f) => ({ ...f, photoUrl: fileUrl, photoName: file.name }))
+      setForm((f) => ({ ...f, photo: uploaded, photoName: file.name }))
       toast.success('Imagem carregada')
     } catch (e: any) {
       toast.error(e.message ?? 'Erro ao carregar imagem')
@@ -332,7 +336,7 @@ export function Loja() {
   const handleSave = async (form: ProdForm) => {
     setSaving(true)
     try {
-      const photoPayload = form.photoUrl ? [form.photoUrl] : undefined
+      const photoPayload = form.photo ? [form.photo] : undefined
 
       if (editing) {
         await updateProduct.mutateAsync({

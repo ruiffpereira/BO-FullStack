@@ -903,6 +903,8 @@ function CalendarioView() {
   } | null>(null);
   const [isNotifying, setIsNotifying] = useState(false);
   const notifyAfterSaveRef = useRef<string | null>(null);
+  const notifyAfterReactivateRef = useRef<string | null>(null);
+  const notifyContextRef = useRef<"save" | "reactivate">("save");
   const [novaDate, setNovaDate] = useState<Date | null>(null);
   const [novaTime, setNovaTime] = useState<string | null>(null);
 
@@ -1014,14 +1016,18 @@ function CalendarioView() {
   const notifyAppt = usePostScheduleAppointmentsIdNotify({
     mutation: {
       onSuccess: () => {
-        toast.success("Marcação guardada e cliente notificado");
+        const ctx = notifyContextRef.current;
+        notifyContextRef.current = "save";
+        toast.success(ctx === "reactivate" ? "Marcação reativada e cliente notificado" : "Marcação guardada e cliente notificado");
         setIsNotifying(false);
         setPendingReschedule(null);
         setRescheduledFrom(null);
         setSelAppt(null);
       },
       onError: (error) => {
-        toast.success("Marcação guardada");
+        const ctx = notifyContextRef.current;
+        notifyContextRef.current = "save";
+        toast.success(ctx === "reactivate" ? "Marcação reativada" : "Marcação guardada");
         toast.error(getApiError(error) || "Erro ao enviar email ao cliente");
         setIsNotifying(false);
         setPendingReschedule(null);
@@ -1056,18 +1062,29 @@ function CalendarioView() {
   const lastStatusRef = useRef<string | null>(null);
   const setStatusAppt = usePutScheduleAppointmentsId({
     mutation: {
-      onSuccess: () => {
-        toast.success(
-          lastStatusRef.current === "cancelled"
-            ? "Marcação cancelada"
-            : "Marcação reativada",
-        );
+      onSuccess: (_d, vars) => {
         invalidateAppts();
-        setPendingReschedule(null);
-        setRescheduledFrom(null);
-        setSelAppt(null);
+        const reactivateNotifyId = notifyAfterReactivateRef.current;
+        if (reactivateNotifyId) {
+          notifyAfterReactivateRef.current = null;
+          notifyContextRef.current = "reactivate";
+          setIsNotifying(true);
+          notifyAppt.mutate({ id: reactivateNotifyId });
+        } else {
+          toast.success(
+            lastStatusRef.current === "cancelled"
+              ? "Marcação cancelada"
+              : "Marcação reativada",
+          );
+          setPendingReschedule(null);
+          setRescheduledFrom(null);
+          setSelAppt(null);
+        }
       },
-      onError: (error) => toast.error(getApiError(error)),
+      onError: (error) => {
+        notifyAfterReactivateRef.current = null;
+        toast.error(getApiError(error));
+      },
     },
   });
   const blockSlot = usePostScheduleBlockedSlots({
@@ -1855,8 +1872,14 @@ function CalendarioView() {
           initialDate={pendingReschedule?.newDate}
           initialTime={pendingReschedule?.newTime}
           onSaveAndNotify={(id, data) => {
+            notifyContextRef.current = "save";
             notifyAfterSaveRef.current = id;
             updateAppt.mutate({ id, data });
+          }}
+          onReactivateAndNotify={(id) => {
+            notifyAfterReactivateRef.current = id;
+            lastStatusRef.current = "confirmed";
+            setStatusAppt.mutate({ id, data: { status: "confirmed" } });
           }}
           isNotifying={isNotifying}
           isSaving={updateAppt.isPending}
@@ -2654,6 +2677,8 @@ function MarcacoesPanel() {
   );
   const [isNotifyingList, setIsNotifyingList] = useState(false);
   const notifyAfterSaveListRef = useRef<string | null>(null);
+  const notifyAfterReactivateListRef = useRef<string | null>(null);
+  const notifyContextListRef = useRef<"save" | "reactivate">("save");
 
   const { data: allAppts = [], isLoading } =
     useGetScheduleAppointments(undefined);
@@ -2682,11 +2707,15 @@ function MarcacoesPanel() {
   const notifyApptList = usePostScheduleAppointmentsIdNotify({
     mutation: {
       onSuccess: () => {
-        toast.success("MarcaÃ§Ã£o guardada e cliente notificado");
+        const ctx = notifyContextListRef.current;
+        notifyContextListRef.current = "save";
+        toast.success(ctx === "reactivate" ? "Marcação reativada e cliente notificado" : "Marcação guardada e cliente notificado");
         setIsNotifyingList(false);
       },
       onError: (error) => {
-        toast.success("MarcaÃ§Ã£o guardada");
+        const ctx = notifyContextListRef.current;
+        notifyContextListRef.current = "save";
+        toast.success(ctx === "reactivate" ? "Marcação reativada" : "Marcação guardada");
         toast.error(getApiError(error) || "Erro ao enviar email ao cliente");
         setIsNotifyingList(false);
       },
@@ -2696,15 +2725,26 @@ function MarcacoesPanel() {
   const setStatusAppt = usePutScheduleAppointmentsId({
     mutation: {
       onSuccess: () => {
-        toast.success(
-          lastStatusRef.current === "cancelled"
-            ? "Marcação cancelada"
-            : "Marcação reativada",
-        );
         qc.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() });
-        setSelAppt(null);
+        const reactivateNotifyId = notifyAfterReactivateListRef.current;
+        if (reactivateNotifyId) {
+          notifyAfterReactivateListRef.current = null;
+          notifyContextListRef.current = "reactivate";
+          setIsNotifyingList(true);
+          notifyApptList.mutate({ id: reactivateNotifyId });
+        } else {
+          toast.success(
+            lastStatusRef.current === "cancelled"
+              ? "Marcação cancelada"
+              : "Marcação reativada",
+          );
+          setSelAppt(null);
+        }
       },
-      onError: (error) => toast.error(getApiError(error)),
+      onError: (error) => {
+        notifyAfterReactivateListRef.current = null;
+        toast.error(getApiError(error));
+      },
     },
   });
 
@@ -2949,8 +2989,14 @@ function MarcacoesPanel() {
           onClose={() => setSelAppt(null)}
           onSave={(id, data) => updateAppt.mutate({ id, data })}
           onSaveAndNotify={(id, data) => {
+            notifyContextListRef.current = "save";
             notifyAfterSaveListRef.current = id;
             updateAppt.mutate({ id, data });
+          }}
+          onReactivateAndNotify={(id) => {
+            notifyAfterReactivateListRef.current = id;
+            lastStatusRef.current = "confirmed";
+            setStatusAppt.mutate({ id, data: { status: "confirmed" } });
           }}
           isNotifying={isNotifyingList}
           onSetStatus={(id, status) => {

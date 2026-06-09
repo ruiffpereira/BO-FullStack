@@ -12,6 +12,7 @@ import { useGetCustomersIdHistory, getCustomersIdHistoryQueryKey } from '../gen/
 import { postCustomers } from '../gen/backoffice/hooks/usePostCustomers.js'
 import { patchCustomersId } from '../gen/backoffice/hooks/usePatchCustomersId.js'
 import { putScheduleAppointmentsId } from '../gen/backoffice/hooks/usePutScheduleAppointmentsId.js'
+import { postScheduleAppointmentsIdNotify } from '../gen/backoffice/hooks/usePostScheduleAppointmentsIdNotify.js'
 import type { Customer } from '../gen/backoffice/types/Customer.js'
 import type { Appointment } from '../gen/backoffice/types/Appointment.js'
 import { ApptModal } from '../components/ApptModal.js'
@@ -140,6 +141,24 @@ export function Clientes() {
       if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
     },
     onError: (e: any) => toast.error(getApiError(e)),
+  })
+
+  const reactivateAndNotifyMut = useMutation({
+    mutationFn: async (id: string) => {
+      await putScheduleAppointmentsId(id, { status: 'confirmed' } as any)
+      await postScheduleAppointmentsIdNotify(id)
+    },
+    onSuccess: () => {
+      toast.success('Marcação reativada e cliente notificado')
+      setSelAppt(null)
+      if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
+    },
+    onError: (e: any) => {
+      toast.success('Marcação reativada')
+      toast.error(getApiError(e) || 'Erro ao enviar email ao cliente')
+      setSelAppt(null)
+      if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
+    },
   })
 
   const blockMut = useMutation({
@@ -439,8 +458,9 @@ export function Clientes() {
           onClose={() => setSelAppt(null)}
           onSave={(id, data) => updateApptMut.mutate({ id, data })}
           onSetStatus={(id, status) => setStatusApptMut.mutate({ id, status })}
+          onReactivateAndNotify={(id) => reactivateAndNotifyMut.mutate(id)}
           isSaving={updateApptMut.isPending}
-          isSettingStatus={setStatusApptMut.isPending}
+          isSettingStatus={setStatusApptMut.isPending || reactivateAndNotifyMut.isPending}
         />
       )}
 

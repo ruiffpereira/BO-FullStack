@@ -75,6 +75,7 @@ export function ApptModal({
   onSaveAndNotify,
   isNotifying,
   onOpenCustomer,
+  onReactivateAndNotify,
 }: {
   appt: Appointment;
   services: Service[];
@@ -89,6 +90,7 @@ export function ApptModal({
   onSaveAndNotify?: (id: string, data: Record<string, unknown>) => void;
   isNotifying?: boolean;
   onOpenCustomer?: () => void;
+  onReactivateAndNotify?: (id: string) => void;
 }) {
   const [editServiceId, setEditServiceId] = useState(appt.serviceId);
   const svc = services.find((s) => s.serviceId === editServiceId);
@@ -202,7 +204,7 @@ export function ApptModal({
   };
 
   const btnRect = datePickerBtnRef.current?.getBoundingClientRect();
-  const busy = isSaving || isNotifying;
+  const busy = isSaving || isNotifying || isSettingStatus;
 
   return (
     <>
@@ -314,14 +316,25 @@ export function ApptModal({
             </div>
             {/* Cancelar / Reativar — último de todos */}
             {status === "cancelled" ? (
-              <Button
-                variant="outline"
-                className="w-full"
-                disabled={isSettingStatus}
-                onClick={() => onSetStatus(appt.appointmentId, "confirmed")}
-              >
-                {isSettingStatus ? "A reativar…" : "Reativar marcação"}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  disabled={isSettingStatus}
+                  onClick={() => onSetStatus(appt.appointmentId, "confirmed")}
+                >
+                  {isSettingStatus ? "A reativar…" : "Reativar"}
+                </Button>
+                {onReactivateAndNotify && (
+                  <Button
+                    className="flex-1"
+                    disabled={isSettingStatus}
+                    onClick={() => onReactivateAndNotify(appt.appointmentId)}
+                  >
+                    {isSettingStatus ? "A reativar…" : "Reativar e notificar"}
+                  </Button>
+                )}
+              </div>
             ) : status === "completed" ? null : confirmCancel ? (
               <Button
                 variant="danger"

@@ -36,6 +36,8 @@ import {
   getScheduleAppointmentsQueryKey,
 } from "../gen/backoffice/hooks/useGetScheduleAppointments.js";
 import { usePostScheduleAppointmentsIdNotify } from "../gen/backoffice/hooks/usePostScheduleAppointmentsIdNotify.js";
+import { postScheduleAppointmentsIdNotify } from "../gen/backoffice/hooks/usePostScheduleAppointmentsIdNotify.js";
+import { putScheduleAppointmentsId } from "../gen/backoffice/hooks/usePutScheduleAppointmentsId.js";
 import { usePostScheduleAppointments } from "../gen/backoffice/hooks/usePostScheduleAppointments.js";
 import { usePutScheduleAppointmentsId } from "../gen/backoffice/hooks/usePutScheduleAppointmentsId.js";
 import {
@@ -1087,6 +1089,27 @@ function CalendarioView() {
       },
     },
   });
+  const cancelAndNotifyAppt = useMutation({
+    mutationFn: async (id: string) => {
+      await putScheduleAppointmentsId(id, { status: "cancelled" } as any);
+      await postScheduleAppointmentsIdNotify(id);
+    },
+    onSuccess: () => {
+      toast.success("Marcação cancelada e cliente notificado");
+      invalidateAppts();
+      setPendingReschedule(null);
+      setRescheduledFrom(null);
+      setSelAppt(null);
+    },
+    onError: (error) => {
+      toast.success("Marcação cancelada");
+      toast.error(getApiError(error) || "Erro ao enviar email ao cliente");
+      invalidateAppts();
+      setPendingReschedule(null);
+      setRescheduledFrom(null);
+      setSelAppt(null);
+    },
+  });
   const blockSlot = usePostScheduleBlockedSlots({
     mutation: {
       onSuccess: () => {
@@ -1864,9 +1887,9 @@ function CalendarioView() {
           services={services}
           onClose={closeSelectedAppt}
           onSave={(id, data) => updateAppt.mutate({ id, data })}
-          onSetStatus={(id, status) => {
+          onSetStatus={(id, status, data) => {
             lastStatusRef.current = status;
-            setStatusAppt.mutate({ id, data: { status } });
+            setStatusAppt.mutate({ id, data: { status, ...data } });
           }}
           rescheduledFrom={rescheduledFrom ?? undefined}
           initialDate={pendingReschedule?.newDate}
@@ -1876,14 +1899,15 @@ function CalendarioView() {
             notifyAfterSaveRef.current = id;
             updateAppt.mutate({ id, data });
           }}
-          onReactivateAndNotify={(id) => {
+          onReactivateAndNotify={(id, data) => {
             notifyAfterReactivateRef.current = id;
             lastStatusRef.current = "confirmed";
-            setStatusAppt.mutate({ id, data: { status: "confirmed" } });
+            setStatusAppt.mutate({ id, data: { status: "confirmed", ...data } });
           }}
+          onCancelAndNotify={(id) => cancelAndNotifyAppt.mutate(id)}
           isNotifying={isNotifying}
           isSaving={updateAppt.isPending}
-          isSettingStatus={setStatusAppt.isPending}
+          isSettingStatus={setStatusAppt.isPending || cancelAndNotifyAppt.isPending}
           onOpenCustomer={(() => {
             const currentAppt = rescheduledFrom
               ? selAppt
@@ -2747,6 +2771,23 @@ function MarcacoesPanel() {
       },
     },
   });
+  const cancelAndNotifyApptList = useMutation({
+    mutationFn: async (id: string) => {
+      await putScheduleAppointmentsId(id, { status: "cancelled" } as any);
+      await postScheduleAppointmentsIdNotify(id);
+    },
+    onSuccess: () => {
+      toast.success("Marcação cancelada e cliente notificado");
+      qc.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() });
+      setSelAppt(null);
+    },
+    onError: (error) => {
+      toast.success("Marcação cancelada");
+      toast.error(getApiError(error) || "Erro ao enviar email ao cliente");
+      qc.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() });
+      setSelAppt(null);
+    },
+  });
 
   const filtered = useMemo(() => {
     let list = allAppts as Appointment[];
@@ -2993,18 +3034,19 @@ function MarcacoesPanel() {
             notifyAfterSaveListRef.current = id;
             updateAppt.mutate({ id, data });
           }}
-          onReactivateAndNotify={(id) => {
+          onReactivateAndNotify={(id, data) => {
             notifyAfterReactivateListRef.current = id;
             lastStatusRef.current = "confirmed";
-            setStatusAppt.mutate({ id, data: { status: "confirmed" } });
+            setStatusAppt.mutate({ id, data: { status: "confirmed", ...data } });
           }}
+          onCancelAndNotify={(id) => cancelAndNotifyApptList.mutate(id)}
           isNotifying={isNotifyingList}
-          onSetStatus={(id, status) => {
+          onSetStatus={(id, status, data) => {
             lastStatusRef.current = status;
-            setStatusAppt.mutate({ id, data: { status } });
+            setStatusAppt.mutate({ id, data: { status, ...data } });
           }}
           isSaving={updateAppt.isPending}
-          isSettingStatus={setStatusAppt.isPending}
+          isSettingStatus={setStatusAppt.isPending || cancelAndNotifyApptList.isPending}
           onOpenCustomer={(() => {
             const currentAppt =
               allAppts.find((a) => a.appointmentId === selAppt.appointmentId) ??

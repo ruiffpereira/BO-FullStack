@@ -133,8 +133,8 @@ export function Clientes() {
   })
 
   const setStatusApptMut = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      putScheduleAppointmentsId(id, { status } as any),
+    mutationFn: ({ id, status, data }: { id: string; status: string; data?: Record<string, unknown> }) =>
+      putScheduleAppointmentsId(id, { status, ...data } as any),
     onSuccess: (_d, { status }) => {
       toast.success(status === 'cancelled' ? 'Marcação cancelada' : 'Marcação reativada')
       setSelAppt(null)
@@ -144,8 +144,8 @@ export function Clientes() {
   })
 
   const reactivateAndNotifyMut = useMutation({
-    mutationFn: async (id: string) => {
-      await putScheduleAppointmentsId(id, { status: 'confirmed' } as any)
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
+      await putScheduleAppointmentsId(id, { status: 'confirmed', ...data } as any)
       await postScheduleAppointmentsIdNotify(id)
     },
     onSuccess: () => {
@@ -155,6 +155,24 @@ export function Clientes() {
     },
     onError: (e: any) => {
       toast.success('Marcação reativada')
+      toast.error(getApiError(e) || 'Erro ao enviar email ao cliente')
+      setSelAppt(null)
+      if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
+    },
+  })
+
+  const cancelAndNotifyMut = useMutation({
+    mutationFn: async (id: string) => {
+      await putScheduleAppointmentsId(id, { status: 'cancelled' } as any)
+      await postScheduleAppointmentsIdNotify(id)
+    },
+    onSuccess: () => {
+      toast.success('Marcação cancelada e cliente notificado')
+      setSelAppt(null)
+      if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
+    },
+    onError: (e: any) => {
+      toast.success('Marcação cancelada')
       toast.error(getApiError(e) || 'Erro ao enviar email ao cliente')
       setSelAppt(null)
       if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
@@ -457,10 +475,11 @@ export function Clientes() {
           services={services}
           onClose={() => setSelAppt(null)}
           onSave={(id, data) => updateApptMut.mutate({ id, data })}
-          onSetStatus={(id, status) => setStatusApptMut.mutate({ id, status })}
-          onReactivateAndNotify={(id) => reactivateAndNotifyMut.mutate(id)}
+          onSetStatus={(id, status, data) => setStatusApptMut.mutate({ id, status, data })}
+          onReactivateAndNotify={(id, data) => reactivateAndNotifyMut.mutate({ id, data })}
+          onCancelAndNotify={(id) => cancelAndNotifyMut.mutate(id)}
           isSaving={updateApptMut.isPending}
-          isSettingStatus={setStatusApptMut.isPending || reactivateAndNotifyMut.isPending}
+          isSettingStatus={setStatusApptMut.isPending || reactivateAndNotifyMut.isPending || cancelAndNotifyMut.isPending}
         />
       )}
 

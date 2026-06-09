@@ -59,10 +59,10 @@ function getSectionPath(sections: Section[], sectionId: string | null): Section[
 // ─── Section tree node ────────────────────────────────────────────────────────
 
 function SectionNode({
-  section, sections, selectedId, depth,
+  section, sections, selectedId, depth, hideActions,
   onSelect, onAddChild, onEdit, onDelete,
 }: {
-  section: Section; sections: Section[]; selectedId: string | null; depth: number
+  section: Section; sections: Section[]; selectedId: string | null; depth: number; hideActions?: boolean
   onSelect: (id: string) => void; onAddChild: (parentId: string) => void
   onEdit: (s: Section) => void; onDelete: (s: Section) => void
 }) {
@@ -88,27 +88,29 @@ function SectionNode({
             : <span className="w-3" />}
         </button>
         <span className="flex-1 truncate font-medium">{section.name}</span>
-        <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
-          <button
-            onClick={(e) => { e.stopPropagation(); onAddChild(section.sectionId) }}
-            className="p-0.5 rounded hover:text-accent"
-            title="Adicionar subsecção"
-          >
-            <Icon name="plus" className="w-3 h-3" />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onEdit(section) }}
-            className="p-0.5 rounded hover:text-zinc-800 dark:hover:text-zinc-200"
-          >
-            <Icon name="edit" className="w-3 h-3" />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(section) }}
-            className="p-0.5 rounded hover:text-red-500"
-          >
-            <Icon name="trash" className="w-3 h-3" />
-          </button>
-        </div>
+        {!hideActions && (
+          <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+            <button
+              onClick={(e) => { e.stopPropagation(); onAddChild(section.sectionId) }}
+              className="p-0.5 rounded hover:text-accent"
+              title="Adicionar subsecção"
+            >
+              <Icon name="plus" className="w-3 h-3" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onEdit(section) }}
+              className="p-0.5 rounded hover:text-zinc-800 dark:hover:text-zinc-200"
+            >
+              <Icon name="edit" className="w-3 h-3" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(section) }}
+              className="p-0.5 rounded hover:text-red-500"
+            >
+              <Icon name="trash" className="w-3 h-3" />
+            </button>
+          </div>
+        )}
       </div>
       {open && children.map((child) => (
         <SectionNode
@@ -117,6 +119,7 @@ function SectionNode({
           sections={sections}
           selectedId={selectedId}
           depth={depth + 1}
+          hideActions={hideActions}
           onSelect={onSelect}
           onAddChild={onAddChild}
           onEdit={onEdit}
@@ -135,6 +138,7 @@ export function Conteudos() {
 
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [mobileTreeOpen, setMobileTreeOpen] = useState(false)
 
   // Entry modal state
   const [entryModal, setEntryModal] = useState(false)
@@ -158,7 +162,6 @@ export function Conteudos() {
 
   const isSearching = searchQuery.trim().length > 0
 
-  // When searching: ignore section filter and search all entries by key or value
   const grouped = useMemo(() => {
     const source = isSearching
       ? entries
@@ -269,10 +272,7 @@ export function Conteudos() {
   const handleImagePick = async (file: File, idx: number) => {
     setUploadingIdx(idx)
     try {
-      const { fileUrl } = await uploadImage({
-        image: file,
-        module: 'cms',
-      })
+      const { fileUrl } = await uploadImage({ image: file, module: 'cms' })
       setTranslation(idx, 'value', fileUrl)
       toast.success('Imagem carregada')
     } catch (e: any) {
@@ -316,6 +316,12 @@ export function Conteudos() {
     saveSectionMut.mutate({ ...sectionForm, id: editSection?.sectionId })
   }
 
+  const emptyDesc = isSearching
+    ? `Nenhuma entrada encontrada para "${searchQuery}".`
+    : selectedSection
+      ? `Ainda não há entradas em "${selectedSection.name}".`
+      : 'Cria a primeira entrada de conteúdo.'
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -325,10 +331,23 @@ export function Conteudos() {
         subtitle="Organiza o conteúdo dos sites em secções hierárquicas. Cada entrada suporta múltiplos idiomas."
       />
 
-      <div className="flex flex-col lg:flex-row gap-4 items-start">
+      {/* ── Mobile section selector ── */}
+      <button
+        onClick={() => setMobileTreeOpen(true)}
+        className="md:hidden w-full flex items-center gap-3 mb-3 px-3.5 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-left transition hover:border-zinc-300 dark:hover:border-zinc-600 active:bg-zinc-50 dark:active:bg-zinc-800/60"
+      >
+        <Icon name="layers" className="w-4 h-4 text-zinc-400 shrink-0" />
+        <span className="flex-1 font-medium text-zinc-700 dark:text-zinc-200 truncate">
+          {selectedSection?.name ?? 'Todas as secções'}
+        </span>
+        <span className="text-xs text-zinc-400 tabular-nums">{grouped.length}</span>
+        <Icon name="chevronDown" className="w-4 h-4 text-zinc-400 shrink-0" />
+      </button>
 
-        {/* ── Left: section tree ── */}
-        <div className="w-full lg:w-56 lg:shrink-0">
+      <div className="flex flex-col md:flex-row gap-4 items-start">
+
+        {/* ── Left: section tree (tablet/desktop only) ── */}
+        <div className="hidden md:block md:w-44 lg:w-56 md:shrink-0">
           <Card className="overflow-hidden">
             <div className="flex items-center justify-between px-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800">
               <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Secções</span>
@@ -342,7 +361,6 @@ export function Conteudos() {
             </div>
 
             <div className="p-1.5 space-y-0.5">
-              {/* "All" item */}
               <div
                 onClick={() => setSelectedSectionId(null)}
                 className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm cursor-pointer transition-colors ${selectedSectionId === null ? 'bg-accent/10 text-accent' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 hover:text-zinc-800 dark:hover:text-zinc-200'}`}
@@ -387,11 +405,8 @@ export function Conteudos() {
 
             {/* Panel header */}
             <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 space-y-3">
-
-              {/* Title row */}
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  {/* Breadcrumb */}
                   {!isSearching && breadcrumb.length > 0 ? (
                     <nav className="flex items-center gap-1 flex-wrap">
                       <button
@@ -424,13 +439,15 @@ export function Conteudos() {
                   <p className="text-xs text-zinc-400 mt-0.5">
                     {grouped.length} {grouped.length === 1 ? 'entrada' : 'entradas'}
                     {!isSearching && activeLocales.length > 0 && ` · ${activeLocales.map((l) => LOCALE_LABEL[l]).join(', ')}`}
-                    {isSearching && ` em todas as secções`}
+                    {isSearching && ' em todas as secções'}
                   </p>
                 </div>
-                <Button icon="plus" size="sm" onClick={openCreateEntry}>Nova entrada</Button>
+                <Button icon="plus" size="sm" onClick={openCreateEntry}>
+                  <span className="hidden sm:inline">Nova entrada</span>
+                  <span className="sm:hidden">Nova</span>
+                </Button>
               </div>
 
-              {/* Search row */}
               <div className="relative">
                 <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
                 <input
@@ -452,17 +469,18 @@ export function Conteudos() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* ── Tablet/Desktop: table ── */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-zinc-500 border-b border-zinc-100 dark:border-zinc-800">
                     <th className="font-medium px-5 py-3">Key</th>
-                    <th className="font-medium px-4 py-3 hidden sm:table-cell">Tipo</th>
+                    <th className="font-medium px-4 py-3">Tipo</th>
                     {isSearching && (
-                      <th className="font-medium px-4 py-3 hidden sm:table-cell">Secção</th>
+                      <th className="font-medium px-4 py-3">Secção</th>
                     )}
                     {activeLocales.map((l) => (
-                      <th key={l} className="font-medium px-4 py-3 hidden md:table-cell">{LOCALE_LABEL[l]}</th>
+                      <th key={l} className="font-medium px-4 py-3">{LOCALE_LABEL[l]}</th>
                     ))}
                     <th className="px-4 py-3" />
                   </tr>
@@ -483,9 +501,9 @@ export function Conteudos() {
                       <td className="px-5 py-3.5">
                         <code className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded px-1.5 py-0.5">{grp.key}</code>
                       </td>
-                      <td className="px-4 py-3.5 text-zinc-500 hidden sm:table-cell text-xs">{TYPE_LABEL[grp.type] ?? grp.type}</td>
+                      <td className="px-4 py-3.5 text-zinc-500 text-xs">{TYPE_LABEL[grp.type] ?? grp.type}</td>
                       {isSearching && (
-                        <td className="px-4 py-3.5 hidden sm:table-cell">
+                        <td className="px-4 py-3.5">
                           {grp.sectionId
                             ? <span className="text-xs px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
                                 {sections.find((s) => s.sectionId === grp.sectionId)?.name ?? '—'}
@@ -495,7 +513,7 @@ export function Conteudos() {
                         </td>
                       )}
                       {activeLocales.map((l) => (
-                        <td key={l} className="px-4 py-3.5 hidden md:table-cell max-w-[180px] text-xs text-zinc-600 dark:text-zinc-400">
+                        <td key={l} className="px-4 py-3.5 max-w-[180px] text-xs text-zinc-600 dark:text-zinc-400">
                           {grp.type === 'image'
                             ? grp.translations[l]
                               ? <img src={grp.translations[l]} alt="" className="h-9 w-14 object-cover rounded-md border border-zinc-100 dark:border-zinc-800" />
@@ -522,22 +540,131 @@ export function Conteudos() {
                 </tbody>
               </table>
               {!entriesLoading && grouped.length === 0 && (
-                <EmptyState
-                  icon={isSearching ? 'search' : 'layers'}
-                  title={isSearching ? 'Sem resultados' : 'Sem entradas'}
-                  desc={
-                    isSearching
-                      ? `Nenhuma entrada encontrada para "${searchQuery}".`
-                      : selectedSection
-                        ? `Ainda não há entradas em "${selectedSection.name}".`
-                        : 'Cria a primeira entrada de conteúdo.'
-                  }
-                />
+                <EmptyState icon={isSearching ? 'search' : 'layers'} title={isSearching ? 'Sem resultados' : 'Sem entradas'} desc={emptyDesc} />
               )}
             </div>
+
+            {/* ── Mobile: card list ── */}
+            <div className="md:hidden divide-y divide-zinc-50 dark:divide-zinc-800/50">
+              {entriesLoading && Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="p-4 space-y-2">
+                  <div className="h-4 w-36 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+                  <div className="h-3 w-52 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+                </div>
+              ))}
+              {!entriesLoading && grouped.map((grp) => {
+                const firstLocale = activeLocales[0] ?? Object.keys(grp.translations)[0]
+                const preview = grp.translations[firstLocale]
+                return (
+                  <div
+                    key={grp.key}
+                    className="flex items-start gap-3 px-4 py-3.5 cursor-pointer active:bg-zinc-50 dark:active:bg-zinc-800/40 transition"
+                    onClick={() => openEditEntry(grp)}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <code className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded px-1.5 py-0.5 break-all">{grp.key}</code>
+                        <span className="text-xs text-zinc-400">{TYPE_LABEL[grp.type] ?? grp.type}</span>
+                      </div>
+                      {isSearching && grp.sectionId && (
+                        <span className="inline-block text-xs px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 mb-1">
+                          {sections.find((s) => s.sectionId === grp.sectionId)?.name ?? '—'}
+                        </span>
+                      )}
+                      {preview && grp.type === 'text' && (
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 mt-0.5">{preview}</p>
+                      )}
+                      {preview && grp.type === 'image' && (
+                        <img src={preview} alt="" className="h-10 w-16 object-cover rounded border border-zinc-100 dark:border-zinc-800 mt-1.5" />
+                      )}
+                    </div>
+                    <button
+                      className="shrink-0 p-2 rounded-lg text-zinc-300 dark:text-zinc-600 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition mt-0.5"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (window.confirm(`Eliminar "${grp.key}"?`)) deleteEntryMut.mutate({ key: grp.key })
+                      }}
+                    >
+                      <Icon name="trash" className="w-4 h-4" />
+                    </button>
+                  </div>
+                )
+              })}
+              {!entriesLoading && grouped.length === 0 && (
+                <EmptyState icon={isSearching ? 'search' : 'layers'} title={isSearching ? 'Sem resultados' : 'Sem entradas'} desc={emptyDesc} />
+              )}
+            </div>
+
           </Card>
         </div>
       </div>
+
+      {/* ── Mobile section bottom sheet ── */}
+      {mobileTreeOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex flex-col justify-end">
+          <div
+            className="absolute inset-0 bg-zinc-900/40 backdrop-blur-[2px] animate-[fade_.15s_ease]"
+            onClick={() => setMobileTreeOpen(false)}
+          />
+          <div className="relative bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 rounded-t-2xl shadow-xl max-h-[72vh] flex flex-col animate-[pop_.18s_cubic-bezier(.2,.8,.2,1)]">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+              <span className="font-semibold text-zinc-900 dark:text-white text-sm">Secções</span>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => { openCreateSection(null); setMobileTreeOpen(false) }}
+                  className="flex items-center gap-1 text-xs font-medium text-accent active:opacity-70 transition"
+                >
+                  <Icon name="plus" className="w-3.5 h-3.5" />
+                  Nova secção
+                </button>
+                <button
+                  onClick={() => setMobileTreeOpen(false)}
+                  className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+                >
+                  <Icon name="x" className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="overflow-y-auto p-2 pb-6">
+              <div
+                onClick={() => { setSelectedSectionId(null); setMobileTreeOpen(false) }}
+                className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm cursor-pointer transition-colors ${selectedSectionId === null ? 'bg-accent/10 text-accent' : 'text-zinc-600 dark:text-zinc-400 active:bg-zinc-100 dark:active:bg-zinc-800/60'}`}
+              >
+                <Icon name="layers" className="w-4 h-4 shrink-0" />
+                <span className="font-medium flex-1">Todas as entradas</span>
+                <span className="text-xs opacity-60 tabular-nums">{entries.length}</span>
+              </div>
+
+              {sectionsLoading && (
+                <div className="space-y-2 px-3 py-2">
+                  {[1, 2, 3].map((i) => <div key={i} className="h-5 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />)}
+                </div>
+              )}
+
+              {rootSections.map((s) => (
+                <SectionNode
+                  key={s.sectionId}
+                  section={s}
+                  sections={sections}
+                  selectedId={selectedSectionId}
+                  depth={0}
+                  hideActions
+                  onSelect={(id) => { setSelectedSectionId(id); setMobileTreeOpen(false) }}
+                  onAddChild={(parentId) => { openCreateSection(parentId); setMobileTreeOpen(false) }}
+                  onEdit={(sec) => { openEditSection(sec); setMobileTreeOpen(false) }}
+                  onDelete={handleDeleteSection}
+                />
+              ))}
+
+              {!sectionsLoading && sections.length === 0 && (
+                <p className="text-sm text-zinc-400 text-center py-6">
+                  Ainda não há secções.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modal: entry ── */}
       {entryModal && (

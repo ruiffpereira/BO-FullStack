@@ -76,12 +76,13 @@ export function ApptModal({
   isNotifying,
   onOpenCustomer,
   onReactivateAndNotify,
+  onCancelAndNotify,
 }: {
   appt: Appointment;
   services: Service[];
   onClose: () => void;
   onSave: (id: string, data: Record<string, unknown>) => void;
-  onSetStatus: (id: string, status: AppointmentStatusEnum) => void;
+  onSetStatus: (id: string, status: AppointmentStatusEnum, data?: Record<string, unknown>) => void;
   isSaving: boolean;
   isSettingStatus?: boolean;
   rescheduledFrom?: { date: string; time: string };
@@ -90,12 +91,13 @@ export function ApptModal({
   onSaveAndNotify?: (id: string, data: Record<string, unknown>) => void;
   isNotifying?: boolean;
   onOpenCustomer?: () => void;
-  onReactivateAndNotify?: (id: string) => void;
+  onReactivateAndNotify?: (id: string, data: Record<string, unknown>) => void;
+  onCancelAndNotify?: (id: string) => void;
 }) {
   const [editServiceId, setEditServiceId] = useState(appt.serviceId);
   const svc = services.find((s) => s.serviceId === editServiceId);
   const status = appt.status ?? "pending";
-  const canEdit = status === "pending" || status === "confirmed";
+  const canEdit = status === "pending" || status === "confirmed" || status === "cancelled";
   const [tab, setTab] = useState<"details" | "payment">("details");
   const [confirmCancel, setConfirmCancel] = useState(false);
 
@@ -297,21 +299,25 @@ export function ApptModal({
               >
                 {hasChanges ? "Cancelar" : "Fechar"}
               </Button>
-              <div className="flex-1" />
-              <Button
-                variant="outline"
-                disabled={!hasChanges || busy}
-                onClick={handleSave}
-              >
-                {isSaving && !isNotifying ? "A guardar…" : "Guardar"}
-              </Button>
-              {onSaveAndNotify && (
-                <Button
-                  disabled={!hasChanges || busy}
-                  onClick={handleSaveAndNotify}
-                >
-                  {busy ? "A enviar…" : "Guardar e notificar"}
-                </Button>
+              {status !== "cancelled" && (
+                <>
+                  <div className="flex-1" />
+                  <Button
+                    variant="outline"
+                    disabled={!hasChanges || busy}
+                    onClick={handleSave}
+                  >
+                    {isSaving && !isNotifying ? "A guardar…" : "Guardar"}
+                  </Button>
+                  {onSaveAndNotify && (
+                    <Button
+                      disabled={!hasChanges || busy}
+                      onClick={handleSaveAndNotify}
+                    >
+                      {busy ? "A enviar…" : "Guardar e notificar"}
+                    </Button>
+                  )}
+                </>
               )}
             </div>
             {/* Cancelar / Reativar — último de todos */}
@@ -321,7 +327,7 @@ export function ApptModal({
                   variant="outline"
                   className="flex-1"
                   disabled={isSettingStatus}
-                  onClick={() => onSetStatus(appt.appointmentId, "confirmed")}
+                  onClick={() => onSetStatus(appt.appointmentId, "confirmed", buildSaveData())}
                 >
                   {isSettingStatus ? "A reativar…" : "Reativar"}
                 </Button>
@@ -329,21 +335,33 @@ export function ApptModal({
                   <Button
                     className="flex-1"
                     disabled={isSettingStatus}
-                    onClick={() => onReactivateAndNotify(appt.appointmentId)}
+                    onClick={() => onReactivateAndNotify(appt.appointmentId, buildSaveData())}
                   >
                     {isSettingStatus ? "A reativar…" : "Reativar e notificar"}
                   </Button>
                 )}
               </div>
             ) : status === "completed" ? null : confirmCancel ? (
-              <Button
-                variant="danger"
-                className="w-full"
-                disabled={isSettingStatus}
-                onClick={() => onSetStatus(appt.appointmentId, "cancelled")}
-              >
-                {isSettingStatus ? "A cancelar…" : "Confirmar cancelamento"}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-300 dark:hover:border-red-700"
+                  disabled={isSettingStatus}
+                  onClick={() => onSetStatus(appt.appointmentId, "cancelled")}
+                >
+                  {isSettingStatus ? "A cancelar…" : "Confirmar"}
+                </Button>
+                {onCancelAndNotify && (
+                  <Button
+                    variant="danger"
+                    className="flex-1"
+                    disabled={isSettingStatus}
+                    onClick={() => onCancelAndNotify(appt.appointmentId)}
+                  >
+                    {isSettingStatus ? "A cancelar…" : "Cancelar e notificar"}
+                  </Button>
+                )}
+              </div>
             ) : (
               <Button
                 variant="outline"

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { format, addDays, startOfWeek, isSameDay, addWeeks, subWeeks, startOfMonth, eachDayOfInterval, isSameMonth, addMonths, subMonths } from 'date-fns'
 import { pt } from 'date-fns/locale'
 import { toast } from 'sonner'
@@ -27,6 +27,8 @@ import { useGetCustomers, getCustomersQueryKey } from '../gen/backoffice/hooks/u
 import { postCustomers } from '../gen/backoffice/hooks/usePostCustomers.js'
 import { patchScheduleServicesReorder } from '../gen/backoffice/hooks/usePatchScheduleServicesReorder.js'
 import { usePostScheduleBlockedSlotsVacation } from '../gen/backoffice/hooks/usePostScheduleBlockedSlotsVacation.js'
+import { useGetCustomersIdHistory, getCustomersIdHistoryQueryKey } from '../gen/backoffice/hooks/useGetCustomersIdHistory.js'
+import { patchCustomersId } from '../gen/backoffice/hooks/usePatchCustomersId.js'
 
 import type { Appointment } from '../gen/backoffice/types/Appointment.js'
 import type { Service } from '../gen/backoffice/types/Service.js'
@@ -138,6 +140,166 @@ function colorFromName(name: string) {
   const cols = ['#2A6FDB', '#1F8A5B', '#D97757', '#7C5CDB', '#E6B450', '#0EA5A4']
   let h = 0; for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h)
   return cols[Math.abs(h) % cols.length]
+}
+
+type HistoryAppt = {
+  appointmentId: string; serviceId: string; date: string; time: string; status: string
+  clientName: string; clientEmail: string; clientPhone: string; notes?: string | null
+  paymentCash?: number | null; paymentMbway?: number | null; paymentCard?: number | null; paidAt?: string | null
+  service?: { name: string; price: number }
+}
+type CustomerHistory = {
+  customer: Customer
+  stats: { visitCount: number; totalSpent: number; lastVisit: string | null; favoriteServiceId: string | null }
+  appointments: HistoryAppt[]
+}
+
+const STATUS_PT: Record<string, string> = { pending: 'Pendente', confirmed: 'Confirmada', completed: 'ConcluÃ­da', cancelled: 'Cancelada' }
+const STATUS_TONE: Record<string, string> = { pending: 'amber', confirmed: 'green', completed: 'green', cancelled: 'red' }
+
+function CustomerProfileModal({ customerId, customers, onClose, onOpenAppointment }: {
+  customerId: string
+  customers: Customer[]
+  onClose: () => void
+  onOpenAppointment: (appt: Appointment) => void
+}) {
+  const qc = useQueryClient()
+  const fallbackCustomer = customers.find((c) => c.customerId === customerId) ?? null
+  const { data: history, isLoading } = useGetCustomersIdHistory<CustomerHistory>(customerId)
+  const customer = history?.customer ?? fallbackCustomer
+  const favoriteService = history?.appointments.find((a) => a.service && a.serviceId === history.stats.favoriteServiceId)?.service
+
+  const blockMut = useMutation({
+    mutationFn: ({ id, blocked }: { id: string; blocked: boolean }) => patchCustomersId(id, { blocked } as any),
+    onSuccess: (_d, { blocked }) => {
+      toast.success(blocked ? 'Cliente bloqueado' : 'Cliente desbloqueado')
+      qc.invalidateQueries({ queryKey: getCustomersQueryKey() })
+      qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(customerId) })
+    },
+    onError: (e: any) => toast.error(getApiError(e)),
+  })
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Ficha de cliente"
+      width="max-w-lg"
+      footer={
+        <>
+          {customer && (
+            <Button
+              variant="outline"
+              disabled={blockMut.isPending}
+              onClick={() => blockMut.mutate({ id: customer.customerId, blocked: !customer.blocked })}
+              className={customer.blocked ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50' : 'text-red-500 border-red-200 hover:bg-red-50'}
+            >
+              {blockMut.isPending ? 'â€¦' : customer.blocked ? 'Desbloquear' : 'Bloquear'}
+            </Button>
+          )}
+          <div className="flex-1" />
+          <Button variant="ghost" onClick={onClose}>Fechar</Button>
+        </>
+      }
+    >
+      {!customer ? (
+        <div className="space-y-3">
+          <div className="h-14 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" />
+          <div className="h-20 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" />
+        </div>
+      ) : (
+        <div className="space-y-5">
+          <div className="flex items-center gap-4">
+            <Avatar name={customer.name} color={colorFromName(customer.name)} size={56} />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-lg font-semibold text-zinc-900 dark:text-white truncate">{customer.name}</h3>
+                {customer.blocked && (
+                  <Badge tone="red"><Icon name="ban" className="w-3 h-3 inline mr-0.5" />Bloqueado</Badge>
+                )}
+              </div>
+              {customer.birthday && (
+                <span className="text-xs text-zinc-400 flex items-center gap-1 mt-1">
+                  <Icon name="star" className="w-3 h-3" />
+                  {new Date(customer.birthday + 'T00:00:00').toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' })}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2 text-sm text-zinc-600 dark:text-zinc-300">
+            {customer.email && <div className="flex items-center gap-2.5"><Icon name="mail" className="w-4 h-4 text-zinc-400" />{customer.email}</div>}
+            {customer.contact && <div className="flex items-center gap-2.5"><Icon name="phone" className="w-4 h-4 text-zinc-400" />{customer.contact}</div>}
+            {customer.nif && <div className="flex items-center gap-2.5"><Icon name="layers" className="w-4 h-4 text-zinc-400" />NIF {customer.nif}</div>}
+          </div>
+
+          {customer.notes && (
+            <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-xl p-3 text-sm text-amber-900 dark:text-amber-200">
+              <p className="text-xs font-medium text-amber-600 dark:text-amber-400 mb-1">Notas</p>
+              {customer.notes}
+            </div>
+          )}
+
+          {isLoading && (
+            <div className="grid grid-cols-3 gap-3">
+              {[1, 2, 3].map((i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" />)}
+            </div>
+          )}
+
+          {!isLoading && history && (
+            <>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-zinc-900 dark:text-white">{history.stats.visitCount}</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">visitas</p>
+                </div>
+                <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{history.stats.totalSpent.toFixed(0)}â‚¬</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">gasto total</p>
+                </div>
+                <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
+                  <p className="text-sm font-bold text-zinc-900 dark:text-white leading-tight">{favoriteService?.name ?? 'â€”'}</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">serviÃ§o favorito</p>
+                </div>
+              </div>
+              {history.stats.lastVisit && (
+                <p className="text-xs text-zinc-400 text-center -mt-1">Ãšltima visita: {new Date(history.stats.lastVisit + 'T00:00:00').toLocaleDateString('pt-PT', { dateStyle: 'long' })}</p>
+              )}
+
+              {history.appointments.length > 0 ? (
+                <div>
+                  <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">HistÃ³rico de marcaÃ§Ãµes</p>
+                  <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                    {history.appointments.map((a) => {
+                      const paid = a.paidAt ? (Number(a.paymentCash || 0) + Number(a.paymentMbway || 0) + Number(a.paymentCard || 0)) : null
+                      return (
+                        <button
+                          key={a.appointmentId}
+                          onClick={() => onOpenAppointment(a as unknown as Appointment)}
+                          className="w-full flex items-center gap-3 p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/40 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition text-left"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-zinc-800 dark:text-zinc-100">{a.date} Â· {a.time}</p>
+                            <p className="text-xs text-zinc-400 truncate">{a.service?.name ?? 'â€”'}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <Badge tone={STATUS_TONE[a.status] as any ?? 'zinc'}>{STATUS_PT[a.status] ?? a.status}</Badge>
+                            {paid != null && <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">{paid.toFixed(2)} â‚¬</p>}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-zinc-400 text-center py-2">Sem marcaÃ§Ãµes registadas para este cliente.</p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </Modal>
+  )
 }
 
 function NovaApptModal({ date, open, onClose, services, onCreate, isPending, initialTime }: {
@@ -309,11 +471,11 @@ type DragAction = { x: number; y: number; day: Date; startMin: number; endMin: n
 
 function CalendarioView() {
   const qc = useQueryClient()
-  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const focusAppointmentId = searchParams.get('marcacao')
   const [weekStart, setWeekStart] = useState(() => weekStartForDate(searchParams.get('data')))
   const [selAppt, setSelAppt] = useState<Appointment | null>(null)
+  const [profileCustomerId, setProfileCustomerId] = useState<string | null>(null)
   const [rescheduledFrom, setRescheduledFrom] = useState<{ date: string; time: string } | null>(null)
   const [pendingReschedule, setPendingReschedule] = useState<{ appointmentId: string; newDate: string; newTime: string } | null>(null)
   const [isNotifying, setIsNotifying] = useState(false)
@@ -996,10 +1158,21 @@ function CalendarioView() {
           onOpenCustomer={(() => {
             const currentAppt = rescheduledFrom ? selAppt : (appointments.find((a) => a.appointmentId === selAppt.appointmentId) ?? selAppt)
             const customerId = customerIdForAppointment(currentAppt, customers)
-            return customerId ? () => navigate(`/clientes?cliente=${encodeURIComponent(customerId)}`, {
-              state: { returnToAppointment: { appointmentId: currentAppt.appointmentId, date: currentAppt.date } },
-            }) : undefined
+            return customerId ? () => setProfileCustomerId(customerId) : undefined
           })()}
+        />
+      )}
+      {profileCustomerId && (
+        <CustomerProfileModal
+          customerId={profileCustomerId}
+          customers={customers}
+          onClose={() => setProfileCustomerId(null)}
+          onOpenAppointment={(appt) => {
+            setProfileCustomerId(null)
+            setRescheduledFrom(null)
+            setPendingReschedule(null)
+            setSelAppt(appt)
+          }}
         />
       )}
       {novaDate && (
@@ -1342,7 +1515,6 @@ function ConfiguracoesPanel() {
 // ─── Marcações list panel ─────────────────────────────────────────────────────
 function MarcacoesPanel() {
   const qc = useQueryClient()
-  const navigate = useNavigate()
 
   const [q, setQ] = useState('')
   const [filterStatus, setFilterStatus] = useState<'' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('')
@@ -1350,6 +1522,7 @@ function MarcacoesPanel() {
   const [filterDateTo, setFilterDateTo] = useState('')
   const [filterServiceId, setFilterServiceId] = useState('')
   const [selAppt, setSelAppt] = useState<Appointment | null>(null)
+  const [profileCustomerId, setProfileCustomerId] = useState<string | null>(null)
 
   const { data: allAppts = [], isLoading } = useGetScheduleAppointments(undefined)
   const { data: services = [] } = useGetScheduleServices()
@@ -1532,10 +1705,19 @@ function MarcacoesPanel() {
           onOpenCustomer={(() => {
             const currentAppt = allAppts.find((a) => a.appointmentId === selAppt.appointmentId) ?? selAppt
             const customerId = customerIdForAppointment(currentAppt, customers)
-            return customerId ? () => navigate(`/clientes?cliente=${encodeURIComponent(customerId)}`, {
-              state: { returnToAppointment: { appointmentId: currentAppt.appointmentId, date: currentAppt.date } },
-            }) : undefined
+            return customerId ? () => setProfileCustomerId(customerId) : undefined
           })()}
+        />
+      )}
+      {profileCustomerId && (
+        <CustomerProfileModal
+          customerId={profileCustomerId}
+          customers={customers}
+          onClose={() => setProfileCustomerId(null)}
+          onOpenAppointment={(appt) => {
+            setProfileCustomerId(null)
+            setSelAppt(appt)
+          }}
         />
       )}
     </div>

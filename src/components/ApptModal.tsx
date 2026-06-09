@@ -121,25 +121,33 @@ export function ApptModal({ appt, services, onClose, onSave, onDelete, isSaving,
       >
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <Avatar name={appt.clientName} color={colorForService(appt.serviceId, services)} size={44} />
-            <div>
-              <p className="font-semibold text-zinc-900 dark:text-white">{appt.clientName}</p>
-              <Badge tone={status === 'confirmed' || status === 'completed' ? 'green' : status === 'cancelled' ? 'red' : 'amber'} dot>
-                {STATUS_LABELS[status]}
-              </Badge>
-            </div>
-            {onOpenCustomer && (
+            {onOpenCustomer ? (
               <button
                 type="button"
                 onClick={onOpenCustomer}
-                className="ml-auto inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border border-zinc-200 dark:border-zinc-700 text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:border-accent hover:text-accent transition"
+                className="group flex min-w-0 flex-1 items-center gap-3 rounded-lg -m-1 p-1 text-left transition hover:bg-zinc-50 dark:hover:bg-zinc-800/60 focus:outline-none focus:ring-2 focus:ring-accent/25"
               >
-                <Icon name="users" className="w-3.5 h-3.5" />
-                Cliente
+                <Avatar name={appt.clientName} color={colorForService(appt.serviceId, services)} size={44} />
+                <div className="min-w-0">
+                  <p className="font-semibold text-zinc-900 dark:text-white truncate group-hover:text-accent">{appt.clientName}</p>
+                  <Badge tone={status === 'confirmed' || status === 'completed' ? 'green' : status === 'cancelled' ? 'red' : 'amber'} dot>
+                    {STATUS_LABELS[status]}
+                  </Badge>
+                </div>
               </button>
+            ) : (
+              <>
+                <Avatar name={appt.clientName} color={colorForService(appt.serviceId, services)} size={44} />
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-zinc-900 dark:text-white truncate">{appt.clientName}</p>
+                  <Badge tone={status === 'confirmed' || status === 'completed' ? 'green' : status === 'cancelled' ? 'red' : 'amber'} dot>
+                    {STATUS_LABELS[status]}
+                  </Badge>
+                </div>
+              </>
             )}
             {isPaid && (
-              <span className={`${onOpenCustomer ? '' : 'ml-auto'} flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-full`}>
+              <span className="ml-auto flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-full">
                 <Icon name="euro" className="w-3 h-3" /> Pago
               </span>
             )}

@@ -31,28 +31,46 @@ export function usePushSubscription() {
     useState<NotificationPermission>("default");
   const [isSupported, setIsSupported] = useState(false);
   const [requiresInstall, setRequiresInstall] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const supported =
-      typeof Notification !== "undefined" &&
-      "serviceWorker" in navigator &&
-      "PushManager" in window;
+    const updateSupport = () => {
+      const ios = isIOSDevice();
+      const standalone = isStandaloneDisplay();
+      const supported =
+        typeof Notification !== "undefined" &&
+        "serviceWorker" in navigator &&
+        "PushManager" in window;
 
-    setIsSupported(supported);
-    setRequiresInstall(isIOSDevice() && !isStandaloneDisplay());
+      setIsIOS(ios);
+      setIsStandalone(standalone);
+      setIsSupported(supported);
+      setRequiresInstall(ios && !standalone);
 
-    if (typeof Notification !== "undefined") {
-      setPermission(Notification.permission);
-    }
+      if (typeof Notification !== "undefined") {
+        setPermission(Notification.permission);
+      }
+    };
+
+    updateSupport();
+    window.addEventListener("focus", updateSupport);
+    document.addEventListener("visibilitychange", updateSupport);
+    return () => {
+      window.removeEventListener("focus", updateSupport);
+      document.removeEventListener("visibilitychange", updateSupport);
+    };
   }, []);
 
   const subscribe = useCallback(async (): Promise<boolean> => {
+    setError(null);
     if (requiresInstall) return false;
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setError("Este dispositivo/browser nao suporta push notifications.");
       return false;
     }
     try {
-      // Get VAPID public key
       const { data } = await axiosInstance.get<{ publicKey: string }>(
         "/push/vapid-public-key",
         { withCredentials: true },
@@ -61,10 +79,12 @@ export function usePushSubscription() {
         .buffer as ArrayBuffer;
 
       const registration = await navigator.serviceWorker.ready;
-      const sub = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey,
-      });
+      const sub =
+        (await registration.pushManager.getSubscription()) ??
+        (await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey,
+        }));
 
       const json = sub.toJSON();
       await axiosInstance.post(
@@ -78,12 +98,18 @@ export function usePushSubscription() {
 
       setPermission("granted");
       return true;
-    } catch {
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Nao foi possivel ativar push notifications neste dispositivo.",
+      );
       return false;
     }
   }, [requiresInstall]);
 
   const unsubscribe = useCallback(async (): Promise<void> => {
+    setError(null);
     try {
       const registration = await navigator.serviceWorker.ready;
       const sub = await registration.pushManager.getSubscription();
@@ -97,18 +123,32 @@ export function usePushSubscription() {
       );
       await sub.unsubscribe();
       setPermission("default");
-    } catch {
-      // ignore
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Nao foi possivel desativar push notifications.",
+      );
     }
   }, []);
 
   const requestAndSubscribe = useCallback(async (): Promise<boolean> => {
+    setError(null);
     if (requiresInstall) return false;
-    if (typeof Notification === "undefined") return false;
-    if (Notification.permission === "denied") return false;
+    if (typeof Notification === "undefined") {
+      setError("Este dispositivo/browser nao suporta notificacoes.");
+      return false;
+    }
+    if (Notification.permission === "denied") {
+      setError("As notificacoes estao bloqueadas nas definicoes do browser.");
+      return false;
+    }
     const perm = await Notification.requestPermission();
     setPermission(perm);
-    if (perm !== "granted") return false;
+    if (perm !== "granted") {
+      setError("Permissao de notificacoes nao concedida.");
+      return false;
+    }
     return subscribe();
   }, [requiresInstall, subscribe]);
 
@@ -121,6 +161,7 @@ export function usePushSubscription() {
     if (typeof Notification === "undefined") return;
     if (Notification.permission !== "granted") return;
 
+    setError(null);
     navigator.serviceWorker.ready.then(async (reg) => {
       const existing = await reg.pushManager.getSubscription();
       if (existing) {
@@ -141,5 +182,14 @@ export function usePushSubscription() {
     });
   }, [isAuthenticated, requiresInstall, subscribe]);
 
-  return { permission, requestAndSubscribe, unsubscribe, isSupported, requiresInstall };
+  return {
+    permission,
+    requestAndSubscribe,
+    unsubscribe,
+    isSupported,
+    requiresInstall,
+    isIOS,
+    isStandalone,
+    error,
+  };
 }

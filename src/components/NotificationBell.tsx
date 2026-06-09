@@ -144,10 +144,14 @@ export function NotificationBell() {
     unsubscribe,
     isSupported,
     requiresInstall,
+    isIOS,
+    isStandalone,
+    error: pushError,
   } = usePushSubscription();
 
   const unread = data?.unread ?? 0;
   const notifications = (data?.notifications as Notification[] | undefined) ?? [];
+  const showPushHelp = requiresInstall || pushError || (isIOS && isStandalone && !isSupported);
 
   // Close on outside click
   useEffect(() => {
@@ -245,7 +249,7 @@ export function NotificationBell() {
               {/* Push status */}
               {requiresInstall ? (
                 <span
-                  title="No iPhone/iPad, abra pelo icon no ecra principal para ativar push."
+                  title="No iPhone/iPad, instale no ecra principal e abra a app pelo icon."
                   className="px-2 py-1 text-[12px] font-medium rounded text-amber-600 dark:text-amber-400"
                 >
                   Instalar app
@@ -287,6 +291,34 @@ export function NotificationBell() {
               </button>
             </div>
           </div>
+
+          {showPushHelp && (
+            <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-800/35">
+              {requiresInstall ? (
+                <div className="text-[12px] leading-relaxed text-zinc-600 dark:text-zinc-300">
+                  <p className="font-semibold text-zinc-800 dark:text-zinc-100 mb-0.5">
+                    Para ativar push no iPhone/iPad
+                  </p>
+                  <p>
+                    No Safari, toca em Partilhar, escolhe Adicionar ao ecra principal e abre o Backoffice pelo novo icon. Depois volta aqui e carrega em Ativar push.
+                  </p>
+                </div>
+              ) : isIOS && isStandalone && !isSupported ? (
+                <div className="text-[12px] leading-relaxed text-zinc-600 dark:text-zinc-300">
+                  <p className="font-semibold text-zinc-800 dark:text-zinc-100 mb-0.5">
+                    Push indisponivel neste iOS
+                  </p>
+                  <p>
+                    Confirma que o iPhone/iPad esta atualizado e que abriste a app pelo icon do ecra principal.
+                  </p>
+                </div>
+              ) : pushError ? (
+                <div className="text-[12px] leading-relaxed text-red-600 dark:text-red-400">
+                  {pushError}
+                </div>
+              ) : null}
+            </div>
+          )}
 
           {/* List */}
           <div className="max-h-[calc(100svh-10rem)] sm:max-h-[420px] overflow-y-auto overscroll-contain">

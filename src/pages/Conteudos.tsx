@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
+import { pickImageFile, supportsFilePicker } from '../lib/filePicker'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Modal, Input, Button, PageHeader, EmptyState } from '../ui/ui.jsx'
 import { useGetCmsSections, getCmsSectionsQueryKey } from '../gen/backoffice/hooks/useGetCmsSections.js'
@@ -12,7 +13,7 @@ import { useDeleteCmsEntriesKey } from '../gen/backoffice/hooks/useDeleteCmsEntr
 import { postCmsSections } from '../gen/backoffice/hooks/usePostCmsSections.js'
 import { patchCmsSectionsId } from '../gen/backoffice/hooks/usePatchCmsSectionsId.js'
 import { useDeleteCmsSectionsId } from '../gen/backoffice/hooks/useDeleteCmsSectionsId.js'
-import { postUploadsPresign } from '../gen/backoffice/hooks/usePostUploadsPresign.js'
+import { uploadImage } from '../gen/backoffice/hooks/useUploadImage.js'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -268,17 +269,27 @@ export function Conteudos() {
   const handleImagePick = async (file: File, idx: number) => {
     setUploadingIdx(idx)
     try {
-      const { uploadUrl, fileUrl } = await postUploadsPresign({
-        filename: file.name, contentType: file.type, module: 'cms', fileSize: file.size,
+      const { fileUrl } = await uploadImage({
+        image: file,
+        module: 'cms',
       })
-      const uploadRes = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
-      if (!uploadRes.ok) throw new Error('Erro ao fazer upload')
       setTranslation(idx, 'value', fileUrl)
       toast.success('Imagem carregada')
     } catch (e: any) {
       toast.error(e.message ?? 'Erro ao carregar imagem')
     } finally {
       setUploadingIdx(null)
+    }
+  }
+
+  const handleImagePickerClick = async (e: React.MouseEvent, idx: number) => {
+    if (uploadingIdx === idx || !supportsFilePicker()) return
+    e.preventDefault()
+    try {
+      const file = await pickImageFile()
+      if (file) handleImagePick(file, idx)
+    } catch {
+      toast.error('Erro ao escolher imagem')
     }
   }
 
@@ -619,19 +630,25 @@ export function Conteudos() {
                     />
                   ) : entryForm.type === 'image' ? (
                     <div className="flex-1 space-y-1.5">
-                      <label className="block cursor-pointer group">
+                      <label
+                        className={`block group ${uploadingIdx === i ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                        onClick={(e) => handleImagePickerClick(e, i)}
+                      >
                         <input
                           type="file"
-                          accept="image/jpeg,image/png,image/webp,image/gif"
+                          accept="image/jpeg,image/png,image/webp"
                           className="hidden"
-                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImagePick(f, i) }}
+                          disabled={uploadingIdx === i}
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImagePick(f, i); e.target.value = '' }}
                         />
                         {t.value ? (
                           <div className="relative h-28 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700">
                             <img src={t.value} alt="" className="h-full w-full object-cover" />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center">
-                              <span className="text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5">
-                                <Icon name="image" className="w-4 h-4" /> Trocar imagem
+                            <div className={`absolute inset-0 transition-colors flex items-center justify-center ${uploadingIdx === i ? 'bg-black/55' : 'bg-black/0 group-hover:bg-black/50'}`}>
+                              <span className={`text-white text-xs font-medium transition-opacity flex items-center gap-1.5 ${uploadingIdx === i ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                                {uploadingIdx === i
+                                  ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> A carregar...</>
+                                  : <><Icon name="image" className="w-4 h-4" /> Trocar imagem</>}
                               </span>
                             </div>
                           </div>

@@ -17,7 +17,8 @@ import { useGetOrders, getOrdersQueryKey } from '../gen/backoffice/hooks/useGetO
 import type { Product } from '../gen/backoffice/types/Product.js'
 import type { Category } from '../gen/backoffice/types/Category.js'
 import type { Subcategory } from '../gen/backoffice/types/Subcategory.js'
-import { postUploadsPresign } from '../gen/backoffice/hooks/usePostUploadsPresign.js'
+import { uploadImage } from '../gen/backoffice/hooks/useUploadImage.js'
+import { pickImageFile } from '../lib/filePicker'
 
 const fmtEur = (n: number) =>
   '€' + n.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -72,11 +73,12 @@ type ProdForm = {
   stock: string
   description: string
   categoryId: string
-  photo: File | null
+  photoUrl: string | null
+  photoName: string
 }
 
 const emptyForm: ProdForm = {
-  name: '', reference: '', price: '', stock: '', description: '', categoryId: '', photo: null,
+  name: '', reference: '', price: '', stock: '', description: '', categoryId: '', photoUrl: null, photoName: '',
 }
 
 function ProdutoModal({ open, produto, categories, onClose, onSave, isPending }: {
@@ -88,6 +90,7 @@ function ProdutoModal({ open, produto, categories, onClose, onSave, isPending }:
   isPending: boolean
 }) {
   const [form, setForm] = useState<ProdForm>(emptyForm)
+  const [photoUploading, setPhotoUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   // Reset form whenever the modal opens or the product changes
@@ -100,16 +103,47 @@ function ProdutoModal({ open, produto, categories, onClose, onSave, isPending }:
       stock: String(produto.stock ?? 0),
       description: produto.description ?? '',
       categoryId: produto.categoryId ?? '',
-      photo: null,
+      photoUrl: null,
+      photoName: '',
     } : emptyForm)
+    setPhotoUploading(false)
   }, [open, produto])
 
   const set = (k: keyof ProdForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  const previewSrc = form.photo
-    ? URL.createObjectURL(form.photo)
-    : produto?.photos?.[0] ?? null
+  const previewSrc = form.photoUrl ?? produto?.photos?.[0] ?? null
+  const isBusy = isPending || photoUploading
+
+  const handlePhotoChange = async (file: File) => {
+    setPhotoUploading(true)
+    try {
+      const { fileUrl } = await uploadImage({
+        image: file,
+        module: 'products',
+      })
+      setForm((f) => ({ ...f, photoUrl: fileUrl, photoName: file.name }))
+      toast.success('Imagem carregada')
+    } catch (e: any) {
+      toast.error(e.message ?? 'Erro ao carregar imagem')
+    } finally {
+      setPhotoUploading(false)
+    }
+  }
+
+  const openPhotoPicker = async () => {
+    if (isBusy) return
+    try {
+      const file = await pickImageFile()
+      if (file === undefined) {
+        fileRef.current?.click()
+        return
+      }
+      if (file) handlePhotoChange(file)
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') toast.error('Erro ao escolher imagem')
+    }
+  }
 
   return (
     <Modal
@@ -118,8 +152,8 @@ function ProdutoModal({ open, produto, categories, onClose, onSave, isPending }:
       title={produto ? 'Editar produto' : 'Novo produto'}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={isPending}>Cancelar</Button>
-          <Button onClick={() => onSave(form)} disabled={isPending}>
+          <Button variant="ghost" onClick={onClose} disabled={isBusy}>Cancelar</Button>
+          <Button onClick={() => onSave(form)} disabled={isBusy}>
             {isPending
               ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2 align-middle" />A guardar…</>
               : produto ? 'Guardar' : 'Adicionar'}
@@ -130,23 +164,36 @@ function ProdutoModal({ open, produto, categories, onClose, onSave, isPending }:
       <div className="space-y-4">
         <div className="flex gap-4">
           <div className="w-28 shrink-0">
-            {previewSrc
-              ? <img src={previewSrc} alt="preview" className="h-28 w-28 object-cover rounded-lg" />
-              : <ImgPlaceholder label="foto" tint="#2A6FDB" className="h-28" />}
+            <div className="relative h-28 w-28 overflow-hidden rounded-lg">
+              {previewSrc
+                ? <img src={previewSrc} alt="preview" className="h-28 w-28 object-cover" />
+                : <ImgPlaceholder label="foto" tint="#2A6FDB" className="h-28" />}
+              {photoUploading && (
+                <div className="absolute inset-0 bg-black/55 flex items-center justify-center">
+                  <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                </div>
+              )}
+            </div>
             <button
               type="button"
-              className="mt-2 w-full text-xs text-accent font-medium flex items-center justify-center gap-1 hover:underline"
-              onClick={() => fileRef.current?.click()}
+              disabled={isBusy}
+              className="mt-2 w-full text-xs text-accent font-medium flex items-center justify-center gap-1 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={openPhotoPicker}
             >
               <Icon name="image" className="w-3.5 h-3.5" />
-              {form.photo ? form.photo.name.slice(0, 12) + '…' : 'Carregar foto'}
+              {photoUploading ? 'A carregar...' : form.photoName ? `${form.photoName.slice(0, 12)}...` : 'Carregar foto'}
             </button>
             <input
               ref={fileRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
+              accept="image/jpeg,image/png,image/webp"
               className="hidden"
-              onChange={(e) => setForm((f) => ({ ...f, photo: e.target.files?.[0] ?? null }))}
+              disabled={isBusy}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) handlePhotoChange(file)
+                e.target.value = ''
+              }}
             />
           </div>
           <div className="flex-1 space-y-3">
@@ -285,27 +332,7 @@ export function Loja() {
   const handleSave = async (form: ProdForm) => {
     setSaving(true)
     try {
-      // 1. Upload da foto ao SeaweedFS se houver ficheiro novo
-      let newPhotoUrl: string | null = null
-      if (form.photo) {
-        const { uploadUrl, fileUrl } = await postUploadsPresign({
-          filename: form.photo.name,
-          contentType: form.photo.type,
-          module: 'products',
-          fileSize: form.photo.size,
-        }) as { uploadUrl: string; fileUrl: string }
-
-        const uploadRes = await fetch(uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': form.photo.type },
-          body: form.photo,
-        })
-        if (!uploadRes.ok) throw new Error('Erro ao fazer upload da imagem')
-        newPhotoUrl = fileUrl
-      }
-
-      // 2. Payload tipado para os hooks Kubb
-      const photoPayload = newPhotoUrl ? [newPhotoUrl] : undefined
+      const photoPayload = form.photoUrl ? [form.photoUrl] : undefined
 
       if (editing) {
         await updateProduct.mutateAsync({
@@ -619,3 +646,4 @@ export function Loja() {
     </div>
   )
 }
+

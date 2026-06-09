@@ -138,7 +138,13 @@ export function NotificationBell() {
   const markRead = useMarkRead();
   const markAll = useMarkAllRead();
   const deleteN = useDeleteNotification();
-  const { permission, requestAndSubscribe, unsubscribe } = usePushSubscription();
+  const {
+    permission,
+    requestAndSubscribe,
+    unsubscribe,
+    isSupported,
+    requiresInstall,
+  } = usePushSubscription();
 
   const unread = data?.unread ?? 0;
   const notifications = (data?.notifications as Notification[] | undefined) ?? [];
@@ -236,8 +242,15 @@ export function NotificationBell() {
                 </button>
               )}
 
-              {/* Push status — always visible when Notifications API exists */}
-              {"Notification" in window && (
+              {/* Push status */}
+              {requiresInstall ? (
+                <span
+                  title="No iPhone/iPad, abra pelo icon no ecra principal para ativar push."
+                  className="px-2 py-1 text-[12px] font-medium rounded text-amber-600 dark:text-amber-400"
+                >
+                  Instalar app
+                </span>
+              ) : isSupported ? (
                 <button
                   onClick={permission === "granted" ? unsubscribe : requestAndSubscribe}
                   disabled={permission === "denied"}
@@ -262,7 +275,7 @@ export function NotificationBell() {
                     ? "Push bloqueado"
                     : "Ativar push"}
                 </button>
-              )}
+              ) : null}
 
               {/* Close button — visible on mobile */}
               <button

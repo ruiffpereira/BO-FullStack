@@ -1,13 +1,11 @@
 import { useRef, useState } from 'react'
-import { useAuth } from '../context/AuthContext'
 import { Icon } from '../ui/icons.jsx'
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001/api'
+import { uploadImage } from '../gen/backoffice/hooks/useUploadImage.js'
 
 const ACCEPT: Record<string, string> = {
-  image: 'image/jpeg,image/png,image/webp,image/gif',
+  image: 'image/jpeg,image/png,image/webp',
   document: 'application/pdf',
-  any: 'image/jpeg,image/png,image/webp,image/gif,application/pdf',
+  any: 'image/jpeg,image/png,image/webp,application/pdf',
 }
 
 interface FileUploadProps {
@@ -29,7 +27,6 @@ export function FileUpload({
   label = 'Carregar ficheiro',
   className = '',
 }: FileUploadProps) {
-  const { authHeader } = useAuth()
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -39,29 +36,16 @@ export function FileUpload({
     setError(null)
     setUploading(true)
     try {
-      // 1 — get presigned URL from API
-      const presignRes = await fetch(`${API_BASE}/uploads/presign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeader() },
-        body: JSON.stringify({ filename: file.name, contentType: file.type, module, fileSize: file.size }),
-      })
-      if (!presignRes.ok) {
-        const err = await presignRes.json().catch(() => ({}))
-        throw new Error(err.error ?? 'Erro ao obter URL de upload')
+      if (!file.type.startsWith('image/')) {
+        throw new Error('O upload optimizado suporta apenas imagens')
       }
-      const { uploadUrl, fileUrl, key } = await presignRes.json()
 
-      // 2 — upload directly to SeaweedFS using the presigned PUT URL
-      const uploadRes = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
+      const { fileUrl, key } = await uploadImage({
+        image: file,
+        module,
       })
-      if (!uploadRes.ok) throw new Error('Erro ao enviar ficheiro')
 
-      if (accept === 'image' || file.type.startsWith('image/')) {
-        setPreview(fileUrl)
-      }
+      setPreview(fileUrl)
       onUploaded(fileUrl, key)
     } catch (err: any) {
       setError(err.message ?? 'Erro desconhecido')
@@ -107,9 +91,15 @@ export function FileUpload({
               </span>
             </div>
           )}
+          {uploading && (
+            <div className="absolute inset-0 rounded-xl bg-black/55 flex items-center justify-center">
+              <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            </div>
+          )}
           <button
             type="button"
             onClick={handleDelete}
+            disabled={uploading}
             className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition"
           >
             <Icon name="x" className="w-3 h-3" />
@@ -138,6 +128,7 @@ export function FileUpload({
         ref={inputRef}
         type="file"
         accept={ACCEPT[accept]}
+        disabled={uploading}
         onChange={handleInputChange}
         className="hidden"
       />

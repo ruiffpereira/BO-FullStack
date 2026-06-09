@@ -12,8 +12,8 @@ self.addEventListener("push", (event) => {
   const title = payload.title ?? "Backoffice";
   const options = {
     body: payload.body ?? "",
-    icon: "/favicon.ico",
-    badge: "/favicon.ico",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/badge-96.png",
     tag: payload.tag ?? "default",
     renotify: true,
     data: { url: payload.url ?? "/" },

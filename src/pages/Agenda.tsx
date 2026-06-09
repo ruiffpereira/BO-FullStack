@@ -122,11 +122,14 @@ function NovaApptModal({ date, open, onClose, services, onCreate, isPending, ini
   const allCustomers = custData?.rows ?? []
 
   const dropList = q.trim()
-    ? allCustomers.filter((c) =>
-        c.name.toLowerCase().includes(q.toLowerCase()) ||
-        c.email.toLowerCase().includes(q.toLowerCase()) ||
-        (c.contact ?? '').includes(q)
-      ).slice(0, 6)
+    ? allCustomers.filter((c) => {
+        const ql = q.toLowerCase()
+        return (
+          (c.name ?? '').toLowerCase().includes(ql) ||
+          (c.email ?? '').toLowerCase().includes(ql) ||
+          (c.contact ?? '').includes(q)
+        )
+      }).slice(0, 6)
     : []
 
   const createCustMut = useMutation({
@@ -165,8 +168,8 @@ function NovaApptModal({ date, open, onClose, services, onCreate, isPending, ini
       notes: form.notes || undefined,
       date: editDate,
       customerId: selCustomer.customerId,
-      clientName: selCustomer.name,
-      clientEmail: selCustomer.email,
+      clientName: selCustomer.name ?? 'Cliente',
+      clientEmail: selCustomer.email ?? '',
       clientPhone: selCustomer.contact ?? '',
     })
   }
@@ -190,8 +193,8 @@ function NovaApptModal({ date, open, onClose, services, onCreate, isPending, ini
           <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Cliente</p>
           {selCustomer ? (
             <div className="flex items-center gap-2 p-2 bg-zinc-50 dark:bg-zinc-800/60 rounded-lg border border-zinc-200 dark:border-zinc-700">
-              <Avatar name={selCustomer.name} color={colorFromName(selCustomer.name)} size={28} />
-              <span className="flex-1 text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{selCustomer.name}</span>
+              <Avatar name={selCustomer.name ?? 'Cliente'} color={colorFromName(selCustomer.name ?? 'Cliente')} size={28} />
+              <span className="flex-1 text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{selCustomer.name ?? 'Cliente'}</span>
               <button type="button" onClick={deselectCustomer} className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-lg leading-none px-1">×</button>
             </div>
           ) : (
@@ -218,9 +221,9 @@ function NovaApptModal({ date, open, onClose, services, onCreate, isPending, ini
                       onMouseDown={() => selectCustomer(c)}
                       className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 text-left"
                     >
-                      <Avatar name={c.name} color={colorFromName(c.name)} size={24} />
+                      <Avatar name={c.name ?? 'Cliente'} color={colorFromName(c.name ?? 'Cliente')} size={24} />
                       <div className="min-w-0">
-                        <p className="font-medium text-zinc-800 dark:text-zinc-100 truncate">{c.name}</p>
+                        <p className="font-medium text-zinc-800 dark:text-zinc-100 truncate">{c.name ?? 'Cliente'}</p>
                         <p className="text-xs text-zinc-400 truncate">{c.contact ?? c.email}</p>
                       </div>
                     </button>
@@ -1289,8 +1292,8 @@ function MarcacoesPanel() {
     if (q.trim()) {
       const ql = q.toLowerCase()
       list = list.filter((a) =>
-        a.clientName.toLowerCase().includes(ql) ||
-        a.clientEmail.toLowerCase().includes(ql) ||
+        (a.clientName ?? '').toLowerCase().includes(ql) ||
+        (a.clientEmail ?? '').toLowerCase().includes(ql) ||
         (a.clientPhone ?? '').includes(q)
       )
     }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { toast } from 'sonner'
 import { Icon } from '../ui/icons.jsx'
 import { IconButton, Avatar } from '../ui/ui.jsx'
 import { useAuth } from '../context/AuthContext'
@@ -151,6 +152,17 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   // Start SSE stream for real-time events
   useSSE()
 
+  const handleLogout = () => {
+    logout().catch((err: any) => {
+      toast.error(
+        err?.response?.data?.error ??
+        err?.response?.data?.message ??
+        err?.message ??
+        'Nao foi possivel terminar sessao.',
+      )
+    })
+  }
+
   const accessiblePaths = [
     '/dashboard',
     ...permissions
@@ -173,7 +185,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
     <div className="flex h-screen bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
       <SwRegistrar />
       <aside className={`hidden lg:flex flex-col shrink-0 border-r border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-[width] duration-200 ${collapsed ? 'w-[72px]' : 'w-64'}`}>
-        <SidebarContent accessiblePaths={accessiblePaths} collapsed={collapsed} onLogout={logout} />
+        <SidebarContent accessiblePaths={accessiblePaths} collapsed={collapsed} onLogout={handleLogout} />
       </aside>
 
       {drawer && (
@@ -183,7 +195,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
             <button onClick={() => setDrawer(false)} className="absolute top-4 right-3 z-10">
               <IconButton icon="x" label="Fechar" />
             </button>
-            <SidebarContent accessiblePaths={accessiblePaths} collapsed={false} onLogout={logout} />
+            <SidebarContent accessiblePaths={accessiblePaths} collapsed={false} onLogout={handleLogout} />
           </aside>
         </div>
       )}

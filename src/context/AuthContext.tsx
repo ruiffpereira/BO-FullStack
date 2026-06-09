@@ -25,7 +25,7 @@ interface AuthState {
 
 interface AuthCtx extends AuthState {
   login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   authHeader: () => Record<string, string>;
   hasPermission: (name: string) => boolean;
   loading: boolean;
@@ -46,6 +46,7 @@ const SKIP_401 = [
 
 const REFRESH_FALLBACK_MS = 10 * 60 * 1000;
 const REFRESH_SKEW_MS = 60 * 1000;
+const AUTH_REQUEST_TIMEOUT_MS = 5 * 1000;
 
 const emptyAuth: AuthState = {
   userId: null,
@@ -79,7 +80,7 @@ function getRefreshDelay(accessToken: string) {
 }
 
 async function fetchCsrfToken(): Promise<string> {
-  const csrf = await getCsrfToken();
+  const csrf = await getCsrfToken({ timeout: AUTH_REQUEST_TIMEOUT_MS } as any);
   if (!csrf?.csrfToken) throw new Error("CSRF token em falta.");
   return csrf.csrfToken;
 }
@@ -87,7 +88,8 @@ async function fetchCsrfToken(): Promise<string> {
 async function fetchPermissions(accessToken: string): Promise<Permission[]> {
   return getUserpermissions({
     headers: { Authorization: `Bearer ${accessToken}` },
-  });
+    timeout: AUTH_REQUEST_TIMEOUT_MS,
+  } as any);
 }
 
 async function refreshSession(): Promise<string | null> {
@@ -98,6 +100,7 @@ async function refreshSession(): Promise<string | null> {
     {
       headers: { "x-csrf-token": csrfToken },
       validateStatus: (status) => (status >= 200 && status < 300) || status === 401,
+      timeout: AUTH_REQUEST_TIMEOUT_MS,
       withCredentials: true,
     },
   );
@@ -114,12 +117,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshPromiseRef = useRef<Promise<string | null> | null>(null);
   const authRef = useRef<AuthState>(emptyAuth);
+  const authVersionRef = useRef(0);
 
   useEffect(() => {
     authRef.current = auth;
   }, [auth]);
 
   const clearSession = useCallback(() => {
+    authVersionRef.current += 1;
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = null;
     refreshPromiseRef.current = null;
@@ -153,14 +158,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const doRefresh = useCallback((): Promise<string | null> => {
     if (refreshPromiseRef.current) return refreshPromiseRef.current;
 
+    const refreshVersion = authVersionRef.current;
     refreshPromiseRef.current = (async () => {
       try {
         const nextAccessToken = await refreshSession();
-        if (!nextAccessToken) {
+        if (!nextAccessToken || refreshVersion !== authVersionRef.current) {
           clearSession();
           return null;
         }
         const permissions = await fetchPermissions(nextAccessToken);
+        if (refreshVersion !== authVersionRef.current) return null;
         setAuth((prev) => ({
           ...prev,
           accessToken: nextAccessToken,
@@ -235,7 +242,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       setError(null);
       try {
-        const loginRes = await postUsersLogin({ username, password });
+        authVersionRef.current += 1;
+        const loginRes = await postUsersLogin(
+          { username, password },
+          { timeout: AUTH_REQUEST_TIMEOUT_MS } as any,
+        );
         const accessToken = loginRes?.accessToken;
         if (!accessToken) throw new Error("Sem token de acesso.");
 
@@ -267,10 +278,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     const accessToken = authRef.current.accessToken;
-    clearSession();
+    setLoading(true);
+    setError(null);
+    authVersionRef.current += 1;
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = null;
+    refreshPromiseRef.current = null;
     try {
       const csrfToken = await fetchCsrfToken();
-      await axiosInstance.post(
+      const res = await axiosInstance.post(
         "/users/logout",
         undefined,
         {
@@ -278,13 +294,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             "x-csrf-token": csrfToken,
             ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
           },
+          timeout: AUTH_REQUEST_TIMEOUT_MS,
           withCredentials: true,
+          validateStatus: (status) => (status >= 200 && status < 300) || status === 401,
         },
       );
-    } catch {
-      // The client session is already cleared.
+      if ((res.status >= 200 && res.status < 300) || res.status === 401) {
+        clearSession();
+      }
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.error ??
+        err?.response?.data?.message ??
+        err?.message ??
+        "Nao foi possivel terminar sessao no servidor.";
+      setError(msg);
+      if (accessToken) scheduleRefresh(accessToken);
+      throw err;
+    } finally {
+      setLoading(false);
     }
-  }, [clearSession]);
+  }, [clearSession, scheduleRefresh]);
 
   const authHeader = useCallback(() => {
     const token = authRef.current.accessToken;

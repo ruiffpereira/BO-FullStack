@@ -6,12 +6,12 @@ import { getNotificationsQueryKey } from "./useNotifications";
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
 
 export function useSSE() {
-  const { isAuthenticated } = useAuth();
+  const { accessToken, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !accessToken) return;
 
     let active = true;
     let retryDelay = 2000;
@@ -25,6 +25,7 @@ export function useSSE() {
       try {
         const res = await fetch(`${API_BASE}/events/stream`, {
           credentials: "include",
+          headers: { Authorization: `Bearer ${accessToken}` },
           signal: controller.signal,
         });
 
@@ -99,5 +100,5 @@ export function useSSE() {
       active = false;
       abortRef.current?.abort();
     };
-  }, [isAuthenticated, queryClient]);
+  }, [accessToken, isAuthenticated, queryClient]);
 }

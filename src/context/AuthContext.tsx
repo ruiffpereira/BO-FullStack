@@ -8,8 +8,8 @@ import React, {
 } from "react";
 import { axiosInstance } from "@kubb/plugin-client/clients/axios";
 import { queryClient } from "../lib/queryClient";
+import { getCsrfToken } from "../gen/backoffice/hooks/useGetCsrfToken.js";
 import { postUsersLogin } from "../gen/backoffice/hooks/usePostUsersLogin.js";
-import { postUsersLogout } from "../gen/backoffice/hooks/usePostUsersLogout.js";
 import { getUserpermissions } from "../gen/backoffice/hooks/useGetUserpermissions.js";
 import type { GetUserpermissions200 } from "../gen/backoffice/types/GetUserpermissions.js";
 
@@ -18,6 +18,7 @@ type Permission = GetUserpermissions200[number];
 interface AuthState {
   userId: string | null;
   username: string | null;
+  accessToken: string | null;
   permissions: Permission[];
   isAuthenticated: boolean;
 }
@@ -36,35 +37,73 @@ const AuthContext = createContext<AuthCtx | null>(null);
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
 const SKIP_401 = [
+  "/csrf-token",
   "/users/login",
   "/users/refresh",
   "/users/logout",
   "/users/setup-password",
 ];
 
-const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
+const REFRESH_FALLBACK_MS = 10 * 60 * 1000;
+const REFRESH_SKEW_MS = 60 * 1000;
 
 const emptyAuth: AuthState = {
   userId: null,
   username: null,
+  accessToken: null,
   permissions: [],
   isAuthenticated: false,
 };
 
-async function fetchPermissions(): Promise<Permission[]> {
-  return getUserpermissions();
+function isAuthEndpoint(url = "") {
+  return SKIP_401.some((path) => url.includes(path));
 }
 
-async function refreshSession(): Promise<boolean> {
-  const res = await axiosInstance.post(
+function getJwtExpiry(accessToken: string): number | null {
+  const [, payload] = accessToken.split(".");
+  if (!payload) return null;
+
+  try {
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = JSON.parse(atob(normalized));
+    return typeof decoded.exp === "number" ? decoded.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+function getRefreshDelay(accessToken: string) {
+  const expiry = getJwtExpiry(accessToken);
+  if (!expiry) return REFRESH_FALLBACK_MS;
+  return Math.max(expiry - Date.now() - REFRESH_SKEW_MS, 30 * 1000);
+}
+
+async function fetchCsrfToken(): Promise<string> {
+  const csrf = await getCsrfToken();
+  if (!csrf?.csrfToken) throw new Error("CSRF token em falta.");
+  return csrf.csrfToken;
+}
+
+async function fetchPermissions(accessToken: string): Promise<Permission[]> {
+  return getUserpermissions({
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+async function refreshSession(): Promise<string | null> {
+  const csrfToken = await fetchCsrfToken();
+  const res = await axiosInstance.post<{ accessToken?: string }>(
     "/users/refresh",
     undefined,
     {
+      headers: { "x-csrf-token": csrfToken },
       validateStatus: (status) => (status >= 200 && status < 300) || status === 401,
       withCredentials: true,
     },
   );
-  return res.status >= 200 && res.status < 300;
+
+  if (res.status === 401) return null;
+  return res.data?.accessToken ?? null;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -73,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
+  const refreshPromiseRef = useRef<Promise<string | null> | null>(null);
   const authRef = useRef<AuthState>(emptyAuth);
 
   useEffect(() => {
@@ -88,45 +127,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.clear();
   }, []);
 
-  const scheduleRefresh = useCallback(() => {
+  const scheduleRefresh = useCallback((accessToken: string) => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = setTimeout(async () => {
       try {
-        const refreshed = await refreshSession();
-        if (!refreshed) {
+        const nextAccessToken = await refreshSession();
+        if (!nextAccessToken) {
           clearSession();
           return;
         }
-        const permissions = await fetchPermissions();
-        setAuth((prev) => ({ ...prev, permissions, isAuthenticated: true }));
-        scheduleRefresh();
+        const permissions = await fetchPermissions(nextAccessToken);
+        setAuth((prev) => ({
+          ...prev,
+          accessToken: nextAccessToken,
+          permissions,
+          isAuthenticated: true,
+        }));
+        scheduleRefresh(nextAccessToken);
       } catch {
         clearSession();
       }
-    }, REFRESH_INTERVAL_MS);
+    }, getRefreshDelay(accessToken));
   }, [clearSession]);
 
-  const doRefresh = useCallback((): Promise<boolean> => {
+  const doRefresh = useCallback((): Promise<string | null> => {
     if (refreshPromiseRef.current) return refreshPromiseRef.current;
 
     refreshPromiseRef.current = (async () => {
       try {
-        const refreshed = await refreshSession();
-        if (!refreshed) {
+        const nextAccessToken = await refreshSession();
+        if (!nextAccessToken) {
           clearSession();
-          return false;
+          return null;
         }
-        const permissions = await fetchPermissions();
+        const permissions = await fetchPermissions(nextAccessToken);
         setAuth((prev) => ({
           ...prev,
+          accessToken: nextAccessToken,
           permissions,
           isAuthenticated: true,
         }));
-        scheduleRefresh();
-        return true;
+        scheduleRefresh(nextAccessToken);
+        return nextAccessToken;
       } catch {
         clearSession();
-        return false;
+        return null;
       } finally {
         refreshPromiseRef.current = null;
       }
@@ -142,6 +187,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const reqId = axiosInstance.interceptors.request.use((config) => {
       config.baseURL = API_BASE;
       config.withCredentials = true;
+      const token = authRef.current.accessToken;
+      const url = config.url ?? "";
+      if (token && !isAuthEndpoint(url)) {
+        const headers = (config.headers ?? {}) as Record<string, string>;
+        if (!headers.Authorization) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+        config.headers = headers as any;
+      }
       return config;
     });
 
@@ -150,13 +204,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       async (err) => {
         const url = err?.config?.url ?? "";
         const is401 = err?.response?.status === 401;
-        const isAuthEndpoint = SKIP_401.some((path) => url.includes(path));
+        const skipRefresh = isAuthEndpoint(url);
 
-        if (is401 && !isAuthEndpoint && !err.config?._retry) {
-          const refreshed = await doRefresh();
-          if (refreshed) {
+        if (is401 && !skipRefresh && !err.config?._retry) {
+          const nextAccessToken = await doRefresh();
+          if (nextAccessToken) {
             err.config._retry = true;
             err.config.withCredentials = true;
+            err.config.headers = err.config.headers ?? {};
+            err.config.headers.Authorization = `Bearer ${nextAccessToken}`;
             return axiosInstance(err.config);
           }
         }
@@ -180,15 +236,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       try {
         const loginRes = await postUsersLogin({ username, password });
-        const permissions = await fetchPermissions();
+        const accessToken = loginRes?.accessToken;
+        if (!accessToken) throw new Error("Sem token de acesso.");
+
+        const permissions = await fetchPermissions(accessToken);
 
         setAuth({
           userId: loginRes?.userId ?? null,
           username: loginRes?.username ?? username,
+          accessToken,
           permissions,
           isAuthenticated: true,
         });
-        scheduleRefresh();
+        scheduleRefresh(accessToken);
       } catch (err: any) {
         const msg =
           err?.response?.data?.error ??
@@ -205,12 +265,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [clearSession, scheduleRefresh],
   );
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    const accessToken = authRef.current.accessToken;
     clearSession();
-    postUsersLogout().catch(() => {});
+    try {
+      const csrfToken = await fetchCsrfToken();
+      await axiosInstance.post(
+        "/users/logout",
+        undefined,
+        {
+          headers: {
+            "x-csrf-token": csrfToken,
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          withCredentials: true,
+        },
+      );
+    } catch {
+      // The client session is already cleared.
+    }
   }, [clearSession]);
 
-  const authHeader = useCallback(() => ({}), []);
+  const authHeader = useCallback(() => {
+    const token = authRef.current.accessToken;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, []);
 
   const hasPermission = useCallback(
     (name: string) => auth.permissions.some((p) => p.name === name),

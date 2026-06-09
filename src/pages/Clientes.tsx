@@ -12,7 +12,6 @@ import { useGetCustomersIdHistory, getCustomersIdHistoryQueryKey } from '../gen/
 import { postCustomers } from '../gen/backoffice/hooks/usePostCustomers.js'
 import { patchCustomersId } from '../gen/backoffice/hooks/usePatchCustomersId.js'
 import { putScheduleAppointmentsId } from '../gen/backoffice/hooks/usePutScheduleAppointmentsId.js'
-import { deleteScheduleAppointmentsId } from '../gen/backoffice/hooks/useDeleteScheduleAppointmentsId.js'
 import type { Customer } from '../gen/backoffice/types/Customer.js'
 import type { Appointment } from '../gen/backoffice/types/Appointment.js'
 import { ApptModal } from '../components/ApptModal.js'
@@ -132,10 +131,11 @@ export function Clientes() {
     onError: (e: any) => toast.error(getApiError(e)),
   })
 
-  const deleteApptMut = useMutation({
-    mutationFn: (id: string) => deleteScheduleAppointmentsId(id),
-    onSuccess: () => {
-      toast.success('Marcação eliminada')
+  const setStatusApptMut = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      putScheduleAppointmentsId(id, { status } as any),
+    onSuccess: (_d, { status }) => {
+      toast.success(status === 'cancelled' ? 'Marcação cancelada' : 'Marcação reativada')
       setSelAppt(null)
       if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
     },
@@ -438,9 +438,9 @@ export function Clientes() {
           services={services}
           onClose={() => setSelAppt(null)}
           onSave={(id, data) => updateApptMut.mutate({ id, data })}
-          onDelete={(id) => deleteApptMut.mutate(id)}
+          onSetStatus={(id, status) => setStatusApptMut.mutate({ id, status })}
           isSaving={updateApptMut.isPending}
-          isPendingDelete={deleteApptMut.isPending}
+          isSettingStatus={setStatusApptMut.isPending}
         />
       )}
 

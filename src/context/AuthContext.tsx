@@ -48,6 +48,8 @@ const SKIP_401 = [
 
 const REFRESH_FALLBACK_MS = 10 * 60 * 1000;
 const REFRESH_SKEW_MS = 60 * 1000;
+const REFRESH_RETRY_MS = 30 * 1000;
+const REFRESH_MIN_DELAY_MS = 30 * 1000;
 const AUTH_REQUEST_TIMEOUT_MS = 5 * 1000;
 const AUTH_IDENTITY_STORAGE_KEY = "backoffice.auth.identity";
 
@@ -108,7 +110,8 @@ function clearStoredIdentity() {
 }
 
 function isAuthEndpoint(url = "") {
-  return SKIP_401.some((path) => url.includes(path));
+  const path = url.split("?")[0];
+  return SKIP_401.some((p) => path === p || path.endsWith(p));
 }
 
 function getJwtExpiry(accessToken: string): number | null {
@@ -122,7 +125,8 @@ function decodeJwtPayload(accessToken: string): Record<string, unknown> | null {
 
   try {
     const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    return JSON.parse(atob(normalized));
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    return JSON.parse(atob(padded));
   } catch {
     return null;
   }
@@ -152,7 +156,7 @@ function getIdentityFromJwt(accessToken: string): {
 function getRefreshDelay(accessToken: string) {
   const expiry = getJwtExpiry(accessToken);
   if (!expiry) return REFRESH_FALLBACK_MS;
-  return Math.max(expiry - Date.now() - REFRESH_SKEW_MS, 30 * 1000);
+  return Math.max(expiry - Date.now() - REFRESH_SKEW_MS, REFRESH_MIN_DELAY_MS);
 }
 
 async function fetchCsrfToken(): Promise<string> {
@@ -205,6 +209,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshPromiseRef = useRef<Promise<string | null> | null>(null);
+  const doRefreshRef = useRef<(() => Promise<string | null>) | null>(null);
   const authRef = useRef<AuthState>(emptyAuth);
   const authVersionRef = useRef(0);
 
@@ -222,43 +227,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.clear();
   }, []);
 
-  const scheduleRefresh = useCallback(
-    (accessToken: string, authVersion = authVersionRef.current) => {
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-      refreshTimerRef.current = setTimeout(async () => {
-        if (authVersion !== authVersionRef.current) return;
-        try {
-          const nextAccessToken = await refreshSession();
-          if (!nextAccessToken) {
-            if (authVersion === authVersionRef.current) clearSession();
-            return;
-          }
-          const permissions = await fetchPermissions(nextAccessToken);
-          if (authVersion !== authVersionRef.current) return;
-          const identity = getIdentityFromJwt(nextAccessToken);
-          const storedIdentity = readStoredIdentity();
-          const nextIdentity = {
-            userId: identity.userId ?? storedIdentity.userId,
-            username: identity.username ?? storedIdentity.username,
-          };
-          writeStoredIdentity(nextIdentity);
-          setAuth((prev) => ({
-            ...prev,
-            userId: prev.userId ?? nextIdentity.userId,
-            username: prev.username ?? nextIdentity.username,
-            accessToken: nextAccessToken,
-            permissions,
-            isAuthenticated: true,
-          }));
-          scheduleRefresh(nextAccessToken, authVersion);
-        } catch {
-          if (authVersion === authVersionRef.current) clearSession();
-        }
-      }, getRefreshDelay(accessToken));
-    },
-    [clearSession],
-  );
+  // Arms a single timer that funnels through doRefresh(), so the scheduled
+  // refresh and a 401-triggered refresh can never hit /users/refresh at the
+  // same time (which, with refresh-token rotation, would log the user out).
+  const scheduleRefresh = useCallback((accessToken: string) => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      void doRefreshRef.current?.();
+    }, getRefreshDelay(accessToken));
+  }, []);
 
+  // Single source of truth for refreshing the session. Guarded by
+  // refreshPromiseRef so concurrent callers share one in-flight request.
   const doRefresh = useCallback((): Promise<string | null> => {
     if (refreshPromiseRef.current) return refreshPromiseRef.current;
 
@@ -266,15 +246,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshPromiseRef.current = (async () => {
       try {
         const nextAccessToken = await refreshSession();
+        // Hard 401 → refresh token is dead, end the session for good.
         if (!nextAccessToken) {
           if (refreshVersion === authVersionRef.current) clearSession();
           return null;
         }
-        if (refreshVersion !== authVersionRef.current) {
-          return null;
-        }
+        // Session changed under us (login/logout) → discard this result.
+        if (refreshVersion !== authVersionRef.current) return null;
+
         const permissions = await fetchPermissions(nextAccessToken);
         if (refreshVersion !== authVersionRef.current) return null;
+
         const identity = getIdentityFromJwt(nextAccessToken);
         const storedIdentity = readStoredIdentity();
         const nextIdentity = {
@@ -290,10 +272,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           permissions,
           isAuthenticated: true,
         }));
-        scheduleRefresh(nextAccessToken, refreshVersion);
+        scheduleRefresh(nextAccessToken);
         return nextAccessToken;
       } catch {
-        if (refreshVersion === authVersionRef.current) clearSession();
+        // Network/permissions hiccup (not a 401) — keep the session and
+        // retry shortly instead of logging the user out.
+        if (refreshVersion === authVersionRef.current) {
+          if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+          refreshTimerRef.current = setTimeout(() => {
+            void doRefreshRef.current?.();
+          }, REFRESH_RETRY_MS);
+        }
         return null;
       } finally {
         refreshPromiseRef.current = null;
@@ -302,6 +291,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return refreshPromiseRef.current;
   }, [clearSession, scheduleRefresh]);
+
+  // Keep the ref pointing at the latest doRefresh so the timers above can
+  // call it without creating a scheduleRefresh ↔ doRefresh dependency cycle.
+  useEffect(() => {
+    doRefreshRef.current = doRefresh;
+  }, [doRefresh]);
 
   useEffect(() => {
     axiosInstance.defaults.baseURL = API_BASE;
@@ -381,7 +376,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           permissions,
           isAuthenticated: true,
         });
-        scheduleRefresh(accessToken, authVersionRef.current);
+        scheduleRefresh(accessToken);
       } catch (err: any) {
         const msg =
           err?.response?.data?.error ??

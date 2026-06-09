@@ -52,7 +52,7 @@ function SidebarContent({ accessiblePaths, collapsed, onLogout }: {
   collapsed: boolean
   onLogout: () => void
 }) {
-  const { username, permissions, loggingOut } = useAuth()
+  const { userId, username, permissions, loggingOut } = useAuth()
   const location = useLocation()
   const permLabel = permissions.length > 0 ? permissions[0].name?.replace('VIEW_', '') : 'Admin'
 
@@ -81,7 +81,7 @@ function SidebarContent({ accessiblePaths, collapsed, onLogout }: {
               <span className="w-2 h-2 rounded-full bg-accent" />
               <span className="text-xs font-medium text-zinc-500">Sessão activa</span>
             </div>
-            <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 mt-1">{username ?? '—'}</p>
+            <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 mt-1">{username ?? userId ?? 'Sessão recuperada'}</p>
             <p className="text-xs text-zinc-400">{permLabel}</p>
           </div>
         )}

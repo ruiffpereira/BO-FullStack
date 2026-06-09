@@ -48,6 +48,7 @@ const SKIP_401 = [
 const REFRESH_FALLBACK_MS = 10 * 60 * 1000;
 const REFRESH_SKEW_MS = 60 * 1000;
 const AUTH_REQUEST_TIMEOUT_MS = 5 * 1000;
+const AUTH_IDENTITY_STORAGE_KEY = "backoffice.auth.identity";
 
 const emptyAuth: AuthState = {
   userId: null,
@@ -57,21 +58,79 @@ const emptyAuth: AuthState = {
   isAuthenticated: false,
 };
 
+function readStoredIdentity(): { userId: string | null; username: string | null } {
+  if (typeof window === "undefined") return { userId: null, username: null };
+  try {
+    const raw = window.localStorage.getItem(AUTH_IDENTITY_STORAGE_KEY);
+    if (!raw) return { userId: null, username: null };
+    const parsed = JSON.parse(raw) as { userId?: unknown; username?: unknown };
+    return {
+      userId: typeof parsed.userId === "string" && parsed.userId.trim() ? parsed.userId : null,
+      username:
+        typeof parsed.username === "string" && parsed.username.trim()
+          ? parsed.username
+          : null,
+    };
+  } catch {
+    return { userId: null, username: null };
+  }
+}
+
+function writeStoredIdentity(identity: { userId: string | null; username: string | null }) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(AUTH_IDENTITY_STORAGE_KEY, JSON.stringify(identity));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function clearStoredIdentity() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(AUTH_IDENTITY_STORAGE_KEY);
+  } catch {
+    // ignore storage errors
+  }
+}
+
 function isAuthEndpoint(url = "") {
   return SKIP_401.some((path) => url.includes(path));
 }
 
 function getJwtExpiry(accessToken: string): number | null {
+  const decoded = decodeJwtPayload(accessToken);
+  return typeof decoded?.exp === "number" ? decoded.exp * 1000 : null;
+}
+
+function decodeJwtPayload(accessToken: string): Record<string, unknown> | null {
   const [, payload] = accessToken.split(".");
   if (!payload) return null;
 
   try {
     const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const decoded = JSON.parse(atob(normalized));
-    return typeof decoded.exp === "number" ? decoded.exp * 1000 : null;
+    return JSON.parse(atob(normalized));
   } catch {
     return null;
   }
+}
+
+function getIdentityFromJwt(accessToken: string): { userId: string | null; username: string | null } {
+  const payload = decodeJwtPayload(accessToken);
+  if (!payload) return { userId: null, username: null };
+
+  const pick = (...keys: string[]) => {
+    for (const key of keys) {
+      const value = payload[key];
+      if (typeof value === "string" && value.trim()) return value;
+    }
+    return null;
+  };
+
+  return {
+    userId: pick("userId", "uid", "sub"),
+    username: pick("username", "preferred_username", "name", "email"),
+  };
 }
 
 function getRefreshDelay(accessToken: string) {
@@ -110,6 +169,18 @@ async function refreshSession(): Promise<string | null> {
   return res.data?.accessToken ?? null;
 }
 
+async function getBrowserPushEndpoint(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  if (!("serviceWorker" in navigator)) return null;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    return subscription?.endpoint ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [auth, setAuth] = useState<AuthState>(emptyAuth);
   const [initializing, setInitializing] = useState(true);
@@ -130,29 +201,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = null;
     refreshPromiseRef.current = null;
+    clearStoredIdentity();
     setAuth(emptyAuth);
     queryClient.clear();
   }, []);
 
-  const scheduleRefresh = useCallback((accessToken: string) => {
+  const scheduleRefresh = useCallback((accessToken: string, authVersion = authVersionRef.current) => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = setTimeout(async () => {
+      if (authVersion !== authVersionRef.current) return;
       try {
         const nextAccessToken = await refreshSession();
         if (!nextAccessToken) {
-          clearSession();
+          if (authVersion === authVersionRef.current) clearSession();
           return;
         }
         const permissions = await fetchPermissions(nextAccessToken);
+        if (authVersion !== authVersionRef.current) return;
+        const identity = getIdentityFromJwt(nextAccessToken);
+        const storedIdentity = readStoredIdentity();
+        const nextIdentity = {
+          userId: identity.userId ?? storedIdentity.userId,
+          username: identity.username ?? storedIdentity.username,
+        };
+        writeStoredIdentity(nextIdentity);
         setAuth((prev) => ({
           ...prev,
+          userId: prev.userId ?? nextIdentity.userId,
+          username: prev.username ?? nextIdentity.username,
           accessToken: nextAccessToken,
           permissions,
           isAuthenticated: true,
         }));
-        scheduleRefresh(nextAccessToken);
+        scheduleRefresh(nextAccessToken, authVersion);
       } catch {
-        clearSession();
+        if (authVersion === authVersionRef.current) clearSession();
       }
     }, getRefreshDelay(accessToken));
   }, [clearSession]);
@@ -164,22 +247,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshPromiseRef.current = (async () => {
       try {
         const nextAccessToken = await refreshSession();
-        if (!nextAccessToken || refreshVersion !== authVersionRef.current) {
-          clearSession();
+        if (!nextAccessToken) {
+          if (refreshVersion === authVersionRef.current) clearSession();
+          return null;
+        }
+        if (refreshVersion !== authVersionRef.current) {
           return null;
         }
         const permissions = await fetchPermissions(nextAccessToken);
         if (refreshVersion !== authVersionRef.current) return null;
+        const identity = getIdentityFromJwt(nextAccessToken);
+        const storedIdentity = readStoredIdentity();
+        const nextIdentity = {
+          userId: identity.userId ?? storedIdentity.userId,
+          username: identity.username ?? storedIdentity.username,
+        };
+        writeStoredIdentity(nextIdentity);
         setAuth((prev) => ({
           ...prev,
+          userId: prev.userId ?? nextIdentity.userId,
+          username: prev.username ?? nextIdentity.username,
           accessToken: nextAccessToken,
           permissions,
           isAuthenticated: true,
         }));
-        scheduleRefresh(nextAccessToken);
+        scheduleRefresh(nextAccessToken, refreshVersion);
         return nextAccessToken;
       } catch {
-        clearSession();
+        if (refreshVersion === authVersionRef.current) clearSession();
         return null;
       } finally {
         refreshPromiseRef.current = null;
@@ -245,6 +340,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       try {
         authVersionRef.current += 1;
+        queryClient.clear();
+        clearStoredIdentity();
         const loginRes = await postUsersLogin(
           { username, password },
           { timeout: AUTH_REQUEST_TIMEOUT_MS } as any,
@@ -253,15 +350,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!accessToken) throw new Error("Sem token de acesso.");
 
         const permissions = await fetchPermissions(accessToken);
-
-        setAuth({
+        const identity = {
           userId: loginRes?.userId ?? null,
           username: loginRes?.username ?? username,
+        };
+        writeStoredIdentity(identity);
+
+        setAuth({
+          userId: identity.userId,
+          username: identity.username,
           accessToken,
           permissions,
           isAuthenticated: true,
         });
-        scheduleRefresh(accessToken);
+        scheduleRefresh(accessToken, authVersionRef.current);
       } catch (err: any) {
         const msg =
           err?.response?.data?.error ??
@@ -287,6 +389,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshTimerRef.current = null;
     refreshPromiseRef.current = null;
     try {
+      const pushEndpoint = await getBrowserPushEndpoint();
+      if (pushEndpoint && accessToken) {
+        await axiosInstance.post(
+          "/push/unsubscribe",
+          { endpoint: pushEndpoint },
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            timeout: AUTH_REQUEST_TIMEOUT_MS,
+            withCredentials: true,
+          },
+        ).catch(() => {});
+      }
+
       const csrfToken = await fetchCsrfToken();
       const res = await axiosInstance.post(
         "/users/logout",

@@ -122,7 +122,7 @@ export function usePushSubscription() {
         { withCredentials: true },
       );
       await sub.unsubscribe();
-      setPermission("default");
+      setPermission(typeof Notification !== "undefined" ? Notification.permission : "default");
     } catch (err) {
       setError(
         err instanceof Error
@@ -181,6 +181,26 @@ export function usePushSubscription() {
       subscribe().catch(() => {});
     });
   }, [isAuthenticated, requiresInstall, subscribe]);
+
+  // Ensure a previous user's device subscription is removed on logout/session loss.
+  useEffect(() => {
+    if (isAuthenticated) return;
+    if (!("serviceWorker" in navigator)) return;
+
+    let cancelled = false;
+    navigator.serviceWorker.ready.then(async (reg) => {
+      if (cancelled) return;
+      const sub = await reg.pushManager.getSubscription();
+      if (!sub) return;
+      await sub.unsubscribe().catch(() => {});
+      if (cancelled) return;
+      setPermission(typeof Notification !== "undefined" ? Notification.permission : "default");
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
 
   return {
     permission,

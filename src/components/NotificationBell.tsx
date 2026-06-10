@@ -337,8 +337,8 @@ export function NotificationBell() {
                   <NotificationItem
                     key={n.notificationId}
                     n={n}
-                    onRead={(id) => markRead.mutate(id)}
-                    onDelete={(id) => deleteN.mutate(id)}
+                    onRead={(id) => markRead.mutate({ id })}
+                    onDelete={(id) => deleteN.mutate({ id })}
                   />
                 ))}
               </div>

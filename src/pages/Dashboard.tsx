@@ -67,10 +67,13 @@ export function Dashboard() {
     query: { enabled: canCustomers },
     client: { headers },
   })
-  const { data: ordersData, isLoading: loadingOrders } = useGetOrders({
-    query: { enabled: canProducts },
-    client: { headers },
-  })
+  const { data: ordersData, isLoading: loadingOrders } = useGetOrders(
+    undefined,
+    {
+      query: { enabled: canProducts },
+      client: { headers },
+    },
+  )
   const { data: appointmentsData, isLoading: loadingAppts } = useGetScheduleAppointments(
     { month: thisMonth },
     { query: { enabled: canSchedule }, client: { headers } },

@@ -193,9 +193,12 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-zinc-900/40 backdrop-blur-[2px]" onClick={() => setDrawer(false)} />
           <aside className="relative w-64 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 animate-[slideIn_.2s_ease]">
-            <button onClick={() => setDrawer(false)} className="absolute top-4 right-3 z-10">
-              <IconButton icon="x" label="Fechar" />
-            </button>
+            <IconButton
+              icon="x"
+              label="Fechar"
+              onClick={() => setDrawer(false)}
+              className="absolute top-4 right-3 z-10"
+            />
             <SidebarContent accessiblePaths={accessiblePaths} collapsed={false} onLogout={handleLogout} />
           </aside>
         </div>

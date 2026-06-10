@@ -3,6 +3,8 @@ import { toast } from "sonner";
 import { getApiError } from "../lib/apiError";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
 import { Icon } from "../ui/icons.jsx";
 import {
   Card,
@@ -249,10 +251,9 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
       onError: (error) => toast.error(getApiError(error)),
     },
   });
-  const apiBase = ((import.meta as any).env?.VITE_API_BASE_URL ?? 'http://localhost:3001/api') as string
   const sendResetM = useMutation({
     mutationFn: async (userId: string) => {
-      const res = await fetch(`${apiBase}/users/${userId}/send-reset`, { method: 'POST', headers })
+      const res = await fetch(`${API_BASE}/users/${userId}/send-reset`, { method: 'POST', headers })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Erro') }
     },
     onSuccess: () => toast.success('Email de reset enviado'),

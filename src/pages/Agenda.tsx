@@ -70,6 +70,7 @@ import {
   getCustomersIdHistoryQueryKey,
 } from "../gen/backoffice/hooks/useGetCustomersIdHistory.js";
 import { patchCustomersId } from "../gen/backoffice/hooks/usePatchCustomersId.js";
+import { TranslationInputs, type TranslationMap } from "../components/TranslationInputs.js";
 
 import type { Appointment } from "../gen/backoffice/types/Appointment.js";
 import type { Service } from "../gen/backoffice/types/Service.js";
@@ -1960,6 +1961,7 @@ type SvcForm = {
   description: string;
   active: boolean;
   color: string;
+  translations: TranslationMap;
 };
 const emptySvcForm: SvcForm = {
   name: "",
@@ -1968,6 +1970,7 @@ const emptySvcForm: SvcForm = {
   description: "",
   active: true,
   color: "#2A6FDB",
+  translations: {},
 };
 
 function ServicosPanel() {
@@ -2039,10 +2042,12 @@ function ServicosPanel() {
       description: s.description ?? "",
       active: s.active ?? true,
       color: s.color ?? "#2A6FDB",
+      translations: (s as any).translations ?? {},
     });
     setModal(true);
   };
   const handleSave = () => {
+    const translationsPayload = Object.keys(form.translations).length > 0 ? form.translations : undefined;
     const data = {
       name: form.name,
       duration: parseInt(form.duration),
@@ -2050,6 +2055,7 @@ function ServicosPanel() {
       description: form.description || undefined,
       active: form.active,
       color: form.color,
+      translations: translationsPayload as any,
     };
     if (editing) update.mutate({ id: editing.serviceId, data });
     else create.mutate({ data });
@@ -2219,6 +2225,13 @@ function ServicosPanel() {
             onChange={(e: any) =>
               setForm((f) => ({ ...f, description: e.target.value }))
             }
+          />
+          <TranslationInputs
+            value={form.translations}
+            onChange={(translations) => setForm((f) => ({ ...f, translations }))}
+            fields={["name", "description"]}
+            namePlaceholder="Nome do serviço traduzido"
+            descriptionPlaceholder="Descrição traduzida"
           />
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">

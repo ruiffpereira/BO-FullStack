@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { TranslationInputs, type TranslationMap } from '../components/TranslationInputs'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
@@ -79,10 +80,11 @@ type ProdForm = {
   categoryId: string
   photo: ProductImage | null
   photoName: string
+  translations: TranslationMap
 }
 
 const emptyForm: ProdForm = {
-  name: '', reference: '', price: '', stock: '', description: '', categoryId: '', photo: null, photoName: '',
+  name: '', reference: '', price: '', stock: '', description: '', categoryId: '', photo: null, photoName: '', translations: {},
 }
 
 function ProdutoModal({ open, produto, categories, onClose, onSave, isPending }: {
@@ -109,6 +111,7 @@ function ProdutoModal({ open, produto, categories, onClose, onSave, isPending }:
       categoryId: produto.categoryId ?? '',
       photo: null,
       photoName: '',
+      translations: (produto as any).translations ?? {},
     } : emptyForm)
     setPhotoUploading(false)
   }, [open, produto])
@@ -214,6 +217,13 @@ function ProdutoModal({ open, produto, categories, onClose, onSave, isPending }:
           <Input label="Stock" type="number" placeholder="0" value={form.stock} onChange={set('stock')} />
         </div>
         <Input label="Descrição (opcional)" value={form.description} onChange={set('description')} />
+        <TranslationInputs
+          value={form.translations}
+          onChange={(translations) => setForm((f) => ({ ...f, translations }))}
+          fields={['name', 'description']}
+          namePlaceholder="Nome do produto traduzido"
+          descriptionPlaceholder="Descrição traduzida"
+        />
       </div>
     </Modal>
   )
@@ -250,6 +260,7 @@ export function Loja() {
   const [newSubCatId, setNewSubCatId] = useState<string | null>(null)
   const [newSubName, setNewSubName] = useState('')
   const [editSub, setEditSub] = useState<{ id: string; name: string; categoryId: string } | null>(null)
+  const [transModal, setTransModal] = useState<{ id: string; name: string; translations: TranslationMap; type: 'cat' | 'sub'; categoryId?: string } | null>(null)
 
   const putCategory = usePutCategoriesId({
     client: { headers },
@@ -289,6 +300,20 @@ export function Loja() {
     const name = id ? editSub?.name?.trim() : newSubName.trim()
     if (!name) { toast.error('Nome obrigatório'); return }
     putSubcategory.mutate({ id: id ?? crypto.randomUUID(), data: { name, categoryId } })
+  }
+  const saveTranslations = () => {
+    if (!transModal) return
+    if (transModal.type === 'cat') {
+      putCategory.mutate(
+        { id: transModal.id, data: { name: transModal.name, translations: transModal.translations } as any },
+        { onSuccess: () => { toast.success('Traduções guardadas'); setTransModal(null) }, onError: () => toast.error('Erro ao guardar traduções') },
+      )
+    } else {
+      putSubcategory.mutate(
+        { id: transModal.id, data: { name: transModal.name, categoryId: transModal.categoryId!, translations: transModal.translations } as any },
+        { onSuccess: () => { toast.success('Traduções guardadas'); setTransModal(null) }, onError: () => toast.error('Erro ao guardar traduções') },
+      )
+    }
   }
 
   const createProduct = usePostProducts({
@@ -338,6 +363,7 @@ export function Loja() {
     try {
       const photoPayload = form.photo ? [form.photo] : undefined
 
+      const translationsPayload = Object.keys(form.translations).length > 0 ? form.translations : undefined
       if (editing) {
         await updateProduct.mutateAsync({
           id: editing.productId,
@@ -349,7 +375,8 @@ export function Loja() {
             description: form.description || undefined,
             categoryId: form.categoryId || undefined,
             photos: photoPayload,
-          },
+            translations: translationsPayload,
+          } as any,
         })
       } else {
         await createProduct.mutateAsync({
@@ -361,7 +388,8 @@ export function Loja() {
             description: form.description || undefined,
             categoryId: form.categoryId || undefined,
             photos: photoPayload,
-          },
+            translations: translationsPayload,
+          } as any,
         })
       }
     } catch (e) {
@@ -560,6 +588,11 @@ export function Loja() {
                       title="Editar"
                     ><Icon name="edit" className="w-3.5 h-3.5" /></button>
                     <button
+                      onClick={() => setTransModal({ id: cat.categoryId, name: cat.name, translations: (cat as any).translations ?? {}, type: 'cat' })}
+                      className="p-1.5 rounded-lg text-zinc-400 hover:text-accent hover:bg-accent/10 transition"
+                      title="Traduções"
+                    ><Icon name="globe" className="w-3.5 h-3.5" /></button>
+                    <button
                       onClick={() => { if (confirm(`Eliminar categoria "${cat.name}"?`)) delCategory.mutate({ id: cat.categoryId }) }}
                       className="p-1.5 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition"
                       title="Eliminar"
@@ -596,6 +629,11 @@ export function Loja() {
                           className="p-1 rounded text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
                           title="Editar"
                         ><Icon name="edit" className="w-3 h-3" /></button>
+                        <button
+                          onClick={() => setTransModal({ id: sub.subcategoryId, name: sub.name, translations: (sub as any).translations ?? {}, type: 'sub', categoryId: cat.categoryId })}
+                          className="p-1 rounded text-zinc-400 hover:text-accent hover:bg-accent/10 transition"
+                          title="Traduções"
+                        ><Icon name="globe" className="w-3 h-3" /></button>
                         <button
                           onClick={() => { if (confirm(`Eliminar subcategoria "${sub.name}"?`)) delSubcategory.mutate({ id: sub.subcategoryId }) }}
                           className="p-1 rounded text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition"
@@ -647,6 +685,28 @@ export function Loja() {
         onSave={handleSave}
         isPending={isPending}
       />
+
+      {/* Translation modal for categories / subcategories */}
+      {transModal && (
+        <Modal
+          open
+          onClose={() => setTransModal(null)}
+          title={`Traduções — ${transModal.name}`}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setTransModal(null)}>Cancelar</Button>
+              <Button onClick={saveTranslations} disabled={putCategory.isPending || putSubcategory.isPending}>Guardar</Button>
+            </>
+          }
+        >
+          <TranslationInputs
+            value={transModal.translations}
+            onChange={(translations) => setTransModal((m) => m ? { ...m, translations } : null)}
+            fields={['name']}
+            namePlaceholder="Nome traduzido"
+          />
+        </Modal>
+      )}
     </div>
   )
 }

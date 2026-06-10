@@ -1,11 +1,12 @@
-import { useState, useMemo } from 'react'
-import { useAuth } from '../context/AuthContext'
+import { useState, useMemo, useEffect } from 'react'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
 import { pickImageFile, supportsFilePicker } from '../lib/filePicker'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Modal, Input, Button, PageHeader, EmptyState } from '../ui/ui.jsx'
+import { useGetSettingsLanguages } from '../gen/backoffice/hooks/useGetSettingsLanguages.js'
+import { usePutSettingsLanguages } from '../gen/backoffice/hooks/usePutSettingsLanguages.js'
 import { useGetCmsSections, getCmsSectionsQueryKey } from '../gen/backoffice/hooks/useGetCmsSections.js'
 import { useGetCmsEntries, getCmsEntriesQueryKey } from '../gen/backoffice/hooks/useGetCmsEntries.js'
 import { putCmsEntries } from '../gen/backoffice/hooks/usePutCmsEntries.js'
@@ -23,9 +24,11 @@ type GroupedEntry = { key: string; type: string; translations: Record<string, st
 type EntryForm = { key: string; type: string; translations: { locale: string; value: string }[]; sectionId: string | null }
 type SectionForm = { name: string; parentId: string | null }
 
-const LOCALES = ['pt', 'en', 'es', 'fr', 'de', 'it']
-const LOCALE_LABEL: Record<string, string> = { pt: 'PT', en: 'EN', es: 'ES', fr: 'FR', de: 'DE', it: 'IT' }
 const TYPE_LABEL: Record<string, string> = { text: 'Texto', image: 'Imagem' }
+
+function localeLabel(code: string): string {
+  return code.toUpperCase().slice(0, 2)
+}
 
 const emptyEntry = (sectionId: string | null): EntryForm => ({
   key: '', type: 'text', translations: [{ locale: 'pt', value: '' }], sectionId,
@@ -133,7 +136,6 @@ function SectionNode({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export function Conteudos() {
-  const { authHeader } = useAuth()
   const qc = useQueryClient()
 
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
@@ -150,6 +152,38 @@ export function Conteudos() {
   const [sectionModal, setSectionModal] = useState(false)
   const [editSection, setEditSection] = useState<Section | null>(null)
   const [sectionForm, setSectionForm] = useState<SectionForm>(emptySection(null))
+
+  const { data: langData } = useGetSettingsLanguages()
+  const saveLangs = usePutSettingsLanguages()
+  const [selectedLangs, setSelectedLangs] = useState<string[]>([])
+  const [langsInit, setLangsInit] = useState(false)
+
+  useEffect(() => {
+    if (!langsInit && langData?.selected) {
+      setSelectedLangs(langData.selected)
+      setLangsInit(true)
+    }
+  }, [langData?.selected, langsInit])
+
+  const LOCALES = selectedLangs
+
+  const toggleLang = (code: string) =>
+    setSelectedLangs((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
+    )
+
+  const hasLangChanges =
+    JSON.stringify([...selectedLangs].sort()) !==
+    JSON.stringify([...(langData?.selected ?? [])].sort())
+
+  const handleSaveLangs = () =>
+    saveLangs.mutate(
+      { data: { languages: selectedLangs } },
+      {
+        onSuccess: () => toast.success('Línguas guardadas'),
+        onError: () => toast.error('Erro ao guardar línguas'),
+      },
+    )
 
   // ─── Queries ───────────────────────────────────────────────────────────────
 
@@ -184,7 +218,7 @@ export function Conteudos() {
     const s = new Set<string>()
     for (const e of source) if (e.locale) s.add(e.locale)
     return LOCALES.filter((l) => s.has(l))
-  }, [entries, selectedSectionId, isSearching])
+  }, [entries, selectedSectionId, isSearching, LOCALES])
 
   const selectedSection = sections.find((s) => s.sectionId === selectedSectionId)
   const breadcrumb = useMemo(() => getSectionPath(sections, selectedSectionId), [sections, selectedSectionId])
@@ -236,10 +270,28 @@ export function Conteudos() {
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
-  const closeEntryModal = () => { setEntryModal(false); setEditEntryKey(null); setEntryForm(emptyEntry(selectedSectionId)) }
+  const buildTranslationsForLocales = (existing: Record<string, string>) => {
+    const locales = LOCALES.length ? LOCALES : Object.keys(existing).filter((k) => k !== '_')
+    const rows = locales.map((locale) => ({ locale, value: existing[locale] ?? '' }))
+    // keep any existing translations for locales outside the selected set
+    for (const [locale, value] of Object.entries(existing)) {
+      if (locale !== '_' && !locales.includes(locale)) rows.push({ locale, value })
+    }
+    return rows.length ? rows : [{ locale: '', value: '' }]
+  }
+
+  const closeEntryModal = () => {
+    setEntryModal(false)
+    setEditEntryKey(null)
+    setEntryForm({ ...emptyEntry(selectedSectionId), translations: LOCALES.map((l) => ({ locale: l, value: '' })) || [{ locale: '', value: '' }] })
+  }
   const closeSectionModal = () => { setSectionModal(false); setEditSection(null); setSectionForm(emptySection(null)) }
 
-  const openCreateEntry = () => { setEditEntryKey(null); setEntryForm(emptyEntry(selectedSectionId)); setEntryModal(true) }
+  const openCreateEntry = () => {
+    setEditEntryKey(null)
+    setEntryForm({ ...emptyEntry(selectedSectionId), translations: LOCALES.length ? LOCALES.map((l) => ({ locale: l, value: '' })) : [{ locale: '', value: '' }] })
+    setEntryModal(true)
+  }
 
   const openEditEntry = (grp: GroupedEntry) => {
     setEditEntryKey(grp.key)
@@ -248,7 +300,7 @@ export function Conteudos() {
       key: grp.key,
       type: grp.type,
       sectionId: entry?.sectionId ?? null,
-      translations: Object.entries(grp.translations).map(([locale, value]) => ({ locale: locale === '_' ? '' : locale, value })),
+      translations: buildTranslationsForLocales(grp.translations),
     })
     setEntryModal(true)
   }
@@ -293,16 +345,8 @@ export function Conteudos() {
     }
   }
 
-  const addLocale = (locale: string) => {
-    if (entryForm.translations.some((t) => t.locale === locale)) return
-    setEntryForm((f) => ({ ...f, translations: [...f.translations, { locale, value: '' }] }))
-  }
-
   const removeTranslation = (i: number) =>
     setEntryForm((f) => ({ ...f, translations: f.translations.filter((_, idx) => idx !== i) }))
-
-  const usedLocales = new Set(entryForm.translations.map((t) => t.locale))
-  const availableLocales = LOCALES.filter((l) => !usedLocales.has(l))
 
   const handleSaveEntry = (e: React.FormEvent) => {
     e.preventDefault()
@@ -396,6 +440,42 @@ export function Conteudos() {
                 </p>
               )}
             </div>
+
+            {/* ── Language picker ── */}
+            <div className="border-t border-zinc-100 dark:border-zinc-800 p-3 space-y-2">
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Línguas</p>
+              <div className="flex flex-wrap gap-1.5">
+                {(langData?.available ?? []).map((lang) => {
+                  const active = selectedLangs.includes(lang.code)
+                  return (
+                    <button
+                      key={lang.code}
+                      type="button"
+                      title={lang.name}
+                      onClick={() => toggleLang(lang.code)}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all ${
+                        active
+                          ? 'bg-accent/10 text-accent border border-accent/30'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-transparent hover:border-zinc-300 dark:hover:border-zinc-600'
+                      }`}
+                    >
+                      <span>{lang.flag}</span>
+                      <span>{lang.code.toUpperCase()}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              {hasLangChanges && (
+                <button
+                  onClick={handleSaveLangs}
+                  disabled={saveLangs.isPending}
+                  className="w-full text-xs font-medium text-white bg-accent hover:bg-accent/90 disabled:opacity-60 rounded-md py-1.5 transition"
+                >
+                  {saveLangs.isPending ? 'A guardar…' : 'Guardar'}
+                </button>
+              )}
+            </div>
+
           </Card>
         </div>
 
@@ -438,7 +518,7 @@ export function Conteudos() {
                   )}
                   <p className="text-xs text-zinc-400 mt-0.5">
                     {grouped.length} {grouped.length === 1 ? 'entrada' : 'entradas'}
-                    {!isSearching && activeLocales.length > 0 && ` · ${activeLocales.map((l) => LOCALE_LABEL[l]).join(', ')}`}
+                    {!isSearching && activeLocales.length > 0 && ` · ${activeLocales.map((l) => localeLabel(l)).join(', ')}`}
                     {isSearching && ' em todas as secções'}
                   </p>
                 </div>
@@ -480,7 +560,7 @@ export function Conteudos() {
                       <th className="font-medium px-4 py-3">Secção</th>
                     )}
                     {activeLocales.map((l) => (
-                      <th key={l} className="font-medium px-4 py-3">{LOCALE_LABEL[l]}</th>
+                      <th key={l} className="font-medium px-4 py-3">{localeLabel(l)}</th>
                     ))}
                     <th className="px-4 py-3" />
                   </tr>
@@ -661,6 +741,40 @@ export function Conteudos() {
                   Ainda não há secções.
                 </p>
               )}
+
+              {/* ── Language picker (mobile) ── */}
+              <div className="border-t border-zinc-100 dark:border-zinc-800 px-3 pt-3 pb-2 space-y-2">
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Línguas</p>
+                <div className="flex flex-wrap gap-2">
+                  {(langData?.available ?? []).map((lang) => {
+                    const active = selectedLangs.includes(lang.code)
+                    return (
+                      <button
+                        key={lang.code}
+                        type="button"
+                        onClick={() => toggleLang(lang.code)}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                          active
+                            ? 'bg-accent/10 text-accent border border-accent/30'
+                            : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-transparent'
+                        }`}
+                      >
+                        <span>{lang.flag}</span>
+                        <span>{lang.name}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+                {hasLangChanges && (
+                  <button
+                    onClick={handleSaveLangs}
+                    disabled={saveLangs.isPending}
+                    className="w-full text-sm font-medium text-white bg-accent hover:bg-accent/90 disabled:opacity-60 rounded-xl py-2.5 transition"
+                  >
+                    {saveLangs.isPending ? 'A guardar…' : 'Guardar línguas'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -719,24 +833,12 @@ export function Conteudos() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Traduções</p>
-                {availableLocales.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {availableLocales.map((l) => (
-                      <button key={l} type="button" onClick={() => addLocale(l)}
-                        className="text-xs px-2 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-accent hover:text-accent transition">
-                        + {LOCALE_LABEL[l]}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Traduções</p>
 
               {entryForm.translations.map((t, i) => (
                 <div key={i} className={`flex gap-2 ${entryForm.type === 'image' ? 'items-start' : 'items-center'}`}>
                   <span className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-xs font-bold text-zinc-500 dark:text-zinc-400">
-                    {LOCALE_LABEL[t.locale] ?? (t.locale ? t.locale.toUpperCase() : '—')}
+                    {t.locale ? localeLabel(t.locale) : '—'}
                   </span>
 
                   {entryForm.type === 'text' ? (

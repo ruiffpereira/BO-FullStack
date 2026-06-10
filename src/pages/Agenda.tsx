@@ -879,12 +879,12 @@ type DragRef = {
   pointerType: string;
   startX: number;
   startY: number;
-  pressTimer: ReturnType<typeof window.setTimeout> | null;
 };
 type DragSel = { day: Date; startMin: number; endMin: number };
 type DragAction = {
   x: number;
   y: number;
+  pointerType: string;
   day: Date;
   startMin: number;
   endMin: number;
@@ -949,7 +949,7 @@ function CalendarioView() {
     startY: number;
     pointerId: number;
     pointerType: string;
-    pressTimer: ReturnType<typeof window.setTimeout> | null;
+    el: HTMLElement;
   };
   const apptDragMeta = useRef<ApptDragMeta | null>(null);
   const apptDragTargetRef = useRef<{ day: Date; min: number } | null>(null);
@@ -1139,10 +1139,16 @@ function CalendarioView() {
       if (d && d.pointerId === e.pointerId) {
         const dx = e.clientX - d.startX;
         const dy = e.clientY - d.startY;
-        if (!d.armed && Math.sqrt(dx * dx + dy * dy) > 8) {
-          if (d.pressTimer) window.clearTimeout(d.pressTimer);
-          dragRef.current = null;
-          return;
+        if (!d.armed) {
+          if (Math.sqrt(dx * dx + dy * dy) < 8) return;
+          d.armed = true;
+          d.active = true;
+          document.body.style.touchAction = "none";
+          setDragSelRef.current({
+            day: d.day,
+            startMin: d.startMin,
+            endMin: d.endMin,
+          });
         }
       }
       if (d && d.active && d.pointerId === e.pointerId) {
@@ -1165,13 +1171,11 @@ function CalendarioView() {
       if (!ad || !ad.active || ad.pointerId !== e.pointerId) return;
       const dx = e.clientX - ad.startX;
       const dy = e.clientY - ad.startY;
-      if (!ad.armed && Math.sqrt(dx * dx + dy * dy) > 8) {
-        if (ad.pressTimer) window.clearTimeout(ad.pressTimer);
-        ad.active = false;
-        apptDragMeta.current = null;
-        return;
+      if (!ad.armed) {
+        if (Math.sqrt(dx * dx + dy * dy) < 8) return;
+        ad.armed = true;
+        document.body.style.touchAction = "none";
       }
-      if (!ad.armed) return;
       e.preventDefault();
       if (!ad.moved && Math.sqrt(dx * dx + dy * dy) > 5) {
         ad.moved = true;
@@ -1226,8 +1230,10 @@ function CalendarioView() {
       // ── Drag-to-create ──
       const d = dragRef.current;
       if (d && d.pointerId === e.pointerId) {
-        if (d.pressTimer) window.clearTimeout(d.pressTimer);
-        if (!d.active) {
+        if (d.colEl.hasPointerCapture(e.pointerId)) {
+          d.colEl.releasePointerCapture(e.pointerId);
+        }
+        if (!d.armed) {
           dragRef.current = null;
           document.body.style.touchAction = "";
           setNovaDateRef.current(d.day);
@@ -1245,6 +1251,7 @@ function CalendarioView() {
           setDragActionRef.current({
             x: e.clientX,
             y: e.clientY,
+            pointerType: d.pointerType,
             day,
             startMin,
             endMin,
@@ -1258,7 +1265,9 @@ function CalendarioView() {
       // ── Appointment reschedule drag ──
       const ad = apptDragMeta.current;
       if (!ad || !ad.active || ad.pointerId !== e.pointerId) return;
-      if (ad.pressTimer) window.clearTimeout(ad.pressTimer);
+      if (ad.el.hasPointerCapture(e.pointerId)) {
+        ad.el.releasePointerCapture(e.pointerId);
+      }
       ad.active = false;
       apptDragMeta.current = null;
       document.body.style.cursor = "";
@@ -1542,22 +1551,16 @@ function CalendarioView() {
                       else dayColRefs.current.delete(format(day, "yyyy-MM-dd"));
                     }}
                     className={`relative border-l border-zinc-50 dark:border-zinc-800/50 cursor-crosshair select-none ${isToday ? "bg-accent/[0.04] dark:bg-accent/[0.07]" : ""}`}
+                    style={{ touchAction: "none" }}
                     onPointerDown={(e) => {
                       if (e.button !== 0) return;
+                      e.preventDefault();
+                      e.currentTarget.setPointerCapture(e.pointerId);
                       const rect = e.currentTarget.getBoundingClientRect();
                       const y = Math.max(0, e.clientY - rect.top);
                       const totalMin = (y / AG_ROW_H) * 60 + AG_H_START * 60;
                       const snapped = Math.round(totalMin / 15) * 15;
-                      const startDrag = () => {
-                        const d = dragRef.current;
-                        if (!d || d.pointerId !== e.pointerId) return;
-                        d.armed = true;
-                        d.active = true;
-                        document.body.style.touchAction = "none";
-                        setDragSel({ day: d.day, startMin: d.startMin, endMin: d.endMin });
-                      };
                       const isTouch = e.pointerType === "touch";
-                      if (!isTouch) e.preventDefault();
                       dragRef.current = {
                         day,
                         colEl: e.currentTarget,
@@ -1569,9 +1572,11 @@ function CalendarioView() {
                         pointerType: e.pointerType,
                         startX: e.clientX,
                         startY: e.clientY,
-                        pressTimer: isTouch ? window.setTimeout(startDrag, 260) : null,
                       };
-                      if (!isTouch) startDrag();
+                      if (!isTouch) {
+                        document.body.style.touchAction = "none";
+                        setDragSel({ day, startMin: snapped, endMin: snapped });
+                      }
                     }}
                   >
                     {/* Hour grid lines */}
@@ -1712,17 +1717,12 @@ function CalendarioView() {
                             onPointerDown={(e) => {
                               e.stopPropagation();
                               if (e.button !== 0) return;
+                              e.preventDefault();
+                              e.currentTarget.setPointerCapture(e.pointerId);
                               const rect =
                                 e.currentTarget.getBoundingClientRect();
                               const yInAppt = Math.max(0, e.clientY - rect.top);
                               const isTouch = e.pointerType === "touch";
-                              const startDrag = () => {
-                                const ad = apptDragMeta.current;
-                                if (!ad || ad.pointerId !== e.pointerId) return;
-                                ad.armed = true;
-                                document.body.style.touchAction = "none";
-                              };
-                              if (!isTouch) e.preventDefault();
                               apptDragMeta.current = {
                                 appt,
                                 offsetMin: Math.round(
@@ -1738,9 +1738,9 @@ function CalendarioView() {
                                 startY: e.clientY,
                                 pointerId: e.pointerId,
                                 pointerType: e.pointerType,
-                                pressTimer: isTouch ? window.setTimeout(startDrag, 260) : null,
+                                el: e.currentTarget,
                               };
-                              if (!isTouch) startDrag();
+                              if (!isTouch) document.body.style.touchAction = "none";
                             }}
                             className={`absolute group rounded-lg px-2 py-1 text-left z-10 hover:shadow-md hover:z-20 transition-all cursor-grab active:cursor-grabbing ${isBeingDragged ? "opacity-25" : ""}`}
                             style={{
@@ -1751,6 +1751,7 @@ function CalendarioView() {
                               background: `${color}18`,
                               borderLeft: `3px solid ${color}`,
                               border: `1px solid ${color}30`,
+                              touchAction: "none",
                             }}
                           >
                             <p className="text-[10px] font-semibold leading-tight truncate text-zinc-800 dark:text-zinc-100 pr-4">
@@ -1858,10 +1859,14 @@ function CalendarioView() {
           />
           <div
             className="fixed z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl p-2 min-w-[210px]"
-            style={{
-              left: Math.min(dragAction.x + 8, window.innerWidth - 230),
-              top: Math.min(dragAction.y - 10, window.innerHeight - 140),
-            }}
+            style={
+              dragAction.pointerType === "touch"
+                ? { left: 16, right: 16, bottom: 16 }
+                : {
+                    left: Math.min(dragAction.x + 8, window.innerWidth - 230),
+                    top: Math.min(dragAction.y - 10, window.innerHeight - 140),
+                  }
+            }
           >
             <p className="text-xs text-zinc-400 px-2 py-1 mb-1 font-medium">
               {minuteToTime(dragAction.startMin)} —{" "}

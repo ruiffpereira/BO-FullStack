@@ -1,12 +1,13 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
 import { pickImageFile, supportsFilePicker } from '../lib/filePicker'
+import { useAuth } from '../context/AuthContext'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Modal, Input, Button, PageHeader, EmptyState } from '../ui/ui.jsx'
-import { useGetSettingsLanguages } from '../gen/backoffice/hooks/useGetSettingsLanguages.js'
-import { usePutSettingsLanguages } from '../gen/backoffice/hooks/usePutSettingsLanguages.js'
+import { useGetSettingsLanguages, usePutSettingsLanguages } from '../hooks/useSettingsLanguages'
+import { LangFlag } from '../utils/langFlag'
 import { useGetCmsSections, getCmsSectionsQueryKey } from '../gen/backoffice/hooks/useGetCmsSections.js'
 import { useGetCmsEntries, getCmsEntriesQueryKey } from '../gen/backoffice/hooks/useGetCmsEntries.js'
 import { putCmsEntries } from '../gen/backoffice/hooks/usePutCmsEntries.js'
@@ -15,16 +16,26 @@ import { postCmsSections } from '../gen/backoffice/hooks/usePostCmsSections.js'
 import { patchCmsSectionsId } from '../gen/backoffice/hooks/usePatchCmsSectionsId.js'
 import { useDeleteCmsSectionsId } from '../gen/backoffice/hooks/useDeleteCmsSectionsId.js'
 import { uploadImage } from '../gen/backoffice/hooks/useUploadImage.js'
+import { toSlug } from '../utils/slug'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type Section = { sectionId: string; parentId: string | null; name: string; sortOrder: number }
+type CmsContext = 'website' | 'product' | 'service'
+type TabId = CmsContext | 'linguas'
+type Section = { sectionId: string; parentId: string | null; name: string; sortOrder: number; context: CmsContext }
 type ContentEntry = { entryId: string; key: string; locale: string | null; value: string; type: string; sectionId: string | null }
 type GroupedEntry = { key: string; type: string; translations: Record<string, string>; sectionId: string | null }
 type EntryForm = { key: string; type: string; translations: { locale: string; value: string }[]; sectionId: string | null }
 type SectionForm = { name: string; parentId: string | null }
 
 const TYPE_LABEL: Record<string, string> = { text: 'Texto', image: 'Imagem' }
+
+const CMS_TABS: { id: TabId; label: string; icon: string; permission: string | null }[] = [
+  { id: 'website',  label: 'Website',  icon: 'globe',    permission: null },
+  { id: 'product',  label: 'Loja',     icon: 'store',    permission: 'VIEW_PRODUCTS' },
+  { id: 'service',  label: 'Barbeiro', icon: 'scissors', permission: 'VIEW_SCHEDULE' },
+  { id: 'linguas',  label: 'Línguas',  icon: 'globe',    permission: null },
+]
 
 function localeLabel(code: string): string {
   return code.toUpperCase().slice(0, 2)
@@ -133,11 +144,212 @@ function SectionNode({
   )
 }
 
+// ─── Language combobox ────────────────────────────────────────────────────────
+
+function LangCombobox({ available, selected, onAdd, disabled }: {
+  available: { code: string; name: string }[]
+  selected: string[]
+  onAdd: (code: string) => void
+  disabled: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  const options = available.filter((l) => !selected.includes(l.code))
+  const filtered = options.filter((l) =>
+    l.name.toLowerCase().includes(search.toLowerCase()) ||
+    l.code.toLowerCase().includes(search.toLowerCase())
+  )
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+        setSearch('')
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  if (options.length === 0) return null
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-dashed border-zinc-300 dark:border-zinc-600 text-sm text-zinc-500 hover:border-accent hover:text-accent transition disabled:opacity-50"
+      >
+        <Icon name="plus" className="w-4 h-4" />
+        Adicionar língua
+      </button>
+
+      {open && (
+        <div className="absolute z-20 mt-1 w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-zinc-100 dark:border-zinc-800">
+            <input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Pesquisar…"
+              className="w-full px-2 py-1.5 text-sm bg-zinc-50 dark:bg-zinc-800 rounded-lg outline-none border-0 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400"
+            />
+          </div>
+          <div className="max-h-52 overflow-y-auto py-1">
+            {filtered.length === 0 && (
+              <p className="px-3 py-2 text-xs text-zinc-400">Nenhuma língua encontrada</p>
+            )}
+            {filtered.map((lang) => (
+              <button
+                key={lang.code}
+                type="button"
+                onClick={() => { onAdd(lang.code); setOpen(false); setSearch('') }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition text-left"
+              >
+                <LangFlag code={lang.code} className="h-4 w-auto rounded-sm shadow-sm shrink-0" />
+                {lang.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Línguas panel (tab) ──────────────────────────────────────────────────────
+
+function LinguasPanel({
+  available,
+  selected,
+  defaultLang,
+  onToggle,
+  onSetDefault,
+  onSave,
+  isSaving,
+  hasChanges,
+}: {
+  available: { code: string; name: string; flag: string }[]
+  selected: string[]
+  defaultLang: string
+  onToggle: (code: string) => void
+  onSetDefault: (code: string) => void
+  onSave: () => void
+  isSaving: boolean
+  hasChanges: boolean
+}) {
+  return (
+    <div className="max-w-lg space-y-8 py-2">
+      {/* Línguas activas */}
+      <div className="space-y-3">
+        <div>
+          <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Línguas activas</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+            Línguas disponíveis para traduções de conteúdo
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 items-center">
+          {selected.map((code) => {
+            const lang = available.find((l) => l.code === code)
+            const isDefault = code === defaultLang
+            return (
+              <div
+                key={code}
+                className="flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-xl border bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-sm"
+              >
+                <LangFlag code={code} className="h-4 w-auto rounded-sm shadow-sm" />
+                <span className="text-zinc-700 dark:text-zinc-300 font-medium">{lang?.name ?? code}</span>
+                {isDefault ? (
+                  <span className="ml-0.5 text-xs text-amber-500 select-none" title="Língua padrão">★</span>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={() => onToggle(code)}
+                    title={`Remover ${lang?.name ?? code}`}
+                    className="ml-0.5 p-0.5 rounded text-zinc-300 dark:text-zinc-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition"
+                  >
+                    <Icon name="x" className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )
+          })}
+          <LangCombobox
+            available={available}
+            selected={selected}
+            onAdd={(code) => onToggle(code)}
+            disabled={isSaving}
+          />
+        </div>
+        <p className="text-[11px] text-zinc-400">
+          A língua padrão <span className="text-amber-500">★</span> não pode ser removida sem primeiro definir outra como padrão.
+        </p>
+      </div>
+
+      {/* Língua padrão */}
+      {selected.length > 1 && (
+        <div className="space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Língua padrão</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+              Usada quando não existe tradução disponível noutra língua
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {selected.map((code) => {
+              const lang = available.find((l) => l.code === code)
+              const isDefault = code === defaultLang
+              return (
+                <button
+                  key={code}
+                  type="button"
+                  disabled={isSaving}
+                  onClick={() => onSetDefault(code)}
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition select-none ${
+                    isDefault
+                      ? 'border-accent bg-accent text-white font-semibold shadow-sm cursor-default'
+                      : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-accent/50'
+                  }`}
+                >
+                  <LangFlag code={code} className={`h-4 w-auto rounded-sm ${isDefault ? 'shadow-sm' : ''}`} />
+                  <span>{lang?.name ?? code}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-end">
+        <button
+          onClick={onSave}
+          disabled={isSaving || !hasChanges}
+          className="px-5 py-2 rounded-xl bg-accent text-white text-sm font-medium hover:bg-accent/90 disabled:opacity-40 transition"
+        >
+          {isSaving ? 'A guardar…' : 'Guardar'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export function Conteudos() {
   const qc = useQueryClient()
+  const { hasPermission, authHeader } = useAuth()
+  const headers = authHeader()
 
+  // Active tab
+  const visibleTabs = CMS_TABS.filter((t) => t.permission === null || hasPermission(t.permission))
+  const [activeTab, setActiveTab] = useState<TabId>('website')
+
+  // Section / search state
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [mobileTreeOpen, setMobileTreeOpen] = useState(false)
@@ -153,42 +365,80 @@ export function Conteudos() {
   const [editSection, setEditSection] = useState<Section | null>(null)
   const [sectionForm, setSectionForm] = useState<SectionForm>(emptySection(null))
 
+  // Language state — draft pattern: server state is source of truth, draft tracks unsaved edits
   const { data: langData } = useGetSettingsLanguages()
   const saveLangs = usePutSettingsLanguages()
-  const [selectedLangs, setSelectedLangs] = useState<string[]>([])
-  const [langsInit, setLangsInit] = useState(false)
+  const [draft, setDraft] = useState<{ langs: string[]; defaultLang: string } | null>(null)
 
-  useEffect(() => {
-    if (!langsInit && langData?.selected) {
-      setSelectedLangs(langData.selected)
-      setLangsInit(true)
-    }
-  }, [langData?.selected, langsInit])
+  // Ensure the default language is always in the selected list (new users may have nothing saved)
+  const serverDefault = langData?.default ?? 'pt'
+  const serverSelected = langData?.selected ?? []
+  const effectiveServerSelected = serverSelected.includes(serverDefault)
+    ? serverSelected
+    : [serverDefault, ...serverSelected]
+
+  // draft overrides server state while editing
+  const selectedLangs = draft?.langs ?? effectiveServerSelected
+  const defaultLang = draft?.defaultLang ?? serverDefault
+  const hasLangChanges = draft !== null
 
   const LOCALES = selectedLangs
 
-  const toggleLang = (code: string) =>
-    setSelectedLangs((prev) =>
-      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
-    )
+  const toggleLang = (code: string) => {
+    const base = draft?.langs ?? effectiveServerSelected
+    const currDefault = draft?.defaultLang ?? serverDefault
+    // Cannot remove the default language — change the default first
+    if (code === currDefault && base.includes(code)) return
+    const next = base.includes(code) ? base.filter((c) => c !== code) : [...base, code]
+    setDraft({ langs: next, defaultLang: currDefault })
+  }
 
-  const hasLangChanges =
-    JSON.stringify([...selectedLangs].sort()) !==
-    JSON.stringify([...(langData?.selected ?? [])].sort())
+  const handleSetDefault = (code: string) => {
+    const base = draft?.langs ?? effectiveServerSelected
+    // Activating a language when it's set as default
+    const next = base.includes(code) ? base : [...base, code]
+    setDraft({ langs: next, defaultLang: code })
+  }
 
-  const handleSaveLangs = () =>
+  const handleSaveLangs = () => {
+    if (!draft) return
     saveLangs.mutate(
-      { data: { languages: selectedLangs } },
+      { languages: draft.langs, default: draft.defaultLang },
       {
-        onSuccess: () => toast.success('Línguas guardadas'),
+        onSuccess: () => { toast.success('Línguas guardadas'); setDraft(null) },
         onError: () => toast.error('Erro ao guardar línguas'),
       },
     )
+  }
+
+  // Reset section selection when switching tabs
+  useEffect(() => {
+    setSelectedSectionId(null)
+    setSearchQuery('')
+  }, [activeTab])
 
   // ─── Queries ───────────────────────────────────────────────────────────────
 
-  const { data: sections = [], isLoading: sectionsLoading } = useGetCmsSections()
-  const { data: entries = [], isLoading: entriesLoading } = useGetCmsEntries()
+  const { data: allSections = [], isLoading: sectionsLoading } = useGetCmsSections()
+  const { data: allEntries = [], isLoading: entriesLoading } = useGetCmsEntries()
+
+  // Filter sections and entries by active tab context
+  const sections = useMemo(
+    () => (allSections as Section[]).filter((s) => s.context === activeTab),
+    [allSections, activeTab],
+  )
+
+  // Collect all section IDs for the current tab (including descendant sections)
+  const tabSectionIds = useMemo(() => new Set(sections.map((s) => s.sectionId)), [sections])
+
+  const entries = useMemo(
+    () => allEntries.filter((e) => {
+      if (e.sectionId !== null) return tabSectionIds.has(e.sectionId)
+      const context = e.key.startsWith('product.') ? 'product' : e.key.startsWith('service.') ? 'service' : 'website'
+      return context === activeTab
+    }),
+    [allEntries, activeTab, tabSectionIds],
+  )
 
   const rootSections = useMemo(() =>
     sections.filter((s) => !s.parentId).sort((a, b) => a.sortOrder - b.sortOrder),
@@ -210,15 +460,6 @@ export function Conteudos() {
       Object.values(g.translations).some((v) => v.toLowerCase().includes(q))
     )
   }, [entries, selectedSectionId, searchQuery, isSearching])
-
-  const activeLocales = useMemo(() => {
-    const source = isSearching
-      ? entries
-      : selectedSectionId === null ? entries : entries.filter((e) => e.sectionId === selectedSectionId)
-    const s = new Set<string>()
-    for (const e of source) if (e.locale) s.add(e.locale)
-    return LOCALES.filter((l) => s.has(l))
-  }, [entries, selectedSectionId, isSearching, LOCALES])
 
   const selectedSection = sections.find((s) => s.sectionId === selectedSectionId)
   const breadcrumb = useMemo(() => getSectionPath(sections, selectedSectionId), [sections, selectedSectionId])
@@ -249,7 +490,7 @@ export function Conteudos() {
       if (f.id) {
         await patchCmsSectionsId(f.id, { name: f.name, parentId: f.parentId } as any)
       } else {
-        await postCmsSections({ name: f.name, parentId: f.parentId } as any)
+        await postCmsSections({ name: f.name, parentId: f.parentId, context: activeTab } as any)
       }
     },
     onSuccess: () => { toast.success('Secção guardada'); qc.invalidateQueries({ queryKey: getCmsSectionsQueryKey() }); closeSectionModal() },
@@ -273,10 +514,7 @@ export function Conteudos() {
   const buildTranslationsForLocales = (existing: Record<string, string>) => {
     const locales = LOCALES.length ? LOCALES : Object.keys(existing).filter((k) => k !== '_')
     const rows = locales.map((locale) => ({ locale, value: existing[locale] ?? '' }))
-    // keep any existing translations for locales outside the selected set
-    for (const [locale, value] of Object.entries(existing)) {
-      if (locale !== '_' && !locales.includes(locale)) rows.push({ locale, value })
-    }
+    // Locales not in LOCALES are kept in the DB but not shown in the UI
     return rows.length ? rows : [{ locale: '', value: '' }]
   }
 
@@ -295,7 +533,7 @@ export function Conteudos() {
 
   const openEditEntry = (grp: GroupedEntry) => {
     setEditEntryKey(grp.key)
-    const entry = entries.find((e) => e.key === grp.key)
+    const entry = allEntries.find((e) => e.key === grp.key)
     setEntryForm({
       key: grp.key,
       type: grp.type,
@@ -350,8 +588,14 @@ export function Conteudos() {
 
   const handleSaveEntry = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!entryForm.key.trim()) { toast.error('A key é obrigatória'); return }
-    saveEntryMut.mutate(entryForm)
+    let form = entryForm
+    if (!form.key.trim() && !editEntryKey && (activeTab === 'product' || activeTab === 'service')) {
+      const firstValue = form.translations.find((t) => t.value.trim())?.value ?? ''
+      const slug = firstValue ? toSlug(firstValue) : `${Date.now()}`
+      form = { ...form, key: `${activeTab}.${slug}`, type: 'text' }
+    }
+    if (!form.key.trim()) { toast.error('A key é obrigatória'); return }
+    saveEntryMut.mutate(form)
   }
 
   const handleSaveSection = (e: React.FormEvent) => {
@@ -364,7 +608,12 @@ export function Conteudos() {
     ? `Nenhuma entrada encontrada para "${searchQuery}".`
     : selectedSection
       ? `Ainda não há entradas em "${selectedSection.name}".`
-      : 'Cria a primeira entrada de conteúdo.'
+      : `Cria a primeira entrada de conteúdo no separador "${CMS_TABS.find((t) => t.id === activeTab)?.label}".`
+
+  // Default language - only show in default lang column in table
+  const tableLocale = defaultLang && selectedLangs.includes(defaultLang)
+    ? defaultLang
+    : selectedLangs[0] ?? null
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -372,9 +621,44 @@ export function Conteudos() {
     <div>
       <PageHeader
         title="Conteúdos"
-        subtitle="Organiza o conteúdo dos sites em secções hierárquicas. Cada entrada suporta múltiplos idiomas."
+        subtitle="Gere o conteúdo do site, produtos e serviços em múltiplos idiomas."
       />
 
+      {/* ── Tab bar ── */}
+      <div className="flex gap-1 mb-4 bg-zinc-100 dark:bg-zinc-800/60 p-1 rounded-xl w-fit">
+        {visibleTabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === tab.id
+                ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-sm'
+                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
+            }`}
+          >
+            <Icon name={tab.icon as any} className="w-4 h-4" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Línguas tab ── */}
+      {activeTab === 'linguas' && (
+        <LinguasPanel
+          available={langData?.available ?? []}
+          selected={selectedLangs}
+          defaultLang={defaultLang}
+          onToggle={toggleLang}
+          onSetDefault={handleSetDefault}
+          onSave={handleSaveLangs}
+          isSaving={saveLangs.isPending}
+          hasChanges={hasLangChanges}
+        />
+      )}
+
+      {/* ── CMS content (hidden on línguas tab) ── */}
+      {activeTab !== 'linguas' && (
+      <>
       {/* ── Mobile section selector ── */}
       <button
         onClick={() => setMobileTreeOpen(true)}
@@ -390,8 +674,8 @@ export function Conteudos() {
 
       <div className="flex flex-col md:flex-row gap-4 items-start">
 
-        {/* ── Left: section tree (tablet/desktop only) ── */}
-        <div className="hidden md:block md:w-44 lg:w-56 md:shrink-0">
+        {/* ── Left: section tree (tablet/desktop) ── */}
+        <div className="hidden md:block md:w-48 lg:w-60 md:shrink-0">
           <Card className="overflow-hidden">
             <div className="flex items-center justify-between px-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800">
               <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Secções</span>
@@ -441,41 +725,6 @@ export function Conteudos() {
               )}
             </div>
 
-            {/* ── Language picker ── */}
-            <div className="border-t border-zinc-100 dark:border-zinc-800 p-3 space-y-2">
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Línguas</p>
-              <div className="flex flex-wrap gap-1.5">
-                {(langData?.available ?? []).map((lang) => {
-                  const active = selectedLangs.includes(lang.code)
-                  return (
-                    <button
-                      key={lang.code}
-                      type="button"
-                      title={lang.name}
-                      onClick={() => toggleLang(lang.code)}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all ${
-                        active
-                          ? 'bg-accent/10 text-accent border border-accent/30'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-transparent hover:border-zinc-300 dark:hover:border-zinc-600'
-                      }`}
-                    >
-                      <span>{lang.flag}</span>
-                      <span>{lang.code.toUpperCase()}</span>
-                    </button>
-                  )
-                })}
-              </div>
-              {hasLangChanges && (
-                <button
-                  onClick={handleSaveLangs}
-                  disabled={saveLangs.isPending}
-                  className="w-full text-xs font-medium text-white bg-accent hover:bg-accent/90 disabled:opacity-60 rounded-md py-1.5 transition"
-                >
-                  {saveLangs.isPending ? 'A guardar…' : 'Guardar'}
-                </button>
-              )}
-            </div>
-
           </Card>
         </div>
 
@@ -518,7 +767,7 @@ export function Conteudos() {
                   )}
                   <p className="text-xs text-zinc-400 mt-0.5">
                     {grouped.length} {grouped.length === 1 ? 'entrada' : 'entradas'}
-                    {!isSearching && activeLocales.length > 0 && ` · ${activeLocales.map((l) => localeLabel(l)).join(', ')}`}
+                    {tableLocale && ` · coluna: ${localeLabel(tableLocale)}`}
                     {isSearching && ' em todas as secções'}
                   </p>
                 </div>
@@ -556,12 +805,13 @@ export function Conteudos() {
                   <tr className="text-left text-zinc-500 border-b border-zinc-100 dark:border-zinc-800">
                     <th className="font-medium px-5 py-3">Key</th>
                     <th className="font-medium px-4 py-3">Tipo</th>
-                    {isSearching && (
-                      <th className="font-medium px-4 py-3">Secção</th>
+                    {isSearching && <th className="font-medium px-4 py-3">Secção</th>}
+                    {tableLocale && (
+                      <th className="font-medium px-4 py-3 flex items-center gap-1">
+                        {localeLabel(tableLocale)}
+                        {tableLocale === defaultLang && <span className="text-amber-400 text-xs">★</span>}
+                      </th>
                     )}
-                    {activeLocales.map((l) => (
-                      <th key={l} className="font-medium px-4 py-3">{localeLabel(l)}</th>
-                    ))}
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -586,22 +836,22 @@ export function Conteudos() {
                         <td className="px-4 py-3.5">
                           {grp.sectionId
                             ? <span className="text-xs px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
-                                {sections.find((s) => s.sectionId === grp.sectionId)?.name ?? '—'}
+                                {allSections.find((s) => s.sectionId === grp.sectionId)?.name ?? '—'}
                               </span>
                             : <span className="text-xs text-zinc-300 dark:text-zinc-600">Sem secção</span>
                           }
                         </td>
                       )}
-                      {activeLocales.map((l) => (
-                        <td key={l} className="px-4 py-3.5 max-w-[180px] text-xs text-zinc-600 dark:text-zinc-400">
+                      {tableLocale && (
+                        <td className="px-4 py-3.5 max-w-[220px] text-xs text-zinc-600 dark:text-zinc-400">
                           {grp.type === 'image'
-                            ? grp.translations[l]
-                              ? <img src={grp.translations[l]} alt="" className="h-9 w-14 object-cover rounded-md border border-zinc-100 dark:border-zinc-800" />
+                            ? grp.translations[tableLocale]
+                              ? <img src={grp.translations[tableLocale]} alt="" className="h-9 w-14 object-cover rounded-md border border-zinc-100 dark:border-zinc-800" />
                               : <span className="text-zinc-300 dark:text-zinc-600">—</span>
-                            : <span className="truncate block">{grp.translations[l] ?? <span className="text-zinc-300 dark:text-zinc-600">—</span>}</span>
+                            : <span className="truncate block">{grp.translations[tableLocale] ?? <span className="text-zinc-300 dark:text-zinc-600">—</span>}</span>
                           }
                         </td>
-                      ))}
+                      )}
                       <td className="px-4 py-3.5">
                         <div className="flex items-center justify-end gap-1">
                           <button onClick={() => openEditEntry(grp)} className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition">
@@ -633,8 +883,7 @@ export function Conteudos() {
                 </div>
               ))}
               {!entriesLoading && grouped.map((grp) => {
-                const firstLocale = activeLocales[0] ?? Object.keys(grp.translations)[0]
-                const preview = grp.translations[firstLocale]
+                const preview = tableLocale ? grp.translations[tableLocale] : Object.values(grp.translations)[0]
                 return (
                   <div
                     key={grp.key}
@@ -648,7 +897,7 @@ export function Conteudos() {
                       </div>
                       {isSearching && grp.sectionId && (
                         <span className="inline-block text-xs px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 mb-1">
-                          {sections.find((s) => s.sectionId === grp.sectionId)?.name ?? '—'}
+                          {allSections.find((s) => s.sectionId === grp.sectionId)?.name ?? '—'}
                         </span>
                       )}
                       {preview && grp.type === 'text' && (
@@ -686,7 +935,7 @@ export function Conteudos() {
             className="absolute inset-0 bg-zinc-900/40 backdrop-blur-[2px] animate-[fade_.15s_ease]"
             onClick={() => setMobileTreeOpen(false)}
           />
-          <div className="relative bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 rounded-t-2xl shadow-xl max-h-[72vh] flex flex-col animate-[pop_.18s_cubic-bezier(.2,.8,.2,1)]">
+          <div className="relative bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 rounded-t-2xl shadow-xl max-h-[80vh] flex flex-col animate-[pop_.18s_cubic-bezier(.2,.8,.2,1)]">
             <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
               <span className="font-semibold text-zinc-900 dark:text-white text-sm">Secções</span>
               <div className="flex items-center gap-3">
@@ -705,7 +954,7 @@ export function Conteudos() {
                 </button>
               </div>
             </div>
-            <div className="overflow-y-auto p-2 pb-6">
+            <div className="overflow-y-auto p-2 pb-2">
               <div
                 onClick={() => { setSelectedSectionId(null); setMobileTreeOpen(false) }}
                 className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm cursor-pointer transition-colors ${selectedSectionId === null ? 'bg-accent/10 text-accent' : 'text-zinc-600 dark:text-zinc-400 active:bg-zinc-100 dark:active:bg-zinc-800/60'}`}
@@ -742,42 +991,11 @@ export function Conteudos() {
                 </p>
               )}
 
-              {/* ── Language picker (mobile) ── */}
-              <div className="border-t border-zinc-100 dark:border-zinc-800 px-3 pt-3 pb-2 space-y-2">
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Línguas</p>
-                <div className="flex flex-wrap gap-2">
-                  {(langData?.available ?? []).map((lang) => {
-                    const active = selectedLangs.includes(lang.code)
-                    return (
-                      <button
-                        key={lang.code}
-                        type="button"
-                        onClick={() => toggleLang(lang.code)}
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
-                          active
-                            ? 'bg-accent/10 text-accent border border-accent/30'
-                            : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-transparent'
-                        }`}
-                      >
-                        <span>{lang.flag}</span>
-                        <span>{lang.name}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-                {hasLangChanges && (
-                  <button
-                    onClick={handleSaveLangs}
-                    disabled={saveLangs.isPending}
-                    className="w-full text-sm font-medium text-white bg-accent hover:bg-accent/90 disabled:opacity-60 rounded-xl py-2.5 transition"
-                  >
-                    {saveLangs.isPending ? 'A guardar…' : 'Guardar línguas'}
-                  </button>
-                )}
-              </div>
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
 
       {/* ── Modal: entry ── */}
@@ -798,23 +1016,27 @@ export function Conteudos() {
         >
           <form id="cms-entry-form" onSubmit={handleSaveEntry} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2 sm:col-span-1">
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Key</label>
-                <input
-                  value={entryForm.key}
-                  onChange={(e) => !editEntryKey && setEntryForm((f) => ({ ...f, key: e.target.value }))}
-                  readOnly={!!editEntryKey}
-                  placeholder="hero.title"
-                  className={`${inputCls} ${editEntryKey ? 'opacity-60 cursor-default' : ''}`}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Tipo</label>
-                <select value={entryForm.type} onChange={(e) => setEntryForm((f) => ({ ...f, type: e.target.value }))} className={inputCls}>
-                  <option value="text">Texto</option>
-                  <option value="image">Imagem</option>
-                </select>
-              </div>
+              {(editEntryKey || activeTab === 'website') && (
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Key</label>
+                  <input
+                    value={entryForm.key}
+                    onChange={(e) => !editEntryKey && setEntryForm((f) => ({ ...f, key: e.target.value }))}
+                    readOnly={!!editEntryKey}
+                    placeholder="hero.title"
+                    className={`${inputCls} ${editEntryKey ? 'opacity-60 cursor-default' : ''}`}
+                  />
+                </div>
+              )}
+              {activeTab === 'website' && (
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Tipo</label>
+                  <select value={entryForm.type} onChange={(e) => setEntryForm((f) => ({ ...f, type: e.target.value }))} className={inputCls}>
+                    <option value="text">Texto</option>
+                    <option value="image">Imagem</option>
+                  </select>
+                </div>
+              )}
               {sections.length > 0 && (
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Secção</label>
@@ -837,8 +1059,13 @@ export function Conteudos() {
 
               {entryForm.translations.map((t, i) => (
                 <div key={i} className={`flex gap-2 ${entryForm.type === 'image' ? 'items-start' : 'items-center'}`}>
-                  <span className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-xs font-bold text-zinc-500 dark:text-zinc-400">
+                  <span className={`shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg text-xs font-bold ${
+                    t.locale === defaultLang
+                      ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400'
+                      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
+                  }`}>
                     {t.locale ? localeLabel(t.locale) : '—'}
+                    {t.locale === defaultLang && <span className="absolute text-[8px] -mt-3">★</span>}
                   </span>
 
                   {entryForm.type === 'text' ? (
@@ -896,12 +1123,6 @@ export function Conteudos() {
                     </div>
                   ) : null}
 
-                  {entryForm.translations.length > 1 && (
-                    <button type="button" onClick={() => removeTranslation(i)}
-                      className="shrink-0 p-1.5 rounded-lg text-zinc-300 dark:text-zinc-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition">
-                      <Icon name="x" className="w-4 h-4" />
-                    </button>
-                  )}
                 </div>
               ))}
             </div>
@@ -914,7 +1135,7 @@ export function Conteudos() {
         <Modal
           open
           onClose={closeSectionModal}
-          title={editSection ? 'Editar secção' : 'Nova secção'}
+          title={editSection ? 'Editar secção' : `Nova secção — ${CMS_TABS.find((t) => t.id === activeTab)?.label}`}
           width="max-w-sm"
           footer={
             <>

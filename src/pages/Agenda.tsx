@@ -70,7 +70,9 @@ import {
   getCustomersIdHistoryQueryKey,
 } from "../gen/backoffice/hooks/useGetCustomersIdHistory.js";
 import { patchCustomersId } from "../gen/backoffice/hooks/usePatchCustomersId.js";
-import { TranslationInputs, type TranslationMap } from "../components/TranslationInputs.js";
+import { useGetSettingsLanguages } from "../hooks/useSettingsLanguages";
+import { useGetCmsSearch } from "../hooks/useCmsSearch";
+import { toSlug } from "../utils/slug";
 
 import type { Appointment } from "../gen/backoffice/types/Appointment.js";
 import type { Service } from "../gen/backoffice/types/Service.js";
@@ -2029,6 +2031,118 @@ function CalendarioView() {
   );
 }
 
+// ─── CMS combo (service) ──────────────────────────────────────────────────────
+function CmsComboService({
+  value,
+  onChange,
+  defaultLang,
+}: {
+  value: string | null
+  onChange: (key: string | null) => void
+  defaultLang: string
+}) {
+  const [q, setQ] = useState("")
+  const [open, setOpen] = useState(false)
+  const [highlighted, setHighlighted] = useState(0)
+  const dropRef = useRef<HTMLDivElement>(null)
+
+  const { data: results = [], isFetching } = useGetCmsSearch(
+    { q: q || undefined, context: "service", lang: defaultLang },
+    { query: { enabled: open } },
+  )
+
+  const selected = value
+    ? results.find((r) => r.key === value) ?? { key: value, label: value, sectionName: null }
+    : null
+
+  const clearAndFocus = () => {
+    onChange(null)
+    setQ("")
+  }
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+        Conteúdo CMS (opcional)
+      </label>
+      {selected ? (
+        <div className="flex items-center gap-2 px-3 py-2 bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm">
+          <Icon name="layers" className="w-4 h-4 text-accent shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-zinc-800 dark:text-zinc-100 truncate">{selected.label}</p>
+            <p className="text-[10px] text-zinc-400 truncate">{selected.key}{selected.sectionName ? ` · ${selected.sectionName}` : ""}</p>
+          </div>
+          <button type="button" onClick={clearAndFocus} className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 ml-1 text-lg leading-none">×</button>
+        </div>
+      ) : (
+        <div className="relative">
+          <input
+            type="text"
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setHighlighted(0) }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 160)}
+            onKeyDown={(e) => {
+              const list = results
+              if (!open) return
+              if (e.key === "ArrowDown") { e.preventDefault(); setHighlighted((i) => Math.min(i + 1, list.length)) }
+              else if (e.key === "ArrowUp") { e.preventDefault(); setHighlighted((i) => Math.max(i - 1, 0)) }
+              else if (e.key === "Enter") {
+                e.preventDefault()
+                if (highlighted === list.length) {
+                  window.open("/conteudos", "_blank")
+                } else if (list[highlighted]) {
+                  onChange(list[highlighted].key ?? null)
+                  setQ("")
+                  setOpen(false)
+                }
+              } else if (e.key === "Escape") setOpen(false)
+            }}
+            placeholder="Pesquisar entrada CMS…"
+            className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400"
+          />
+          {open && (
+            <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden">
+              <div ref={dropRef} className="max-h-52 overflow-y-auto">
+                {isFetching && results.length === 0 && (
+                  <p className="px-3 py-2.5 text-sm text-zinc-400">A pesquisar…</p>
+                )}
+                {!isFetching && results.length === 0 && q && (
+                  <p className="px-3 py-2 text-xs text-zinc-400">Sem resultados para "{q}".</p>
+                )}
+                {results.map((r, idx) => (
+                  <button
+                    key={r.key}
+                    type="button"
+                    onMouseDown={() => { onChange(r.key ?? null); setQ(""); setOpen(false) }}
+                    onMouseEnter={() => setHighlighted(idx)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${highlighted === idx ? "bg-accent/[0.08] dark:bg-accent/[0.12]" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
+                  >
+                    <Icon name="layers" className="w-3.5 h-3.5 text-accent/70 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-zinc-800 dark:text-zinc-100 truncate">{r.label}</p>
+                      <p className="text-[10px] text-zinc-400 truncate">{r.key}{r.sectionName ? ` · ${r.sectionName}` : ""}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onMouseDown={() => { window.open("/conteudos", "_blank"); setOpen(false) }}
+                onMouseEnter={() => setHighlighted(results.length)}
+                className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors border-t border-zinc-100 dark:border-zinc-800 ${highlighted === results.length ? "bg-accent/[0.08] text-accent" : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
+              >
+                <Icon name="plus" className="w-3.5 h-3.5" />
+                Criar entrada no CMS
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Services panel ───────────────────────────────────────────────────────────
 type SvcForm = {
   name: string;
@@ -2037,7 +2151,7 @@ type SvcForm = {
   description: string;
   active: boolean;
   color: string;
-  translations: TranslationMap;
+  contentKey: string | null;
 };
 const emptySvcForm: SvcForm = {
   name: "",
@@ -2046,7 +2160,7 @@ const emptySvcForm: SvcForm = {
   description: "",
   active: true,
   color: "#2A6FDB",
-  translations: {},
+  contentKey: null,
 };
 
 function ServicosPanel() {
@@ -2054,6 +2168,8 @@ function ServicosPanel() {
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<Service | null>(null);
   const [form, setForm] = useState<SvcForm>(emptySvcForm);
+  const { data: langData } = useGetSettingsLanguages();
+  const defaultLang = langData?.default ?? "pt";
   const [localOrder, setLocalOrder] = useState<string[]>([]);
   const dragIndexRef = useRef<number | null>(null);
 
@@ -2118,12 +2234,11 @@ function ServicosPanel() {
       description: s.description ?? "",
       active: s.active ?? true,
       color: s.color ?? "#2A6FDB",
-      translations: (s as any).translations ?? {},
+      contentKey: s.contentKey ?? null,
     });
     setModal(true);
   };
   const handleSave = () => {
-    const translationsPayload = Object.keys(form.translations).length > 0 ? form.translations : undefined;
     const data = {
       name: form.name,
       duration: parseInt(form.duration),
@@ -2131,10 +2246,10 @@ function ServicosPanel() {
       description: form.description || undefined,
       active: form.active,
       color: form.color,
-      translations: translationsPayload as any,
+      contentKey: form.contentKey,
     };
-    if (editing) update.mutate({ id: editing.serviceId, data });
-    else create.mutate({ data });
+    if (editing) update.mutate({ id: editing.serviceId, data: data as any });
+    else create.mutate({ data: data as any });
   };
 
   const handleDragStart = (index: number) => {
@@ -2215,6 +2330,12 @@ function ServicosPanel() {
                   {s.duration} min · {Number(s.price).toFixed(2)}€
                   {s.description ? ` · ${s.description}` : ""}
                 </p>
+                {s.contentKey && (
+                  <span className="inline-flex items-center gap-1 text-[10px] text-accent/70 mt-0.5">
+                    <Icon name="layers" className="w-2.5 h-2.5" />
+                    {s.contentKey}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-1">
                 <button
@@ -2266,14 +2387,26 @@ function ServicosPanel() {
         }
       >
         <div className="space-y-4">
-          <Input
-            label="Nome"
-            value={form.name}
-            onChange={(e: any) =>
-              setForm((f) => ({ ...f, name: e.target.value }))
-            }
-            placeholder="Ex: Corte + Barba"
-          />
+          <div>
+            <Input
+              label="Nome"
+              value={form.name}
+              onChange={(e: any) => {
+                const name = e.target.value;
+                setForm((f) => ({
+                  ...f,
+                  name,
+                  ...(editing ? {} : { contentKey: name.trim() ? `service.${toSlug(name)}` : null }),
+                }));
+              }}
+              placeholder="Ex: Corte + Barba"
+            />
+            {!editing && form.contentKey && (
+              <p className="mt-1 text-[11px] text-zinc-400">
+                CMS key: <code className="font-mono text-zinc-500">{form.contentKey}</code>
+              </p>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Input
               label="Duração (min)"
@@ -2302,13 +2435,13 @@ function ServicosPanel() {
               setForm((f) => ({ ...f, description: e.target.value }))
             }
           />
-          <TranslationInputs
-            value={form.translations}
-            onChange={(translations) => setForm((f) => ({ ...f, translations }))}
-            fields={["name", "description"]}
-            namePlaceholder="Nome do serviço traduzido"
-            descriptionPlaceholder="Descrição traduzida"
-          />
+          {editing && (
+            <CmsComboService
+              value={form.contentKey}
+              onChange={(key) => setForm((f) => ({ ...f, contentKey: key }))}
+              defaultLang={defaultLang}
+            />
+          )}
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
               Cor do serviço

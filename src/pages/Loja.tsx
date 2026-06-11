@@ -3,6 +3,8 @@ import {
   TranslationInputs,
   type TranslationMap,
 } from "../components/TranslationInputs";
+import { useGetSettingsLanguages } from "../hooks/useSettingsLanguages";
+import { useGetCmsSearch } from "../hooks/useCmsSearch";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
@@ -44,6 +46,7 @@ import type { Category } from "../gen/backoffice/types/Category.js";
 import type { Subcategory } from "../gen/backoffice/types/Subcategory.js";
 import { uploadImage } from "../gen/backoffice/hooks/useUploadImage.js";
 import { pickImageFile } from "../lib/filePicker";
+import { toSlug } from "../utils/slug";
 
 const photoUrl = (photo: ProductImage | string | undefined | null) =>
   typeof photo === "string" ? photo : photo?.fileUrl;
@@ -144,6 +147,7 @@ type ProdForm = {
   categoryId: string;
   photo: ProductImage | null;
   photoName: string;
+  contentKey: string | null;
   translations: TranslationMap;
 };
 
@@ -156,8 +160,115 @@ const emptyForm: ProdForm = {
   categoryId: "",
   photo: null,
   photoName: "",
+  contentKey: null,
   translations: {},
 };
+
+// ─── CMS combo (product) ──────────────────────────────────────────────────────
+function CmsComboProduct({
+  value,
+  onChange,
+  defaultLang,
+}: {
+  value: string | null
+  onChange: (key: string | null) => void
+  defaultLang: string
+}) {
+  const [q, setQ] = useState("")
+  const [open, setOpen] = useState(false)
+  const [highlighted, setHighlighted] = useState(0)
+  const dropRef = useRef<HTMLDivElement>(null)
+
+  const { data: results = [], isFetching } = useGetCmsSearch(
+    { q: q || undefined, context: "product", lang: defaultLang },
+    { query: { enabled: open } },
+  )
+
+  const selected = value
+    ? results.find((r) => r.key === value) ?? { key: value, label: value, sectionName: null }
+    : null
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+        Conteúdo CMS (opcional)
+      </label>
+      {selected ? (
+        <div className="flex items-center gap-2 px-3 py-2 bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm">
+          <Icon name="layers" className="w-4 h-4 text-accent shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-zinc-800 dark:text-zinc-100 truncate">{selected.label}</p>
+            <p className="text-[10px] text-zinc-400 truncate">{selected.key}{selected.sectionName ? ` · ${selected.sectionName}` : ""}</p>
+          </div>
+          <button type="button" onClick={() => onChange(null)} className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 ml-1 text-lg leading-none">×</button>
+        </div>
+      ) : (
+        <div className="relative">
+          <input
+            type="text"
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setHighlighted(0) }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 160)}
+            onKeyDown={(e) => {
+              if (!open) return
+              if (e.key === "ArrowDown") { e.preventDefault(); setHighlighted((i) => Math.min(i + 1, results.length)) }
+              else if (e.key === "ArrowUp") { e.preventDefault(); setHighlighted((i) => Math.max(i - 1, 0)) }
+              else if (e.key === "Enter") {
+                e.preventDefault()
+                if (highlighted === results.length) {
+                  window.open("/conteudos", "_blank")
+                } else if (results[highlighted]) {
+                  onChange(results[highlighted].key ?? null)
+                  setQ("")
+                  setOpen(false)
+                }
+              } else if (e.key === "Escape") setOpen(false)
+            }}
+            placeholder="Pesquisar entrada CMS…"
+            className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400"
+          />
+          {open && (
+            <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden">
+              <div ref={dropRef} className="max-h-52 overflow-y-auto">
+                {isFetching && results.length === 0 && (
+                  <p className="px-3 py-2.5 text-sm text-zinc-400">A pesquisar…</p>
+                )}
+                {!isFetching && results.length === 0 && q && (
+                  <p className="px-3 py-2 text-xs text-zinc-400">Sem resultados para "{q}".</p>
+                )}
+                {results.map((r, idx) => (
+                  <button
+                    key={r.key}
+                    type="button"
+                    onMouseDown={() => { onChange(r.key ?? null); setQ(""); setOpen(false) }}
+                    onMouseEnter={() => setHighlighted(idx)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${highlighted === idx ? "bg-accent/[0.08] dark:bg-accent/[0.12]" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
+                  >
+                    <Icon name="layers" className="w-3.5 h-3.5 text-accent/70 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-zinc-800 dark:text-zinc-100 truncate">{r.label}</p>
+                      <p className="text-[10px] text-zinc-400 truncate">{r.key}{r.sectionName ? ` · ${r.sectionName}` : ""}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onMouseDown={() => { window.open("/conteudos", "_blank"); setOpen(false) }}
+                onMouseEnter={() => setHighlighted(results.length)}
+                className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors border-t border-zinc-100 dark:border-zinc-800 ${highlighted === results.length ? "bg-accent/[0.08] text-accent" : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
+              >
+                <Icon name="plus" className="w-3.5 h-3.5" />
+                Criar entrada no CMS
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function ProdutoModal({
   open,
@@ -166,6 +277,7 @@ function ProdutoModal({
   onClose,
   onSave,
   isPending,
+  defaultLang,
 }: {
   open: boolean;
   produto: Product | null;
@@ -173,6 +285,7 @@ function ProdutoModal({
   onClose: () => void;
   onSave: (form: ProdForm) => void;
   isPending: boolean;
+  defaultLang: string;
 }) {
   const [form, setForm] = useState<ProdForm>(emptyForm);
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -192,6 +305,7 @@ function ProdutoModal({
             categoryId: produto.categoryId ?? "",
             photo: null,
             photoName: "",
+            contentKey: produto.contentKey ?? null,
             translations: (produto as any).translations ?? {},
           }
         : emptyForm,
@@ -203,6 +317,15 @@ function ProdutoModal({
     (k: keyof ProdForm) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const name = e.target.value;
+    setForm((f) => ({
+      ...f,
+      name,
+      ...(produto ? {} : { contentKey: name.trim() ? `product.${toSlug(name)}` : null }),
+    }));
+  };
 
   const previewSrc =
     photoUrl(form.photo) ?? photoUrl(produto?.photos?.[0]) ?? null;
@@ -309,12 +432,19 @@ function ProdutoModal({
             />
           </div>
           <div className="flex-1 space-y-3">
-            <Input
-              label="Nome do produto"
-              placeholder="Ex: Pomada Modeladora"
-              value={form.name}
-              onChange={set("name")}
-            />
+            <div>
+              <Input
+                label="Nome do produto"
+                placeholder="Ex: Pomada Modeladora"
+                value={form.name}
+                onChange={handleNameChange}
+              />
+              {!produto && form.contentKey && (
+                <p className="mt-1 text-[11px] text-zinc-400">
+                  CMS key: <code className="font-mono text-zinc-500">{form.contentKey}</code>
+                </p>
+              )}
+            </div>
             <Input
               label="Referência"
               placeholder="PM-001"
@@ -360,9 +490,16 @@ function ProdutoModal({
           value={form.translations}
           onChange={(translations) => setForm((f) => ({ ...f, translations }))}
           fields={["name", "description"]}
-          namePlaceholder="Nome do produto traduzido"
+          namePlaceholder="Nome traduzido"
           descriptionPlaceholder="Descrição traduzida"
         />
+        {produto && (
+          <CmsComboProduct
+            value={form.contentKey}
+            onChange={(key) => setForm((f) => ({ ...f, contentKey: key }))}
+            defaultLang={defaultLang}
+          />
+        )}
       </div>
     </Modal>
   );
@@ -381,6 +518,9 @@ export function Loja() {
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const { data: langData } = useGetSettingsLanguages();
+  const defaultLang = langData?.default ?? "pt";
 
   const { data: productsData, isLoading: loadingProds } = useGetProducts({
     client: { headers },
@@ -605,10 +745,10 @@ export function Loja() {
     try {
       const photoPayload = form.photo ? [form.photo] : undefined;
 
-      const translationsPayload =
-        Object.keys(form.translations).length > 0
-          ? form.translations
-          : undefined;
+      const translationsPayload = Object.keys(form.translations).length
+        ? form.translations
+        : undefined;
+
       if (editing) {
         await updateProduct.mutateAsync({
           id: editing.productId,
@@ -620,6 +760,7 @@ export function Loja() {
             description: form.description || undefined,
             categoryId: form.categoryId || undefined,
             photos: photoPayload,
+            contentKey: form.contentKey,
             translations: translationsPayload,
           } as any,
         });
@@ -633,6 +774,7 @@ export function Loja() {
             description: form.description || undefined,
             categoryId: form.categoryId || undefined,
             photos: photoPayload,
+            contentKey: form.contentKey,
             translations: translationsPayload,
           } as any,
         });
@@ -1116,6 +1258,7 @@ export function Loja() {
         onClose={closeModal}
         onSave={handleSave}
         isPending={isPending}
+        defaultLang={defaultLang}
       />
 
       {/* Translation modal for categories / subcategories */}

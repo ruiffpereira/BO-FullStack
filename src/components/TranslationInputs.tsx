@@ -1,4 +1,5 @@
-import { useGetSettingsLanguages } from "../gen/backoffice/hooks/useGetSettingsLanguages.js";
+import { useGetSettingsLanguages } from "../hooks/useSettingsLanguages";
+import { LangFlag } from "../utils/langFlag";
 
 export type TranslationMap = Record<string, { name?: string; description?: string }>;
 
@@ -44,8 +45,9 @@ export function TranslationInputs({
           key={lang.code}
           className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-2"
         >
-          <p className="text-xs font-medium text-zinc-500">
-            {lang.flag} {lang.name}
+          <p className="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
+            <LangFlag code={lang.code} className="h-3.5 w-auto rounded-sm" />
+            {lang.name}
           </p>
           {fields.includes("name") && (
             <input

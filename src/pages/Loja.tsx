@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   TranslationInputs,
   type TranslationMap,
@@ -45,8 +46,10 @@ import type { ProductImage } from "../gen/backoffice/types/ProductImage.js";
 import type { Category } from "../gen/backoffice/types/Category.js";
 import type { Subcategory } from "../gen/backoffice/types/Subcategory.js";
 import { uploadImage } from "../gen/backoffice/hooks/useUploadImage.js";
+import { putCmsEntries } from "../gen/backoffice/hooks/usePutCmsEntries.js";
 import { pickImageFile } from "../lib/filePicker";
 import { toSlug } from "../utils/slug";
+import { CmsTranslationsModal } from "../components/CmsTranslationsModal";
 
 const photoUrl = (photo: ProductImage | string | undefined | null) =>
   typeof photo === "string" ? photo : photo?.fileUrl;
@@ -148,6 +151,7 @@ type ProdForm = {
   photo: ProductImage | null;
   photoName: string;
   contentKey: string | null;
+  descriptionKey: string | null;
   translations: TranslationMap;
 };
 
@@ -161,6 +165,7 @@ const emptyForm: ProdForm = {
   photo: null,
   photoName: "",
   contentKey: null,
+  descriptionKey: null,
   translations: {},
 };
 
@@ -169,14 +174,21 @@ function CmsComboProduct({
   value,
   onChange,
   defaultLang,
+  label = "CMS (opcional)",
 }: {
   value: string | null
-  onChange: (key: string | null) => void
+  onChange: (key: string | null, label?: string) => void
   defaultLang: string
+  label?: string
 }) {
   const [q, setQ] = useState("")
   const [open, setOpen] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
+  const [creating, setCreating] = useState(false)
+  const [createName, setCreateName] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [translatingKey, setTranslatingKey] = useState<string | null>(null)
+  const [cachedLabel, setCachedLabel] = useState<string>("")
   const dropRef = useRef<HTMLDivElement>(null)
 
   const { data: results = [], isFetching } = useGetCmsSearch(
@@ -185,22 +197,47 @@ function CmsComboProduct({
   )
 
   const selected = value
-    ? results.find((r) => r.key === value) ?? { key: value, label: value, sectionName: null }
+    ? results.find((r) => r.key === value) ?? { key: value, label: cachedLabel || value, sectionName: null }
     : null
+
+  const handleCreate = async () => {
+    if (!createName.trim()) return
+    const key = `product.${toSlug(createName)}`
+    setSaving(true)
+    try {
+      await putCmsEntries({ key, locale: defaultLang, value: createName, type: "text" })
+      toast.success("Entrada criada no CMS")
+      setCachedLabel(createName)
+      onChange(key, createName)
+      setCreating(false)
+      setCreateName("")
+    } catch { toast.error("Erro ao criar entrada CMS") }
+    finally { setSaving(false) }
+  }
 
   return (
     <div>
-      <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
-        Conteúdo CMS (opcional)
-      </label>
-      {selected ? (
-        <div className="flex items-center gap-2 px-3 py-2 bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm">
-          <Icon name="layers" className="w-4 h-4 text-accent shrink-0" />
-          <div className="flex-1 min-w-0">
+      <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">{label}</label>
+      {creating ? (
+        <div className="flex gap-2">
+          <input
+            autoFocus
+            value={createName}
+            onChange={(e) => setCreateName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreate() } else if (e.key === "Escape") { setCreating(false); setCreateName("") } }}
+            placeholder="Nome da entrada…"
+            className="flex-1 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400"
+          />
+          <button type="button" onClick={handleCreate} disabled={saving} className="px-3 py-2 text-sm font-medium bg-accent text-white rounded-lg disabled:opacity-50">{saving ? "…" : "Criar"}</button>
+          <button type="button" onClick={() => { setCreating(false); setCreateName("") }} className="px-3 py-2 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200">✕</button>
+        </div>
+      ) : selected ? (
+        <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm overflow-hidden">
+          <button type="button" onClick={() => setTranslatingKey(value)} className="flex-1 flex items-center gap-2 px-3 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-700/60 transition-colors min-w-0">
+            <Icon name="layers" className="w-4 h-4 text-accent shrink-0" />
             <p className="font-medium text-zinc-800 dark:text-zinc-100 truncate">{selected.label}</p>
-            <p className="text-[10px] text-zinc-400 truncate">{selected.key}{selected.sectionName ? ` · ${selected.sectionName}` : ""}</p>
-          </div>
-          <button type="button" onClick={() => onChange(null)} className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 ml-1 text-lg leading-none">×</button>
+          </button>
+          <button type="button" onClick={() => { setCachedLabel(""); onChange(null) }} className="px-3 py-2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-lg leading-none border-l border-zinc-200 dark:border-zinc-700">×</button>
         </div>
       ) : (
         <div className="relative">
@@ -217,11 +254,9 @@ function CmsComboProduct({
               else if (e.key === "Enter") {
                 e.preventDefault()
                 if (highlighted === results.length) {
-                  window.open("/conteudos", "_blank")
+                  setCreating(true); setCreateName(q); setOpen(false); setQ("")
                 } else if (results[highlighted]) {
-                  onChange(results[highlighted].key ?? null)
-                  setQ("")
-                  setOpen(false)
+                  setCachedLabel(results[highlighted].label ?? ""); onChange(results[highlighted].key ?? null, results[highlighted].label ?? undefined); setQ(""); setOpen(false)
                 }
               } else if (e.key === "Escape") setOpen(false)
             }}
@@ -231,17 +266,11 @@ function CmsComboProduct({
           {open && (
             <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden">
               <div ref={dropRef} className="max-h-52 overflow-y-auto">
-                {isFetching && results.length === 0 && (
-                  <p className="px-3 py-2.5 text-sm text-zinc-400">A pesquisar…</p>
-                )}
-                {!isFetching && results.length === 0 && q && (
-                  <p className="px-3 py-2 text-xs text-zinc-400">Sem resultados para "{q}".</p>
-                )}
+                {isFetching && results.length === 0 && <p className="px-3 py-2.5 text-sm text-zinc-400">A pesquisar…</p>}
+                {!isFetching && results.length === 0 && q && <p className="px-3 py-2 text-xs text-zinc-400">Sem resultados para "{q}".</p>}
                 {results.map((r, idx) => (
-                  <button
-                    key={r.key}
-                    type="button"
-                    onMouseDown={() => { onChange(r.key ?? null); setQ(""); setOpen(false) }}
+                  <button key={r.key} type="button"
+                    onMouseDown={() => { setCachedLabel(r.label ?? ""); onChange(r.key ?? null, r.label ?? undefined); setQ(""); setOpen(false) }}
                     onMouseEnter={() => setHighlighted(idx)}
                     className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${highlighted === idx ? "bg-accent/[0.08] dark:bg-accent/[0.12]" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
                   >
@@ -253,9 +282,8 @@ function CmsComboProduct({
                   </button>
                 ))}
               </div>
-              <button
-                type="button"
-                onMouseDown={() => { window.open("/conteudos", "_blank"); setOpen(false) }}
+              <button type="button"
+                onMouseDown={() => { setCreating(true); setCreateName(q); setOpen(false); setQ("") }}
                 onMouseEnter={() => setHighlighted(results.length)}
                 className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors border-t border-zinc-100 dark:border-zinc-800 ${highlighted === results.length ? "bg-accent/[0.08] text-accent" : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
               >
@@ -265,6 +293,13 @@ function CmsComboProduct({
             </div>
           )}
         </div>
+      )}
+      {translatingKey && (
+        <CmsTranslationsModal
+          cmsKey={translatingKey}
+          defaultLang={defaultLang}
+          onClose={() => setTranslatingKey(null)}
+        />
       )}
     </div>
   )
@@ -306,6 +341,7 @@ function ProdutoModal({
             photo: null,
             photoName: "",
             contentKey: produto.contentKey ?? null,
+            descriptionKey: (produto as any).descriptionKey ?? null,
             translations: (produto as any).translations ?? {},
           }
         : emptyForm,
@@ -318,14 +354,6 @@ function ProdutoModal({
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const name = e.target.value;
-    setForm((f) => ({
-      ...f,
-      name,
-      ...(produto ? {} : { contentKey: name.trim() ? `product.${toSlug(name)}` : null }),
-    }));
-  };
 
   const previewSrc =
     photoUrl(form.photo) ?? photoUrl(produto?.photos?.[0]) ?? null;
@@ -432,19 +460,13 @@ function ProdutoModal({
             />
           </div>
           <div className="flex-1 space-y-3">
-            <div>
-              <Input
-                label="Nome do produto"
-                placeholder="Ex: Pomada Modeladora"
-                value={form.name}
-                onChange={handleNameChange}
-              />
-              {!produto && form.contentKey && (
-                <p className="mt-1 text-[11px] text-zinc-400">
-                  CMS key: <code className="font-mono text-zinc-500">{form.contentKey}</code>
-                </p>
-              )}
-            </div>
+            <CmsComboProduct
+              key={`name-${produto?.productId ?? "new"}`}
+              label="Nome"
+              value={form.contentKey}
+              onChange={(key, lbl) => setForm((f) => ({ ...f, contentKey: key, name: lbl ?? f.name }))}
+              defaultLang={defaultLang}
+            />
             <Input
               label="Referência"
               placeholder="PM-001"
@@ -481,25 +503,13 @@ function ProdutoModal({
             onChange={set("stock")}
           />
         </div>
-        <Input
-          label="Descrição (opcional)"
-          value={form.description}
-          onChange={set("description")}
+        <CmsComboProduct
+          key={`desc-${produto?.productId ?? "new"}`}
+          label="Descrição"
+          value={form.descriptionKey}
+          onChange={(key) => setForm((f) => ({ ...f, descriptionKey: key }))}
+          defaultLang={defaultLang}
         />
-        <TranslationInputs
-          value={form.translations}
-          onChange={(translations) => setForm((f) => ({ ...f, translations }))}
-          fields={["name", "description"]}
-          namePlaceholder="Nome traduzido"
-          descriptionPlaceholder="Descrição traduzida"
-        />
-        {produto && (
-          <CmsComboProduct
-            value={form.contentKey}
-            onChange={(key) => setForm((f) => ({ ...f, contentKey: key }))}
-            defaultLang={defaultLang}
-          />
-        )}
       </div>
     </Modal>
   );
@@ -511,6 +521,7 @@ export function Loja() {
   const { authHeader } = useAuth();
   const qc = useQueryClient();
   const headers = authHeader();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<"produtos" | "encomendas" | "categorias">(
     "produtos",
   );
@@ -675,6 +686,7 @@ export function Loja() {
       onSuccess: () => {
         toast.success("Produto criado");
         invalidateProducts();
+        qc.invalidateQueries({ queryKey: ["cms-references-counts"] });
         setModal(false);
       },
       onError: () => toast.error("Erro ao criar produto"),
@@ -687,6 +699,7 @@ export function Loja() {
       onSuccess: () => {
         toast.success("Produto actualizado");
         invalidateProducts();
+        qc.invalidateQueries({ queryKey: ["cms-references-counts"] });
         setModal(false);
       },
       onError: () => toast.error("Erro ao actualizar produto"),
@@ -726,14 +739,21 @@ export function Loja() {
     [orders],
   );
 
-  const openEdit = (prod: Product) => {
+  const openEdit = useCallback((prod: Product) => {
     setEditing(prod);
     setModal(true);
-  };
+  }, []);
   const openNew = () => {
     setEditing(null);
     setModal(true);
   };
+
+  useEffect(() => {
+    const id = searchParams.get("openProduct");
+    if (!id || products.length === 0) return;
+    const prod = products.find((p) => p.productId === id);
+    if (prod) { openEdit(prod); setSearchParams({}, { replace: true }); }
+  }, [searchParams, products, openEdit, setSearchParams]);
   const closeModal = () => {
     if (saving) return;
     setModal(false);
@@ -741,6 +761,10 @@ export function Loja() {
   };
 
   const handleSave = async (form: ProdForm) => {
+    if (!form.contentKey) {
+      toast.error("Seleciona uma entrada CMS para o nome do produto");
+      return;
+    }
     setSaving(true);
     try {
       const photoPayload = form.photo ? [form.photo] : undefined;
@@ -761,6 +785,7 @@ export function Loja() {
             categoryId: form.categoryId || undefined,
             photos: photoPayload,
             contentKey: form.contentKey,
+            descriptionKey: form.descriptionKey,
             translations: translationsPayload,
           } as any,
         });
@@ -775,6 +800,7 @@ export function Loja() {
             categoryId: form.categoryId || undefined,
             photos: photoPayload,
             contentKey: form.contentKey,
+            descriptionKey: form.descriptionKey,
             translations: translationsPayload,
           } as any,
         });

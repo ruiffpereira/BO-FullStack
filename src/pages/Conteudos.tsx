@@ -16,7 +16,9 @@ import { postCmsSections } from '../gen/backoffice/hooks/usePostCmsSections.js'
 import { patchCmsSectionsId } from '../gen/backoffice/hooks/usePatchCmsSectionsId.js'
 import { useDeleteCmsSectionsId } from '../gen/backoffice/hooks/useDeleteCmsSectionsId.js'
 import { uploadImage } from '../gen/backoffice/hooks/useUploadImage.js'
+import { useNavigate } from 'react-router-dom'
 import { toSlug } from '../utils/slug'
+import { useCmsReferences, useCmsReferencesCounts } from '../hooks/useCmsReferences'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -338,6 +340,66 @@ function LinguasPanel({
   )
 }
 
+// ─── References modal ─────────────────────────────────────────────────────────
+
+function CmsReferencesModal({ cmsKey, onClose }: { cmsKey: string; onClose: () => void }) {
+  const { data, isLoading } = useCmsReferences(cmsKey, true)
+  const navigate = useNavigate()
+  const total = (data?.products.length ?? 0) + (data?.services.length ?? 0)
+
+  const goTo = (path: string) => { onClose(); navigate(path) }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Associações"
+      width="max-w-md"
+      footer={<Button variant="ghost" onClick={onClose}>Fechar</Button>}
+    >
+      <p className="text-xs font-mono text-zinc-400 mb-4">{cmsKey}</p>
+      {isLoading && <p className="text-sm text-zinc-400 py-4 text-center">A carregar…</p>}
+      {!isLoading && total === 0 && (
+        <p className="text-sm text-zinc-400 text-center py-4">Sem associações</p>
+      )}
+      {!isLoading && (data?.products.length ?? 0) > 0 && (
+        <div className="mb-4">
+          <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide mb-2">Produtos</p>
+          <div className="space-y-1">
+            {data!.products.map((p) => (
+              <button key={p.productId} type="button" onClick={() => goTo(`/loja?openProduct=${p.productId}`)}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 hover:bg-zinc-100 dark:hover:bg-zinc-700/60 transition-colors text-sm text-left">
+                <Icon name="store" className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                <span className="flex-1 text-zinc-800 dark:text-zinc-100 truncate">{p.name}</span>
+                {p.contentKey === cmsKey && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">nome</span>}
+                {p.descriptionKey === cmsKey && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">descrição</span>}
+                <Icon name="chevronRight" className="w-3.5 h-3.5 text-zinc-300 dark:text-zinc-600 shrink-0" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {!isLoading && (data?.services.length ?? 0) > 0 && (
+        <div>
+          <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide mb-2">Serviços</p>
+          <div className="space-y-1">
+            {data!.services.map((s) => (
+              <button key={s.serviceId} type="button" onClick={() => goTo(`/agenda?openService=${s.serviceId}`)}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 hover:bg-zinc-100 dark:hover:bg-zinc-700/60 transition-colors text-sm text-left">
+                <Icon name="scissors" className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                <span className="flex-1 text-zinc-800 dark:text-zinc-100 truncate">{s.name}</span>
+                {s.contentKey === cmsKey && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">nome</span>}
+                {s.descriptionKey === cmsKey && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">descrição</span>}
+                <Icon name="chevronRight" className="w-3.5 h-3.5 text-zinc-300 dark:text-zinc-600 shrink-0" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export function Conteudos() {
@@ -359,6 +421,9 @@ export function Conteudos() {
   const [editEntryKey, setEditEntryKey] = useState<string | null>(null)
   const [entryForm, setEntryForm] = useState<EntryForm>(emptyEntry(null))
   const [uploadingIdx, setUploadingIdx] = useState<number | null>(null)
+
+  // References modal state
+  const [refsKey, setRefsKey] = useState<string | null>(null)
 
   // Section modal state
   const [sectionModal, setSectionModal] = useState(false)
@@ -464,6 +529,12 @@ export function Conteudos() {
   const selectedSection = sections.find((s) => s.sectionId === selectedSectionId)
   const breadcrumb = useMemo(() => getSectionPath(sections, selectedSectionId), [sections, selectedSectionId])
 
+  const refCountKeys = useMemo(
+    () => (activeTab === 'product' || activeTab === 'service') ? grouped.map((g) => g.key) : [],
+    [activeTab, grouped],
+  )
+  const { data: refCounts = {} } = useCmsReferencesCounts(refCountKeys)
+
   // ─── Mutations ─────────────────────────────────────────────────────────────
 
   const saveEntryMut = useMutation({
@@ -481,7 +552,18 @@ export function Conteudos() {
   const deleteEntryMut = useDeleteCmsEntriesKey({
     mutation: {
       onSuccess: () => { toast.success('Entrada eliminada'); qc.invalidateQueries({ queryKey: getCmsEntriesQueryKey() }) },
-      onError: (e: any) => toast.error(getApiError(e)),
+      onError: (e: any) => {
+        const status = e?.response?.status
+        const details = e?.response?.data?.details
+        if (status === 409 && details) {
+          const parts = []
+          if (details.products > 0) parts.push(`${details.products} produto${details.products > 1 ? 's' : ''}`)
+          if (details.services > 0) parts.push(`${details.services} serviço${details.services > 1 ? 's' : ''}`)
+          toast.error(`Não é possível eliminar: esta entrada está associada a ${parts.join(' e ')}`)
+        } else {
+          toast.error(getApiError(e))
+        }
+      },
     },
   })
 
@@ -803,8 +885,8 @@ export function Conteudos() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-zinc-500 border-b border-zinc-100 dark:border-zinc-800">
-                    <th className="font-medium px-5 py-3">Key</th>
-                    <th className="font-medium px-4 py-3">Tipo</th>
+                    {activeTab === 'website' && <th className="font-medium px-5 py-3">Key</th>}
+                    {activeTab === 'website' && <th className="font-medium px-4 py-3">Tipo</th>}
                     {isSearching && <th className="font-medium px-4 py-3">Secção</th>}
                     {tableLocale && (
                       <th className="font-medium px-4 py-3 flex items-center gap-1">
@@ -828,10 +910,14 @@ export function Conteudos() {
                   ))}
                   {!entriesLoading && grouped.map((grp) => (
                     <tr key={grp.key} className="border-b border-zinc-50 dark:border-zinc-800/50 last:border-0 hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 transition">
-                      <td className="px-5 py-3.5">
-                        <code className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded px-1.5 py-0.5">{grp.key}</code>
-                      </td>
-                      <td className="px-4 py-3.5 text-zinc-500 text-xs">{TYPE_LABEL[grp.type] ?? grp.type}</td>
+                      {activeTab === 'website' && (
+                        <td className="px-5 py-3.5">
+                          <code className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded px-1.5 py-0.5">{grp.key}</code>
+                        </td>
+                      )}
+                      {activeTab === 'website' && (
+                        <td className="px-4 py-3.5 text-zinc-500 text-xs">{TYPE_LABEL[grp.type] ?? grp.type}</td>
+                      )}
                       {isSearching && (
                         <td className="px-4 py-3.5">
                           {grp.sectionId
@@ -854,6 +940,11 @@ export function Conteudos() {
                       )}
                       <td className="px-4 py-3.5">
                         <div className="flex items-center justify-end gap-1">
+                          {(activeTab === 'product' || activeTab === 'service') && (refCounts[grp.key] ?? 0) > 0 && (
+                            <button onClick={() => setRefsKey(grp.key)} title="Ver associações" className="p-1.5 rounded-lg text-zinc-400 hover:text-accent hover:bg-accent/10 transition">
+                              <Icon name="link" className="w-4 h-4" />
+                            </button>
+                          )}
                           <button onClick={() => openEditEntry(grp)} className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition">
                             <Icon name="edit" className="w-4 h-4" />
                           </button>
@@ -907,15 +998,25 @@ export function Conteudos() {
                         <img src={preview} alt="" className="h-10 w-16 object-cover rounded border border-zinc-100 dark:border-zinc-800 mt-1.5" />
                       )}
                     </div>
-                    <button
-                      className="shrink-0 p-2 rounded-lg text-zinc-300 dark:text-zinc-600 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition mt-0.5"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (window.confirm(`Eliminar "${grp.key}"?`)) deleteEntryMut.mutate({ key: grp.key })
-                      }}
-                    >
-                      <Icon name="trash" className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                      {(activeTab === 'product' || activeTab === 'service') && (refCounts[grp.key] ?? 0) > 0 && (
+                        <button
+                          className="p-2 rounded-lg text-zinc-300 dark:text-zinc-600 hover:text-accent hover:bg-accent/10 transition"
+                          onClick={(e) => { e.stopPropagation(); setRefsKey(grp.key) }}
+                        >
+                          <Icon name="link" className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button
+                        className="p-2 rounded-lg text-zinc-300 dark:text-zinc-600 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (window.confirm(`Eliminar "${grp.key}"?`)) deleteEntryMut.mutate({ key: grp.key })
+                        }}
+                      >
+                        <Icon name="trash" className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 )
               })}
@@ -1170,6 +1271,10 @@ export function Conteudos() {
             )}
           </form>
         </Modal>
+      )}
+
+      {refsKey && (
+        <CmsReferencesModal cmsKey={refsKey} onClose={() => setRefsKey(null)} />
       )}
     </div>
   )

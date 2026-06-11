@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   format,
@@ -73,6 +73,8 @@ import { patchCustomersId } from "../gen/backoffice/hooks/usePatchCustomersId.js
 import { useGetSettingsLanguages } from "../hooks/useSettingsLanguages";
 import { useGetCmsSearch } from "../hooks/useCmsSearch";
 import { toSlug } from "../utils/slug";
+import { putCmsEntries } from "../gen/backoffice/hooks/usePutCmsEntries.js";
+import { CmsTranslationsModal } from "../components/CmsTranslationsModal";
 
 import type { Appointment } from "../gen/backoffice/types/Appointment.js";
 import type { Service } from "../gen/backoffice/types/Service.js";
@@ -720,9 +722,9 @@ function NovaApptModal({
                     setHighlightedIndex((i) => {
                       const next = Math.min(i + 1, dropList.length - 1);
                       setTimeout(() => {
-                        dropListRef.current
-                          ?.children[next]
-                          ?.scrollIntoView({ block: "nearest" });
+                        dropListRef.current?.children[next]?.scrollIntoView({
+                          block: "nearest",
+                        });
                       }, 0);
                       return next;
                     });
@@ -731,9 +733,9 @@ function NovaApptModal({
                     setHighlightedIndex((i) => {
                       const next = Math.max(i - 1, 0);
                       setTimeout(() => {
-                        dropListRef.current
-                          ?.children[next]
-                          ?.scrollIntoView({ block: "nearest" });
+                        dropListRef.current?.children[next]?.scrollIntoView({
+                          block: "nearest",
+                        });
                       }, 0);
                       return next;
                     });
@@ -837,7 +839,9 @@ function NovaApptModal({
         <hr className="border-zinc-100 dark:border-zinc-800" />
 
         <label className="block">
-          <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Serviço *</span>
+          <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+            Serviço *
+          </span>
           <div className="relative">
             <select
               ref={serviceSelectRef}
@@ -1033,7 +1037,11 @@ function CalendarioView() {
       onSuccess: () => {
         const ctx = notifyContextRef.current;
         notifyContextRef.current = "save";
-        toast.success(ctx === "reactivate" ? "Marcação reativada e cliente notificado" : "Marcação guardada e cliente notificado");
+        toast.success(
+          ctx === "reactivate"
+            ? "Marcação reativada e cliente notificado"
+            : "Marcação guardada e cliente notificado",
+        );
         setIsNotifying(false);
         setPendingReschedule(null);
         setRescheduledFrom(null);
@@ -1042,7 +1050,9 @@ function CalendarioView() {
       onError: (error) => {
         const ctx = notifyContextRef.current;
         notifyContextRef.current = "save";
-        toast.success(ctx === "reactivate" ? "Marcação reativada" : "Marcação guardada");
+        toast.success(
+          ctx === "reactivate" ? "Marcação reativada" : "Marcação guardada",
+        );
         toast.error(getApiError(error) || "Erro ao enviar email ao cliente");
         setIsNotifying(false);
         setPendingReschedule(null);
@@ -1742,7 +1752,8 @@ function CalendarioView() {
                                 pointerType: e.pointerType,
                                 el: e.currentTarget,
                               };
-                              if (!isTouch) document.body.style.touchAction = "none";
+                              if (!isTouch)
+                                document.body.style.touchAction = "none";
                             }}
                             className={`absolute group rounded-lg px-2 py-1 text-left z-10 hover:shadow-md hover:z-20 transition-all cursor-grab active:cursor-grabbing ${isBeingDragged ? "opacity-25" : ""}`}
                             style={{
@@ -1981,12 +1992,17 @@ function CalendarioView() {
           onReactivateAndNotify={(id, data) => {
             notifyAfterReactivateRef.current = id;
             lastStatusRef.current = "confirmed";
-            setStatusAppt.mutate({ id, data: { status: "confirmed", ...data } });
+            setStatusAppt.mutate({
+              id,
+              data: { status: "confirmed", ...data },
+            });
           }}
           onCancelAndNotify={(id) => cancelAndNotifyAppt.mutate(id)}
           isNotifying={isNotifying}
           isSaving={updateAppt.isPending}
-          isSettingStatus={setStatusAppt.isPending || cancelAndNotifyAppt.isPending}
+          isSettingStatus={
+            setStatusAppt.isPending || cancelAndNotifyAppt.isPending
+          }
           onOpenCustomer={(() => {
             const currentAppt = rescheduledFrom
               ? selAppt
@@ -2036,67 +2052,161 @@ function CmsComboService({
   value,
   onChange,
   defaultLang,
+  label = "CMS (opcional)",
 }: {
-  value: string | null
-  onChange: (key: string | null) => void
-  defaultLang: string
+  value: string | null;
+  onChange: (key: string | null, label?: string) => void;
+  defaultLang: string;
+  label?: string;
 }) {
-  const [q, setQ] = useState("")
-  const [open, setOpen] = useState(false)
-  const [highlighted, setHighlighted] = useState(0)
-  const dropRef = useRef<HTMLDivElement>(null)
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const [highlighted, setHighlighted] = useState(0);
+  const [creating, setCreating] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [translatingKey, setTranslatingKey] = useState<string | null>(null);
+  const [cachedLabel, setCachedLabel] = useState<string>("");
+  const dropRef = useRef<HTMLDivElement>(null);
 
   const { data: results = [], isFetching } = useGetCmsSearch(
     { q: q || undefined, context: "service", lang: defaultLang },
     { query: { enabled: open } },
-  )
+  );
 
   const selected = value
-    ? results.find((r) => r.key === value) ?? { key: value, label: value, sectionName: null }
-    : null
+    ? (results.find((r) => r.key === value) ?? {
+        key: value,
+        label: cachedLabel || value,
+        sectionName: null,
+      })
+    : null;
 
-  const clearAndFocus = () => {
-    onChange(null)
-    setQ("")
-  }
+  const handleCreate = async () => {
+    if (!createName.trim()) return;
+    const key = `service.${toSlug(createName)}`;
+    setSaving(true);
+    try {
+      await putCmsEntries({
+        key,
+        locale: defaultLang,
+        value: createName,
+        type: "text",
+      });
+      toast.success("Entrada criada no CMS");
+      setCachedLabel(createName);
+      onChange(key, createName);
+      setCreating(false);
+      setCreateName("");
+    } catch {
+      toast.error("Erro ao criar entrada CMS");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div>
       <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
-        Conteúdo CMS (opcional)
+        {label}
       </label>
-      {selected ? (
-        <div className="flex items-center gap-2 px-3 py-2 bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm">
-          <Icon name="layers" className="w-4 h-4 text-accent shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="font-medium text-zinc-800 dark:text-zinc-100 truncate">{selected.label}</p>
-            <p className="text-[10px] text-zinc-400 truncate">{selected.key}{selected.sectionName ? ` · ${selected.sectionName}` : ""}</p>
-          </div>
-          <button type="button" onClick={clearAndFocus} className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 ml-1 text-lg leading-none">×</button>
+      {creating ? (
+        <div className="flex gap-2">
+          <input
+            autoFocus
+            value={createName}
+            onChange={(e) => setCreateName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleCreate();
+              } else if (e.key === "Escape") {
+                setCreating(false);
+                setCreateName("");
+              }
+            }}
+            placeholder="Nome da entrada…"
+            className="flex-1 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400"
+          />
+          <button
+            type="button"
+            onClick={handleCreate}
+            disabled={saving}
+            className="px-3 py-2 text-sm font-medium bg-accent text-white rounded-lg disabled:opacity-50"
+          >
+            {saving ? "…" : "Criar"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setCreating(false);
+              setCreateName("");
+            }}
+            className="px-3 py-2 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200"
+          >
+            ✕
+          </button>
+        </div>
+      ) : selected ? (
+        <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setTranslatingKey(value)}
+            className="flex-1 flex items-center gap-2 px-3 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-700/60 transition-colors min-w-0"
+          >
+            <Icon name="layers" className="w-4 h-4 text-accent shrink-0" />
+            <p className="font-medium text-zinc-800 dark:text-zinc-100 truncate">
+              {selected.label}
+            </p>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setCachedLabel("");
+              onChange(null);
+            }}
+            className="px-3 py-2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-lg leading-none border-l border-zinc-200 dark:border-zinc-700"
+          >
+            ×
+          </button>
         </div>
       ) : (
         <div className="relative">
           <input
             type="text"
             value={q}
-            onChange={(e) => { setQ(e.target.value); setHighlighted(0) }}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setHighlighted(0);
+            }}
             onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 160)}
             onKeyDown={(e) => {
-              const list = results
-              if (!open) return
-              if (e.key === "ArrowDown") { e.preventDefault(); setHighlighted((i) => Math.min(i + 1, list.length)) }
-              else if (e.key === "ArrowUp") { e.preventDefault(); setHighlighted((i) => Math.max(i - 1, 0)) }
-              else if (e.key === "Enter") {
-                e.preventDefault()
+              const list = results;
+              if (!open) return;
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setHighlighted((i) => Math.min(i + 1, list.length));
+              } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setHighlighted((i) => Math.max(i - 1, 0));
+              } else if (e.key === "Enter") {
+                e.preventDefault();
                 if (highlighted === list.length) {
-                  window.open("/conteudos", "_blank")
+                  setCreating(true);
+                  setCreateName(q);
+                  setOpen(false);
+                  setQ("");
                 } else if (list[highlighted]) {
-                  onChange(list[highlighted].key ?? null)
-                  setQ("")
-                  setOpen(false)
+                  setCachedLabel(list[highlighted].label ?? "");
+                  onChange(
+                    list[highlighted].key ?? null,
+                    list[highlighted].label ?? undefined,
+                  );
+                  setQ("");
+                  setOpen(false);
                 }
-              } else if (e.key === "Escape") setOpen(false)
+              } else if (e.key === "Escape") setOpen(false);
             }}
             placeholder="Pesquisar entrada CMS…"
             className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400"
@@ -2105,30 +2215,52 @@ function CmsComboService({
             <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden">
               <div ref={dropRef} className="max-h-52 overflow-y-auto">
                 {isFetching && results.length === 0 && (
-                  <p className="px-3 py-2.5 text-sm text-zinc-400">A pesquisar…</p>
+                  <p className="px-3 py-2.5 text-sm text-zinc-400">
+                    A pesquisar…
+                  </p>
                 )}
                 {!isFetching && results.length === 0 && q && (
-                  <p className="px-3 py-2 text-xs text-zinc-400">Sem resultados para "{q}".</p>
+                  <p className="px-3 py-2 text-xs text-zinc-400">
+                    Sem resultados para "{q}".
+                  </p>
                 )}
                 {results.map((r, idx) => (
                   <button
                     key={r.key}
                     type="button"
-                    onMouseDown={() => { onChange(r.key ?? null); setQ(""); setOpen(false) }}
+                    onMouseDown={() => {
+                      setCachedLabel(r.label ?? "");
+                      onChange(r.key ?? null, r.label ?? undefined);
+                      setQ("");
+                      setOpen(false);
+                    }}
                     onMouseEnter={() => setHighlighted(idx)}
                     className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${highlighted === idx ? "bg-accent/[0.08] dark:bg-accent/[0.12]" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
                   >
-                    <Icon name="layers" className="w-3.5 h-3.5 text-accent/70 shrink-0" />
+                    <Icon
+                      name="layers"
+                      className="w-3.5 h-3.5 text-accent/70 shrink-0"
+                    />
                     <div className="min-w-0">
-                      <p className="font-medium text-zinc-800 dark:text-zinc-100 truncate">{r.label}</p>
-                      <p className="text-[10px] text-zinc-400 truncate">{r.key}{r.sectionName ? ` · ${r.sectionName}` : ""}</p>
+                      <p className="font-medium text-zinc-800 dark:text-zinc-100 truncate">
+                        {r.label}
+                      </p>
+                      <p className="text-[10px] text-zinc-400 truncate">
+                        {r.key}
+                        {r.sectionName ? ` · ${r.sectionName}` : ""}
+                      </p>
                     </div>
                   </button>
                 ))}
               </div>
               <button
                 type="button"
-                onMouseDown={() => { window.open("/conteudos", "_blank"); setOpen(false) }}
+                onMouseDown={() => {
+                  setCreating(true);
+                  setCreateName(q);
+                  setOpen(false);
+                  setQ("");
+                }}
                 onMouseEnter={() => setHighlighted(results.length)}
                 className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors border-t border-zinc-100 dark:border-zinc-800 ${highlighted === results.length ? "bg-accent/[0.08] text-accent" : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
               >
@@ -2139,8 +2271,15 @@ function CmsComboService({
           )}
         </div>
       )}
+      {translatingKey && (
+        <CmsTranslationsModal
+          cmsKey={translatingKey}
+          defaultLang={defaultLang}
+          onClose={() => setTranslatingKey(null)}
+        />
+      )}
     </div>
-  )
+  );
 }
 
 // ─── Services panel ───────────────────────────────────────────────────────────
@@ -2152,6 +2291,7 @@ type SvcForm = {
   active: boolean;
   color: string;
   contentKey: string | null;
+  descriptionKey: string | null;
 };
 const emptySvcForm: SvcForm = {
   name: "",
@@ -2161,11 +2301,14 @@ const emptySvcForm: SvcForm = {
   active: true,
   color: "#2A6FDB",
   contentKey: null,
+  descriptionKey: null,
 };
 
 function ServicosPanel() {
   const qc = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [modal, setModal] = useState(false);
+  const [formKey, setFormKey] = useState(0);
   const [editing, setEditing] = useState<Service | null>(null);
   const [form, setForm] = useState<SvcForm>(emptySvcForm);
   const { data: langData } = useGetSettingsLanguages();
@@ -2200,6 +2343,7 @@ function ServicosPanel() {
       onSuccess: () => {
         toast.success("Serviço criado");
         invalidate();
+        qc.invalidateQueries({ queryKey: ["cms-references-counts"] });
         setModal(false);
       },
       onError: (error) => toast.error(getApiError(error)),
@@ -2210,6 +2354,7 @@ function ServicosPanel() {
       onSuccess: () => {
         toast.success("Serviço actualizado");
         invalidate();
+        qc.invalidateQueries({ queryKey: ["cms-references-counts"] });
         setModal(false);
       },
       onError: (error) => toast.error(getApiError(error)),
@@ -2225,7 +2370,7 @@ function ServicosPanel() {
     },
   });
 
-  const openEdit = (s: Service) => {
+  const openEdit = useCallback((s: Service) => {
     setEditing(s);
     setForm({
       name: s.name,
@@ -2235,10 +2380,26 @@ function ServicosPanel() {
       active: s.active ?? true,
       color: s.color ?? "#2A6FDB",
       contentKey: s.contentKey ?? null,
+      descriptionKey: (s as any).descriptionKey ?? null,
     });
     setModal(true);
-  };
+  }, []);
+
+  useEffect(() => {
+    const id = searchParams.get("openService");
+    if (!id || services.length === 0) return;
+    const svc = services.find((s) => s.serviceId === id);
+    if (svc) {
+      openEdit(svc);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, services, openEdit, setSearchParams]);
+
   const handleSave = () => {
+    if (!form.contentKey) {
+      toast.error("Seleciona uma entrada CMS para o nome do serviço");
+      return;
+    }
     const data = {
       name: form.name,
       duration: parseInt(form.duration),
@@ -2247,6 +2408,7 @@ function ServicosPanel() {
       active: form.active,
       color: form.color,
       contentKey: form.contentKey,
+      descriptionKey: form.descriptionKey,
     };
     if (editing) update.mutate({ id: editing.serviceId, data: data as any });
     else create.mutate({ data: data as any });
@@ -2285,6 +2447,7 @@ function ServicosPanel() {
           onClick={() => {
             setEditing(null);
             setForm(emptySvcForm);
+            setFormKey((k) => k + 1);
             setModal(true);
           }}
         >
@@ -2330,12 +2493,6 @@ function ServicosPanel() {
                   {s.duration} min · {Number(s.price).toFixed(2)}€
                   {s.description ? ` · ${s.description}` : ""}
                 </p>
-                {s.contentKey && (
-                  <span className="inline-flex items-center gap-1 text-[10px] text-accent/70 mt-0.5">
-                    <Icon name="layers" className="w-2.5 h-2.5" />
-                    {s.contentKey}
-                  </span>
-                )}
               </div>
               <div className="flex items-center gap-1">
                 <button
@@ -2387,26 +2544,15 @@ function ServicosPanel() {
         }
       >
         <div className="space-y-4">
-          <div>
-            <Input
-              label="Nome"
-              value={form.name}
-              onChange={(e: any) => {
-                const name = e.target.value;
-                setForm((f) => ({
-                  ...f,
-                  name,
-                  ...(editing ? {} : { contentKey: name.trim() ? `service.${toSlug(name)}` : null }),
-                }));
-              }}
-              placeholder="Ex: Corte + Barba"
-            />
-            {!editing && form.contentKey && (
-              <p className="mt-1 text-[11px] text-zinc-400">
-                CMS key: <code className="font-mono text-zinc-500">{form.contentKey}</code>
-              </p>
-            )}
-          </div>
+          <CmsComboService
+            key={`name-${editing?.serviceId ?? formKey}`}
+            label="Nome"
+            value={form.contentKey}
+            onChange={(key, lbl) =>
+              setForm((f) => ({ ...f, contentKey: key, name: lbl ?? f.name }))
+            }
+            defaultLang={defaultLang}
+          />
           <div className="grid grid-cols-2 gap-3">
             <Input
               label="Duração (min)"
@@ -2428,20 +2574,13 @@ function ServicosPanel() {
               }
             />
           </div>
-          <Input
-            label="Descrição (opcional)"
-            value={form.description}
-            onChange={(e: any) =>
-              setForm((f) => ({ ...f, description: e.target.value }))
-            }
+          <CmsComboService
+            key={`desc-${editing?.serviceId ?? formKey}`}
+            label="Descrição"
+            value={form.descriptionKey}
+            onChange={(key) => setForm((f) => ({ ...f, descriptionKey: key }))}
+            defaultLang={defaultLang}
           />
-          {editing && (
-            <CmsComboService
-              value={form.contentKey}
-              onChange={(key) => setForm((f) => ({ ...f, contentKey: key }))}
-              defaultLang={defaultLang}
-            />
-          )}
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
               Cor do serviço
@@ -2935,7 +3074,8 @@ function MarcacoesPanel() {
   const updateAppt = usePutScheduleAppointmentsId({
     mutation: {
       onSuccess: () => {
-        if (!notifyAfterSaveListRef.current) toast.success("Marcação actualizada");
+        if (!notifyAfterSaveListRef.current)
+          toast.success("Marcação actualizada");
         qc.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() });
         const notifyId = notifyAfterSaveListRef.current;
         if (notifyId) {
@@ -2955,13 +3095,19 @@ function MarcacoesPanel() {
       onSuccess: () => {
         const ctx = notifyContextListRef.current;
         notifyContextListRef.current = "save";
-        toast.success(ctx === "reactivate" ? "Marcação reativada e cliente notificado" : "Marcação guardada e cliente notificado");
+        toast.success(
+          ctx === "reactivate"
+            ? "Marcação reativada e cliente notificado"
+            : "Marcação guardada e cliente notificado",
+        );
         setIsNotifyingList(false);
       },
       onError: (error) => {
         const ctx = notifyContextListRef.current;
         notifyContextListRef.current = "save";
-        toast.success(ctx === "reactivate" ? "Marcação reativada" : "Marcação guardada");
+        toast.success(
+          ctx === "reactivate" ? "Marcação reativada" : "Marcação guardada",
+        );
         toast.error(getApiError(error) || "Erro ao enviar email ao cliente");
         setIsNotifyingList(false);
       },
@@ -3259,7 +3405,10 @@ function MarcacoesPanel() {
           onReactivateAndNotify={(id, data) => {
             notifyAfterReactivateListRef.current = id;
             lastStatusRef.current = "confirmed";
-            setStatusAppt.mutate({ id, data: { status: "confirmed", ...data } });
+            setStatusAppt.mutate({
+              id,
+              data: { status: "confirmed", ...data },
+            });
           }}
           onCancelAndNotify={(id) => cancelAndNotifyApptList.mutate(id)}
           isNotifying={isNotifyingList}
@@ -3268,7 +3417,9 @@ function MarcacoesPanel() {
             setStatusAppt.mutate({ id, data: { status, ...data } });
           }}
           isSaving={updateAppt.isPending}
-          isSettingStatus={setStatusAppt.isPending || cancelAndNotifyApptList.isPending}
+          isSettingStatus={
+            setStatusAppt.isPending || cancelAndNotifyApptList.isPending
+          }
           onOpenCustomer={(() => {
             const currentAppt =
               allAppts.find((a) => a.appointmentId === selAppt.appointmentId) ??
@@ -3304,9 +3455,10 @@ const TABS = [
 ] as const;
 
 export function Agenda() {
+  const [searchParams] = useSearchParams();
   const [vista, setVista] = useState<
     "cal" | "marcacoes" | "servicos" | "config"
-  >("cal");
+  >(searchParams.get("openService") ? "servicos" : "cal");
   return (
     <div>
       <PageHeader title="Agenda" subtitle="Marcações, serviços e horários." />

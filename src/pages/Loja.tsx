@@ -142,31 +142,25 @@ function ProdutoCard({
 // ─── Modal ────────────────────────────────────────────────────────────────────
 
 type ProdForm = {
-  name: string;
   reference: string;
   price: string;
   stock: string;
-  description: string;
   categoryId: string;
   photo: ProductImage | null;
   photoName: string;
   contentKey: string | null;
   descriptionKey: string | null;
-  translations: TranslationMap;
 };
 
 const emptyForm: ProdForm = {
-  name: "",
   reference: "",
   price: "",
   stock: "",
-  description: "",
   categoryId: "",
   photo: null,
   photoName: "",
   contentKey: null,
   descriptionKey: null,
-  translations: {},
 };
 
 // ─── CMS combo (product) ──────────────────────────────────────────────────────
@@ -332,17 +326,14 @@ function ProdutoModal({
     setForm(
       produto
         ? {
-            name: produto.name ?? "",
             reference: produto.reference ?? "",
             price: String(produto.price ?? ""),
             stock: String(produto.stock ?? 0),
-            description: produto.description ?? "",
             categoryId: produto.categoryId ?? "",
             photo: null,
             photoName: "",
             contentKey: produto.contentKey ?? null,
-            descriptionKey: (produto as any).descriptionKey ?? null,
-            translations: (produto as any).translations ?? {},
+            descriptionKey: produto.descriptionKey ?? null,
           }
         : emptyForm,
     );
@@ -464,7 +455,7 @@ function ProdutoModal({
               key={`name-${produto?.productId ?? "new"}`}
               label="Nome"
               value={form.contentKey}
-              onChange={(key, lbl) => setForm((f) => ({ ...f, contentKey: key, name: lbl ?? f.name }))}
+              onChange={(key) => setForm((f) => ({ ...f, contentKey: key }))}
               defaultLang={defaultLang}
             />
             <Input
@@ -769,39 +760,29 @@ export function Loja() {
     try {
       const photoPayload = form.photo ? [form.photo] : undefined;
 
-      const translationsPayload = Object.keys(form.translations).length
-        ? form.translations
-        : undefined;
-
       if (editing) {
         await updateProduct.mutateAsync({
           id: editing.productId,
           data: {
-            name: form.name || undefined,
             reference: form.reference || undefined,
             price: form.price ? Number(form.price) : undefined,
             stock: form.stock !== "" ? Number(form.stock) : undefined,
-            description: form.description || undefined,
             categoryId: form.categoryId || undefined,
             photos: photoPayload,
             contentKey: form.contentKey,
             descriptionKey: form.descriptionKey,
-            translations: translationsPayload,
           } as any,
         });
       } else {
         await createProduct.mutateAsync({
           data: {
-            name: form.name,
             reference: form.reference || undefined,
             price: form.price ? Number(form.price) : undefined,
             stock: form.stock !== "" ? Number(form.stock) : undefined,
-            description: form.description || undefined,
             categoryId: form.categoryId || undefined,
             photos: photoPayload,
             contentKey: form.contentKey,
             descriptionKey: form.descriptionKey,
-            translations: translationsPayload,
           } as any,
         });
       }

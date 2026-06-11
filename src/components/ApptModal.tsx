@@ -269,8 +269,7 @@ export function ApptModal({
                   {editServiceId !== appt.serviceId && (
                     <div className="space-y-0.5">
                       <p className="line-through text-zinc-400">
-                        {services.find((s) => s.serviceId === appt.serviceId)
-                          ?.name ?? "—"}
+                        {services.find((s) => s.serviceId === appt.serviceId)?.name || appt.serviceName || "—"}
                       </p>
                       <p className="font-semibold text-zinc-800 dark:text-zinc-100">
                         {svc?.name ?? "—"}
@@ -527,7 +526,7 @@ export function ApptModal({
                 <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-2.5">
                   <p className="text-[11px] text-zinc-400">Serviço</p>
                   <p className="font-medium text-zinc-800 dark:text-zinc-100 mt-0.5 text-sm">
-                    {svc?.name ?? "—"}
+                    {svc?.name || appt.serviceName || "—"}
                   </p>
                 </div>
               )}
@@ -612,7 +611,7 @@ export function ApptModal({
           {tab === "payment" && (
             <div className="space-y-4">
               <div className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg text-sm">
-                <span className="text-zinc-500">{svc?.name ?? "Serviço"}</span>
+                <span className="text-zinc-500">{svc?.name || appt.serviceName || "Serviço"}</span>
                 <span className="font-semibold text-zinc-900 dark:text-white">
                   {price.toFixed(2)} €
                 </span>

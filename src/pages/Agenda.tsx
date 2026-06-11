@@ -1775,9 +1775,9 @@ function CalendarioView() {
                                 </span>
                               )}
                             </p>
-                            {svcItem && (
+                            {(appt.serviceName || svcItem) && (
                               <p className="text-[9px] text-zinc-500 truncate">
-                                {svcItem.name}
+                                {svcItem!.name || appt.serviceName}
                               </p>
                             )}
                             <span
@@ -1852,7 +1852,7 @@ function CalendarioView() {
                       </p>
                       <p className="text-xs text-zinc-400 truncate">
                         {isToday ? "Hoje" : a.date} · {a.time}
-                        {svc ? ` · ${svc.name}` : ""}
+                        {a.serviceName ? ` · ${a.serviceName}` : ""}
                       </p>
                     </div>
                   </button>
@@ -1956,9 +1956,9 @@ function CalendarioView() {
                 {targetMin !== null ? minuteToTime(targetMin) : da.time}{" "}
                 {da.clientName}
               </p>
-              {svcItem && (
+              {(da.serviceName || svcItem) && (
                 <p className="text-[9px] text-zinc-500 truncate">
-                  {svcItem.name}
+                  {da.serviceName || svcItem!.name}
                 </p>
               )}
             </div>
@@ -2284,20 +2284,16 @@ function CmsComboService({
 
 // ─── Services panel ───────────────────────────────────────────────────────────
 type SvcForm = {
-  name: string;
   duration: string;
   price: string;
-  description: string;
   active: boolean;
   color: string;
   contentKey: string | null;
   descriptionKey: string | null;
 };
 const emptySvcForm: SvcForm = {
-  name: "",
   duration: "30",
   price: "",
-  description: "",
   active: true,
   color: "#2A6FDB",
   contentKey: null,
@@ -2373,14 +2369,12 @@ function ServicosPanel() {
   const openEdit = useCallback((s: Service) => {
     setEditing(s);
     setForm({
-      name: s.name,
       duration: String(s.duration),
       price: String(s.price),
-      description: s.description ?? "",
       active: s.active ?? true,
       color: s.color ?? "#2A6FDB",
       contentKey: s.contentKey ?? null,
-      descriptionKey: (s as any).descriptionKey ?? null,
+      descriptionKey: s.descriptionKey ?? null,
     });
     setModal(true);
   }, []);
@@ -2401,10 +2395,8 @@ function ServicosPanel() {
       return;
     }
     const data = {
-      name: form.name,
       duration: parseInt(form.duration),
       price: parseFloat(form.price),
-      description: form.description || undefined,
       active: form.active,
       color: form.color,
       contentKey: form.contentKey,
@@ -2491,7 +2483,6 @@ function ServicosPanel() {
                 </p>
                 <p className="text-xs text-zinc-400">
                   {s.duration} min · {Number(s.price).toFixed(2)}€
-                  {s.description ? ` · ${s.description}` : ""}
                 </p>
               </div>
               <div className="flex items-center gap-1">
@@ -2549,7 +2540,7 @@ function ServicosPanel() {
             label="Nome"
             value={form.contentKey}
             onChange={(key, lbl) =>
-              setForm((f) => ({ ...f, contentKey: key, name: lbl ?? f.name }))
+              setForm((f) => ({ ...f, contentKey: key }))
             }
             defaultLang={defaultLang}
           />

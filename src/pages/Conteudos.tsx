@@ -19,6 +19,8 @@ import { uploadImage } from '../gen/backoffice/hooks/useUploadImage.js'
 import { useNavigate } from 'react-router-dom'
 import { toSlug } from '../utils/slug'
 import { useCmsReferences, useCmsReferencesCounts } from '../hooks/useCmsReferences'
+import { WEBSITE_TEMPLATE } from '../templates/websiteTemplate'
+import { postCmsSetup } from '../gen/backoffice/hooks/usePostCmsSetup.js'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -425,6 +427,9 @@ export function Conteudos() {
   // References modal state
   const [refsKey, setRefsKey] = useState<string | null>(null)
 
+  // Template modal state
+  const [templateModal, setTemplateModal] = useState(false)
+
   // Section modal state
   const [sectionModal, setSectionModal] = useState(false)
   const [editSection, setEditSection] = useState<Section | null>(null)
@@ -591,6 +596,20 @@ export function Conteudos() {
     },
   })
 
+  const applyTemplateMut = useMutation({
+    mutationFn: () => postCmsSetup(
+      { sections: WEBSITE_TEMPLATE.sections, entries: WEBSITE_TEMPLATE.entries.map((e) => ({ ...e, locale: 'pt' })) },
+      { headers: authHeader() },
+    ),
+    onSuccess: ({ created, skipped }) => {
+      toast.success(`Template aplicado — ${created} entradas criadas${skipped > 0 ? `, ${skipped} já existiam` : ''}`)
+      qc.invalidateQueries({ queryKey: getCmsSectionsQueryKey() })
+      qc.invalidateQueries({ queryKey: getCmsEntriesQueryKey() })
+      setTemplateModal(false)
+    },
+    onError: () => toast.error('Erro ao aplicar template'),
+  })
+
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
   const buildTranslationsForLocales = (existing: Record<string, string>) => {
@@ -603,7 +622,7 @@ export function Conteudos() {
   const closeEntryModal = () => {
     setEntryModal(false)
     setEditEntryKey(null)
-    setEntryForm({ ...emptyEntry(selectedSectionId), translations: LOCALES.map((l) => ({ locale: l, value: '' })) || [{ locale: '', value: '' }] })
+    setEntryForm({ ...emptyEntry(selectedSectionId), translations: LOCALES.length ? LOCALES.map((l) => ({ locale: l, value: '' })) : [{ locale: '', value: '' }] })
   }
   const closeSectionModal = () => { setSectionModal(false); setEditSection(null); setSectionForm(emptySection(null)) }
 
@@ -707,21 +726,32 @@ export function Conteudos() {
       />
 
       {/* ── Tab bar ── */}
-      <div className="flex gap-1 mb-4 bg-zinc-100 dark:bg-zinc-800/60 p-1 rounded-xl w-fit">
-        {visibleTabs.map((tab) => (
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-800/60 p-1 rounded-xl">
+          {visibleTabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === tab.id
+                  ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-sm'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
+              }`}
+            >
+              <Icon name={tab.icon as any} className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {activeTab === 'website' && (
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === tab.id
-                ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-sm'
-                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
-            }`}
+            onClick={() => setTemplateModal(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-600 text-sm text-zinc-500 hover:border-accent hover:text-accent transition"
           >
-            <Icon name={tab.icon as any} className="w-4 h-4" />
-            {tab.label}
+            <Icon name="layers" className="w-4 h-4" />
+            Aplicar template
           </button>
-        ))}
+        )}
       </div>
 
       {/* ── Línguas tab ── */}
@@ -758,7 +788,7 @@ export function Conteudos() {
 
         {/* ── Left: section tree (tablet/desktop) ── */}
         <div className="hidden md:block md:w-48 lg:w-60 md:shrink-0">
-          <Card className="overflow-hidden">
+          <Card className="overflow-hidden md:flex md:flex-col md:max-h-[calc(100vh-17rem)]">
             <div className="flex items-center justify-between px-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800">
               <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Secções</span>
               <button
@@ -770,7 +800,7 @@ export function Conteudos() {
               </button>
             </div>
 
-            <div className="p-1.5 space-y-0.5">
+            <div className="p-1.5 space-y-0.5 md:overflow-y-auto md:flex-1">
               <div
                 onClick={() => setSelectedSectionId(null)}
                 className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm cursor-pointer transition-colors ${selectedSectionId === null ? 'bg-accent/10 text-accent' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 hover:text-zinc-800 dark:hover:text-zinc-200'}`}
@@ -812,7 +842,7 @@ export function Conteudos() {
 
         {/* ── Right: entries panel ── */}
         <div className="flex-1 min-w-0">
-          <Card className="overflow-hidden">
+          <Card className="overflow-hidden md:flex md:flex-col md:h-[calc(100vh-17rem)]">
 
             {/* Panel header */}
             <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 space-y-3">
@@ -881,9 +911,9 @@ export function Conteudos() {
             </div>
 
             {/* ── Tablet/Desktop: table ── */}
-            <div className="hidden md:block overflow-x-auto">
+            <div className="hidden md:block md:flex-1 md:min-h-0 md:overflow-auto">
               <table className="w-full text-sm">
-                <thead>
+                <thead className="sticky top-0 bg-white dark:bg-zinc-900 z-10">
                   <tr className="text-left text-zinc-500 border-b border-zinc-100 dark:border-zinc-800">
                     {activeTab === 'website' && <th className="font-medium px-5 py-3">Key</th>}
                     {activeTab === 'website' && <th className="font-medium px-4 py-3">Tipo</th>}
@@ -1097,6 +1127,46 @@ export function Conteudos() {
         </div>
       )}
       </>
+      )}
+
+      {/* ── Modal: template ── */}
+      {templateModal && (
+        <Modal
+          open
+          onClose={() => !applyTemplateMut.isPending && setTemplateModal(false)}
+          title="Aplicar template de website"
+          width="max-w-md"
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setTemplateModal(false)} disabled={applyTemplateMut.isPending}>Cancelar</Button>
+              <Button onClick={() => applyTemplateMut.mutate()} disabled={applyTemplateMut.isPending}>
+                {applyTemplateMut.isPending ? 'A aplicar…' : 'Aplicar'}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-4 text-sm">
+            <p className="text-zinc-700 dark:text-zinc-300">
+              Cria automaticamente as secções e entradas base para um site de agendamentos:
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {WEBSITE_TEMPLATE.sections.map((s) => (
+                <div key={s.name} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 text-zinc-700 dark:text-zinc-300">
+                  <Icon name="layers" className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                  <span className="text-xs font-medium truncate">{s.name}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-3 text-xs text-zinc-500 border-t border-zinc-100 dark:border-zinc-800 pt-3">
+              <span className="font-semibold text-zinc-700 dark:text-zinc-300">{WEBSITE_TEMPLATE.sections.length}</span> secções
+              <span className="text-zinc-300 dark:text-zinc-600">·</span>
+              <span className="font-semibold text-zinc-700 dark:text-zinc-300">{WEBSITE_TEMPLATE.entries.length}</span> entradas
+            </div>
+            <p className="text-xs text-zinc-400 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 px-3 py-2 rounded-lg">
+              Entradas já existentes não são substituídas. Podes aplicar várias vezes sem perder conteúdo.
+            </p>
+          </div>
+        </Modal>
       )}
 
       {/* ── Modal: entry ── */}

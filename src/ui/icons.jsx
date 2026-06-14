@@ -52,6 +52,8 @@ const ICON_PATHS = {
   copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
   link: '<path d="M10 13a5 5 0 0 0 7.5.7l3-3a5 5 0 0 0-7.1-7.1l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.7l-3 3a5 5 0 0 0 7.1 7.1l1.7-1.7"/>',
+  loader: '<path d="M21 12a9 9 0 1 1-6.2-8.6" stroke-linecap="round"/>',
+  alertTriangle: '<path d="m10.3 3.3-7.6 13A1 1 0 0 0 3.6 18h16.8a1 1 0 0 0 .9-1.4l-7.6-13a1 1 0 0 0-1.7 0z"/><path d="M12 9v4M12 17h.01"/>',
 };
 
 function Icon({ name, className = 'w-5 h-5', strokeWidth = 1.75 }) {

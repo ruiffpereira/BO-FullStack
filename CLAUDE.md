@@ -85,6 +85,61 @@ O CMS tem três contextos: `website`, `product`, `service`.
 - Traduções agrupadas por `key`: `Record<locale, value>`
 - A língua padrão define a coluna principal das tabelas
 
+### Importar conteúdo via CSV
+
+Para popular o CMS de um novo site de cliente, criar um `content-import.csv` e importar via `POST /api/cms/setup`.
+
+**Formato — 6 colunas obrigatórias:**
+
+```
+key,locale,value,type,section,parent
+```
+
+| Coluna | Descrição |
+|--------|-----------|
+| `key` | Identificador único em dot-notation (`hero.title`, `project.slug.stat.1.value`) |
+| `locale` | Código de língua: `pt`, `en`, `fr` |
+| `value` | O conteúdo. **Nunca deixar vazio** — apagar a linha inteira se não há valor |
+| `type` | Ver tabela abaixo |
+| `section` | Nome da secção a que a entrada pertence |
+| `parent` | Nome da secção pai; deixar vazio para secções raiz |
+
+**Tipos de conteúdo:**
+
+| Tipo | Quando usar |
+|------|-------------|
+| `text` | Títulos, labels, descrições, qualquer string |
+| `richtext` | HTML inline simples (`<em>`, `<strong>`, `<br>`) |
+| `number` | Valores numéricos (anos, contagens, áreas) |
+| `data` | Slugs, referências internas, flags — não é texto traduzível |
+| `url` | Links externos |
+| `email` | Endereços de email |
+| `phone` | Números de telefone |
+| `file` | URL de ficheiro para download (PDF, etc.) |
+| `image` | URL de imagem (OG images, fotos, etc.) |
+
+**Regras:**
+
+1. **Sem valores vazios** — a linha é ignorada se `value` estiver em branco. Apagar a linha em vez de deixar vazio.
+2. **Slugs e referências** usam tipo `data` e só precisam de locale `pt`.
+3. **URLs, ficheiros, OG images** — só precisam de locale `pt` (são neutros em termos de língua).
+4. **Textos traduzíveis** devem ter uma linha por cada locale activo.
+5. **Hierarquia de secções**: `section` + `parent` criam a árvore automaticamente — não é necessária uma ordem específica no ficheiro.
+
+**Exemplo mínimo:**
+
+```csv
+key,locale,value,type,section,parent
+hero.title,pt,Título em Português,text,Hero,Homepage
+hero.title,en,Title in English,text,Hero,Homepage
+hero.cta,pt,Saber mais,text,Hero,Homepage
+contact.email,pt,geral@cliente.pt,email,Contactos,Homepage
+seo.home.title,pt,Cliente — Slogan,text,SEO · Homepage,SEO
+seo.home.og_image,pt,https://cliente.pt/assets/og.jpg,image,SEO · Homepage,SEO
+```
+
+O ficheiro `winterplateau/content-import.csv` é o exemplo de referência com um site completo (nav, hero, produtos, projetos com SEO, 3 línguas).
+
 ---
 
 ## Línguas

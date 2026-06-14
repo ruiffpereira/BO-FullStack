@@ -14,7 +14,7 @@ function Card({ children, className = '', ...rest }) {
   );
 }
 
-function Button({ children, variant = 'primary', size = 'md', icon, className = '', ...rest }) {
+function Button({ children, variant = 'primary', size = 'md', icon, isLoading = false, disabled, className = '', ...rest }) {
   const base = 'inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap';
   const sizes = { sm: 'text-[13px] px-2.5 py-1.5', md: 'text-sm px-3.5 py-2', lg: 'text-[15px] px-5 py-2.5' };
   const variants = {
@@ -24,9 +24,14 @@ function Button({ children, variant = 'primary', size = 'md', icon, className = 
     ghost: 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800',
     danger: 'bg-red-500 text-white hover:bg-red-600 shadow-sm',
   };
+  const iconCls = size === 'sm' ? 'w-4 h-4' : 'w-[18px] h-[18px]';
   return (
-    <button className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} {...rest}>
-      {icon && <Icon name={icon} className={size === 'sm' ? 'w-4 h-4' : 'w-[18px] h-[18px]'} />}
+    <button className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} disabled={isLoading || disabled} {...rest}>
+      {isLoading
+        ? <Icon name="loader" className={`${iconCls} animate-spin`} />
+        : icon
+          ? <Icon name={icon} className={iconCls} />
+          : null}
       {children}
     </button>
   );

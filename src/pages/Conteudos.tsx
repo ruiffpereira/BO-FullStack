@@ -58,11 +58,13 @@ import {
 } from "../hooks/useCmsReferences";
 import { postCmsSetup } from "../gen/backoffice/hooks/usePostCmsSetup.js";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { RichTextEditor } from "../components/RichTextEditor";
+import { EmailsPanel } from "../components/EmailsPanel";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type CmsContext = "website" | "product" | "service";
-type TabId = CmsContext | "linguas";
+type TabId = CmsContext | "linguas" | "emails";
 type Section = {
   sectionId: string;
   parentId: string | null;
@@ -121,6 +123,7 @@ const CMS_TABS: {
     permission: "VIEW_SCHEDULE",
   },
   { id: "linguas", label: "Línguas", icon: "globe", permission: null },
+  { id: "emails", label: "Emails", icon: "mail", permission: null },
 ];
 
 function localeLabel(code: string): string {
@@ -1414,7 +1417,7 @@ export function Conteudos() {
             </button>
           ))}
         </div>
-        {activeTab !== "linguas" && (
+        {activeTab !== "linguas" && activeTab !== "emails" && (
           <button
             onClick={() => importFileRef.current?.click()}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-600 text-sm text-zinc-500 hover:border-accent hover:text-accent transition"
@@ -1440,8 +1443,11 @@ export function Conteudos() {
         />
       )}
 
-      {/* ── CMS content (hidden on línguas tab) ── */}
-      {activeTab !== "linguas" && (
+      {/* ── Emails tab ── */}
+      {activeTab === "emails" && <EmailsPanel />}
+
+      {/* ── CMS content (hidden on línguas/emails tabs) ── */}
+      {activeTab !== "linguas" && activeTab !== "emails" && (
         <>
           {/* ── Mobile section selector ── */}
           <button
@@ -2149,7 +2155,7 @@ export function Conteudos() {
           open
           onClose={closeEntryModal}
           title={editEntryKey ? `Editar — ${editEntryKey}` : "Nova entrada"}
-          width="max-w-lg"
+          width={entryForm.type === 'richtext' ? 'max-w-3xl' : 'max-w-lg'}
           footer={
             <>
               <Button variant="ghost" onClick={closeEntryModal}>
@@ -2201,6 +2207,7 @@ export function Conteudos() {
                     className={inputCls}
                   >
                     <option value="text">Texto</option>
+                    <option value="richtext">Texto rico</option>
                     <option value="image">Imagem</option>
                   </select>
                 </div>
@@ -2239,7 +2246,7 @@ export function Conteudos() {
               {entryForm.translations.map((t, i) => (
                 <div
                   key={i}
-                  className={`flex gap-2 ${entryForm.type === "image" ? "items-start" : "items-center"}`}
+                  className={`flex gap-2 ${entryForm.type === "image" || entryForm.type === "richtext" ? "items-start" : "items-center"}`}
                 >
                   <span
                     className={`shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg text-xs font-bold ${
@@ -2267,6 +2274,13 @@ export function Conteudos() {
                       rows={3}
                       className={`${inputCls} flex-1 resize-none overflow-y-auto min-h-[80px] max-h-[320px]`}
                     />
+                  ) : entryForm.type === "richtext" ? (
+                    <div className="flex-1">
+                      <RichTextEditor
+                        value={t.value}
+                        onChange={(html) => setTranslation(i, "value", html)}
+                      />
+                    </div>
                   ) : entryForm.type === "image" ? (
                     <div className="flex-1 space-y-1.5">
                       <label

@@ -1777,7 +1777,7 @@ function CalendarioView() {
                             </p>
                             {(appt.serviceName || svcItem) && (
                               <p className="text-[9px] text-zinc-500 truncate">
-                                {svcItem!.name || appt.serviceName}
+                                {svcItem?.name || appt.serviceName}
                               </p>
                             )}
                             <span
@@ -1958,7 +1958,7 @@ function CalendarioView() {
               </p>
               {(da.serviceName || svcItem) && (
                 <p className="text-[9px] text-zinc-500 truncate">
-                  {da.serviceName || svcItem!.name}
+                  {da.serviceName || svcItem?.name}
                 </p>
               )}
             </div>

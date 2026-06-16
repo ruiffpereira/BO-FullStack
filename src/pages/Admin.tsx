@@ -45,6 +45,13 @@ import { useDeleteSiteTokensId } from "../gen/backoffice/hooks/useDeleteSiteToke
 import type { User } from "../gen/backoffice/types/User.js";
 import type { Permission } from "../gen/backoffice/types/Permission.js";
 import type { Component } from "../gen/backoffice/types/Component.js";
+import {
+  useAuditLogs,
+  useErrorLogs,
+  useHealth,
+  type AuditLog,
+  type ErrorLog,
+} from "../hooks/useAuditLogs";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 function TableWrapper({ children }: { children: React.ReactNode }) {
@@ -1153,20 +1160,267 @@ function TokensTab({ headers }: { headers: Record<string, string> }) {
   )
 }
 
+// ─── Atividade (audit log) tab ──────────────────────────────────────────────
+const METHOD_TONE: Record<string, "green" | "amber" | "red" | "neutral"> = {
+  POST: "green",
+  PUT: "amber",
+  PATCH: "amber",
+  DELETE: "red",
+};
+
+const fmtDateTime = (s: string) => new Date(s).toLocaleString("pt-PT");
+const fmtUptime = (sec: number) => {
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return [d ? `${d}d` : "", h ? `${h}h` : "", `${m}m`].filter(Boolean).join(" ");
+};
+
+function AtividadeTab() {
+  const [page, setPage] = useState(1);
+  const [method, setMethod] = useState("");
+  const [q, setQ] = useState("");
+  const [detail, setDetail] = useState<AuditLog | null>(null);
+
+  const { data, isLoading } = useAuditLogs({
+    page,
+    limit: 50,
+    method: method || undefined,
+    q: q || undefined,
+  });
+  const rows = data?.rows ?? [];
+  const totalPages = data ? Math.max(1, Math.ceil(data.count / data.limit)) : 1;
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <div className="flex-1 min-w-[180px]">
+          <Input
+            icon="search"
+            placeholder="Pesquisar (path, ator, recurso)…"
+            value={q}
+            onChange={(e: any) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
+        <select
+          value={method}
+          onChange={(e) => {
+            setMethod(e.target.value);
+            setPage(1);
+          }}
+          className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm px-3 py-2"
+        >
+          <option value="">Todos os métodos</option>
+          <option value="POST">POST (criar)</option>
+          <option value="PUT">PUT (editar)</option>
+          <option value="PATCH">PATCH (editar)</option>
+          <option value="DELETE">DELETE (eliminar)</option>
+        </select>
+      </div>
+
+      <TableWrapper>
+        <thead className="text-left text-xs uppercase tracking-wide text-zinc-400 border-b border-zinc-100 dark:border-zinc-800">
+          <tr>
+            <th className="px-4 py-3">Quando</th>
+            <th className="px-4 py-3">Ator</th>
+            <th className="px-4 py-3">Ação</th>
+            <th className="px-4 py-3 hidden lg:table-cell">Recurso</th>
+            <th className="px-4 py-3">Estado</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {isLoading ? (
+            <EmptyRow cols={5} />
+          ) : rows.length === 0 ? (
+            <EmptyRow cols={5} />
+          ) : (
+            rows.map((r) => (
+              <tr
+                key={r.auditLogId}
+                onClick={() => setDetail(r)}
+                className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+              >
+                <td className="px-4 py-3 text-zinc-500 whitespace-nowrap">{fmtDateTime(r.createdAt)}</td>
+                <td className="px-4 py-3">{r.actor?.name ?? r.actorName ?? "—"}</td>
+                <td className="px-4 py-3">
+                  <Badge tone={METHOD_TONE[r.method] ?? "neutral"}>{r.method}</Badge>
+                </td>
+                <td className="px-4 py-3 text-zinc-500 hidden lg:table-cell">
+                  {r.resourceType ?? "—"}
+                  {r.resourceId ? <span className="text-zinc-400"> · {String(r.resourceId).slice(0, 8)}</span> : null}
+                </td>
+                <td className="px-4 py-3">
+                  <Badge tone={r.success ? "green" : "red"}>{r.statusCode}</Badge>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </TableWrapper>
+
+      <div className="flex items-center justify-between mt-4 text-sm text-zinc-500">
+        <span>{data?.count ?? 0} registos</span>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            Anterior
+          </Button>
+          <span>{page} / {totalPages}</span>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+            Seguinte
+          </Button>
+        </div>
+      </div>
+
+      <Modal open={!!detail} onClose={() => setDetail(null)} title="Detalhe da ação" width="max-w-2xl">
+        {detail && (
+          <div className="space-y-3 text-sm">
+            <div className="grid grid-cols-2 gap-3">
+              <div><span className="text-zinc-400">Quando</span><p>{fmtDateTime(detail.createdAt)}</p></div>
+              <div><span className="text-zinc-400">Ator</span><p>{detail.actor?.name ?? detail.actorName ?? "—"} {detail.actor?.email ? `(${detail.actor.email})` : ""}</p></div>
+              <div><span className="text-zinc-400">Método</span><p>{detail.method}</p></div>
+              <div><span className="text-zinc-400">Estado</span><p>{detail.statusCode} {detail.success ? "✓" : "✗"}</p></div>
+              <div className="col-span-2"><span className="text-zinc-400">Path</span><p className="font-mono text-xs break-all">{detail.path}</p></div>
+              <div><span className="text-zinc-400">Recurso</span><p>{detail.resourceType ?? "—"} {detail.resourceId ?? ""}</p></div>
+              <div><span className="text-zinc-400">Duração</span><p>{detail.durationMs != null ? `${detail.durationMs} ms` : "—"}</p></div>
+              <div className="col-span-2"><span className="text-zinc-400">IP / Cliente</span><p className="text-xs">{detail.ip ?? "—"} · {detail.userAgent ?? "—"}</p></div>
+            </div>
+            {detail.requestBody && (
+              <div>
+                <span className="text-zinc-400">Dados enviados</span>
+                <pre className="mt-1 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 text-xs overflow-x-auto">{JSON.stringify(detail.requestBody, null, 2)}</pre>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+// ─── Sistema (health + error logs) tab ──────────────────────────────────────
+function SistemaTab() {
+  const { data: health } = useHealth();
+  const [page, setPage] = useState(1);
+  const [detail, setDetail] = useState<ErrorLog | null>(null);
+  const { data, isLoading } = useErrorLogs({ page, limit: 50 });
+  const rows = data?.rows ?? [];
+  const totalPages = data ? Math.max(1, Math.ceil(data.count / data.limit)) : 1;
+
+  const dbUp = health?.db === "up";
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="p-4">
+          <p className="text-[13px] text-zinc-500">Estado</p>
+          <p className="mt-1 flex items-center gap-2 text-lg font-semibold">
+            <span className={`w-2.5 h-2.5 rounded-full ${dbUp ? "bg-emerald-500" : "bg-red-500"}`} />
+            {health?.status ?? "—"}
+          </p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-[13px] text-zinc-500">Base de dados</p>
+          <p className="mt-1 text-lg font-semibold">{health?.db ?? "—"}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-[13px] text-zinc-500">Uptime</p>
+          <p className="mt-1 text-lg font-semibold">{health ? fmtUptime(health.uptimeSeconds) : "—"}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-[13px] text-zinc-500">Versão</p>
+          <p className="mt-1 text-lg font-semibold">{health?.version ?? "—"}</p>
+        </Card>
+      </div>
+
+      <div>
+        <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">Erros recentes</h3>
+        <TableWrapper>
+          <thead className="text-left text-xs uppercase tracking-wide text-zinc-400 border-b border-zinc-100 dark:border-zinc-800">
+            <tr>
+              <th className="px-4 py-3">Quando</th>
+              <th className="px-4 py-3">Método</th>
+              <th className="px-4 py-3">Path</th>
+              <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3 hidden lg:table-cell">Mensagem</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {isLoading || rows.length === 0 ? (
+              <EmptyRow cols={5} />
+            ) : (
+              rows.map((r) => (
+                <tr
+                  key={r.errorLogId}
+                  onClick={() => setDetail(r)}
+                  className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                >
+                  <td className="px-4 py-3 text-zinc-500 whitespace-nowrap">{fmtDateTime(r.createdAt)}</td>
+                  <td className="px-4 py-3">{r.method}</td>
+                  <td className="px-4 py-3 font-mono text-xs break-all">{r.path}</td>
+                  <td className="px-4 py-3"><Badge tone="red">{r.statusCode}</Badge></td>
+                  <td className="px-4 py-3 text-zinc-500 truncate max-w-[260px] hidden lg:table-cell">{r.message ?? "—"}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </TableWrapper>
+        <div className="flex items-center justify-between mt-4 text-sm text-zinc-500">
+          <span>{data?.count ?? 0} erros</span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Anterior</Button>
+            <span>{page} / {totalPages}</span>
+            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Seguinte</Button>
+          </div>
+        </div>
+      </div>
+
+      <Modal open={!!detail} onClose={() => setDetail(null)} title="Detalhe do erro" width="max-w-2xl">
+        {detail && (
+          <div className="space-y-3 text-sm">
+            <div className="grid grid-cols-2 gap-3">
+              <div><span className="text-zinc-400">Quando</span><p>{fmtDateTime(detail.createdAt)}</p></div>
+              <div><span className="text-zinc-400">Estado</span><p>{detail.statusCode}</p></div>
+              <div className="col-span-2"><span className="text-zinc-400">Path</span><p className="font-mono text-xs break-all">{detail.method} {detail.path}</p></div>
+              <div className="col-span-2"><span className="text-zinc-400">Mensagem</span><p>{detail.message ?? "—"}</p></div>
+            </div>
+            {detail.stack && (
+              <div>
+                <span className="text-zinc-400">Stack trace</span>
+                <pre className="mt-1 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 text-xs overflow-x-auto whitespace-pre-wrap">{detail.stack}</pre>
+              </div>
+            )}
+            {detail.requestBody && (
+              <div>
+                <span className="text-zinc-400">Dados enviados</span>
+                <pre className="mt-1 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 text-xs overflow-x-auto">{JSON.stringify(detail.requestBody, null, 2)}</pre>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
 // ─── Admin root ───────────────────────────────────────────────────────────────
 const TABS = [
   ["utilizadores", "Utilizadores"],
   ["permissoes", "Permissões"],
   ["componentes", "Componentes"],
   ["tokens", "Tokens de site"],
+  ["atividade", "Atividade"],
+  ["sistema", "Sistema"],
 ] as const;
 
 export function Admin() {
   const { authHeader } = useAuth();
   const headers = authHeader();
-  const [tab, setTab] = useState<"utilizadores" | "permissoes" | "componentes" | "tokens">(
-    "utilizadores",
-  );
+  const [tab, setTab] = useState<
+    "utilizadores" | "permissoes" | "componentes" | "tokens" | "atividade" | "sistema"
+  >("utilizadores");
   return (
     <div>
       <PageHeader
@@ -1188,6 +1442,8 @@ export function Admin() {
       {tab === "permissoes" && <PermissoesTab headers={headers} />}
       {tab === "componentes" && <ComponentesTab headers={headers} />}
       {tab === "tokens" && <TokensTab headers={headers} />}
+      {tab === "atividade" && <AtividadeTab />}
+      {tab === "sistema" && <SistemaTab />}
     </div>
   );
 }

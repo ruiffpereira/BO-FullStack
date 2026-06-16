@@ -95,20 +95,6 @@ export function Dashboard() {
   const apptsCancelled = useMemo(() => appts.filter((a) => a.status === 'cancelled'), [appts])
   const apptsConfirmed = useMemo(() => appts.filter((a) => a.status === 'confirmed'), [appts])
 
-  const apptRevenue = useMemo(() =>
-    apptsCompleted.reduce((sum, a) => {
-      const cash = Number((a as any).paymentCash || 0)
-      const mbway = Number((a as any).paymentMbway || 0)
-      const card  = Number((a as any).paymentCard || 0)
-      return sum + cash + mbway + card
-    }, 0),
-  [apptsCompleted])
-
-  // ── Ecommerce stats ───────────────────────────────────────────────────────
-  const ordersRevenue = useMemo(() =>
-    orders.reduce((sum, o) => sum + (Number(o.price) || 0), 0),
-  [orders])
-
   // ── Activity feeds ────────────────────────────────────────────────────────
   const recentAppts = useMemo(() =>
     [...appts]
@@ -155,29 +141,14 @@ export function Dashboard() {
               sub={`${appts.length} no total este mês`}
               icon="calendar" tone="blue" loading={loadingAppts}
             />
-            {apptRevenue > 0 && (
-              <KpiCard
-                label="Receita marcações"
-                value={fmtEur(apptRevenue)}
-                sub={`${apptsCompleted.length} concluídas`}
-                icon="euro" tone="green" loading={loadingAppts}
-              />
-            )}
           </>
         )}
         {canProducts && (
-          <>
-            <KpiCard
-              label="Encomendas"
-              value={ordersData?.count ?? orders.length}
-              icon="cart" tone="blue" loading={loadingOrders}
-            />
-            <KpiCard
-              label="Receita loja"
-              value={fmtEur(ordersRevenue)}
-              icon="euro" tone="green" loading={loadingOrders}
-            />
-          </>
+          <KpiCard
+            label="Encomendas"
+            value={ordersData?.count ?? orders.length}
+            icon="cart" tone="blue" loading={loadingOrders}
+          />
         )}
       </div>
 

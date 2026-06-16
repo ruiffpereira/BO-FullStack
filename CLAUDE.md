@@ -40,11 +40,13 @@ src/
 
 | Página | Rota | Permissão | Descrição |
 |--------|------|-----------|-----------|
-| `Admin.tsx` | `/admin` | `VIEW_ADMIN` | Utilizadores, permissões, componentes RBAC, site tokens, línguas |
+| `Admin.tsx` | `/admin` | `VIEW_ADMIN` | Utilizadores, permissões, componentes RBAC, site tokens, línguas, **Atividade** (audit log) e **Sistema** (health + erros) |
 | `Agenda.tsx` | `/agenda` | `VIEW_SCHEDULE` | Calendário de agendamentos, serviços, horários, bloqueios |
 | `Clientes.tsx` | `/clientes` | `VIEW_CUSTOMERS` | Lista de clientes, histórico de visitas |
 | `Conteudos.tsx` | `/conteudos` | `VIEW_CMS` | CMS multi-língua: secções, entradas, textos, imagens |
-| `Dashboard.tsx` | `/` | qualquer | Resumo de métricas do negócio |
+| `Dashboard.tsx` | `/` | qualquer | Resumo operacional (marcações de hoje, últimas marcações/encomendas) |
+| `Despesas.tsx` | `/despesas` | `VIEW_EXPENSES` | Registo de custos: resumo mês/ano, gráfico por categoria, lista CRUD + gestão de categorias (criadas pelo user, com cor) |
+| `Financeiro.tsx` | `/financeiro` | `VIEW_STATS` | Dashboard financeiro: receita, despesas, lucro, ticket médio, gráficos (`/api/dashboard`) |
 | `Loja.tsx` | `/loja` | `VIEW_PRODUCTS` | Produtos, categorias, subcategorias, encomendas, cupões |
 
 A navegação em `Shell.tsx` é gerada automaticamente a partir das permissões do utilizador autenticado.
@@ -73,6 +75,10 @@ A navegação em `Shell.tsx` é gerada automaticamente a partir das permissões 
 | `useNotifications.ts` | Lista e acções sobre notificações do tenant |
 | `useSSE.ts` | Ligação SSE para notificações em tempo real |
 | `usePushSubscription.ts` | Subscrição Web Push (subscribe/unsubscribe) |
+| `useDashboard.ts` | GET `/api/dashboard?period=` tipado (schedule + ecommerce + expenses) para a página Financeiro |
+| `useAuditLogs.ts` | `useAuditLogs`/`useErrorLogs`/`useHealth` — tabs Atividade e Sistema do Admin (só `VIEW_ADMIN`) |
+
+> Despesas usa hooks gerados pelo Kubb (`useGetExpenses`, `useGetExpensesSummary`, `usePostExpenses`, …) para as despesas, e o hook manual `useExpenseCategories.ts` (list/create/update/delete) para as **categorias criadas pelo tenant**. As categorias têm cor própria; `src/utils/expenseCategories.ts` só guarda a paleta de cores sugeridas.
 
 ---
 

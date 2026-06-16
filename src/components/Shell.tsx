@@ -8,18 +8,24 @@ import { NotificationBell } from './NotificationBell'
 import { useSSE } from '../hooks/useSSE'
 
 const PERM_TO_PATH: Record<string, string> = {
+  VIEW_STATS:     '/financeiro',
+  VIEW_EXPENSES:  '/despesas',
   VIEW_CUSTOMERS: '/clientes',
   VIEW_PRODUCTS:  '/loja',
   VIEW_SCHEDULE:  '/agenda',
+  VIEW_GYM:       '/ginasio',
   VIEW_CMS:       '/conteudos',
   VIEW_ADMIN:     '/admin',
 }
 
 const ROUTE_META: Record<string, { nome: string; icon: string }> = {
   '/dashboard':  { nome: 'Dashboard',  icon: 'dashboard' },
+  '/financeiro': { nome: 'Financeiro', icon: 'euro' },
+  '/despesas':   { nome: 'Despesas',   icon: 'card' },
   '/clientes':   { nome: 'Clientes',   icon: 'users' },
   '/loja':       { nome: 'Loja',       icon: 'store' },
   '/agenda':     { nome: 'Agenda',     icon: 'calendar' },
+  '/ginasio':    { nome: 'Ginásio',    icon: 'trend' },
   '/conteudos':  { nome: 'Conteúdos',  icon: 'layers' },
   '/admin':      { nome: 'Admin',      icon: 'shield' },
 }

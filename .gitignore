@@ -9,3 +9,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 src/gen/
+tests/e2e/.auth/
+.env.test
+playwright-report/
+test-results/

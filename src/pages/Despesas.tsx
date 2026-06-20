@@ -5,7 +5,8 @@ import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { Icon } from '../ui/icons.jsx'
-import { Card, Badge, Button, Input, Select, Modal, PageHeader, EmptyState, IconButton, BADGE_TONES } from '../ui/ui.jsx'
+import { Card, Badge, Button, Input, Modal, PageHeader, EmptyState, IconButton, BADGE_TONES } from '../ui/ui.jsx'
+import { Combobox } from '../components/Combobox'
 import { useGetExpenses, getExpensesQueryKey } from '../gen/backoffice/hooks/useGetExpenses.js'
 import { useGetExpensesSummary, getExpensesSummaryQueryKey } from '../gen/backoffice/hooks/useGetExpensesSummary.js'
 import { usePostExpenses } from '../gen/backoffice/hooks/usePostExpenses.js'
@@ -374,12 +375,14 @@ export function Despesas() {
             <Input label="Valor (€)" type="number" step={0.01} min={0} value={form.amount} onChange={(e: any) => setForm({ ...form, amount: e.target.value })} placeholder="0.00" />
           </div>
           <div>
-            <Select label="Categoria" value={form.categoryId} onChange={(e: any) => setForm({ ...form, categoryId: e.target.value })}>
-              <option value="">Sem categoria</option>
-              {categories.map((c) => (
-                <option key={c.expenseCategoryId} value={c.expenseCategoryId}>{c.name}</option>
-              ))}
-            </Select>
+            <Combobox
+              label="Categoria"
+              value={form.categoryId}
+              onChange={(v) => setForm({ ...form, categoryId: v })}
+              options={[{ value: '', label: 'Sem categoria' }, ...categories.map((c) => ({ value: c.expenseCategoryId, label: c.name }))]}
+              placeholder="Sem categoria"
+              searchPlaceholder="Pesquisar categoria…"
+            />
             <button onClick={() => setCatsOpen(true)} className="mt-1.5 text-xs text-accent hover:underline">
               + Gerir categorias
             </button>

@@ -14,6 +14,7 @@ import {
 import { pt } from "date-fns/locale";
 import { Icon } from "../ui/icons.jsx";
 import { Modal, Avatar, Badge, Button } from "../ui/ui.jsx";
+import { Combobox } from "./Combobox";
 import type {
   Appointment,
   AppointmentStatusEnum,
@@ -134,6 +135,12 @@ export function ApptModal({
   const price = Number(svc?.price ?? 0);
   const isExact = payTotal > 0 && Math.abs(payTotal - price) < 0.01;
   const isOver = payTotal > price + 0.01;
+
+  const snapshotPrice = Number(appt.servicePrice ?? 0);
+  const totalPaid = Number(appt.paymentCash ?? 0) + Number(appt.paymentMbway ?? 0) + Number(appt.paymentCard ?? 0);
+  const debtAmount = Math.max(0, snapshotPrice - totalPaid);
+  const hasDebt = status === "completed" && debtAmount > 0;
+  const paymentHistory = (appt as any).paymentHistory as Array<{ at: string; cash: number; mbway: number; card: number }> | null | undefined;
 
   const paymentChanged =
     cancelPayment ||
@@ -375,6 +382,13 @@ export function ApptModal({
         }
       >
         <div className="space-y-4">
+          {/* ── Completed appointment warning ── */}
+          {status === "completed" && (
+            <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 px-3.5 py-2.5 text-sm text-amber-800 dark:text-amber-300 flex items-start gap-2">
+              <span className="shrink-0 mt-0.5">⚠️</span>
+              <span>Estás a editar uma marcação já concluída — qualquer alteração compromete o histórico.</span>
+            </div>
+          )}
           {/* ── Client header ── */}
           {onOpenCustomer ? (
             <button
@@ -397,9 +411,14 @@ export function ApptModal({
                   <Badge tone={STATUS_TONE[status] as any} dot>
                     {STATUS_LABELS[status]}
                   </Badge>
-                  {isPaid && (
+                  {isPaid && !hasDebt && (
                     <span className="flex items-center gap-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                       <Icon name="euro" className="w-3 h-3" /> Pago
+                    </span>
+                  )}
+                  {hasDebt && (
+                    <span className="flex items-center gap-0.5 text-xs font-semibold text-red-600 dark:text-red-400">
+                      <Icon name="euro" className="w-3 h-3" /> Dívida {debtAmount.toFixed(2)} €
                     </span>
                   )}
                 </div>
@@ -428,9 +447,14 @@ export function ApptModal({
                   <Badge tone={STATUS_TONE[status] as any} dot>
                     {STATUS_LABELS[status]}
                   </Badge>
-                  {isPaid && (
+                  {isPaid && !hasDebt && (
                     <span className="flex items-center gap-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                       <Icon name="euro" className="w-3 h-3" /> Pago
+                    </span>
+                  )}
+                  {hasDebt && (
+                    <span className="flex items-center gap-0.5 text-xs font-semibold text-red-600 dark:text-red-400">
+                      <Icon name="euro" className="w-3 h-3" /> Dívida {debtAmount.toFixed(2)} €
                     </span>
                   )}
                 </div>
@@ -507,20 +531,18 @@ export function ApptModal({
               {canEdit ? (
                 <div>
                   <p className="text-xs text-zinc-400 mb-1">Serviço</p>
-                  <select
+                  <Combobox
                     value={editServiceId}
-                    onChange={(e) => setEditServiceId(e.target.value)}
-                    className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent"
-                  >
-                    {services
+                    onChange={setEditServiceId}
+                    options={services
                       .filter((s) => s.active !== false)
-                      .map((s) => (
-                        <option key={s.serviceId} value={s.serviceId}>
-                          {s.name} ({s.duration}min —{" "}
-                          {Number(s.price).toFixed(2)}€)
-                        </option>
-                      ))}
-                  </select>
+                      .map((s) => ({
+                        value: s.serviceId,
+                        label: `${s.name} (${s.duration}min — ${Number(s.price).toFixed(2)}€)`,
+                      }))}
+                    placeholder="Escolher serviço…"
+                    searchPlaceholder="Pesquisar serviço…"
+                  />
                 </div>
               ) : (
                 <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-2.5">
@@ -613,7 +635,7 @@ export function ApptModal({
               <div className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg text-sm">
                 <span className="text-zinc-500">{svc?.name || appt.serviceName || "Serviço"}</span>
                 <span className="font-semibold text-zinc-900 dark:text-white">
-                  {price.toFixed(2)} €
+                  {snapshotPrice.toFixed(2)} €
                 </span>
               </div>
 
@@ -648,11 +670,7 @@ export function ApptModal({
                         </div>
                       )}
                     {(() => {
-                      const paidTotal =
-                        Number(appt.paymentCash ?? 0) +
-                        Number(appt.paymentMbway ?? 0) +
-                        Number(appt.paymentCard ?? 0);
-                      const paidTip = paidTotal - price;
+                      const paidTip = totalPaid - snapshotPrice;
                       return (
                         <>
                           {paidTip > 0.01 && (
@@ -665,10 +683,16 @@ export function ApptModal({
                           )}
                           <div className="flex justify-between pt-2 border-t border-zinc-200 dark:border-zinc-700 font-semibold">
                             <span>Total recebido</span>
-                            <span className="text-emerald-600 dark:text-emerald-400">
-                              {paidTotal.toFixed(2)} €
+                            <span className={hasDebt ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}>
+                              {totalPaid.toFixed(2)} €
                             </span>
                           </div>
+                          {hasDebt && (
+                            <div className="flex justify-between font-semibold text-red-600 dark:text-red-400">
+                              <span>Em dívida</span>
+                              <span>{debtAmount.toFixed(2)} €</span>
+                            </div>
+                          )}
                         </>
                       );
                     })()}
@@ -726,6 +750,12 @@ export function ApptModal({
                 </div>
               ) : (
                 <div className="space-y-3">
+                  {hasDebt && (
+                    <div className="flex justify-between items-center p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-lg text-sm font-semibold text-red-700 dark:text-red-400">
+                      <span>Em dívida</span>
+                      <span>{debtAmount.toFixed(2)} €</span>
+                    </div>
+                  )}
                   <div className="grid grid-cols-3 gap-2">
                     {(
                       [
@@ -753,28 +783,30 @@ export function ApptModal({
                       </div>
                     ))}
                   </div>
-                  <div>
-                    <p className="text-xs text-zinc-500 mb-1 flex items-center gap-1">
-                      Gorjeta{" "}
-                      <span className="text-zinc-300 dark:text-zinc-600">
-                        (opcional)
-                      </span>
-                    </p>
-                    <div className="flex items-center border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden w-28">
-                      <input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={tip}
-                        onChange={(e) => setTip(e.target.value)}
-                        placeholder="0.00"
-                        className="flex-1 px-2 py-1.5 text-sm bg-white dark:bg-zinc-900 focus:outline-none w-0"
-                      />
-                      <span className="px-2 text-xs text-zinc-400 bg-zinc-50 dark:bg-zinc-800 self-stretch flex items-center">
-                        €
-                      </span>
+                  {!hasDebt && (
+                    <div>
+                      <p className="text-xs text-zinc-500 mb-1 flex items-center gap-1">
+                        Gorjeta{" "}
+                        <span className="text-zinc-300 dark:text-zinc-600">
+                          (opcional)
+                        </span>
+                      </p>
+                      <div className="flex items-center border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden w-28">
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={tip}
+                          onChange={(e) => setTip(e.target.value)}
+                          placeholder="0.00"
+                          className="flex-1 px-2 py-1.5 text-sm bg-white dark:bg-zinc-900 focus:outline-none w-0"
+                        />
+                        <span className="px-2 text-xs text-zinc-400 bg-zinc-50 dark:bg-zinc-800 self-stretch flex items-center">
+                          €
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {payTotal > 0 && (
                     <div className="space-y-1.5">
@@ -811,6 +843,44 @@ export function ApptModal({
                       )}
                     </div>
                   )}
+
+                  {status !== "completed" && status !== "cancelled" && !hasDebt && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => onSetStatus(appt.appointmentId, "completed")}
+                      className="w-full text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-700/60 hover:bg-amber-50 dark:hover:bg-amber-500/10"
+                    >
+                      Concluir com Dívida
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {/* ── Histórico de pagamentos ── */}
+              {paymentHistory && paymentHistory.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Histórico</p>
+                  {paymentHistory.map((entry, i) => {
+                    const entryTotal = entry.cash + entry.mbway + entry.card;
+                    const parts: string[] = [];
+                    if (entry.cash > 0) parts.push(`dinheiro`);
+                    if (entry.mbway > 0) parts.push(`MBway`);
+                    if (entry.card > 0) parts.push(`cartão`);
+                    if (entry.cash < 0 || entry.mbway < 0 || entry.card < 0) parts.push(`correção`);
+                    return (
+                      <div key={i} className="flex justify-between text-sm text-zinc-500">
+                        <span>
+                          {new Date(entry.at).toLocaleDateString("pt-PT", { dateStyle: "short" })}
+                          {parts.length > 0 && ` · ${parts.join(", ")}`}
+                        </span>
+                        <span className={`font-medium ${entryTotal >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+                          {entryTotal >= 0 ? "+" : ""}{entryTotal.toFixed(2)} €
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

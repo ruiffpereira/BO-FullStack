@@ -85,6 +85,7 @@ import {
   colorForService,
   STATUS_LABELS,
 } from "../components/ApptModal.js";
+import { Combobox } from "../components/Combobox";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const AG_H_START = 8;
@@ -551,7 +552,7 @@ function NovaApptModal({
   const [showDrop, setShowDrop] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const dropListRef = useRef<HTMLDivElement>(null);
-  const serviceSelectRef = useRef<HTMLSelectElement>(null);
+  const serviceSelectRef = useRef<HTMLButtonElement>(null);
   const [selCustomer, setSelCustomer] = useState<Customer | null>(null);
   const [showNewCust, setShowNewCust] = useState(false);
   const [newCust, setNewCust] = useState({ name: "", email: "", contact: "" });
@@ -838,31 +839,23 @@ function NovaApptModal({
 
         <hr className="border-zinc-100 dark:border-zinc-800" />
 
-        <label className="block">
-          <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
-            Serviço *
-          </span>
-          <div className="relative">
-            <select
-              ref={serviceSelectRef}
-              value={form.serviceId}
-              onChange={set("serviceId")}
-              className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 px-3 py-2 pr-9 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition"
-            >
-              <option value="">Escolher serviço</option>
-              {services
-                .filter((s) => s.active !== false)
-                .map((s) => (
-                  <option key={s.serviceId} value={s.serviceId}>
-                    {s.name} ({s.duration}min — {Number(s.price).toFixed(2)}€)
-                  </option>
-                ))}
-            </select>
-            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none">
-              <Icon name="chevronDown" className="w-4 h-4" />
-            </span>
-          </div>
-        </label>
+        <Combobox
+          ref={serviceSelectRef}
+          label="Serviço *"
+          value={form.serviceId}
+          onChange={(v) => setForm((f) => ({ ...f, serviceId: v }))}
+          options={[
+            { value: "", label: "Escolher serviço" },
+            ...services
+              .filter((s) => s.active !== false)
+              .map((s) => ({
+                value: s.serviceId,
+                label: `${s.name} (${s.duration}min — ${Number(s.price).toFixed(2)}€)`,
+              })),
+          ]}
+          placeholder="Escolher serviço"
+          searchPlaceholder="Pesquisar serviço…"
+        />
         <Input
           label="Notas (opcional)"
           value={form.notes}
@@ -1769,11 +1762,16 @@ function CalendarioView() {
                           >
                             <p className="text-[10px] font-semibold leading-tight truncate text-zinc-800 dark:text-zinc-100 pr-4">
                               {appt.time} {appt.clientName}
-                              {appt.paidAt && (
-                                <span className="ml-1 text-emerald-600 dark:text-emerald-400">
-                                  €
-                                </span>
-                              )}
+                              {(() => {
+                                const calTotalPaid = Number(appt.paymentCash ?? 0) + Number(appt.paymentMbway ?? 0) + Number(appt.paymentCard ?? 0);
+                                const calDebt = Math.max(0, Number(appt.servicePrice ?? 0) - calTotalPaid);
+                                const calHasDebt = appt.status === "completed" && calDebt > 0;
+                                return calHasDebt ? (
+                                  <span className="ml-1 text-red-500">€!</span>
+                                ) : appt.paidAt ? (
+                                  <span className="ml-1 text-emerald-600 dark:text-emerald-400">€</span>
+                                ) : null;
+                              })()}
                             </p>
                             {(appt.serviceName || svcItem) && (
                               <p className="text-[9px] text-zinc-500 truncate">
@@ -3237,18 +3235,17 @@ function MarcacoesPanel() {
           </div>
           <div>
             <p className="text-xs text-zinc-500 mb-1">Serviço</p>
-            <select
+            <Combobox
+              className="w-44"
               value={filterServiceId}
-              onChange={(e) => setFilterServiceId(e.target.value)}
-              className="border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent"
-            >
-              <option value="">Todos</option>
-              {services.map((s) => (
-                <option key={s.serviceId} value={s.serviceId}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+              onChange={setFilterServiceId}
+              options={[
+                { value: "", label: "Todos" },
+                ...services.map((s) => ({ value: s.serviceId, label: s.name })),
+              ]}
+              placeholder="Todos"
+              searchPlaceholder="Pesquisar serviço…"
+            />
           </div>
           {hasFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>
@@ -3319,6 +3316,9 @@ function MarcacoesPanel() {
                 const status = (a.status ??
                   "pending") as keyof typeof STATUS_LABELS;
                 const isPaid = !!a.paidAt;
+                const apptTotalPaid = Number(a.paymentCash ?? 0) + Number(a.paymentMbway ?? 0) + Number(a.paymentCard ?? 0);
+                const apptDebt = Math.max(0, Number(a.servicePrice ?? 0) - apptTotalPaid);
+                const apptHasDebt = a.status === "completed" && apptDebt > 0;
                 const color = colorForService(a.serviceId, services);
                 return (
                   <tr
@@ -3363,7 +3363,11 @@ function MarcacoesPanel() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
-                      {isPaid ? (
+                      {apptHasDebt ? (
+                        <span className="flex items-center gap-1 text-xs font-semibold text-red-600 dark:text-red-400">
+                          <Icon name="euro" className="w-3 h-3" /> Dívida {apptDebt.toFixed(2)} €
+                        </span>
+                      ) : isPaid ? (
                         <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                           <Icon name="euro" className="w-3 h-3" /> Pago
                         </span>

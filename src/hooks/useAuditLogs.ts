@@ -21,6 +21,7 @@ export interface AuditLog {
   ip: string | null;
   userAgent: string | null;
   requestBody: Record<string, unknown> | null;
+  responseBody: Record<string, unknown> | null;
   durationMs: number | null;
   createdAt: string;
   actor?: Actor | null;

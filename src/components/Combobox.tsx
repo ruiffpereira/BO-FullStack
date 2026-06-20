@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, forwardRef, type MutableRefObject } from 'react'
+import { createPortal } from 'react-dom'
 import { Icon } from '../ui/icons.jsx'
 
 export interface ComboboxOption {
@@ -6,30 +7,49 @@ export interface ComboboxOption {
   label: string
 }
 
-/**
- * Dropdown custom (não nativo) com pesquisa. Botão + menu posicionado,
- * fecha ao clicar fora e suporta teclado básico (setas / Enter / Esc).
- */
-export function Combobox({
-  value,
-  onChange,
-  options,
-  placeholder = 'Seleccionar…',
-  searchPlaceholder = 'Pesquisar…',
-  className = '',
-}: {
+export interface ComboboxProps {
   value: string
   onChange: (value: string) => void
   options: ComboboxOption[]
   placeholder?: string
   searchPlaceholder?: string
   className?: string
-}) {
+  /** Rótulo opcional acima do controlo (mesmo estilo dos Input/Select). */
+  label?: string
+  disabled?: boolean
+}
+
+/**
+ * Dropdown custom (não nativo) com pesquisa. O menu é renderizado num portal
+ * (document.body) com posição fixa, para nunca ser cortado pelo overflow de um
+ * modal/contentor. `ref` aponta para o botão (permite `.focus()` externo).
+ */
+export const Combobox = forwardRef<HTMLButtonElement, ComboboxProps>(function Combobox(
+  {
+    value,
+    onChange,
+    options,
+    placeholder = 'Seleccionar…',
+    searchPlaceholder = 'Pesquisar…',
+    className = '',
+    label,
+    disabled = false,
+  },
+  ref,
+) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState(0)
-  const rootRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const setBtnRef = (el: HTMLButtonElement | null) => {
+    btnRef.current = el
+    if (typeof ref === 'function') ref(el)
+    else if (ref) (ref as MutableRefObject<HTMLButtonElement | null>).current = el
+  }
 
   const selected = options.find((o) => o.value === value) ?? null
 
@@ -39,23 +59,37 @@ export function Combobox({
     return options.filter((o) => o.label.toLowerCase().includes(q))
   }, [options, query])
 
-  // Fechar ao clicar fora
+  const updatePos = () => {
+    const r = btnRef.current?.getBoundingClientRect()
+    if (r) setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+  }
+
+  // Posicionar ao abrir + reposicionar em scroll/resize (inclui scroll dentro do modal).
+  useEffect(() => {
+    if (!open) return
+    updatePos()
+    setQuery('')
+    setHighlight(0)
+    setTimeout(() => inputRef.current?.focus(), 0)
+    const onMove = () => updatePos()
+    window.addEventListener('scroll', onMove, true)
+    window.addEventListener('resize', onMove)
+    return () => {
+      window.removeEventListener('scroll', onMove, true)
+      window.removeEventListener('resize', onMove)
+    }
+  }, [open])
+
+  // Fechar ao clicar fora (botão ou menu no portal).
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      if (btnRef.current?.contains(t) || menuRef.current?.contains(t)) return
+      setOpen(false)
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
-  }, [open])
-
-  // Foco na pesquisa ao abrir
-  useEffect(() => {
-    if (open) {
-      setQuery('')
-      setHighlight(0)
-      setTimeout(() => inputRef.current?.focus(), 0)
-    }
   }, [open])
 
   const pick = (v: string) => {
@@ -71,13 +105,18 @@ export function Combobox({
   }
 
   return (
-    <div ref={rootRef} className={`relative ${className}`}>
+    <div className={className}>
+      {label && (
+        <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">{label}</span>
+      )}
       <button
+        ref={setBtnRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-left transition hover:border-zinc-300 dark:hover:border-zinc-600 focus:outline-none focus:border-accent"
+        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-left transition hover:border-zinc-300 dark:hover:border-zinc-600 focus:outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <span className={`flex-1 truncate ${selected ? 'text-zinc-800 dark:text-zinc-100' : 'text-zinc-400'}`}>
           {selected ? selected.label : placeholder}
@@ -85,8 +124,12 @@ export function Combobox({
         <Icon name="chevronDown" className={`w-4 h-4 text-zinc-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {open && (
-        <div className="absolute z-30 mt-1 w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg overflow-hidden">
+      {open && pos && createPortal(
+        <div
+          ref={menuRef}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 100 }}
+          className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg overflow-hidden"
+        >
           <div className="p-2 border-b border-zinc-100 dark:border-zinc-800">
             <input
               ref={inputRef}
@@ -118,8 +161,9 @@ export function Combobox({
               ))
             )}
           </ul>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
-}
+})

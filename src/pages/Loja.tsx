@@ -15,13 +15,13 @@ import {
   Button,
   Badge,
   Input,
-  Select,
   Modal,
   PageHeader,
   EmptyState,
   ImgPlaceholder,
   BADGE_TONES,
 } from "../ui/ui.jsx";
+import { Combobox } from "../components/Combobox";
 import {
   useGetProducts,
   getProductsQueryKey,
@@ -147,6 +147,8 @@ type ProdForm = {
   stock: string;
   categoryId: string;
   photo: ProductImage | null;
+  photoFile: File | null;
+  photoPreview: string | null;
   photoName: string;
   contentKey: string | null;
   descriptionKey: string | null;
@@ -158,6 +160,8 @@ const emptyForm: ProdForm = {
   stock: "",
   categoryId: "",
   photo: null,
+  photoFile: null,
+  photoPreview: null,
   photoName: "",
   contentKey: null,
   descriptionKey: null,
@@ -317,7 +321,6 @@ function ProdutoModal({
   defaultLang: string;
 }) {
   const [form, setForm] = useState<ProdForm>(emptyForm);
-  const [photoUploading, setPhotoUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Reset form whenever the modal opens or the product changes
@@ -331,13 +334,14 @@ function ProdutoModal({
             stock: String(produto.stock ?? 0),
             categoryId: produto.categoryId ?? "",
             photo: null,
+            photoFile: null,
+            photoPreview: null,
             photoName: "",
             contentKey: produto.contentKey ?? null,
             descriptionKey: produto.descriptionKey ?? null,
           }
         : emptyForm,
     );
-    setPhotoUploading(false);
   }, [open, produto]);
 
   const set =
@@ -347,23 +351,21 @@ function ProdutoModal({
 
 
   const previewSrc =
-    photoUrl(form.photo) ?? photoUrl(produto?.photos?.[0]) ?? null;
-  const isBusy = isPending || photoUploading;
+    form.photoPreview ?? photoUrl(form.photo) ?? photoUrl(produto?.photos?.[0]) ?? null;
+  const isBusy = isPending;
 
-  const handlePhotoChange = async (file: File) => {
-    setPhotoUploading(true);
-    try {
-      const uploaded = await uploadImage({
-        image: file,
-        module: "products",
-      });
-      setForm((f) => ({ ...f, photo: uploaded, photoName: file.name }));
-      toast.success("Imagem carregada");
-    } catch (e: any) {
-      toast.error(e.message ?? "Erro ao carregar imagem");
-    } finally {
-      setPhotoUploading(false);
-    }
+  const handlePhotoChange = (file: File) => {
+    // Upload diferido: guarda o ficheiro localmente; só envia ao "Guardar".
+    setForm((f) => {
+      if (f.photoPreview) URL.revokeObjectURL(f.photoPreview);
+      return {
+        ...f,
+        photoFile: file,
+        photoName: file.name,
+        photoPreview: URL.createObjectURL(file),
+        photo: null,
+      };
+    });
   };
 
   const openPhotoPicker = async () => {
@@ -418,7 +420,7 @@ function ProdutoModal({
               ) : (
                 <ImgPlaceholder label="foto" tint="#2A6FDB" className="h-28" />
               )}
-              {photoUploading && (
+              {isBusy && (
                 <div className="absolute inset-0 bg-black/55 flex items-center justify-center">
                   <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                 </div>
@@ -431,8 +433,8 @@ function ProdutoModal({
               onClick={openPhotoPicker}
             >
               <Icon name="image" className="w-3.5 h-3.5" />
-              {photoUploading
-                ? "A carregar..."
+              {isBusy
+                ? "A guardar..."
                 : form.photoName
                   ? `${form.photoName.slice(0, 12)}...`
                   : "Carregar foto"}
@@ -467,18 +469,17 @@ function ProdutoModal({
           </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <Select
+          <Combobox
             label="Categoria"
             value={form.categoryId}
-            onChange={set("categoryId")}
-          >
-            <option value="">Sem categoria</option>
-            {categories.map((c) => (
-              <option key={c.categoryId} value={c.categoryId}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
+            onChange={(v) => setForm((f) => ({ ...f, categoryId: v }))}
+            options={[
+              { value: "", label: "Sem categoria" },
+              ...categories.map((c) => ({ value: c.categoryId, label: c.name })),
+            ]}
+            placeholder="Sem categoria"
+            searchPlaceholder="Pesquisar categoria…"
+          />
           <Input
             label="Preço (€)"
             type="number"
@@ -758,7 +759,17 @@ export function Loja() {
     }
     setSaving(true);
     try {
-      const photoPayload = form.photo ? [form.photo] : undefined;
+      // Upload diferido: envia a foto pendente só agora, ao guardar.
+      let photoPayload = form.photo ? [form.photo] : undefined;
+      if (form.photoFile) {
+        try {
+          const uploaded = await uploadImage({ image: form.photoFile, module: "products" });
+          photoPayload = [uploaded];
+        } catch (e: any) {
+          toast.error(e?.message ?? "Erro ao carregar imagem");
+          return;
+        }
+      }
 
       if (editing) {
         await updateProduct.mutateAsync({

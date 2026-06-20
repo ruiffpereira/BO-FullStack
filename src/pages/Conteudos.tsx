@@ -60,6 +60,7 @@ import { postCmsSetup } from "../gen/backoffice/hooks/usePostCmsSetup.js";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { RichTextEditor } from "../components/RichTextEditor";
 import { EmailsPanel } from "../components/EmailsPanel";
+import { Combobox } from "../components/Combobox";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -752,6 +753,8 @@ export function Conteudos() {
   const [editEntryKey, setEditEntryKey] = useState<string | null>(null);
   const [entryForm, setEntryForm] = useState<EntryForm>(emptyEntry(null));
   const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+  // Upload diferido: ficheiros escolhidos mas ainda não enviados (por índice de tradução).
+  const [pendingFiles, setPendingFiles] = useState<Record<number, File>>({});
 
   // References modal state
   const [refsKey, setRefsKey] = useState<string | null>(null);
@@ -1250,6 +1253,7 @@ export function Conteudos() {
   const closeEntryModal = () => {
     setEntryModal(false);
     setEditEntryKey(null);
+    setPendingFiles({});
     setEntryForm({
       ...emptyEntry(selectedSectionId),
       translations: LOCALES.length
@@ -1265,6 +1269,7 @@ export function Conteudos() {
 
   const openCreateEntry = () => {
     setEditEntryKey(null);
+    setPendingFiles({});
     setEntryForm({
       ...emptyEntry(selectedSectionId),
       translations: LOCALES.length
@@ -1276,6 +1281,7 @@ export function Conteudos() {
 
   const openEditEntry = (grp: GroupedEntry) => {
     setEditEntryKey(grp.key);
+    setPendingFiles({});
     const entry = allEntries.find((e) => e.key === grp.key);
     setEntryForm({
       key: grp.key,
@@ -1319,17 +1325,17 @@ export function Conteudos() {
       return { ...f, translations: t };
     });
 
-  const handleImagePick = async (file: File, idx: number) => {
-    setUploadingIdx(idx);
-    try {
-      const { fileUrl } = await uploadImage({ image: file, module: "cms" });
-      setTranslation(idx, "value", fileUrl);
-      toast.success("Imagem carregada");
-    } catch (e: any) {
-      toast.error(e.message ?? "Erro ao carregar imagem");
-    } finally {
-      setUploadingIdx(null);
-    }
+  const handleImagePick = (file: File, idx: number) => {
+    // Upload diferido: guarda o ficheiro localmente e mostra preview; só envia ao "Guardar".
+    const url = URL.createObjectURL(file);
+    setEntryForm((f) => {
+      const t = [...f.translations];
+      const old = t[idx]?.value;
+      if (old && old.startsWith("blob:")) URL.revokeObjectURL(old);
+      if (t[idx]) t[idx] = { ...t[idx], value: url };
+      return { ...f, translations: t };
+    });
+    setPendingFiles((p) => ({ ...p, [idx]: file }));
   };
 
   const handleImagePickerClick = async (e: React.MouseEvent, idx: number) => {
@@ -1349,9 +1355,35 @@ export function Conteudos() {
       translations: f.translations.filter((_, idx) => idx !== i),
     }));
 
-  const handleSaveEntry = (e: React.FormEvent) => {
+  const handleSaveEntry = async (e: React.FormEvent) => {
     e.preventDefault();
     let form = entryForm;
+
+    // Upload diferido: envia as imagens pendentes só agora, ao guardar.
+    const pendingIdxs = Object.keys(pendingFiles).map(Number);
+    if (pendingIdxs.length) {
+      try {
+        const translations = [...form.translations];
+        for (const idx of pendingIdxs) {
+          const file = pendingFiles[idx];
+          if (!file) continue;
+          setUploadingIdx(idx);
+          const { fileUrl } = await uploadImage({ image: file, module: "cms" });
+          const old = translations[idx]?.value;
+          if (old && old.startsWith("blob:")) URL.revokeObjectURL(old);
+          if (translations[idx]) translations[idx] = { ...translations[idx], value: fileUrl };
+        }
+        form = { ...form, translations };
+        setEntryForm(form);
+        setPendingFiles({});
+      } catch (err: any) {
+        toast.error(err?.message ?? "Erro ao carregar imagem");
+        return;
+      } finally {
+        setUploadingIdx(null);
+      }
+    }
+
     if (
       !form.key.trim() &&
       !editEntryKey &&
@@ -2199,17 +2231,15 @@ export function Conteudos() {
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                     Tipo
                   </label>
-                  <select
+                  <Combobox
                     value={entryForm.type}
-                    onChange={(e) =>
-                      setEntryForm((f) => ({ ...f, type: e.target.value }))
-                    }
-                    className={inputCls}
-                  >
-                    <option value="text">Texto</option>
-                    <option value="richtext">Texto rico</option>
-                    <option value="image">Imagem</option>
-                  </select>
+                    onChange={(v) => setEntryForm((f) => ({ ...f, type: v }))}
+                    options={[
+                      { value: "text", label: "Texto" },
+                      { value: "richtext", label: "Texto rico" },
+                      { value: "image", label: "Imagem" },
+                    ]}
+                  />
                 </div>
               )}
               {sections.length > 0 && (
@@ -2217,23 +2247,18 @@ export function Conteudos() {
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                     Secção
                   </label>
-                  <select
+                  <Combobox
                     value={entryForm.sectionId ?? ""}
-                    onChange={(e) =>
-                      setEntryForm((f) => ({
-                        ...f,
-                        sectionId: e.target.value || null,
-                      }))
+                    onChange={(v) =>
+                      setEntryForm((f) => ({ ...f, sectionId: v || null }))
                     }
-                    className={inputCls}
-                  >
-                    <option value="">Sem secção</option>
-                    {sections.map((s) => (
-                      <option key={s.sectionId} value={s.sectionId}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: "", label: "Sem secção" },
+                      ...sections.map((s) => ({ value: s.sectionId, label: s.name })),
+                    ]}
+                    placeholder="Sem secção"
+                    searchPlaceholder="Pesquisar secção…"
+                  />
                 </div>
               )}
             </div>
@@ -2396,25 +2421,20 @@ export function Conteudos() {
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                   Secção pai (opcional)
                 </label>
-                <select
+                <Combobox
                   value={sectionForm.parentId ?? ""}
-                  onChange={(e) =>
-                    setSectionForm((f) => ({
-                      ...f,
-                      parentId: e.target.value || null,
-                    }))
+                  onChange={(v) =>
+                    setSectionForm((f) => ({ ...f, parentId: v || null }))
                   }
-                  className={inputCls}
-                >
-                  <option value="">Raiz (sem pai)</option>
-                  {sections
-                    .filter((s) => s.sectionId !== editSection?.sectionId)
-                    .map((s) => (
-                      <option key={s.sectionId} value={s.sectionId}>
-                        {s.name}
-                      </option>
-                    ))}
-                </select>
+                  options={[
+                    { value: "", label: "Raiz (sem pai)" },
+                    ...sections
+                      .filter((s) => s.sectionId !== editSection?.sectionId)
+                      .map((s) => ({ value: s.sectionId, label: s.name })),
+                  ]}
+                  placeholder="Raiz (sem pai)"
+                  searchPlaceholder="Pesquisar secção…"
+                />
               </div>
             )}
           </form>

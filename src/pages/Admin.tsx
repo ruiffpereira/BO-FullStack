@@ -15,6 +15,7 @@ import {
   Modal,
   PageHeader,
 } from "../ui/ui.jsx";
+import { Combobox } from "../components/Combobox";
 
 import {
   useGetUsers,
@@ -194,18 +195,16 @@ function UserFormFields({
         <p className="text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
           Permissão
         </p>
-        <select
+        <Combobox
           value={form.permissionId}
-          onChange={(e) => setForm({ ...form, permissionId: e.target.value })}
-          className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm px-3 py-2 focus:outline-none focus:border-accent"
-        >
-          <option value="">Seleccionar permissão</option>
-          {permissions.map((p) => (
-            <option key={p.permissionId} value={p.permissionId}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => setForm({ ...form, permissionId: v })}
+          options={[
+            { value: "", label: "Seleccionar permissão" },
+            ...permissions.map((p) => ({ value: p.permissionId, label: p.name })),
+          ]}
+          placeholder="Seleccionar permissão"
+          searchPlaceholder="Pesquisar permissão…"
+        />
       </div>
     </div>
   );
@@ -1022,16 +1021,17 @@ function TokensTab({ headers }: { headers: Record<string, string> }) {
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 shrink-0">Utilizador:</label>
-          <select
+          <Combobox
+            className="w-48"
             value={selectedUserId}
-            onChange={(e) => setSelectedUserId(e.target.value)}
-            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm px-3 py-1.5 focus:outline-none focus:border-accent"
-          >
-            <option value="">Todos</option>
-            {(users as User[]).map((u) => (
-              <option key={u.userId} value={u.userId}>{u.name}</option>
-            ))}
-          </select>
+            onChange={setSelectedUserId}
+            options={[
+              { value: "", label: "Todos" },
+              ...(users as User[]).map((u) => ({ value: u.userId, label: u.name })),
+            ]}
+            placeholder="Todos"
+            searchPlaceholder="Pesquisar utilizador…"
+          />
         </div>
         <Button
           icon="plus"
@@ -1181,6 +1181,7 @@ function AtividadeTab() {
   const [method, setMethod] = useState("");
   const [q, setQ] = useState("");
   const [detail, setDetail] = useState<AuditLog | null>(null);
+  const [bodyTab, setBodyTab] = useState<"enviado" | "recebido">("enviado");
 
   const { data, isLoading } = useAuditLogs({
     page,
@@ -1205,20 +1206,23 @@ function AtividadeTab() {
             }}
           />
         </div>
-        <select
+        <Combobox
+          className="w-48"
           value={method}
-          onChange={(e) => {
-            setMethod(e.target.value);
+          onChange={(v) => {
+            setMethod(v);
             setPage(1);
           }}
-          className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm px-3 py-2"
-        >
-          <option value="">Todos os métodos</option>
-          <option value="POST">POST (criar)</option>
-          <option value="PUT">PUT (editar)</option>
-          <option value="PATCH">PATCH (editar)</option>
-          <option value="DELETE">DELETE (eliminar)</option>
-        </select>
+          options={[
+            { value: "", label: "Todos os métodos" },
+            { value: "POST", label: "POST (criar)" },
+            { value: "PUT", label: "PUT (editar)" },
+            { value: "PATCH", label: "PATCH (editar)" },
+            { value: "DELETE", label: "DELETE (eliminar)" },
+          ]}
+          placeholder="Todos os métodos"
+          searchPlaceholder="Pesquisar…"
+        />
       </div>
 
       <TableWrapper>
@@ -1240,7 +1244,7 @@ function AtividadeTab() {
             rows.map((r) => (
               <tr
                 key={r.auditLogId}
-                onClick={() => setDetail(r)}
+                onClick={() => { setDetail(r); setBodyTab("enviado"); }}
                 className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
               >
                 <td className="px-4 py-3 text-zinc-500 whitespace-nowrap">{fmtDateTime(r.createdAt)}</td>
@@ -1287,12 +1291,27 @@ function AtividadeTab() {
               <div><span className="text-zinc-400">Duração</span><p>{detail.durationMs != null ? `${detail.durationMs} ms` : "—"}</p></div>
               <div className="col-span-2"><span className="text-zinc-400">IP / Cliente</span><p className="text-xs">{detail.ip ?? "—"} · {detail.userAgent ?? "—"}</p></div>
             </div>
-            {detail.requestBody && (
-              <div>
-                <span className="text-zinc-400">Dados enviados</span>
-                <pre className="mt-1 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 text-xs overflow-x-auto">{JSON.stringify(detail.requestBody, null, 2)}</pre>
+            <div>
+              <div className="flex gap-1 p-1 rounded-lg bg-zinc-100 dark:bg-zinc-800/60 w-fit mb-2">
+                {([["enviado", "Enviado"], ["recebido", "Recebido"]] as const).map(([id, lbl]) => (
+                  <button
+                    key={id}
+                    onClick={() => setBodyTab(id)}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition ${bodyTab === id ? "bg-white dark:bg-zinc-900 text-accent shadow-sm" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
+                  >
+                    {lbl}
+                  </button>
+                ))}
               </div>
-            )}
+              {(() => {
+                const body = bodyTab === "enviado" ? detail.requestBody : detail.responseBody;
+                return body ? (
+                  <pre className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 text-xs overflow-x-auto whitespace-pre-wrap">{JSON.stringify(body, null, 2)}</pre>
+                ) : (
+                  <p className="text-xs text-zinc-400 px-1">{bodyTab === "enviado" ? "Sem corpo no pedido." : "Sem corpo na resposta."}</p>
+                );
+              })()}
+            </div>
           </div>
         )}
       </Modal>

@@ -19,7 +19,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
-import { Card, Button, IconButton, Badge, Input, Select, Modal, PageHeader, EmptyState } from '../ui/ui.jsx'
+import { Card, Button, IconButton, Badge, Input, Modal, PageHeader, EmptyState } from '../ui/ui.jsx'
 import { useGetCustomers } from '../gen/backoffice/hooks/useGetCustomers.js'
 import { useGetGymExercises } from '../gen/backoffice/hooks/useGetGymExercises.js'
 import { postGymExercises } from '../gen/backoffice/hooks/usePostGymExercises.js'
@@ -38,6 +38,12 @@ import { postGymWorkoutTemplates } from '../gen/backoffice/hooks/usePostGymWorko
 import { putGymWorkoutTemplatesId } from '../gen/backoffice/hooks/usePutGymWorkoutTemplatesId.js'
 import { deleteGymWorkoutTemplatesId } from '../gen/backoffice/hooks/useDeleteGymWorkoutTemplatesId.js'
 import { postGymWorkoutTemplatesIdAssign } from '../gen/backoffice/hooks/usePostGymWorkoutTemplatesIdAssign.js'
+import { useGetGymPlanos } from '../gen/backoffice/hooks/useGetGymPlanos.js'
+import { postGymPlanos } from '../gen/backoffice/hooks/usePostGymPlanos.js'
+import { putGymPlanosId } from '../gen/backoffice/hooks/usePutGymPlanosId.js'
+import { deleteGymPlanosId } from '../gen/backoffice/hooks/useDeleteGymPlanosId.js'
+import { postGymPlanosIdAssign } from '../gen/backoffice/hooks/usePostGymPlanosIdAssign.js'
+import type { GymPlano } from '../gen/backoffice/types/GymPlano.js'
 import { useGetGymClientsCustomeridStats } from '../gen/backoffice/hooks/useGetGymClientsCustomeridStats.js'
 import { useGetGymClientsCustomeridLogs } from '../gen/backoffice/hooks/useGetGymClientsCustomeridLogs.js'
 import { useGetGymMuscleGroups } from '../gen/backoffice/hooks/useGetGymMuscleGroups.js'
@@ -45,38 +51,79 @@ import { postGymMuscleGroups } from '../gen/backoffice/hooks/usePostGymMuscleGro
 import { putGymMuscleGroupsId } from '../gen/backoffice/hooks/usePutGymMuscleGroupsId.js'
 import { deleteGymMuscleGroupsId } from '../gen/backoffice/hooks/useDeleteGymMuscleGroupsId.js'
 import type { GymExercise } from '../gen/backoffice/types/GymExercise.js'
+import type { GymExercisePreset } from '../gen/backoffice/types/GymExercisePreset.js'
 import type { GymMuscleGroup } from '../gen/backoffice/types/GymMuscleGroup.js'
 import type { GymProgram } from '../gen/backoffice/types/GymProgram.js'
 import type { GymWorkout } from '../gen/backoffice/types/GymWorkout.js'
-import { MediaGallery, type MediaItem } from '../components/MediaGallery'
+import { MediaGallery, uploadPendingMedia, type MediaItem } from '../components/MediaGallery'
 import { Combobox } from '../components/Combobox'
+import { DateRangePicker, type DateRange } from '../components/DateRangePicker'
+import { format } from 'date-fns'
+
+// Paleta de cores sugeridas para grupos/subgrupos — usada para dar uma cor
+// aleatória por defeito ao criar (o user pode sempre mudar).
+const GROUP_COLORS = [
+  '#EF4444', '#F97316', '#F59E0B', '#EAB308', '#84CC16', '#22C55E', '#10B981',
+  '#14B8A6', '#06B6D4', '#3B82F6', '#6366F1', '#8B5CF6', '#A855F7', '#EC4899', '#F43F5E',
+]
+const randomColor = () => GROUP_COLORS[Math.floor(Math.random() * GROUP_COLORS.length)]
+
+// Grupo muscular (de topo ou subgrupo via parentId).
+type Group = GymMuscleGroup
 
 // ── Contexto dos grupos musculares (carregados da API) ───────────────────────
-type GymGroupsCtx = { groups: GymMuscleGroup[]; names: string[]; colorOf: (name?: string) => string }
-const GymGroupsContext = createContext<GymGroupsCtx>({ groups: [], names: [], colorOf: () => '#6B7280' })
+type GymGroupsCtx = {
+  groups: Group[]
+  topGroups: Group[]
+  names: string[]
+  colorOf: (name?: string) => string
+  subGroupsOf: (groupName?: string) => Group[]
+}
+const GymGroupsContext = createContext<GymGroupsCtx>({
+  groups: [], topGroups: [], names: [], colorOf: () => '#6B7280', subGroupsOf: () => [],
+})
 const useGymGroups = () => useContext(GymGroupsContext)
 
 function GymGroupsProvider({ children }: { children: ReactNode }) {
   const { data } = useGetGymMuscleGroups()
-  const groups = (data ?? []) as GymMuscleGroup[]
+  const groups = (data ?? []) as Group[]
   const value = useMemo<GymGroupsCtx>(() => {
     const colorMap = new Map(groups.map((g) => [g.name, g.color]))
+    const topGroups = groups.filter((g) => !g.parentId)
+    const idByName = new Map(groups.map((g) => [g.name, g.muscleGroupId]))
+    const childrenByParent = new Map<string, Group[]>()
+    for (const g of groups) {
+      if (!g.parentId) continue
+      const arr = childrenByParent.get(g.parentId) ?? []
+      arr.push(g)
+      childrenByParent.set(g.parentId, arr)
+    }
     return {
       groups,
-      names: groups.map((g) => g.name),
+      topGroups,
+      names: topGroups.map((g) => g.name),
       colorOf: (name?: string) => (name && colorMap.get(name)) || '#6B7280',
+      subGroupsOf: (groupName?: string) => {
+        const id = groupName ? idByName.get(groupName) : undefined
+        return id ? childrenByParent.get(id) ?? [] : []
+      },
     }
   }, [groups])
   return <GymGroupsContext.Provider value={value}>{children}</GymGroupsContext.Provider>
 }
 
-type Tab = 'programas' | 'catalogo' | 'treinos' | 'progresso'
+type Tab = 'programas' | 'catalogo' | 'treinos' | 'planos' | 'progresso'
+
+// Preset em edição no formulário (campos como string para permitir vazio = "—").
+type PresetDraft = { id: string; name: string; sets: string; reps: string; weight: string; rest: string }
+const emptyPreset = (): PresetDraft => ({ id: newUid(), name: '', sets: '', reps: '', weight: '', rest: '' })
 
 type DraftExercise = {
   uid: string
   exerciseId?: string | null
   name: string
   group: string
+  subGroup?: string | null
   sets: number
   reps: number
   weight: number
@@ -222,18 +269,27 @@ function GroupChip({ group }: { group: string }) {
 // Modal de gestão dos grupos musculares (criar / editar / apagar)
 function MuscleGroupsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const qc = useQueryClient()
-  const { groups } = useGymGroups()
+  const { topGroups, subGroupsOf } = useGymGroups()
   const [newName, setNewName] = useState('')
-  const [newColor, setNewColor] = useState('#3B82F6')
+  const [newColor, setNewColor] = useState(randomColor())
   const [editId, setEditId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editColor, setEditColor] = useState('#3B82F6')
+  // Adição de subgrupo: id do grupo pai cujo formulário está aberto
+  const [subParent, setSubParent] = useState<string | null>(null)
+  const [subName, setSubName] = useState('')
+  const [subColor, setSubColor] = useState(randomColor())
 
   const invalidate = () => qc.invalidateQueries({ queryKey: [{ url: '/gym/muscle-groups' }] })
 
   const create = useMutation({
     mutationFn: () => postGymMuscleGroups({ name: newName.trim(), color: newColor }),
-    onSuccess: () => { invalidate(); setNewName(''); toast.success('Grupo criado') },
+    onSuccess: () => { invalidate(); setNewName(''); setNewColor(randomColor()); toast.success('Grupo criado') },
+    onError: (e) => toast.error(getApiError(e)),
+  })
+  const createSub = useMutation({
+    mutationFn: () => postGymMuscleGroups({ name: subName.trim(), color: subColor, parentId: subParent } as any),
+    onSuccess: () => { invalidate(); setSubName(''); setSubParent(null); setSubColor(randomColor()); toast.success('Subgrupo criado') },
     onError: (e) => toast.error(getApiError(e)),
   })
   const saveEdit = useMutation({
@@ -247,30 +303,61 @@ function MuscleGroupsModal({ open, onClose }: { open: boolean; onClose: () => vo
     onError: (e) => toast.error(getApiError(e)),
   })
 
+  // Linha de um grupo/subgrupo (display ou edição inline). Função (não componente)
+  // para não remontar os inputs a cada tecla e perder o foco.
+  const renderRow = (g: Group, sub?: boolean) =>
+    editId === g.muscleGroupId ? (
+      <div className="flex items-center gap-2">
+        <input type="color" value={editColor} onChange={(e) => setEditColor(e.target.value)} className="w-8 h-8 rounded border-0 bg-transparent p-0 cursor-pointer shrink-0" />
+        <input value={editName} onChange={(e) => setEditName(e.target.value)} className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm px-2.5 py-1.5 focus:outline-none focus:border-accent" />
+        <Button size="sm" isLoading={saveEdit.isPending} disabled={!editName.trim()} onClick={() => saveEdit.mutate(g.muscleGroupId)}>Guardar</Button>
+        <Button size="sm" variant="ghost" onClick={() => setEditId(null)}>Cancelar</Button>
+      </div>
+    ) : (
+      <div className="flex items-center gap-2">
+        <span className={(sub ? 'w-3 h-3' : 'w-4 h-4') + ' rounded-full shrink-0'} style={{ background: g.color }} />
+        <span className="flex-1 text-sm text-zinc-800 dark:text-zinc-200 truncate">{g.name}</span>
+        <IconButton icon="edit" label="Editar" onClick={() => { setEditId(g.muscleGroupId); setEditName(g.name); setEditColor(g.color) }} />
+        <IconButton icon="trash" label="Eliminar" onClick={() => remove.mutate(g.muscleGroupId)} />
+      </div>
+    )
+
   return (
     <Modal open={open} onClose={onClose} title="Grupos musculares" footer={<Button variant="ghost" onClick={onClose}>Fechar</Button>}>
       <div className="space-y-4">
-        <div className="space-y-2">
-          {groups.map((g) => (
-            <div key={g.muscleGroupId} className="flex items-center gap-2">
-              {editId === g.muscleGroupId ? (
-                <>
-                  <input type="color" value={editColor} onChange={(e) => setEditColor(e.target.value)} className="w-8 h-8 rounded border-0 bg-transparent p-0 cursor-pointer shrink-0" />
-                  <input value={editName} onChange={(e) => setEditName(e.target.value)} className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm px-2.5 py-1.5 focus:outline-none focus:border-accent" />
-                  <Button size="sm" isLoading={saveEdit.isPending} disabled={!editName.trim()} onClick={() => saveEdit.mutate(g.muscleGroupId)}>Guardar</Button>
-                  <Button size="sm" variant="ghost" onClick={() => setEditId(null)}>Cancelar</Button>
-                </>
-              ) : (
-                <>
-                  <span className="w-4 h-4 rounded-full shrink-0" style={{ background: g.color }} />
-                  <span className="flex-1 text-sm text-zinc-800 dark:text-zinc-200 truncate">{g.name}</span>
-                  <IconButton icon="edit" label="Editar" onClick={() => { setEditId(g.muscleGroupId); setEditName(g.name); setEditColor(g.color) }} />
-                  <IconButton icon="trash" label="Eliminar" onClick={() => remove.mutate(g.muscleGroupId)} />
-                </>
-              )}
-            </div>
-          ))}
-          {groups.length === 0 && <p className="text-sm text-zinc-400 text-center py-2">Ainda não há grupos.</p>}
+        <div className="space-y-3">
+          {topGroups.map((g) => {
+            const subs = subGroupsOf(g.name)
+            const adding = subParent === g.muscleGroupId
+            return (
+              <div key={g.muscleGroupId} className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-2.5">
+                {renderRow(g)}
+                {(subs.length > 0 || adding) && (
+                  <div className="mt-2 ml-5 pl-3 border-l border-zinc-200 dark:border-zinc-800 space-y-1.5">
+                    {subs.map((s) => <div key={s.muscleGroupId}>{renderRow(s, true)}</div>)}
+                    {adding && (
+                      <div className="flex items-end gap-2 pt-1">
+                        <input type="color" value={subColor} onChange={(e) => setSubColor(e.target.value)} className="w-8 h-8 rounded border-0 bg-transparent p-0 cursor-pointer shrink-0" title="Cor do subgrupo" />
+                        <Input label="Novo subgrupo" value={subName} onChange={(ev: any) => setSubName(ev.target.value)} placeholder="Ex: Peito superior" className="flex-1" />
+                        <Button size="sm" isLoading={createSub.isPending} disabled={!subName.trim()} onClick={() => createSub.mutate()}>Adicionar</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setSubParent(null)}>Cancelar</Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!adding && (
+                  <button
+                    type="button"
+                    onClick={() => { setSubParent(g.muscleGroupId); setSubName(''); setSubColor(randomColor()) }}
+                    className="mt-1.5 ml-5 inline-flex items-center gap-1 text-xs text-accent hover:underline"
+                  >
+                    <Icon name="plus" className="w-3 h-3" /> Subgrupo
+                  </button>
+                )}
+              </div>
+            )
+          })}
+          {topGroups.length === 0 && <p className="text-sm text-zinc-400 text-center py-2">Ainda não há grupos.</p>}
         </div>
 
         <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 flex items-end gap-2">
@@ -287,44 +374,69 @@ function CatalogoTab() {
   const qc = useQueryClient()
   const { data, isLoading } = useGetGymExercises()
   const exercises = (data ?? []) as GymExercise[]
-  const { names, colorOf } = useGymGroups()
+  const { names, colorOf, subGroupsOf } = useGymGroups()
 
   const [open, setOpen] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
   const [editing, setEditing] = useState<GymExercise | null>(null)
   const [name, setName] = useState('')
   const [group, setGroup] = useState<string>('')
+  const [subGroup, setSubGroup] = useState<string>('')
   const [active, setActive] = useState(true)
   const [media, setMedia] = useState<MediaItem[]>([])
-  const [dSets, setDSets] = useState('')
-  const [dReps, setDReps] = useState('')
-  const [dRest, setDRest] = useState('')
-  const [dWeight, setDWeight] = useState('')
+  const [presets, setPresets] = useState<PresetDraft[]>([])
+
+  const subs = subGroupsOf(group)
 
   const invalidate = () => qc.invalidateQueries({ queryKey: [{ url: '/gym/exercises' }] })
 
+  const toPresetDraft = (p: GymExercisePreset): PresetDraft => ({
+    id: p.id || newUid(),
+    name: p.name,
+    sets: p.sets != null ? String(p.sets) : '',
+    reps: p.reps != null ? String(p.reps) : '',
+    weight: p.weight != null ? String(p.weight) : '',
+    rest: p.rest != null ? String(p.rest) : '',
+  })
+
   const startCreate = () => {
-    setEditing(null); setName(''); setGroup(names[0] ?? ''); setActive(true)
-    setMedia([]); setDSets(''); setDReps(''); setDRest(''); setDWeight(''); setOpen(true)
+    setEditing(null); setName(''); setGroup(names[0] ?? ''); setSubGroup(''); setActive(true)
+    setMedia([]); setPresets([]); setOpen(true)
   }
   const startEdit = (e: GymExercise) => {
-    setEditing(e); setName(e.name); setGroup(e.muscleGroup); setActive(e.active ?? true)
+    setEditing(e); setName(e.name); setGroup(e.muscleGroup); setSubGroup(e.subGroup ?? ''); setActive(e.active ?? true)
     setMedia((e.media ?? []) as MediaItem[])
-    setDSets(e.defaultSets != null ? String(e.defaultSets) : '')
-    setDReps(e.defaultReps != null ? String(e.defaultReps) : '')
-    setDRest(e.defaultRest != null ? String(e.defaultRest) : '')
-    setDWeight(e.defaultWeight != null ? String(e.defaultWeight) : '')
+    // Presets vindos da API; se vazios, semeia um a partir dos default* legados.
+    const fromApi = (e.presets ?? []).map(toPresetDraft)
+    const hasLegacy = e.defaultSets != null || e.defaultReps != null || e.defaultRest != null || e.defaultWeight != null
+    setPresets(
+      fromApi.length
+        ? fromApi
+        : hasLegacy
+          ? [toPresetDraft({ id: newUid(), name: 'Padrão', sets: e.defaultSets ?? null, reps: e.defaultReps ?? null, weight: e.defaultWeight ?? null, rest: e.defaultRest ?? null })]
+          : [],
+    )
     setOpen(true)
   }
 
+  const updatePreset = (id: string, patch: Partial<PresetDraft>) =>
+    setPresets((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)))
+  const numOrNull = (v: string) => (v === '' ? null : Number(v))
+
   const save = useMutation({
     mutationFn: async () => {
+      const cleanPresets = presets
+        .filter((p) => p.name.trim())
+        .map((p) => ({
+          id: p.id, name: p.name.trim(),
+          sets: numOrNull(p.sets), reps: numOrNull(p.reps),
+          weight: numOrNull(p.weight), rest: numOrNull(p.rest),
+        }))
+      // Upload diferido: só envia os ficheiros pendentes agora, ao Guardar.
+      const cleanMedia = await uploadPendingMedia(media, 'gym')
       const body = {
-        name: name.trim(), muscleGroup: group, active, media,
-        defaultSets: dSets === '' ? null : Number(dSets),
-        defaultReps: dReps === '' ? null : Number(dReps),
-        defaultRest: dRest === '' ? null : Number(dRest),
-        defaultWeight: dWeight === '' ? null : Number(dWeight),
+        name: name.trim(), muscleGroup: group, subGroup: subGroup || null, active, media: cleanMedia,
+        presets: cleanPresets,
       } as any
       if (editing) return putGymExercisesId(editing.exerciseId, body)
       return postGymExercises(body)
@@ -376,7 +488,15 @@ function CatalogoTab() {
                   <Card key={e.exerciseId} className="p-3 flex items-center gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{e.name}</p>
-                      {!e.active && <Badge tone="neutral">Inactivo</Badge>}
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        {e.subGroup && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500">{e.subGroup}</span>
+                        )}
+                        {(e.presets?.length ?? 0) > 0 && (
+                          <span className="text-[10px] text-zinc-400">{e.presets!.length} preset{e.presets!.length === 1 ? '' : 's'}</span>
+                        )}
+                        {!e.active && <Badge tone="neutral">Inactivo</Badge>}
+                      </div>
                     </div>
                     <IconButton icon="edit" label="Editar" onClick={() => startEdit(e)} />
                     <IconButton icon="trash" label="Eliminar" onClick={() => remove.mutate(e.exerciseId)} />
@@ -401,20 +521,63 @@ function CatalogoTab() {
       >
         <div className="space-y-4">
           <Input label="Nome" value={name} onChange={(ev: any) => setName(ev.target.value)} placeholder="Ex: Supino inclinado" />
-          <Select label="Grupo muscular" value={group} onChange={(ev: any) => setGroup(ev.target.value)}>
-            {names.length === 0 && <option value="">(cria um grupo primeiro)</option>}
-            {names.map((g) => <option key={g} value={g}>{g}</option>)}
-          </Select>
-          <MediaGallery value={media} onChange={setMedia} module="gym" />
-          <div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <NumField label="Séries" value={dSets} onChange={setDSets} />
-              <NumField label="Reps" value={dReps} onChange={setDReps} />
-              <NumField label="Descanso (s)" value={dRest} onChange={setDRest} />
-              <NumField label="Peso sug. (kg)" value={dWeight} onChange={setDWeight} />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <span className="block text-[11px] font-medium text-zinc-500 mb-1">Grupo muscular</span>
+              <Combobox
+                value={group}
+                onChange={(v) => { setGroup(v); setSubGroup('') }}
+                options={names.map((g) => ({ value: g, label: g }))}
+                placeholder={names.length === 0 ? '(cria um grupo primeiro)' : 'Escolher grupo…'}
+                searchPlaceholder="Pesquisar grupo…"
+              />
             </div>
-            <p className="text-xs text-zinc-400 mt-1">Deixa em branco o que não se aplica (ex: alongamentos sem peso ou reps).</p>
+            <div>
+              <span className="block text-[11px] font-medium text-zinc-500 mb-1">Subgrupo (opcional)</span>
+              {subs.length === 0 ? (
+                <div className="px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 text-sm text-zinc-400">— sem subgrupos —</div>
+              ) : (
+                <Combobox
+                  value={subGroup}
+                  onChange={setSubGroup}
+                  options={[{ value: '', label: 'Nenhum' }, ...subs.map((s) => ({ value: s.name, label: s.name }))]}
+                  placeholder="— nenhum —"
+                  searchPlaceholder="Pesquisar subgrupo…"
+                />
+              )}
+            </div>
           </div>
+          <MediaGallery value={media} onChange={setMedia} module="gym" />
+
+          {/* Presets de prescrição — séries/reps/peso/descanso nomeados */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-zinc-500">Presets (séries/reps/peso/descanso)</span>
+              <Button size="sm" variant="secondary" icon="plus" onClick={() => setPresets((ps) => [...ps, emptyPreset()])}>Preset</Button>
+            </div>
+            {presets.length === 0 ? (
+              <p className="text-xs text-zinc-400">Sem presets. Adiciona um ou mais (ex: “Iniciante”, “Avançado”). Ao montar o treino do cliente escolhes qual usar.</p>
+            ) : (
+              <div className="space-y-2">
+                {presets.map((p) => (
+                  <div key={p.id} className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-2.5 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Input value={p.name} onChange={(ev: any) => updatePreset(p.id, { name: ev.target.value })} placeholder="Nome do preset (ex: Iniciante)" className="flex-1" />
+                      <IconButton icon="trash" label="Remover preset" onClick={() => setPresets((ps) => ps.filter((x) => x.id !== p.id))} />
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <NumField label="Séries" value={p.sets} onChange={(v) => updatePreset(p.id, { sets: v })} />
+                      <NumField label="Reps" value={p.reps} onChange={(v) => updatePreset(p.id, { reps: v })} />
+                      <NumField label="Descanso (s)" value={p.rest} onChange={(v) => updatePreset(p.id, { rest: v })} />
+                      <NumField label="Peso sug. (kg)" value={p.weight} onChange={(v) => updatePreset(p.id, { weight: v })} />
+                    </div>
+                  </div>
+                ))}
+                <p className="text-xs text-zinc-400">Deixa em branco o que não se aplica (ex: alongamentos sem peso ou reps).</p>
+              </div>
+            )}
+          </div>
+
           <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
             <input type="checkbox" checked={active} onChange={(ev) => setActive(ev.target.checked)} />
             Activo (visível na app do cliente)
@@ -424,6 +587,37 @@ function CatalogoTab() {
 
       <MuscleGroupsModal open={manageOpen} onClose={() => setManageOpen(false)} />
     </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Valores prescritos a partir de um preset (com fallbacks). Mantém-se editável.
+const presetValues = (p?: GymExercisePreset) => ({
+  sets: p?.sets ?? 3,
+  reps: p?.reps ?? 10,
+  weight: p?.weight ?? 0,
+  rest: p?.rest ?? 60,
+})
+
+// Selector de preset de uma linha de exercício — só aparece se o exercício do
+// catálogo tiver presets. Aplicar um preset pré-preenche os 4 campos (editáveis).
+function PresetPicker({ exercise, onPick }: { exercise?: GymExercise; onPick: (p: GymExercisePreset) => void }) {
+  const presets = exercise?.presets ?? []
+  const [val, setVal] = useState('')
+  if (presets.length === 0) return null
+  return (
+    <Combobox
+      value={val}
+      onChange={(v) => {
+        setVal(v)
+        const p = presets.find((x) => x.id === v)
+        if (p) onPick(p)
+      }}
+      options={presets.map((p) => ({ value: p.id, label: p.name }))}
+      placeholder="Preset…"
+      searchPlaceholder="Pesquisar…"
+      className="w-32 shrink-0"
+    />
   )
 }
 
@@ -453,6 +647,7 @@ function WorkoutModal({ open, onClose, programId, workout, catalog, onSaved }: {
       (workout?.exercises ?? []).map((e) => ({
         uid: newUid(),
         exerciseId: e.exerciseId ?? null, name: e.name, group: e.group,
+        subGroup: (e as any).subGroup ?? null,
         sets: e.sets, reps: e.reps, weight: e.weight ?? 0, rest: e.rest ?? 60,
         media: ((e as any).media ?? []) as MediaItem[],
       })),
@@ -461,13 +656,14 @@ function WorkoutModal({ open, onClose, programId, workout, catalog, onSaved }: {
   }, [open, workout?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const addFromCatalog = () => {
-    const ex = catalog.find((c) => c.exerciseId === picker)
+    const ex = catalog.find((c) => c.exerciseId === picker) as GymExercise | undefined
     if (!ex) return
+    const p0 = ex.presets?.[0]
     setRows((r) => [...r, {
       uid: newUid(),
-      exerciseId: ex.exerciseId, name: ex.name, group: ex.muscleGroup,
-      sets: ex.defaultSets ?? 3, reps: ex.defaultReps ?? 10,
-      weight: ex.defaultWeight ?? 0, rest: ex.defaultRest ?? 60,
+      exerciseId: ex.exerciseId, name: ex.name, group: ex.muscleGroup, subGroup: ex.subGroup ?? null,
+      sets: p0?.sets ?? ex.defaultSets ?? 3, reps: p0?.reps ?? ex.defaultReps ?? 10,
+      weight: p0?.weight ?? ex.defaultWeight ?? 0, rest: p0?.rest ?? ex.defaultRest ?? 60,
       media: (ex.media ?? []) as MediaItem[],
     }])
     setPicker('')
@@ -520,12 +716,14 @@ function WorkoutModal({ open, onClose, programId, workout, catalog, onSaved }: {
 
         <div className="flex items-end gap-2">
           <div className="flex-1">
-            <Select label="Adicionar exercício do catálogo" value={picker} onChange={(ev: any) => setPicker(ev.target.value)}>
-              <option value="">Escolher exercício…</option>
-              {catalog.filter((c) => c.active !== false).map((c) => (
-                <option key={c.exerciseId} value={c.exerciseId}>{c.name} · {c.muscleGroup}</option>
-              ))}
-            </Select>
+            <span className="block text-[11px] font-medium text-zinc-500 mb-1">Adicionar exercício do catálogo</span>
+            <Combobox
+              value={picker}
+              onChange={setPicker}
+              options={catalog.filter((c) => c.active !== false).map((c) => ({ value: c.exerciseId, label: `${c.name} · ${c.muscleGroup}` }))}
+              placeholder="Escolher exercício…"
+              searchPlaceholder="Pesquisar exercício…"
+            />
           </div>
           <Button icon="plus" variant="secondary" disabled={!picker} onClick={addFromCatalog}>Adicionar</Button>
         </div>
@@ -543,7 +741,12 @@ function WorkoutModal({ open, onClose, programId, workout, catalog, onSaved }: {
                         <div className="flex items-center gap-2 mb-2">
                           <DragHandle {...handle} />
                           <GroupChip group={row.group} />
+                          {row.subGroup && <span className="text-[10px] text-zinc-400">{row.subGroup}</span>}
                           <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 flex-1 truncate">{row.name}</span>
+                          <PresetPicker
+                            exercise={catalog.find((c) => c.exerciseId === row.exerciseId) as GymExercise | undefined}
+                            onPick={(p) => update(row.uid, presetValues(p))}
+                          />
                           <IconButton icon="trash" label="Remover" onClick={() => removeRow(row.uid)} />
                         </div>
                         <div className="grid grid-cols-4 gap-2">
@@ -594,6 +797,7 @@ function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved }: {
       (template?.exercises ?? []).map((e) => ({
         uid: newUid(),
         exerciseId: e.exerciseId ?? null, name: e.name, group: e.group,
+        subGroup: (e as any).subGroup ?? null,
         sets: e.sets, reps: e.reps, weight: e.weight ?? 0, rest: e.rest ?? 60,
         media: ((e as any).media ?? []) as MediaItem[],
       })),
@@ -602,13 +806,14 @@ function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved }: {
   }, [open, template?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const addFromCatalog = () => {
-    const ex = catalog.find((c) => c.exerciseId === picker)
+    const ex = catalog.find((c) => c.exerciseId === picker) as GymExercise | undefined
     if (!ex) return
+    const p0 = ex.presets?.[0]
     setRows((r) => [...r, {
       uid: newUid(),
-      exerciseId: ex.exerciseId, name: ex.name, group: ex.muscleGroup,
-      sets: ex.defaultSets ?? 3, reps: ex.defaultReps ?? 10,
-      weight: ex.defaultWeight ?? 0, rest: ex.defaultRest ?? 60,
+      exerciseId: ex.exerciseId, name: ex.name, group: ex.muscleGroup, subGroup: ex.subGroup ?? null,
+      sets: p0?.sets ?? ex.defaultSets ?? 3, reps: p0?.reps ?? ex.defaultReps ?? 10,
+      weight: p0?.weight ?? ex.defaultWeight ?? 0, rest: p0?.rest ?? ex.defaultRest ?? 60,
       media: (ex.media ?? []) as MediaItem[],
     }])
     setPicker('')
@@ -642,18 +847,20 @@ function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved }: {
   })
 
   return (
-    <Modal open={open} onClose={onClose} title={template ? 'Editar grupo de treino' : 'Novo grupo de treino'} width="max-w-2xl"
+    <Modal open={open} onClose={onClose} title={template ? 'Editar grupo de exercícios' : 'Novo grupo de exercícios'} width="max-w-2xl"
       footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><Button isLoading={save.isPending} disabled={!name.trim() || rows.length === 0} onClick={() => save.mutate()}>Guardar</Button></>}>
       <div className="space-y-4">
         <Input label="Nome do treino" value={name} onChange={(ev: any) => setName(ev.target.value)} placeholder="Ex: Push A" />
         <div className="flex items-end gap-2">
           <div className="flex-1">
-            <Select label="Adicionar exercício do catálogo" value={picker} onChange={(ev: any) => setPicker(ev.target.value)}>
-              <option value="">Escolher exercício…</option>
-              {catalog.filter((c) => c.active !== false).map((c) => (
-                <option key={c.exerciseId} value={c.exerciseId}>{c.name} · {c.muscleGroup}</option>
-              ))}
-            </Select>
+            <span className="block text-[11px] font-medium text-zinc-500 mb-1">Adicionar exercício do catálogo</span>
+            <Combobox
+              value={picker}
+              onChange={setPicker}
+              options={catalog.filter((c) => c.active !== false).map((c) => ({ value: c.exerciseId, label: `${c.name} · ${c.muscleGroup}` }))}
+              placeholder="Escolher exercício…"
+              searchPlaceholder="Pesquisar exercício…"
+            />
           </div>
           <Button icon="plus" variant="secondary" disabled={!picker} onClick={addFromCatalog}>Adicionar</Button>
         </div>
@@ -670,7 +877,12 @@ function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved }: {
                         <div className="flex items-center gap-2 mb-2">
                           <DragHandle {...handle} />
                           <GroupChip group={row.group} />
+                          {row.subGroup && <span className="text-[10px] text-zinc-400">{row.subGroup}</span>}
                           <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 flex-1 truncate">{row.name}</span>
+                          <PresetPicker
+                            exercise={catalog.find((c) => c.exerciseId === row.exerciseId) as GymExercise | undefined}
+                            onPick={(p) => update(row.uid, presetValues(p))}
+                          />
                           <IconButton icon="trash" label="Remover" onClick={() => removeRow(row.uid)} />
                         </div>
                         <div className="grid grid-cols-4 gap-2">
@@ -717,12 +929,12 @@ function TreinosTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-zinc-500">{templates.length} grupo{templates.length === 1 ? '' : 's'} de treino reutilizáveis</p>
-        <Button icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo grupo de treino</Button>
+        <Button icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo grupo de exercícios</Button>
       </div>
       {isLoading ? (
         <Card className="p-8 text-center text-zinc-400">A carregar…</Card>
       ) : templates.length === 0 ? (
-        <EmptyState icon="folder" title="Sem grupos de treino" desc="Cria grupos de treino reutilizáveis e atribui-os aos clientes na tab Programas." action={<Button icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo grupo de treino</Button>} />
+        <EmptyState icon="folder" title="Sem grupos de exercícios" desc="Cria grupos de exercícios reutilizáveis e atribui-os aos clientes na tab Programas." action={<Button icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo grupo de exercícios</Button>} />
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
           {templates.map((t) => (
@@ -757,6 +969,8 @@ function ProgramasTab({ customerId }: { customerId: string }) {
 
   const [newProgOpen, setNewProgOpen] = useState(false)
   const [progName, setProgName] = useState('')
+  const [progRange, setProgRange] = useState<DateRange | undefined>(undefined)
+  const openNewProg = () => { setProgName(''); setProgRange(undefined); setNewProgOpen(true) }
   const [workoutModal, setWorkoutModal] = useState<{ programId: string; workout: GymWorkout | null } | null>(null)
   const [assignProgramId, setAssignProgramId] = useState<string | null>(null)
   const [assignTemplateId, setAssignTemplateId] = useState('')
@@ -769,8 +983,14 @@ function ProgramasTab({ customerId }: { customerId: string }) {
   })
 
   const createProgram = useMutation({
-    mutationFn: () => postGymPrograms({ name: progName.trim(), customerId, owner: 'coach' }),
-    onSuccess: () => { invalidate(); setNewProgOpen(false); setProgName(''); toast.success('Programa criado') },
+    mutationFn: () => postGymPrograms({
+      name: progName.trim(),
+      customerId,
+      owner: 'coach',
+      startDate: progRange?.from ? format(progRange.from, 'yyyy-MM-dd') : null,
+      endDate: progRange?.to ? format(progRange.to, 'yyyy-MM-dd') : null,
+    } as any),
+    onSuccess: () => { invalidate(); setNewProgOpen(false); setProgName(''); setProgRange(undefined); toast.success('Programa criado') },
     onError: (e) => toast.error(getApiError(e)),
   })
   const removeProgram = useMutation({
@@ -829,11 +1049,11 @@ function ProgramasTab({ customerId }: { customerId: string }) {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <p className="text-sm text-zinc-500">{programs.length} programa{programs.length === 1 ? '' : 's'}</p>
-        <Button icon="plus" onClick={() => setNewProgOpen(true)}>Atribuir programa</Button>
+        <Button icon="plus" onClick={openNewProg}>Atribuir programa</Button>
       </div>
 
       {ordered.length === 0 ? (
-        <EmptyState icon="folder" title="Sem programas" desc="Cria um programa de treino e atribui-o a este cliente." action={<Button icon="plus" onClick={() => setNewProgOpen(true)}>Atribuir programa</Button>} />
+        <EmptyState icon="folder" title="Sem programas" desc="Cria um programa de treino e atribui-o a este cliente." action={<Button icon="plus" onClick={openNewProg}>Atribuir programa</Button>} />
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onProgramDragEnd}>
           <SortableContext items={ordered.map((p) => p.id)} strategy={verticalListSortingStrategy}>
@@ -847,6 +1067,12 @@ function ProgramasTab({ customerId }: { customerId: string }) {
                         <Icon name="folder" className="w-4 h-4 text-accent" />
                         <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{p.name}</h3>
                         <Badge tone={p.owner === 'coach' ? 'green' : 'neutral'}>{p.owner === 'coach' ? 'Coach' : 'Cliente'}</Badge>
+                        {(p as any).startDate && (p as any).endDate && (
+                          <span className="inline-flex items-center gap-1 text-xs text-zinc-500">
+                            <Icon name="calendar" className="w-3.5 h-3.5" />
+                            {format(new Date((p as any).startDate), 'dd/MM/yy')} → {format(new Date((p as any).endDate), 'dd/MM/yy')}
+                          </span>
+                        )}
                         <span className="text-xs text-zinc-400">{p.workouts.length} treino{p.workouts.length === 1 ? '' : 's'}</span>
                         <div className="ml-auto flex items-center gap-1">
                           {p.owner === 'coach' && (
@@ -912,15 +1138,26 @@ function ProgramasTab({ customerId }: { customerId: string }) {
         open={newProgOpen}
         onClose={() => setNewProgOpen(false)}
         title="Atribuir programa"
-        subtitle="Cria um grupo de treino para este cliente (só leitura na app dele)."
+        subtitle="Cria um grupo de exercícios para este cliente (só leitura na app dele)."
         footer={
           <>
             <Button variant="ghost" onClick={() => setNewProgOpen(false)}>Cancelar</Button>
-            <Button isLoading={createProgram.isPending} disabled={!progName.trim()} onClick={() => createProgram.mutate()}>Criar</Button>
+            <Button isLoading={createProgram.isPending} disabled={!progName.trim() || !progRange?.from || !progRange?.to} onClick={() => createProgram.mutate()}>Criar</Button>
           </>
         }
       >
-        <Input label="Nome do programa" value={progName} onChange={(ev: any) => setProgName(ev.target.value)} placeholder="Ex: Treino 1" />
+        <div className="space-y-4">
+          <Input label="Nome do programa" value={progName} onChange={(ev: any) => setProgName(ev.target.value)} placeholder="Ex: Treino 1" />
+          <div>
+            <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Período (início → fim)</span>
+            <DateRangePicker value={progRange} onChange={setProgRange} />
+            <p className="text-xs text-zinc-400 mt-1.5">
+              {progRange?.from && progRange?.to
+                ? `${format(progRange.from, 'dd/MM/yyyy')} → ${format(progRange.to, 'dd/MM/yyyy')}`
+                : 'Escolhe a data de início e de fim no calendário.'}
+            </p>
+          </div>
+        </div>
       </Modal>
 
       {workoutModal && (
@@ -937,8 +1174,8 @@ function ProgramasTab({ customerId }: { customerId: string }) {
       <Modal
         open={assignProgramId !== null}
         onClose={() => setAssignProgramId(null)}
-        title="Atribuir grupo de treino"
-        subtitle="Copia um grupo de treino reutilizável para este programa do cliente."
+        title="Atribuir grupo de exercícios"
+        subtitle="Copia um grupo de exercícios reutilizável para este programa do cliente."
         footer={
           <>
             <Button variant="ghost" onClick={() => setAssignProgramId(null)}>Cancelar</Button>
@@ -947,13 +1184,13 @@ function ProgramasTab({ customerId }: { customerId: string }) {
         }
       >
         {templates.length === 0 ? (
-          <p className="text-sm text-zinc-400">Ainda não há grupos de treino. Cria um na tab “Treinos”.</p>
+          <p className="text-sm text-zinc-400">Ainda não há grupos de exercícios. Cria um na tab “Treinos”.</p>
         ) : (
           <Combobox
             value={assignTemplateId}
             onChange={setAssignTemplateId}
             options={templates.map((t) => ({ value: t.id, label: `${t.name} · ${t.exercises.length} exercícios` }))}
-            placeholder="Escolher grupo de treino…"
+            placeholder="Escolher grupo de exercícios…"
             searchPlaceholder="Pesquisar…"
           />
         )}
@@ -1048,6 +1285,259 @@ function ProgressoTab({ customerId }: { customerId: string }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Planos (templates por dias) — cada dia tem exercícios soltos e/ou um grupo de exercícios
+type PlanoDayDraft = { uid: string; name: string; daysOfWeek: number[]; rows: DraftExercise[] }
+
+function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
+  open: boolean
+  onClose: () => void
+  plano: GymPlano | null
+  catalog: GymExercise[]
+  templates: GymWorkout[]
+  onSaved: () => void
+}) {
+  const qc = useQueryClient()
+  const [name, setName] = useState('')
+  const [note, setNote] = useState('')
+  const [days, setDays] = useState<PlanoDayDraft[]>([])
+
+  useEffect(() => {
+    if (!open) return
+    setName(plano?.name ?? '')
+    setNote(plano?.note ?? '')
+    setDays(
+      (plano?.workouts ?? []).map((w) => ({
+        uid: newUid(),
+        name: w.name,
+        daysOfWeek: w.daysOfWeek ?? [],
+        rows: (w.exercises ?? []).map((e) => ({
+          uid: newUid(), exerciseId: e.exerciseId ?? null, name: e.name, group: e.group,
+          subGroup: (e as any).subGroup ?? null,
+          sets: e.sets, reps: e.reps, weight: e.weight ?? 0, rest: e.rest ?? 60,
+          media: ((e as any).media ?? []) as MediaItem[],
+        })),
+      })),
+    )
+  }, [open, plano?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const addDay = () => setDays((d) => [...d, { uid: newUid(), name: `Dia ${d.length + 1}`, daysOfWeek: [], rows: [] }])
+  const removeDay = (uid: string) => setDays((d) => d.filter((x) => x.uid !== uid))
+  const patchDay = (uid: string, patch: Partial<PlanoDayDraft>) =>
+    setDays((d) => d.map((x) => (x.uid === uid ? { ...x, ...patch } : x)))
+  const addRows = (dayUid: string, rows: DraftExercise[]) =>
+    setDays((d) => d.map((x) => (x.uid === dayUid ? { ...x, rows: [...x.rows, ...rows] } : x)))
+  const updateRow = (dayUid: string, rowUid: string, patch: Partial<DraftExercise>) =>
+    setDays((d) => d.map((x) => (x.uid === dayUid ? { ...x, rows: x.rows.map((r) => (r.uid === rowUid ? { ...r, ...patch } : r)) } : x)))
+  const removeRow = (dayUid: string, rowUid: string) =>
+    setDays((d) => d.map((x) => (x.uid === dayUid ? { ...x, rows: x.rows.filter((r) => r.uid !== rowUid) } : x)))
+
+  const addExercise = (dayUid: string, exerciseId: string) => {
+    const ex = catalog.find((c) => c.exerciseId === exerciseId)
+    if (!ex) return
+    const p0 = ex.presets?.[0]
+    addRows(dayUid, [{
+      uid: newUid(), exerciseId: ex.exerciseId, name: ex.name, group: ex.muscleGroup, subGroup: ex.subGroup ?? null,
+      sets: p0?.sets ?? ex.defaultSets ?? 3, reps: p0?.reps ?? ex.defaultReps ?? 10,
+      weight: p0?.weight ?? ex.defaultWeight ?? 0, rest: p0?.rest ?? ex.defaultRest ?? 60,
+      media: (ex.media ?? []) as MediaItem[],
+    }])
+  }
+  const addGroup = (dayUid: string, templateId: string) => {
+    const t = templates.find((x) => x.id === templateId)
+    if (!t) return
+    addRows(dayUid, t.exercises.map((e) => ({
+      uid: newUid(), exerciseId: e.exerciseId ?? null, name: e.name, group: e.group, subGroup: (e as any).subGroup ?? null,
+      sets: e.sets, reps: e.reps, weight: e.weight ?? 0, rest: e.rest ?? 60,
+      media: ((e as any).media ?? []) as MediaItem[],
+    })))
+  }
+
+  const save = useMutation({
+    mutationFn: () => {
+      const body = {
+        name: name.trim(), note: note || null,
+        workouts: days.map((d) => ({
+          name: d.name.trim(), daysOfWeek: d.daysOfWeek,
+          exercises: d.rows.map((r) => ({
+            exerciseId: r.exerciseId, name: r.name, group: r.group, subGroup: r.subGroup,
+            sets: r.sets, reps: r.reps, weight: r.weight, rest: r.rest, media: r.media,
+          })),
+        })),
+      } as any
+      if (plano) return putGymPlanosId(plano.id, body)
+      return postGymPlanos(body)
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: [{ url: '/gym/planos' }] }); onSaved(); onClose(); toast.success(plano ? 'Plano atualizado' : 'Plano criado') },
+    onError: (e) => toast.error(getApiError(e)),
+  })
+
+  return (
+    <Modal open={open} onClose={onClose} title={plano ? 'Editar plano' : 'Novo plano'} width="max-w-3xl"
+      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><Button isLoading={save.isPending} disabled={!name.trim() || days.length === 0} onClick={() => save.mutate()}>Guardar</Button></>}>
+      <div className="space-y-4">
+        <div className="grid sm:grid-cols-2 gap-3">
+          <Input label="Nome do plano" value={name} onChange={(ev: any) => setName(ev.target.value)} placeholder="Ex: Full Body 3x/semana" />
+          <Input label="Nota (opcional)" value={note} onChange={(ev: any) => setNote(ev.target.value)} placeholder="Ex: Iniciantes" />
+        </div>
+
+        {days.map((day) => (
+          <div key={day.uid} className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 space-y-3">
+            <div className="flex items-center gap-2">
+              <Input value={day.name} onChange={(ev: any) => patchDay(day.uid, { name: ev.target.value })} placeholder="Nome do dia (ex: Push)" className="flex-1" />
+              <IconButton icon="trash" label="Remover dia" onClick={() => removeDay(day.uid)} />
+            </div>
+            <DaySelector value={day.daysOfWeek} onChange={(v) => patchDay(day.uid, { daysOfWeek: v })} />
+
+            <div className="grid sm:grid-cols-2 gap-2">
+              <Combobox
+                value=""
+                onChange={(v) => addExercise(day.uid, v)}
+                options={catalog.filter((c) => c.active !== false).map((c) => ({ value: c.exerciseId, label: `${c.name} · ${c.muscleGroup}` }))}
+                placeholder="+ Exercício do catálogo"
+                searchPlaceholder="Pesquisar exercício…"
+              />
+              <Combobox
+                value=""
+                onChange={(v) => addGroup(day.uid, v)}
+                options={templates.map((t) => ({ value: t.id, label: `${t.name} · ${t.exercises.length} ex.` }))}
+                placeholder="+ Grupo de exercícios"
+                searchPlaceholder="Pesquisar grupo…"
+              />
+            </div>
+
+            {day.rows.length === 0 ? (
+              <p className="text-xs text-zinc-400 text-center py-2">Sem exercícios neste dia.</p>
+            ) : (
+              <div className="space-y-2">
+                {day.rows.map((row) => (
+                  <div key={row.uid} className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-2.5 bg-white dark:bg-zinc-900">
+                    <div className="flex items-center gap-2 mb-2">
+                      <GroupChip group={row.group} />
+                      {row.subGroup && <span className="text-[10px] text-zinc-400">{row.subGroup}</span>}
+                      <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 flex-1 truncate">{row.name}</span>
+                      <PresetPicker
+                        exercise={catalog.find((c) => c.exerciseId === row.exerciseId)}
+                        onPick={(p) => updateRow(day.uid, row.uid, presetValues(p))}
+                      />
+                      <IconButton icon="trash" label="Remover" onClick={() => removeRow(day.uid, row.uid)} />
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {([['Séries', 'sets'], ['Reps', 'reps'], ['Peso (kg)', 'weight'], ['Descanso (s)', 'rest']] as const).map(([label, field]) => (
+                        <label key={field} className="block">
+                          <span className="block text-[11px] font-medium text-zinc-500 mb-1">{label}</span>
+                          <input type="number" min={0} value={row[field]}
+                            onChange={(ev) => updateRow(day.uid, row.uid, { [field]: Number(ev.target.value) } as Partial<DraftExercise>)}
+                            className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm px-2.5 py-1.5 focus:outline-none focus:border-accent" />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+
+        <Button type="button" variant="secondary" icon="plus" onClick={addDay}>Adicionar dia</Button>
+      </div>
+    </Modal>
+  )
+}
+
+function PlanosTab({ customers }: { customers: { customerId: string; name: string }[] }) {
+  const qc = useQueryClient()
+  const { data, isLoading } = useGetGymPlanos()
+  const planos = (data ?? []) as GymPlano[]
+  const { data: catalogData } = useGetGymExercises()
+  const catalog = (catalogData ?? []) as GymExercise[]
+  const { data: templatesData } = useGetGymWorkoutTemplates()
+  const templates = (templatesData ?? []) as GymWorkout[]
+
+  const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<GymPlano | null>(null)
+  const [assigning, setAssigning] = useState<GymPlano | null>(null)
+  const [assignCustomer, setAssignCustomer] = useState('')
+  const [assignRange, setAssignRange] = useState<DateRange | undefined>(undefined)
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: [{ url: '/gym/planos' }] })
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteGymPlanosId(id),
+    onSuccess: () => { invalidate(); toast.success('Plano eliminado') },
+    onError: (e) => toast.error(getApiError(e)),
+  })
+  const openAssign = (p: GymPlano) => { setAssigning(p); setAssignCustomer(''); setAssignRange(undefined) }
+  const assign = useMutation({
+    mutationFn: () => postGymPlanosIdAssign(assigning!.id, {
+      customerId: assignCustomer,
+      startDate: assignRange?.from ? format(assignRange.from, 'yyyy-MM-dd') : null,
+      endDate: assignRange?.to ? format(assignRange.to, 'yyyy-MM-dd') : null,
+    } as any),
+    onSuccess: () => { setAssigning(null); qc.invalidateQueries({ queryKey: [{ url: '/gym/programs' }] }); toast.success('Plano atribuído ao cliente') },
+    onError: (e) => toast.error(getApiError(e)),
+  })
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-zinc-500">{planos.length} plano{planos.length === 1 ? '' : 's'} de treino</p>
+        <Button icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo plano</Button>
+      </div>
+
+      {isLoading ? (
+        <Card className="p-8 text-center text-zinc-400">A carregar…</Card>
+      ) : planos.length === 0 ? (
+        <EmptyState icon="folder" title="Sem planos" desc="Cria um plano de treino (por dias) e atribui-o a clientes." action={<Button icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo plano</Button>} />
+      ) : (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {planos.map((p) => (
+            <Card key={p.id} className="p-3.5">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex-1 truncate">{p.name}</span>
+                <Button size="sm" variant="ghost" icon="user" onClick={() => openAssign(p)}>Atribuir</Button>
+                <IconButton icon="edit" label="Editar" onClick={() => { setEditing(p); setOpen(true) }} />
+                <IconButton icon="trash" label="Eliminar" onClick={() => remove.mutate(p.id)} />
+              </div>
+              {p.note && <p className="text-xs text-zinc-400 mb-1.5">{p.note}</p>}
+              <p className="text-xs text-zinc-400">{p.workouts.length} dia{p.workouts.length === 1 ? '' : 's'}</p>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <PlanoModal open={open} onClose={() => setOpen(false)} plano={editing} catalog={catalog} templates={templates} onSaved={invalidate} />
+
+      <Modal
+        open={assigning !== null}
+        onClose={() => setAssigning(null)}
+        title="Atribuir plano a um cliente"
+        subtitle="Copia o plano para um programa do cliente (editável sem afetar o plano)."
+        footer={<><Button variant="ghost" onClick={() => setAssigning(null)}>Cancelar</Button><Button isLoading={assign.isPending} disabled={!assignCustomer || !assignRange?.from || !assignRange?.to} onClick={() => assign.mutate()}>Atribuir</Button></>}
+      >
+        <div className="space-y-4">
+          <Combobox
+            label="Cliente"
+            value={assignCustomer}
+            onChange={setAssignCustomer}
+            options={customers.map((c) => ({ value: c.customerId, label: c.name }))}
+            placeholder="Seleccionar cliente…"
+            searchPlaceholder="Pesquisar cliente…"
+          />
+          <div>
+            <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Período (início → fim)</span>
+            <DateRangePicker value={assignRange} onChange={setAssignRange} />
+            <p className="text-xs text-zinc-400 mt-1.5">
+              {assignRange?.from && assignRange?.to
+                ? `${format(assignRange.from, 'dd/MM/yyyy')} → ${format(assignRange.to, 'dd/MM/yyyy')}`
+                : 'Escolhe início e fim no calendário.'}
+            </p>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 export function Ginasio() {
   const [tab, setTab] = useState<Tab>('programas')
   const [customerId, setCustomerId] = useState('')
@@ -1057,7 +1547,8 @@ export function Ginasio() {
   const tabs: { key: Tab; label: string; icon: string; needsClient: boolean }[] = [
     { key: 'programas', label: 'Programas', icon: 'folder', needsClient: true },
     { key: 'catalogo', label: 'Catálogo', icon: 'grid', needsClient: false },
-    { key: 'treinos', label: 'Treinos', icon: 'layers', needsClient: false },
+    { key: 'treinos', label: 'Grupos de exercícios', icon: 'layers', needsClient: false },
+    { key: 'planos', label: 'Planos', icon: 'calendar', needsClient: false },
     { key: 'progresso', label: 'Progresso', icon: 'trend', needsClient: true },
   ]
 
@@ -1095,6 +1586,7 @@ export function Ginasio() {
 
       {tab === 'catalogo' && <CatalogoTab />}
       {tab === 'treinos' && <TreinosTab />}
+      {tab === 'planos' && <PlanosTab customers={customers} />}
       {tab === 'programas' && (customerId ? <ProgramasTab customerId={customerId} /> : <EmptyState icon="user" title="Escolhe um cliente" desc="Selecciona um cliente para gerir os seus programas de treino." />)}
       {tab === 'progresso' && (customerId ? <ProgressoTab customerId={customerId} /> : <EmptyState icon="user" title="Escolhe um cliente" desc="Selecciona um cliente para ver o seu progresso." />)}
     </div>

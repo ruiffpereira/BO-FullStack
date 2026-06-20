@@ -47,6 +47,7 @@ src/
 | `Dashboard.tsx` | `/` | qualquer | Resumo operacional (marcações de hoje, últimas marcações/encomendas) |
 | `Despesas.tsx` | `/despesas` | `VIEW_EXPENSES` | Registo de custos: resumo mês/ano, gráfico por categoria, lista CRUD + gestão de categorias (criadas pelo user, com cor) |
 | `Financeiro.tsx` | `/financeiro` | `VIEW_STATS` | Dashboard financeiro: receita, despesas, lucro, ticket médio, gráficos (`/api/dashboard`) |
+| `Ginasio.tsx` | `/ginasio` | `VIEW_GYM` | Ginásio: catálogo de exercícios, grupos/subgrupos musculares, programas atribuídos por cliente, templates de treino e progresso (`/api/gym`) |
 | `Loja.tsx` | `/loja` | `VIEW_PRODUCTS` | Produtos, categorias, subcategorias, encomendas, cupões |
 
 A navegação em `Shell.tsx` é gerada automaticamente a partir das permissões do utilizador autenticado.
@@ -61,7 +62,10 @@ A navegação em `Shell.tsx` é gerada automaticamente a partir das permissões 
 | `Login.tsx` | Formulário de login (standalone, sem Shell) |
 | `NotificationBell.tsx` | Ícone com badge + dropdown de notificações em tempo real |
 | `ApptModal.tsx` | Modal de criação/edição de agendamentos (usado em Agenda) |
-| `FileUpload.tsx` | Upload de imagens para SeaweedFS via `/api/uploads` |
+| `FileUpload.tsx` | Upload de imagem único para SeaweedFS via `/api/uploads` (atualmente sem uso) |
+| `MediaGallery.tsx` | Galeria de imagens/vídeos (Ginásio). **Upload diferido**: segura os ficheiros localmente (preview `blob:`) e só os envia ao Guardar, via `uploadPendingMedia()` |
+| `Combobox.tsx` | Dropdown custom com pesquisa. Menu renderizado em **portal** (`document.body`, posição fixa) para não ser cortado por overflow de modais. `ref` aponta para o botão; tem `label`/`disabled` |
+| `DateRangePicker.tsx` | Selector de intervalo de datas (`react-day-picker`, modo range, locale PT). Usado ao atribuir um programa |
 | `TranslationInputs.tsx` | Campos de tradução por língua com bandeiras reais |
 
 ---
@@ -79,6 +83,21 @@ A navegação em `Shell.tsx` é gerada automaticamente a partir das permissões 
 | `useAuditLogs.ts` | `useAuditLogs`/`useErrorLogs`/`useHealth` — tabs Atividade e Sistema do Admin (só `VIEW_ADMIN`) |
 
 > Despesas usa hooks gerados pelo Kubb (`useGetExpenses`, `useGetExpensesSummary`, `usePostExpenses`, …) para as despesas, e o hook manual `useExpenseCategories.ts` (list/create/update/delete) para as **categorias criadas pelo tenant**. As categorias têm cor própria; `src/utils/expenseCategories.ts` só guarda a paleta de cores sugeridas.
+
+---
+
+## Ginásio (Ginasio.tsx)
+
+Página com 5 tabs: **Programas** (por cliente), **Catálogo**, **Grupos de exercícios** (bundles reutilizáveis = `WorkoutTemplate`), **Planos** (templates por dias) e **Progresso** (por cliente). Usa hooks gerados pelo Kubb (`useGetGymExercises`, `useGetGymMuscleGroups`, `useGetGymPrograms`, `useGetGymWorkoutTemplates`, `useGetGymPlanos`, …).
+
+- **Hierarquia**: Exercício (+presets) → **Grupo de exercícios** (bundle, sem dias) → **Plano** (dias; cada dia tem exercícios soltos e/ou um grupo de exercícios) → **Programa** (plano atribuído a um cliente, com `startDate`/`endDate`).
+- **Atribuir** (`PlanosTab` → "Atribuir", ou `ProgramasTab`): copia o plano/grupo para um **Programa** do cliente (*snapshot*). Editar o programa do cliente **não** afeta o template e vice-versa. As datas escolhem-se com o `DateRangePicker` (react-day-picker).
+
+- **Grupos e subgrupos musculares** (`/api/gym/muscle-groups`): hierarquia de 1 nível via `parentId` (ex: *Peito → Peito superior*). Geridos no modal "Grupos" do Catálogo. A cor de um novo grupo/subgrupo vem **aleatória** de `GROUP_COLORS` (o user pode mudar). Apagar um grupo apaga os seus subgrupos (os exercícios guardam o nome em snapshot, por isso não corrompem).
+- **Catálogo de exercícios** (`/api/gym/exercises`): cada exercício pertence a um grupo de topo e, opcionalmente, a um `subGroup`. Em vez de um único conjunto de defaults, tem **presets nomeados** (`presets: [{ id, name, sets, reps, weight, rest }]`, ex: "Iniciante", "Avançado"). Os campos `default*` legados são derivados do 1.º preset (compat com a PWA/público).
+- **Montar treino** (`WorkoutModal`/`WorkoutTemplateModal`): ao adicionar um exercício do catálogo, se este tiver presets aparece um selector que pré-preenche séries/reps/peso/descanso — **continuam editáveis** por cliente. Os exercícios prescritos guardam snapshot de `group`/`subGroup`.
+
+> Todos os dropdowns da página usam o componente custom `Combobox` (com pesquisa), não os `<select>`/`Select` nativos.
 
 ---
 
@@ -197,4 +216,5 @@ Os ficheiros em `src/gen/` não devem ser editados manualmente.
 - Nunca expor `userId` ou dados de outros tenants nas queries
 - Sempre usar `authHeader()` nos hooks manuais
 - O Kubb injeta automaticamente o header nos hooks gerados via o cliente axios configurado
-- Uploads de imagem sempre via `FileUpload` → `/api/uploads` (nunca base64 em JSON)
+- Uploads de imagem/vídeo via `/api/uploads` (nunca base64 em JSON)
+- **Upload diferido**: ficheiros escolhidos são segurados localmente (preview `blob:`) e só enviados quando o user clica em **Guardar** — nunca no momento de escolher. Evita ficheiros órfãos no storage se o formulário for cancelado. Aplica-se a: Ginásio (`MediaGallery` + `uploadPendingMedia`), Loja (foto do produto) e Conteúdos/CMS (imagens das entradas)

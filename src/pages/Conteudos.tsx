@@ -64,7 +64,7 @@ import { Combobox } from "../components/Combobox";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type CmsContext = "website" | "product" | "service";
+type CmsContext = "website" | "product" | "service" | "gym";
 type TabId = CmsContext | "linguas" | "emails";
 type Section = {
   sectionId: string;
@@ -119,10 +119,11 @@ const CMS_TABS: {
   { id: "product", label: "Loja", icon: "store", permission: "VIEW_PRODUCTS" },
   {
     id: "service",
-    label: "Barbeiro",
+    label: "Agenda",
     icon: "scissors",
     permission: "VIEW_SCHEDULE",
   },
+  { id: "gym", label: "Ginásio", icon: "trend", permission: "VIEW_GYM" },
   { id: "linguas", label: "Línguas", icon: "globe", permission: null },
   { id: "emails", label: "Emails", icon: "mail", permission: null },
 ];
@@ -614,7 +615,17 @@ function CmsReferencesModal({
 }) {
   const { data, isLoading } = useCmsReferences(cmsKey, true);
   const navigate = useNavigate();
-  const total = (data?.products.length ?? 0) + (data?.services.length ?? 0);
+  const total =
+    (data?.products.length ?? 0) +
+    (data?.services.length ?? 0) +
+    (data?.gym?.length ?? 0);
+
+  const GYM_TYPE_LABEL: Record<string, string> = {
+    exercise: "Exercício",
+    group: "Grupo muscular",
+    treino: "Treino",
+    plano: "Plano",
+  };
 
   const goTo = (path: string) => {
     onClose();
@@ -711,6 +722,35 @@ function CmsReferencesModal({
                     descrição
                   </span>
                 )}
+                <Icon
+                  name="chevronRight"
+                  className="w-3.5 h-3.5 text-zinc-300 dark:text-zinc-600 shrink-0"
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {!isLoading && (data?.gym?.length ?? 0) > 0 && (
+        <div className="mt-4">
+          <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide mb-2">
+            Ginásio
+          </p>
+          <div className="space-y-1">
+            {data!.gym.map((g) => (
+              <button
+                key={`${g.type}-${g.id}`}
+                type="button"
+                onClick={() => goTo("/ginasio")}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 hover:bg-zinc-100 dark:hover:bg-zinc-700/60 transition-colors text-sm text-left"
+              >
+                <Icon name="trend" className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                <span className="flex-1 text-zinc-800 dark:text-zinc-100 truncate">
+                  {g.name}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">
+                  {GYM_TYPE_LABEL[g.type] ?? g.type}
+                </span>
                 <Icon
                   name="chevronRight"
                   className="w-3.5 h-3.5 text-zinc-300 dark:text-zinc-600 shrink-0"
@@ -839,9 +879,9 @@ export function Conteudos() {
 
   // Navigate to a section — always clears the search so the section contents are visible
   const selectSection = (id: string | null) => {
-    setSelectedSectionId(id)
-    setSearchQuery('')
-  }
+    setSelectedSectionId(id);
+    setSearchQuery("");
+  };
 
   // ─── Queries ───────────────────────────────────────────────────────────────
 
@@ -870,7 +910,9 @@ export function Conteudos() {
           ? "product"
           : e.key.startsWith("service.")
             ? "service"
-            : "website";
+            : e.key.startsWith("gym.")
+              ? "gym"
+              : "website";
         return context === activeTab;
       }),
     [allEntries, activeTab, tabSectionIds],
@@ -939,7 +981,7 @@ export function Conteudos() {
 
   const refCountKeys = useMemo(
     () =>
-      activeTab === "product" || activeTab === "service"
+      activeTab === "product" || activeTab === "service" || activeTab === "gym"
         ? grouped.map((g) => g.key)
         : [],
     [activeTab, grouped],
@@ -990,6 +1032,10 @@ export function Conteudos() {
           if (details.services > 0)
             parts.push(
               `${details.services} serviço${details.services > 1 ? "s" : ""}`,
+            );
+          if (details.gym > 0)
+            parts.push(
+              `${details.gym} item${details.gym > 1 ? "s" : ""} de ginásio`,
             );
           toast.error(
             `Não é possível eliminar: esta entrada está associada a ${parts.join(" e ")}`,
@@ -1371,7 +1417,8 @@ export function Conteudos() {
           const { fileUrl } = await uploadImage({ image: file, module: "cms" });
           const old = translations[idx]?.value;
           if (old && old.startsWith("blob:")) URL.revokeObjectURL(old);
-          if (translations[idx]) translations[idx] = { ...translations[idx], value: fileUrl };
+          if (translations[idx])
+            translations[idx] = { ...translations[idx], value: fileUrl };
         }
         form = { ...form, translations };
         setEntryForm(form);
@@ -1387,7 +1434,9 @@ export function Conteudos() {
     if (
       !form.key.trim() &&
       !editEntryKey &&
-      (activeTab === "product" || activeTab === "service")
+      (activeTab === "product" ||
+        activeTab === "service" ||
+        activeTab === "gym")
     ) {
       const firstValue =
         form.translations.find((t) => t.value.trim())?.value ?? "";
@@ -1601,9 +1650,7 @@ export function Conteudos() {
                               />
                               {i < breadcrumb.length - 1 ? (
                                 <button
-                                  onClick={() =>
-                                    selectSection(crumb.sectionId)
-                                  }
+                                  onClick={() => selectSection(crumb.sectionId)}
                                   className="text-xs text-zinc-400 hover:text-accent transition-colors"
                                 >
                                   {crumb.name}
@@ -2186,8 +2233,8 @@ export function Conteudos() {
         <Modal
           open
           onClose={closeEntryModal}
-          title={editEntryKey ? `Editar — ${editEntryKey}` : "Nova entrada"}
-          width={entryForm.type === 'richtext' ? 'max-w-3xl' : 'max-w-lg'}
+          title={editEntryKey ? "Editar entrada" : "Nova entrada"}
+          width={entryForm.type === "richtext" ? "max-w-3xl" : "max-w-lg"}
           footer={
             <>
               <Button variant="ghost" onClick={closeEntryModal}>
@@ -2209,7 +2256,7 @@ export function Conteudos() {
             className="space-y-4"
           >
             <div className="grid grid-cols-2 gap-3">
-              {(editEntryKey || activeTab === "website") && (
+              {activeTab === "website" && (
                 <div className="col-span-2 sm:col-span-1">
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                     Key
@@ -2254,7 +2301,10 @@ export function Conteudos() {
                     }
                     options={[
                       { value: "", label: "Sem secção" },
-                      ...sections.map((s) => ({ value: s.sectionId, label: s.name })),
+                      ...sections.map((s) => ({
+                        value: s.sectionId,
+                        label: s.name,
+                      })),
                     ]}
                     placeholder="Sem secção"
                     searchPlaceholder="Pesquisar secção…"

@@ -12,9 +12,16 @@ export interface CmsReference {
   descriptionKey: string | null;
 }
 
+export interface GymReference {
+  id: string;
+  type: "exercise" | "group" | "treino" | "plano" | string;
+  name: string;
+}
+
 export interface CmsReferences {
   products: CmsReference[];
   services: CmsReference[];
+  gym: GymReference[];
 }
 
 export async function fetchCmsReferences(

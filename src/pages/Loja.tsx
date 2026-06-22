@@ -5,7 +5,8 @@ import {
   type TranslationMap,
 } from "../components/TranslationInputs";
 import { useGetSettingsLanguages } from "../hooks/useSettingsLanguages";
-import { useGetCmsSearch } from "../hooks/useCmsSearch";
+import { CmsCombo } from "../components/CmsCombo";
+import { ensureCmsName } from "../lib/gymCms";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
@@ -46,10 +47,7 @@ import type { ProductImage } from "../gen/backoffice/types/ProductImage.js";
 import type { Category } from "../gen/backoffice/types/Category.js";
 import type { Subcategory } from "../gen/backoffice/types/Subcategory.js";
 import { uploadImage } from "../gen/backoffice/hooks/useUploadImage.js";
-import { putCmsEntries } from "../gen/backoffice/hooks/usePutCmsEntries.js";
 import { pickImageFile } from "../lib/filePicker";
-import { toSlug } from "../utils/slug";
-import { CmsTranslationsModal } from "../components/CmsTranslationsModal";
 
 const photoUrl = (photo: ProductImage | string | undefined | null) =>
   typeof photo === "string" ? photo : photo?.fileUrl;
@@ -142,6 +140,8 @@ function ProdutoCard({
 // ─── Modal ────────────────────────────────────────────────────────────────────
 
 type ProdForm = {
+  name: string;
+  description: string;
   reference: string;
   price: string;
   stock: string;
@@ -155,6 +155,8 @@ type ProdForm = {
 };
 
 const emptyForm: ProdForm = {
+  name: "",
+  description: "",
   reference: "",
   price: "",
   stock: "",
@@ -166,142 +168,6 @@ const emptyForm: ProdForm = {
   contentKey: null,
   descriptionKey: null,
 };
-
-// ─── CMS combo (product) ──────────────────────────────────────────────────────
-function CmsComboProduct({
-  value,
-  onChange,
-  defaultLang,
-  label = "CMS (opcional)",
-}: {
-  value: string | null
-  onChange: (key: string | null, label?: string) => void
-  defaultLang: string
-  label?: string
-}) {
-  const [q, setQ] = useState("")
-  const [open, setOpen] = useState(false)
-  const [highlighted, setHighlighted] = useState(0)
-  const [creating, setCreating] = useState(false)
-  const [createName, setCreateName] = useState("")
-  const [saving, setSaving] = useState(false)
-  const [translatingKey, setTranslatingKey] = useState<string | null>(null)
-  const [cachedLabel, setCachedLabel] = useState<string>("")
-  const dropRef = useRef<HTMLDivElement>(null)
-
-  const { data: results = [], isFetching } = useGetCmsSearch(
-    { q: q || undefined, context: "product", lang: defaultLang },
-    { query: { enabled: open } },
-  )
-
-  const selected = value
-    ? results.find((r) => r.key === value) ?? { key: value, label: cachedLabel || value, sectionName: null }
-    : null
-
-  const handleCreate = async () => {
-    if (!createName.trim()) return
-    const key = `product.${toSlug(createName)}`
-    setSaving(true)
-    try {
-      await putCmsEntries({ key, locale: defaultLang, value: createName, type: "text" })
-      toast.success("Entrada criada no CMS")
-      setCachedLabel(createName)
-      onChange(key, createName)
-      setCreating(false)
-      setCreateName("")
-    } catch { toast.error("Erro ao criar entrada CMS") }
-    finally { setSaving(false) }
-  }
-
-  return (
-    <div>
-      <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">{label}</label>
-      {creating ? (
-        <div className="flex gap-2">
-          <input
-            autoFocus
-            value={createName}
-            onChange={(e) => setCreateName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreate() } else if (e.key === "Escape") { setCreating(false); setCreateName("") } }}
-            placeholder="Nome da entrada…"
-            className="flex-1 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400"
-          />
-          <button type="button" onClick={handleCreate} disabled={saving} className="px-3 py-2 text-sm font-medium bg-accent text-white rounded-lg disabled:opacity-50">{saving ? "…" : "Criar"}</button>
-          <button type="button" onClick={() => { setCreating(false); setCreateName("") }} className="px-3 py-2 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200">✕</button>
-        </div>
-      ) : selected ? (
-        <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm overflow-hidden">
-          <button type="button" onClick={() => setTranslatingKey(value)} className="flex-1 flex items-center gap-2 px-3 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-700/60 transition-colors min-w-0">
-            <Icon name="layers" className="w-4 h-4 text-accent shrink-0" />
-            <p className="font-medium text-zinc-800 dark:text-zinc-100 truncate">{selected.label}</p>
-          </button>
-          <button type="button" onClick={() => { setCachedLabel(""); onChange(null) }} className="px-3 py-2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-lg leading-none border-l border-zinc-200 dark:border-zinc-700">×</button>
-        </div>
-      ) : (
-        <div className="relative">
-          <input
-            type="text"
-            value={q}
-            onChange={(e) => { setQ(e.target.value); setHighlighted(0) }}
-            onFocus={() => setOpen(true)}
-            onBlur={() => setTimeout(() => setOpen(false), 160)}
-            onKeyDown={(e) => {
-              if (!open) return
-              if (e.key === "ArrowDown") { e.preventDefault(); setHighlighted((i) => Math.min(i + 1, results.length)) }
-              else if (e.key === "ArrowUp") { e.preventDefault(); setHighlighted((i) => Math.max(i - 1, 0)) }
-              else if (e.key === "Enter") {
-                e.preventDefault()
-                if (highlighted === results.length) {
-                  setCreating(true); setCreateName(q); setOpen(false); setQ("")
-                } else if (results[highlighted]) {
-                  setCachedLabel(results[highlighted].label ?? ""); onChange(results[highlighted].key ?? null, results[highlighted].label ?? undefined); setQ(""); setOpen(false)
-                }
-              } else if (e.key === "Escape") setOpen(false)
-            }}
-            placeholder="Pesquisar entrada CMS…"
-            className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400"
-          />
-          {open && (
-            <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden">
-              <div ref={dropRef} className="max-h-52 overflow-y-auto">
-                {isFetching && results.length === 0 && <p className="px-3 py-2.5 text-sm text-zinc-400">A pesquisar…</p>}
-                {!isFetching && results.length === 0 && q && <p className="px-3 py-2 text-xs text-zinc-400">Sem resultados para "{q}".</p>}
-                {results.map((r, idx) => (
-                  <button key={r.key} type="button"
-                    onMouseDown={() => { setCachedLabel(r.label ?? ""); onChange(r.key ?? null, r.label ?? undefined); setQ(""); setOpen(false) }}
-                    onMouseEnter={() => setHighlighted(idx)}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${highlighted === idx ? "bg-accent/[0.08] dark:bg-accent/[0.12]" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
-                  >
-                    <Icon name="layers" className="w-3.5 h-3.5 text-accent/70 shrink-0" />
-                    <div className="min-w-0">
-                      <p className="font-medium text-zinc-800 dark:text-zinc-100 truncate">{r.label}</p>
-                      <p className="text-[10px] text-zinc-400 truncate">{r.key}{r.sectionName ? ` · ${r.sectionName}` : ""}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              <button type="button"
-                onMouseDown={() => { setCreating(true); setCreateName(q); setOpen(false); setQ("") }}
-                onMouseEnter={() => setHighlighted(results.length)}
-                className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors border-t border-zinc-100 dark:border-zinc-800 ${highlighted === results.length ? "bg-accent/[0.08] text-accent" : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
-              >
-                <Icon name="plus" className="w-3.5 h-3.5" />
-                Criar entrada no CMS
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-      {translatingKey && (
-        <CmsTranslationsModal
-          cmsKey={translatingKey}
-          defaultLang={defaultLang}
-          onClose={() => setTranslatingKey(null)}
-        />
-      )}
-    </div>
-  )
-}
 
 function ProdutoModal({
   open,
@@ -329,6 +195,8 @@ function ProdutoModal({
     setForm(
       produto
         ? {
+            name: (produto as any).name ?? "",
+            description: (produto as any).description ?? "",
             reference: produto.reference ?? "",
             price: String(produto.price ?? ""),
             stock: String(produto.stock ?? 0),
@@ -453,12 +321,12 @@ function ProdutoModal({
             />
           </div>
           <div className="flex-1 space-y-3">
-            <CmsComboProduct
-              key={`name-${produto?.productId ?? "new"}`}
+            <CmsCombo
               label="Nome"
+              context="product"
               value={form.contentKey}
-              onChange={(key) => setForm((f) => ({ ...f, contentKey: key }))}
-              defaultLang={defaultLang}
+              name={form.name}
+              onChange={(key, nm) => setForm((f) => ({ ...f, contentKey: key, name: nm }))}
             />
             <Input
               label="Referência"
@@ -495,12 +363,12 @@ function ProdutoModal({
             onChange={set("stock")}
           />
         </div>
-        <CmsComboProduct
-          key={`desc-${produto?.productId ?? "new"}`}
-          label="Descrição"
+        <CmsCombo
+          label="Descrição (opcional)"
+          context="product"
           value={form.descriptionKey}
-          onChange={(key) => setForm((f) => ({ ...f, descriptionKey: key }))}
-          defaultLang={defaultLang}
+          name={form.description}
+          onChange={(key, nm) => setForm((f) => ({ ...f, descriptionKey: key, description: nm }))}
         />
       </div>
     </Modal>
@@ -753,12 +621,17 @@ export function Loja() {
   };
 
   const handleSave = async (form: ProdForm) => {
-    if (!form.contentKey) {
-      toast.error("Seleciona uma entrada CMS para o nome do produto");
+    if (!form.name.trim()) {
+      toast.error("O nome do produto é obrigatório");
       return;
     }
     setSaving(true);
     try {
+      // Cria/atualiza as entradas CMS (nome obrigatório, descrição opcional) ao guardar.
+      const contentKey = await ensureCmsName(form.contentKey, "product", form.name, defaultLang);
+      const descriptionKey = form.description.trim()
+        ? await ensureCmsName(form.descriptionKey, "product", form.description, defaultLang)
+        : null;
       // Upload diferido: envia a foto pendente só agora, ao guardar.
       let photoPayload = form.photo ? [form.photo] : undefined;
       if (form.photoFile) {
@@ -780,8 +653,8 @@ export function Loja() {
             stock: form.stock !== "" ? Number(form.stock) : undefined,
             categoryId: form.categoryId || undefined,
             photos: photoPayload,
-            contentKey: form.contentKey,
-            descriptionKey: form.descriptionKey,
+            contentKey,
+            descriptionKey,
           } as any,
         });
       } else {
@@ -792,8 +665,8 @@ export function Loja() {
             stock: form.stock !== "" ? Number(form.stock) : undefined,
             categoryId: form.categoryId || undefined,
             photos: photoPayload,
-            contentKey: form.contentKey,
-            descriptionKey: form.descriptionKey,
+            contentKey,
+            descriptionKey,
           } as any,
         });
       }

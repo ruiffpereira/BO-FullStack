@@ -47,7 +47,7 @@ src/
 | `Dashboard.tsx` | `/` | qualquer | Resumo operacional (marcações de hoje, últimas marcações/encomendas) |
 | `Despesas.tsx` | `/despesas` | `VIEW_EXPENSES` | Registo de custos: resumo mês/ano, gráfico por categoria, lista CRUD + gestão de categorias (criadas pelo user, com cor) |
 | `Financeiro.tsx` | `/financeiro` | `VIEW_STATS` | Dashboard financeiro: receita, despesas, lucro, ticket médio, gráficos (`/api/dashboard`) |
-| `Ginasio.tsx` | `/ginasio` | `VIEW_GYM` | Ginásio: catálogo de exercícios, grupos/subgrupos musculares, programas atribuídos por cliente, templates de treino e progresso (`/api/gym`) |
+| `Ginasio.tsx` | `/ginasio` | `VIEW_GYM` | Ginásio: exercícios (catálogo + grupos/subgrupos musculares), treinos reutilizáveis, planos (treinos por dia da semana), programas atribuídos por cliente e progresso (`/api/gym`) |
 | `Loja.tsx` | `/loja` | `VIEW_PRODUCTS` | Produtos, categorias, subcategorias, encomendas, cupões |
 
 A navegação em `Shell.tsx` é gerada automaticamente a partir das permissões do utilizador autenticado.
@@ -88,14 +88,23 @@ A navegação em `Shell.tsx` é gerada automaticamente a partir das permissões 
 
 ## Ginásio (Ginasio.tsx)
 
-Página com 5 tabs: **Programas** (por cliente), **Catálogo**, **Grupos de exercícios** (bundles reutilizáveis = `WorkoutTemplate`), **Planos** (templates por dias) e **Progresso** (por cliente). Usa hooks gerados pelo Kubb (`useGetGymExercises`, `useGetGymMuscleGroups`, `useGetGymPrograms`, `useGetGymWorkoutTemplates`, `useGetGymPlanos`, …).
+Página com 5 tabs (por ordem do fluxo): **Exercícios** (catálogo), **Treinos** (bundles reutilizáveis = `WorkoutTemplate`), **Planos**, **Programas** (por cliente) e **Progresso** (por cliente). Tab default = Exercícios. Usa hooks gerados pelo Kubb (`useGetGymExercises`, `useGetGymMuscleGroups`, `useGetGymPrograms`, `useGetGymWorkoutTemplates`, `useGetGymPlanos`, …).
 
-- **Hierarquia**: Exercício (+presets) → **Grupo de exercícios** (bundle, sem dias) → **Plano** (dias; cada dia tem exercícios soltos e/ou um grupo de exercícios) → **Programa** (plano atribuído a um cliente, com `startDate`/`endDate`).
-- **Atribuir** (`PlanosTab` → "Atribuir", ou `ProgramasTab`): copia o plano/grupo para um **Programa** do cliente (*snapshot*). Editar o programa do cliente **não** afeta o template e vice-versa. As datas escolhem-se com o `DateRangePicker` (react-day-picker).
+- **Hierarquia**: Exercício (+presets) → **Treino** (conjunto de exercícios reutilizável, sem dias = `WorkoutTemplate`) → **Plano** (lista de treinos; cada treino tem dia(s) da semana **obrigatório(s)** + exercícios) → **Programa** (plano atribuído a um cliente, com `startDate`/`endDate`).
+- **Modelo do Plano** (`PlanoModal`): um plano é uma **lista de treinos** (cada treino = um `PlanoWorkout` na API: `name` + `daysOfWeek` + `exercises`). Cada treino exige ≥1 dia da semana e ≥1 exercício (validação no Guardar). **Vários treinos podem partilhar o mesmo dia.** Por treino podes **associar um treino existente** (`associateTemplate` → copia nome + exercícios como *snapshot*; herda o nome se vazio) ou montar de raiz adicionando exercícios do catálogo. Editar dentro do plano **não** afeta o `WorkoutTemplate` original. Sem alterações na API — a estrutura `Plano → PlanoWorkout → PlanoWorkoutExercise` já encaixa.
+- **Atribuir** (`PlanosTab` → "Atribuir"): copia o plano para um **Programa** novo do cliente (*snapshot*). Editar o programa do cliente **não** afeta o template e vice-versa. As datas escolhem-se com o `DateRangePicker` (react-day-picker).
+- **No `ProgramasTab`** podes encher um programa de duas formas: botão **"Plano"** (adiciona os treinos de um plano, **com os dias**, ao programa) ou botão **"Treino"** (`WorkoutModal` — cria um treino, opcionalmente **associando um treino existente** que copia os exercícios). **Os treinos de um programa têm dia(s) da semana obrigatório(s)** (validação no `WorkoutModal`). Não há atalho para atribuir um treino sem dias.
+- **Programa ativo** (`ProgramasTab`): o coach marca **um** programa como ativo por cliente (botão "Tornar ativo" → badge "★ Ativo"). Ativar um desativa os outros (regra na API). Chama `PATCH /gym/programs/:id/active` via `axiosInstance` (não há hook Kubb; o campo `active` lê-se com `(p as any).active` até regenerar o Kubb). É o programa que aparece ao cliente na PWA. **Datas são só informativas** — não expira nem ativa sozinho; só o coach muda. Ao atribuir um plano/criar programa, se o cliente ainda não tem ativo, este fica ativo automaticamente.
+  - **Lado PWA** (`GET /websites/gym/programs/active`): devolve o programa ativo + `nextWorkoutId` (o "treino a fazer agora" = o **menos vezes concluído**, empate → ordem; faltar/saltar treinos é tratado por esta regra) + `weeklyGoal` (nº de dias da semana do programa). O cliente pode na mesma escolher outro treino manualmente.
 
 - **Grupos e subgrupos musculares** (`/api/gym/muscle-groups`): hierarquia de 1 nível via `parentId` (ex: *Peito → Peito superior*). Geridos no modal "Grupos" do Catálogo. A cor de um novo grupo/subgrupo vem **aleatória** de `GROUP_COLORS` (o user pode mudar). Apagar um grupo apaga os seus subgrupos (os exercícios guardam o nome em snapshot, por isso não corrompem).
 - **Catálogo de exercícios** (`/api/gym/exercises`): cada exercício pertence a um grupo de topo e, opcionalmente, a um `subGroup`. Em vez de um único conjunto de defaults, tem **presets nomeados** (`presets: [{ id, name, sets, reps, weight, rest }]`, ex: "Iniciante", "Avançado"). Os campos `default*` legados são derivados do 1.º preset (compat com a PWA/público).
 - **Montar treino** (`WorkoutModal`/`WorkoutTemplateModal`): ao adicionar um exercício do catálogo, se este tiver presets aparece um selector que pré-preenche séries/reps/peso/descanso — **continuam editáveis** por cliente. Os exercícios prescritos guardam snapshot de `group`/`subGroup`.
+
+- **Traduções (CMS)**: os nomes de **exercícios, treinos (templates), planos (+ cada treino do plano), treinos de programa e grupos/subgrupos musculares** são traduzíveis via CMS, no **contexto `gym`** (separado do `website`, que é o site público do ginásio). Cada entidade guarda um `contentKey`; o valor na **língua padrão** é o fallback e as outras línguas vivem no CMS.
+  - **UI**: componente `CmsCombo` (`src/components/CmsCombo.tsx`) — campo de **texto livre** para o nome, com **autocomplete de entradas CMS existentes** (`/cms/search?context=gym`) que se podem reutilizar ao clicar. **Não há botão "criar entrada"**: se não reutilizares nenhuma, a entrada é criada **ao Guardar** o formulário, via `ensureCmsName(contentKey, context, name, defaultLang)` (`src/lib/gymCms.ts`) — gera `gym.<uuid>` se não houver `contentKey` e grava o nome na língua padrão. O botão "Traduções" abre o `CmsTranslationsModal`. Usado em exercícios, treinos, planos (+ treinos), treinos de programa e grupos/subgrupos musculares. Controlado por `value` (contentKey) + `name` (texto); `onChange(key, name)`.
+  - O contexto `gym` está registado no CMS: tab "Ginásio" em `Conteudos.tsx` e suporte no `searchController` da API (prefixo `gym.%`; excluído do separador website).
+  - **Programas/Workouts por cliente herdam o `contentKey`** do plano/treino ao atribuir (snapshot), por isso não precisam de UI própria. A API resolve o nome pela **locale do cliente** (`localizeProgramDTOs` em `src/utils/gym.ts`); exercícios resolvem-se pelo `exerciseId`→catálogo e o grupo pelo nome→`MuscleGroup`.
 
 > Todos os dropdowns da página usam o componente custom `Combobox` (com pesquisa), não os `<select>`/`Select` nativos.
 
@@ -103,12 +112,19 @@ Página com 5 tabs: **Programas** (por cliente), **Catálogo**, **Grupos de exer
 
 ## CMS (Conteudos.tsx)
 
-O CMS tem três contextos: `website`, `product`, `service`.
+O CMS tem quatro contextos: `website`, `product`, `service`, `gym`. O contexto infere-se pelo prefixo da chave (`product.`/`service.`/`gym.`) ou pela secção; `website` é o resto.
 
 - **Secções**: hierarquia de organização (parent/child)
 - **Entradas**: `key` + `locale` + `value` + `type` (text | richtext | image)
 - Traduções agrupadas por `key`: `Record<locale, value>`
 - A língua padrão define a coluna principal das tabelas
+
+### Associar entradas CMS (nomes traduzíveis) — `CmsCombo`
+
+Componente partilhado [`src/components/CmsCombo.tsx`](src/components/CmsCombo.tsx) usado para os **nomes** de **serviços** (Agenda), **produtos** (Loja) e **ginásio** (exercícios/treinos/planos/grupos). Comportamento:
+- Campo de **texto livre** com **autocomplete** de entradas CMS existentes do mesmo contexto (`/cms/search?context=`) — clicar reutiliza a chave.
+- **Não há botão "criar entrada"**: se escreveres um nome novo, a entrada é criada **ao Guardar** o formulário, via `ensureCmsName(contentKey, context, name, defaultLang)` ([`src/lib/gymCms.ts`](src/lib/gymCms.ts)) — gera `${context}.${uuid}` se não houver `contentKey` e grava o nome na língua padrão. Botão "Traduções" abre o `CmsTranslationsModal`.
+- Controlado por `value` (contentKey) + `name` (texto); `onChange(key, name)`. As entidades guardam `contentKey` (+ `descriptionKey` em serviços/produtos); o nome resolve-se do CMS na leitura.
 
 ### Importar conteúdo via CSV
 

@@ -11,10 +11,13 @@ const inputCls = 'w-full border border-zinc-200 dark:border-zinc-700 rounded-lg 
 export function CmsTranslationsModal({
   cmsKey,
   defaultLang,
+  defaultValue,
   onClose,
 }: {
   cmsKey: string
   defaultLang: string
+  /** Valor a pré-preencher na língua padrão se ainda não houver entrada (cache). */
+  defaultValue?: string
   onClose: () => void
 }) {
   const { data: langData } = useGetSettingsLanguages()
@@ -34,7 +37,11 @@ export function CmsTranslationsModal({
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (!isLoading) setTranslations(existing)
+    if (!isLoading)
+      setTranslations({
+        ...existing,
+        [defaultLang]: existing[defaultLang] ?? defaultValue ?? '',
+      })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, cmsKey])
 
@@ -65,7 +72,7 @@ export function CmsTranslationsModal({
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button autoFocus onClick={handleSave} disabled={saving}>
             {saving ? 'A guardar…' : 'Guardar'}
           </Button>
         </>
@@ -86,9 +93,15 @@ export function CmsTranslationsModal({
               <textarea
                 value={translations[lang] ?? ''}
                 onChange={(e) => setTranslations((t) => ({ ...t, [lang]: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSave()
+                  }
+                }}
                 rows={2}
                 className={`${inputCls} resize-none`}
-                placeholder="Tradução…"
+                placeholder="Tradução… (Enter para guardar, Shift+Enter nova linha)"
               />
             </div>
           ))}

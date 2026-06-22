@@ -71,10 +71,8 @@ import {
 } from "../gen/backoffice/hooks/useGetCustomersIdHistory.js";
 import { patchCustomersId } from "../gen/backoffice/hooks/usePatchCustomersId.js";
 import { useGetSettingsLanguages } from "../hooks/useSettingsLanguages";
-import { useGetCmsSearch } from "../hooks/useCmsSearch";
-import { toSlug } from "../utils/slug";
-import { putCmsEntries } from "../gen/backoffice/hooks/usePutCmsEntries.js";
-import { CmsTranslationsModal } from "../components/CmsTranslationsModal";
+import { CmsCombo } from "../components/CmsCombo";
+import { ensureCmsName } from "../lib/gymCms";
 
 import type { Appointment } from "../gen/backoffice/types/Appointment.js";
 import type { Service } from "../gen/backoffice/types/Service.js";
@@ -272,7 +270,7 @@ type CustomerHistory = {
 const STATUS_PT: Record<string, string> = {
   pending: "Pendente",
   confirmed: "Confirmada",
-  completed: "ConcluÃ­da",
+  completed: "Concluída",
   cancelled: "Cancelada",
 };
 const STATUS_TONE: Record<string, string> = {
@@ -341,7 +339,7 @@ function CustomerProfileModal({
               }
             >
               {blockMut.isPending
-                ? "â€¦"
+                ? "…"
                 : customer.blocked
                   ? "Desbloquear"
                   : "Bloquear"}
@@ -443,22 +441,22 @@ function CustomerProfileModal({
                 </div>
                 <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
                   <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                    {history.stats.totalSpent.toFixed(0)}â‚¬
+                    {history.stats.totalSpent.toFixed(0)}€
                   </p>
                   <p className="text-xs text-zinc-400 mt-0.5">gasto total</p>
                 </div>
                 <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
                   <p className="text-sm font-bold text-zinc-900 dark:text-white leading-tight">
-                    {favoriteService?.name ?? "â€”"}
+                    {favoriteService?.name ?? "—"}
                   </p>
                   <p className="text-xs text-zinc-400 mt-0.5">
-                    serviÃ§o favorito
+                    serviço favorito
                   </p>
                 </div>
               </div>
               {history.stats.lastVisit && (
                 <p className="text-xs text-zinc-400 text-center -mt-1">
-                  Ãšltima visita:{" "}
+                  Última visita:{" "}
                   {new Date(
                     history.stats.lastVisit + "T00:00:00",
                   ).toLocaleDateString("pt-PT", { dateStyle: "long" })}
@@ -468,7 +466,7 @@ function CustomerProfileModal({
               {history.appointments.length > 0 ? (
                 <div>
                   <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">
-                    HistÃ³rico de marcaÃ§Ãµes
+                    Histórico de marcações
                   </p>
                   <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
                     {history.appointments.map((a) => {
@@ -487,10 +485,10 @@ function CustomerProfileModal({
                         >
                           <div className="min-w-0 flex-1">
                             <p className="font-medium text-zinc-800 dark:text-zinc-100">
-                              {a.date} Â· {a.time}
+                              {a.date} · {a.time}
                             </p>
                             <p className="text-xs text-zinc-400 truncate">
-                              {a.service?.name ?? "â€”"}
+                              {a.service?.name ?? "—"}
                             </p>
                           </div>
                           <div className="text-right shrink-0">
@@ -501,7 +499,7 @@ function CustomerProfileModal({
                             </Badge>
                             {paid != null && (
                               <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
-                                {paid.toFixed(2)} â‚¬
+                                {paid.toFixed(2)} €
                               </p>
                             )}
                           </div>
@@ -512,7 +510,7 @@ function CustomerProfileModal({
                 </div>
               ) : (
                 <p className="text-sm text-zinc-400 text-center py-2">
-                  Sem marcaÃ§Ãµes registadas para este cliente.
+                  Sem marcações registadas para este cliente.
                 </p>
               )}
             </>
@@ -2045,243 +2043,10 @@ function CalendarioView() {
   );
 }
 
-// ─── CMS combo (service) ──────────────────────────────────────────────────────
-function CmsComboService({
-  value,
-  onChange,
-  defaultLang,
-  label = "CMS (opcional)",
-}: {
-  value: string | null;
-  onChange: (key: string | null, label?: string) => void;
-  defaultLang: string;
-  label?: string;
-}) {
-  const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
-  const [highlighted, setHighlighted] = useState(0);
-  const [creating, setCreating] = useState(false);
-  const [createName, setCreateName] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [translatingKey, setTranslatingKey] = useState<string | null>(null);
-  const [cachedLabel, setCachedLabel] = useState<string>("");
-  const dropRef = useRef<HTMLDivElement>(null);
-
-  const { data: results = [], isFetching } = useGetCmsSearch(
-    { q: q || undefined, context: "service", lang: defaultLang },
-    { query: { enabled: open } },
-  );
-
-  const selected = value
-    ? (results.find((r) => r.key === value) ?? {
-        key: value,
-        label: cachedLabel || value,
-        sectionName: null,
-      })
-    : null;
-
-  const handleCreate = async () => {
-    if (!createName.trim()) return;
-    const key = `service.${toSlug(createName)}`;
-    setSaving(true);
-    try {
-      await putCmsEntries({
-        key,
-        locale: defaultLang,
-        value: createName,
-        type: "text",
-      });
-      toast.success("Entrada criada no CMS");
-      setCachedLabel(createName);
-      onChange(key, createName);
-      setCreating(false);
-      setCreateName("");
-    } catch {
-      toast.error("Erro ao criar entrada CMS");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div>
-      <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
-        {label}
-      </label>
-      {creating ? (
-        <div className="flex gap-2">
-          <input
-            autoFocus
-            value={createName}
-            onChange={(e) => setCreateName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleCreate();
-              } else if (e.key === "Escape") {
-                setCreating(false);
-                setCreateName("");
-              }
-            }}
-            placeholder="Nome da entrada…"
-            className="flex-1 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400"
-          />
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={saving}
-            className="px-3 py-2 text-sm font-medium bg-accent text-white rounded-lg disabled:opacity-50"
-          >
-            {saving ? "…" : "Criar"}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setCreating(false);
-              setCreateName("");
-            }}
-            className="px-3 py-2 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200"
-          >
-            ✕
-          </button>
-        </div>
-      ) : selected ? (
-        <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setTranslatingKey(value)}
-            className="flex-1 flex items-center gap-2 px-3 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-700/60 transition-colors min-w-0"
-          >
-            <Icon name="layers" className="w-4 h-4 text-accent shrink-0" />
-            <p className="font-medium text-zinc-800 dark:text-zinc-100 truncate">
-              {selected.label}
-            </p>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setCachedLabel("");
-              onChange(null);
-            }}
-            className="px-3 py-2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-lg leading-none border-l border-zinc-200 dark:border-zinc-700"
-          >
-            ×
-          </button>
-        </div>
-      ) : (
-        <div className="relative">
-          <input
-            type="text"
-            value={q}
-            onChange={(e) => {
-              setQ(e.target.value);
-              setHighlighted(0);
-            }}
-            onFocus={() => setOpen(true)}
-            onBlur={() => setTimeout(() => setOpen(false), 160)}
-            onKeyDown={(e) => {
-              const list = results;
-              if (!open) return;
-              if (e.key === "ArrowDown") {
-                e.preventDefault();
-                setHighlighted((i) => Math.min(i + 1, list.length));
-              } else if (e.key === "ArrowUp") {
-                e.preventDefault();
-                setHighlighted((i) => Math.max(i - 1, 0));
-              } else if (e.key === "Enter") {
-                e.preventDefault();
-                if (highlighted === list.length) {
-                  setCreating(true);
-                  setCreateName(q);
-                  setOpen(false);
-                  setQ("");
-                } else if (list[highlighted]) {
-                  setCachedLabel(list[highlighted].label ?? "");
-                  onChange(
-                    list[highlighted].key ?? null,
-                    list[highlighted].label ?? undefined,
-                  );
-                  setQ("");
-                  setOpen(false);
-                }
-              } else if (e.key === "Escape") setOpen(false);
-            }}
-            placeholder="Pesquisar entrada CMS…"
-            className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400"
-          />
-          {open && (
-            <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden">
-              <div ref={dropRef} className="max-h-52 overflow-y-auto">
-                {isFetching && results.length === 0 && (
-                  <p className="px-3 py-2.5 text-sm text-zinc-400">
-                    A pesquisar…
-                  </p>
-                )}
-                {!isFetching && results.length === 0 && q && (
-                  <p className="px-3 py-2 text-xs text-zinc-400">
-                    Sem resultados para "{q}".
-                  </p>
-                )}
-                {results.map((r, idx) => (
-                  <button
-                    key={r.key}
-                    type="button"
-                    onMouseDown={() => {
-                      setCachedLabel(r.label ?? "");
-                      onChange(r.key ?? null, r.label ?? undefined);
-                      setQ("");
-                      setOpen(false);
-                    }}
-                    onMouseEnter={() => setHighlighted(idx)}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${highlighted === idx ? "bg-accent/[0.08] dark:bg-accent/[0.12]" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
-                  >
-                    <Icon
-                      name="layers"
-                      className="w-3.5 h-3.5 text-accent/70 shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <p className="font-medium text-zinc-800 dark:text-zinc-100 truncate">
-                        {r.label}
-                      </p>
-                      <p className="text-[10px] text-zinc-400 truncate">
-                        {r.key}
-                        {r.sectionName ? ` · ${r.sectionName}` : ""}
-                      </p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                onMouseDown={() => {
-                  setCreating(true);
-                  setCreateName(q);
-                  setOpen(false);
-                  setQ("");
-                }}
-                onMouseEnter={() => setHighlighted(results.length)}
-                className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors border-t border-zinc-100 dark:border-zinc-800 ${highlighted === results.length ? "bg-accent/[0.08] text-accent" : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}
-              >
-                <Icon name="plus" className="w-3.5 h-3.5" />
-                Criar entrada no CMS
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-      {translatingKey && (
-        <CmsTranslationsModal
-          cmsKey={translatingKey}
-          defaultLang={defaultLang}
-          onClose={() => setTranslatingKey(null)}
-        />
-      )}
-    </div>
-  );
-}
-
 // ─── Services panel ───────────────────────────────────────────────────────────
 type SvcForm = {
+  name: string;
+  description: string;
   duration: string;
   price: string;
   active: boolean;
@@ -2290,6 +2055,8 @@ type SvcForm = {
   descriptionKey: string | null;
 };
 const emptySvcForm: SvcForm = {
+  name: "",
+  description: "",
   duration: "30",
   price: "",
   active: true,
@@ -2302,7 +2069,6 @@ function ServicosPanel() {
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [modal, setModal] = useState(false);
-  const [formKey, setFormKey] = useState(0);
   const [editing, setEditing] = useState<Service | null>(null);
   const [form, setForm] = useState<SvcForm>(emptySvcForm);
   const { data: langData } = useGetSettingsLanguages();
@@ -2367,6 +2133,8 @@ function ServicosPanel() {
   const openEdit = useCallback((s: Service) => {
     setEditing(s);
     setForm({
+      name: (s as any).name ?? "",
+      description: (s as any).description ?? "",
       duration: String(s.duration),
       price: String(s.price),
       active: s.active ?? true,
@@ -2387,18 +2155,23 @@ function ServicosPanel() {
     }
   }, [searchParams, services, openEdit, setSearchParams]);
 
-  const handleSave = () => {
-    if (!form.contentKey) {
-      toast.error("Seleciona uma entrada CMS para o nome do serviço");
+  const handleSave = async () => {
+    if (!form.name.trim()) {
+      toast.error("O nome do serviço é obrigatório");
       return;
     }
+    // Cria/atualiza as entradas CMS (nome obrigatório, descrição opcional) ao guardar.
+    const contentKey = await ensureCmsName(form.contentKey, "service", form.name, defaultLang);
+    const descriptionKey = form.description.trim()
+      ? await ensureCmsName(form.descriptionKey, "service", form.description, defaultLang)
+      : null;
     const data = {
       duration: parseInt(form.duration),
       price: parseFloat(form.price),
       active: form.active,
       color: form.color,
-      contentKey: form.contentKey,
-      descriptionKey: form.descriptionKey,
+      contentKey,
+      descriptionKey,
     };
     if (editing) update.mutate({ id: editing.serviceId, data: data as any });
     else create.mutate({ data: data as any });
@@ -2437,7 +2210,6 @@ function ServicosPanel() {
           onClick={() => {
             setEditing(null);
             setForm(emptySvcForm);
-            setFormKey((k) => k + 1);
             setModal(true);
           }}
         >
@@ -2533,14 +2305,12 @@ function ServicosPanel() {
         }
       >
         <div className="space-y-4">
-          <CmsComboService
-            key={`name-${editing?.serviceId ?? formKey}`}
+          <CmsCombo
             label="Nome"
+            context="service"
             value={form.contentKey}
-            onChange={(key, lbl) =>
-              setForm((f) => ({ ...f, contentKey: key }))
-            }
-            defaultLang={defaultLang}
+            name={form.name}
+            onChange={(key, nm) => setForm((f) => ({ ...f, contentKey: key, name: nm }))}
           />
           <div className="grid grid-cols-2 gap-3">
             <Input
@@ -2563,12 +2333,12 @@ function ServicosPanel() {
               }
             />
           </div>
-          <CmsComboService
-            key={`desc-${editing?.serviceId ?? formKey}`}
-            label="Descrição"
+          <CmsCombo
+            label="Descrição (opcional)"
+            context="service"
             value={form.descriptionKey}
-            onChange={(key) => setForm((f) => ({ ...f, descriptionKey: key }))}
-            defaultLang={defaultLang}
+            name={form.description}
+            onChange={(key, nm) => setForm((f) => ({ ...f, descriptionKey: key, description: nm }))}
           />
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">

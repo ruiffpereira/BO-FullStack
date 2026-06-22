@@ -1,5 +1,5 @@
 import fetch from "@kubb/plugin-client/clients/axios";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
@@ -39,5 +39,7 @@ export function useGetCmsSearch(
     queryFn: () => fetchCmsSearch(params, headers),
     enabled: options?.query?.enabled ?? true,
     staleTime: 30_000,
+    // Mantém os resultados anteriores enquanto refaz a pesquisa (evita "piscar").
+    placeholderData: keepPreviousData,
   });
 }

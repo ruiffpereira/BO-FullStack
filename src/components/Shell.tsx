@@ -65,9 +65,8 @@ function SidebarContent({ accessiblePaths, collapsed, onLogout }: {
   return (
     <div className="flex flex-col h-full">
       <div className={`flex items-center gap-2.5 h-16 shrink-0 ${collapsed ? 'justify-center px-0' : 'px-5'}`}>
-        <div className="w-9 h-9 rounded-lg bg-accent flex items-center justify-center text-white shrink-0">
-          <Icon name="layers" className="w-5 h-5" />
-        </div>
+        {/* Logo RV — marca sem fundo, maior */}
+        <img src="/icons/logo.svg" alt="Backoffice" className={`${collapsed ? 'h-7' : 'h-8'} w-auto shrink-0`} />
         {!collapsed && <span className="font-semibold text-[17px] tracking-tight text-zinc-900 dark:text-white">Backoffice</span>}
       </div>
 

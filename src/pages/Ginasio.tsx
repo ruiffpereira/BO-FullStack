@@ -287,7 +287,7 @@ function MuscleGroupsModal({ open, onClose }: { open: boolean; onClose: () => vo
   const [subName, setSubName] = useState('')
   const [subContentKey, setSubContentKey] = useState<string | null>(null)
   const [subColor, setSubColor] = useState(randomColor())
-  const [translating, setTranslating] = useState<string | null>(null)
+  const [translating, setTranslating] = useState<{ key: string; group: Group } | null>(null)
   const { data: langData } = useGetSettingsLanguages()
   const defaultLang = langData?.default ?? 'pt'
   const hasMultipleLangs = (langData?.selected?.length ?? 0) > 1
@@ -328,7 +328,7 @@ function MuscleGroupsModal({ open, onClose }: { open: boolean; onClose: () => vo
         await putGymMuscleGroupsId(g.muscleGroupId, { name: g.name, color: g.color, contentKey: key } as any)
         invalidate()
       }
-      setTranslating(key)
+      setTranslating({ key, group: g })
     } catch {
       toast.error('Erro ao preparar traduções')
     }
@@ -406,7 +406,19 @@ function MuscleGroupsModal({ open, onClose }: { open: boolean; onClose: () => vo
         </div>
       </div>
       {translating && (
-        <CmsTranslationsModal cmsKey={translating} defaultLang={defaultLang} onClose={() => setTranslating(null)} />
+        <CmsTranslationsModal
+          cmsKey={translating.key}
+          defaultLang={defaultLang}
+          defaultValue={translating.group.name}
+          onSaved={async (v) => {
+            if (!v) return
+            try {
+              await putGymMuscleGroupsId(translating.group.muscleGroupId, { name: v, color: translating.group.color, contentKey: translating.key } as any)
+              invalidate()
+            } catch { toast.error('Erro ao atualizar o nome do grupo') }
+          }}
+          onClose={() => setTranslating(null)}
+        />
       )}
     </Modal>
   )

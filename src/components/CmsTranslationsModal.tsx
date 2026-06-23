@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Modal, Button } from '../ui/ui.jsx'
 import { LangFlag } from '../utils/langFlag'
-import { useGetCmsEntries } from '../gen/backoffice/hooks/useGetCmsEntries.js'
+import { useGetCmsEntries, getCmsEntriesQueryKey } from '../gen/backoffice/hooks/useGetCmsEntries.js'
 import { putCmsEntries } from '../gen/backoffice/hooks/usePutCmsEntries.js'
 import { useGetSettingsLanguages } from '../hooks/useSettingsLanguages'
 
@@ -12,14 +13,18 @@ export function CmsTranslationsModal({
   cmsKey,
   defaultLang,
   defaultValue,
+  onSaved,
   onClose,
 }: {
   cmsKey: string
   defaultLang: string
   /** Valor a pré-preencher na língua padrão se ainda não houver entrada (cache). */
   defaultValue?: string
+  /** Chamado ao guardar com o (novo) valor da língua padrão — p/ o pai refletir o nome editado. */
+  onSaved?: (defaultValue: string) => void
   onClose: () => void
 }) {
+  const qc = useQueryClient()
   const { data: langData } = useGetSettingsLanguages()
   const activeLangs = (() => {
     const def = langData?.default ?? defaultLang
@@ -54,6 +59,11 @@ export function CmsTranslationsModal({
           await putCmsEntries({ key: cmsKey, locale: lang, value: val.trim(), type: 'text' })
         }
       }
+      // Refresca listas/autocomplete e devolve o novo valor da língua padrão ao pai,
+      // para a caixa (CmsCombo) refletir já o nome editado.
+      qc.invalidateQueries({ queryKey: getCmsEntriesQueryKey() })
+      qc.invalidateQueries({ queryKey: ['cms-search'] })
+      onSaved?.(translations[defaultLang]?.trim() ?? '')
       toast.success('Traduções guardadas')
       onClose()
     } catch {

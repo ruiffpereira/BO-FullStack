@@ -199,7 +199,13 @@ export function CmsCombo({
         </div>
       )}
       {translating && (
-        <CmsTranslationsModal cmsKey={translating} defaultLang={defaultLang} defaultValue={name} onClose={() => setTranslating(null)} />
+        <CmsTranslationsModal
+          cmsKey={translating}
+          defaultLang={defaultLang}
+          defaultValue={name}
+          onSaved={(v) => { if (v) onChange(translating, v) }}
+          onClose={() => setTranslating(null)}
+        />
       )}
     </div>
   )

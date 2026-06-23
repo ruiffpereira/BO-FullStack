@@ -1358,9 +1358,10 @@ function ProgressoTab({ customerId }: { customerId: string }) {
   if (isLoading) return <Card className="p-8 text-center text-zinc-400">A carregar progresso…</Card>
 
   const summary = stats?.summary ?? {}
-  const weekly = stats?.weekly ?? []
+  const byGroup = stats?.byGroup ?? []
+  const progress = stats?.progress ?? []
   const records = stats?.records ?? []
-  const maxWeek = Math.max(1, ...weekly.map((w) => w.count ?? 0))
+  const maxSets = Math.max(1, ...byGroup.map((g) => g.sets ?? 0))
 
   return (
     <div className="space-y-5">
@@ -1371,17 +1372,71 @@ function ProgressoTab({ customerId }: { customerId: string }) {
         <StatCard label="Treinos/semana" value={summary.avgPerWeek ?? 0} />
       </div>
 
-      <Card className="p-4">
-        <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3">Treinos por semana</h3>
-        <div className="flex items-end gap-1.5 h-28">
-          {weekly.map((w, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1">
-              <div className="w-full rounded-t bg-accent/80" style={{ height: `${((w.count ?? 0) / maxWeek) * 100}%`, minHeight: 2 }} title={`${w.count ?? 0}`} />
-              <span className="text-[9px] text-zinc-400">{(w.weekStart ?? '').slice(5)}</span>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="p-4">
+          <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3">Grupos musculares treinados</h3>
+          {byGroup.length === 0 ? (
+            <p className="text-sm text-zinc-400">Sem séries registadas ainda.</p>
+          ) : (
+            <div className="space-y-2.5">
+              {byGroup.map((g) => (
+                <div key={g.group} className="flex items-center gap-3">
+                  <span className="w-24 shrink-0 flex items-center gap-1.5 text-sm text-zinc-700 dark:text-zinc-300 truncate">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: colorOf(g.group ?? '') }} />
+                    <span className="truncate">{g.group}</span>
+                  </span>
+                  <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${((g.sets ?? 0) / maxSets) * 100}%`, background: colorOf(g.group ?? '') }} />
+                  </div>
+                  <span className="w-16 shrink-0 text-right text-xs tabular-nums text-zinc-500">{g.sets} séries</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </Card>
+          )}
+        </Card>
+
+        <Card className="p-4">
+          <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3">Progressão de carga</h3>
+          {progress.length === 0 ? (
+            <p className="text-sm text-zinc-400">Sem dados de progressão ainda.</p>
+          ) : (
+            <ul className="space-y-2.5">
+              {progress.map((p) => {
+                const last = p.lastWeight ?? 0
+                const evo = Math.round((last - (p.firstWeight ?? 0)) * 10) / 10
+                const plan = p.planWeight ?? null
+                const meetsPlan = plan != null ? last >= plan : null
+                return (
+                  <li key={p.exerciseName} className="flex items-center gap-2">
+                    {p.group && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: colorOf(p.group) }} />}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-zinc-700 dark:text-zinc-300 truncate">{p.exerciseName}</p>
+                      {plan != null && (
+                        <p className="text-[11px] text-zinc-400 tabular-nums">Plano: {plan} kg × {p.planReps}</p>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-semibold tabular-nums">
+                        {last} kg <span className="text-xs font-normal text-zinc-400">× {p.lastReps}</span>
+                      </p>
+                      {evo !== 0 && (
+                        <p className={`text-[11px] tabular-nums ${evo > 0 ? 'text-green-500' : 'text-red-400'}`}>
+                          {evo > 0 ? '↑ +' : '↓ '}{evo} kg
+                        </p>
+                      )}
+                    </div>
+                    {meetsPlan != null && (
+                      <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded-full ${meetsPlan ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
+                        {meetsPlan ? 'no plano' : 'abaixo'}
+                      </span>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </Card>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-4">

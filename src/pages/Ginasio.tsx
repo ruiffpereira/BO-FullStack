@@ -345,7 +345,7 @@ function MuscleGroupsModal({ open, onClose }: { open: boolean; onClose: () => vo
     editId === g.muscleGroupId ? (
       <div className="flex items-center gap-2">
         <input type="color" value={editColor} onChange={(e) => setEditColor(e.target.value)} className="w-8 h-8 rounded border-0 bg-transparent p-0 cursor-pointer shrink-0" />
-        <div className="flex-1"><CmsCombo context="gym" value={editContentKey} name={editName} onChange={(key, nm) => { setEditContentKey(key); setEditName(nm) }} placeholder="Nome do grupo…" /></div>
+        <div className="flex-1"><CmsCombo context="gym" value={editContentKey} name={editName} onChange={(key, nm) => { setEditContentKey(key); setEditName(nm) }} placeholder="Nome do grupo…" onSubmit={() => { if (editName.trim()) saveEdit.mutate(g.muscleGroupId) }} /></div>
         <Button size="sm" isLoading={saveEdit.isPending} disabled={!editName.trim()} onClick={() => saveEdit.mutate(g.muscleGroupId)}>Guardar</Button>
         <Button size="sm" variant="ghost" onClick={() => setEditId(null)}>Cancelar</Button>
       </div>
@@ -377,7 +377,7 @@ function MuscleGroupsModal({ open, onClose }: { open: boolean; onClose: () => vo
                     {adding && (
                       <div className="flex items-center gap-2 pt-1">
                         <input type="color" value={subColor} onChange={(e) => setSubColor(e.target.value)} className="w-8 h-8 rounded border-0 bg-transparent p-0 cursor-pointer shrink-0" title="Cor do subgrupo" />
-                        <div className="flex-1"><CmsCombo context="gym" value={subContentKey} name={subName} onChange={(key, nm) => { setSubContentKey(key); setSubName(nm) }} placeholder="Subgrupo (ex: Peito superior)" /></div>
+                        <div className="flex-1"><CmsCombo context="gym" value={subContentKey} name={subName} onChange={(key, nm) => { setSubContentKey(key); setSubName(nm) }} placeholder="Subgrupo (ex: Peito superior)" onSubmit={() => { if (subName.trim()) createSub.mutate() }} /></div>
                         <Button size="sm" isLoading={createSub.isPending} disabled={!subName.trim()} onClick={() => createSub.mutate()}>Adicionar</Button>
                         <Button size="sm" variant="ghost" onClick={() => setSubParent(null)}>Cancelar</Button>
                       </div>
@@ -401,7 +401,7 @@ function MuscleGroupsModal({ open, onClose }: { open: boolean; onClose: () => vo
 
         <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 flex items-center gap-2">
           <input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} className="w-9 h-9 rounded border-0 bg-transparent p-0 cursor-pointer shrink-0" title="Cor do grupo" />
-          <div className="flex-1"><CmsCombo context="gym" value={newContentKey} name={newName} onChange={(key, nm) => { setNewContentKey(key); setNewName(nm) }} placeholder="Novo grupo (ex: Antebraço)" /></div>
+          <div className="flex-1"><CmsCombo context="gym" value={newContentKey} name={newName} onChange={(key, nm) => { setNewContentKey(key); setNewName(nm) }} placeholder="Novo grupo (ex: Antebraço)" onSubmit={() => { if (newName.trim()) create.mutate() }} /></div>
           <Button icon="plus" isLoading={create.isPending} disabled={!newName.trim()} onClick={() => create.mutate()}>Adicionar</Button>
         </div>
       </div>

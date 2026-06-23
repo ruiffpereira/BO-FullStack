@@ -27,6 +27,7 @@ export function CmsCombo({
   context,
   label,
   placeholder = 'Pesquisar ou escrever um nome…',
+  onSubmit,
 }: {
   value: string | null
   name: string
@@ -34,6 +35,8 @@ export function CmsCombo({
   context: string
   label?: string
   placeholder?: string
+  /** Enter com um nome novo (sem sugestão escolhida) → submete o formulário pai (ex: Adicionar/Guardar). */
+  onSubmit?: () => void
 }) {
   const { data: langData } = useGetSettingsLanguages()
   const defaultLang = langData?.default ?? 'pt'
@@ -95,7 +98,21 @@ export function CmsCombo({
       e.preventDefault()
       setHighlighted((i) => Math.max(i - 1, 0))
     } else if (e.key === 'Enter') {
-      if (open && optionCount > 0) { e.preventDefault(); activate(highlighted) }
+      // Sugestão existente em destaque → reutiliza-a.
+      if (open && optionCount > 0 && highlighted < suggestions.length) {
+        e.preventDefault()
+        activate(highlighted)
+        return
+      }
+      // Nome novo → submete o formulário pai (Adicionar/Guardar), sem abrir traduções.
+      if (onSubmit && name.trim()) {
+        e.preventDefault()
+        setOpen(false)
+        onSubmit()
+        return
+      }
+      // Sem onSubmit: mantém o fluxo antigo (criar + traduções).
+      if (open && showCreate) { e.preventDefault(); activate(suggestions.length) }
     } else if (e.key === 'Escape') {
       setOpen(false)
     }
@@ -106,12 +123,12 @@ export function CmsCombo({
       {label && <span className="block text-[11px] font-medium text-zinc-500 mb-1">{label}</span>}
 
       {value ? (
-        // ── Caixa da entrada selecionada (clicar = traduções; × = limpar) ──
-        <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm overflow-hidden">
+        // ── Caixa da entrada selecionada: uma só caixa (clicar no nome = traduções; × = limpar) ──
+        <div className="flex items-center bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm overflow-hidden transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20">
           <button
             type="button"
             onClick={() => setTranslating(value)}
-            className="flex-1 flex items-center gap-2 px-3 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-700/60 transition-colors min-w-0"
+            className="flex-1 flex items-center gap-2 px-3 py-2 text-left min-w-0 focus:outline-none"
             title="Editar traduções"
           >
             <Icon name="layers" className="w-4 h-4 text-accent shrink-0" />
@@ -120,7 +137,7 @@ export function CmsCombo({
           <button
             type="button"
             onClick={() => onChange(null, '')}
-            className="px-3 py-2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-lg leading-none border-l border-zinc-200 dark:border-zinc-700"
+            className="px-2.5 py-2 mr-0.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-lg leading-none rounded-md focus:outline-none"
             title="Limpar"
           >
             ×

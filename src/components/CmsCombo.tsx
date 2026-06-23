@@ -1,10 +1,12 @@
 import { useState, useEffect, type KeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import { Icon } from '../ui/icons.jsx'
 import { useGetCmsSearch } from '../hooks/useCmsSearch'
 import { useGetSettingsLanguages } from '../hooks/useSettingsLanguages'
 import { CmsTranslationsModal } from './CmsTranslationsModal'
 import { ensureCmsName } from '../lib/gymCms'
+import { useAnchoredMenu } from './useAnchoredMenu'
 
 /**
  * Selector de entrada CMS (nome traduzível). Comportamento:
@@ -54,6 +56,10 @@ export function CmsCombo({
   const exactMatch = results.some((r) => (r.label ?? '').trim().toLowerCase() === name.trim().toLowerCase())
   const showCreate = !!name.trim() && !exactMatch
   const optionCount = suggestions.length + (showCreate ? 1 : 0)
+
+  // Menu de sugestões: portal + flip-up partilhado com o Combobox.
+  const menuOpen = open && !value && (suggestions.length > 0 || showCreate)
+  const { anchorRef, menuRef, style } = useAnchoredMenu<HTMLInputElement>(menuOpen, [suggestions.length, showCreate])
 
   useEffect(() => { setHighlighted(0) }, [debouncedQ, open])
 
@@ -124,6 +130,7 @@ export function CmsCombo({
         // ── Pesquisa / escrever nome novo ──
         <div className="relative">
           <input
+            ref={anchorRef}
             type="text"
             value={name}
             onChange={(e) => onChange(null, e.target.value)}
@@ -133,8 +140,12 @@ export function CmsCombo({
             placeholder={placeholder}
             className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400"
           />
-          {open && (suggestions.length > 0 || showCreate) && (
-            <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden">
+          {menuOpen && createPortal(
+            <div
+              ref={menuRef}
+              style={style}
+              className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden"
+            >
               {suggestions.length > 0 && (
                 <>
                   <p className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-zinc-400">Entradas existentes (reutilizar)</p>
@@ -165,7 +176,8 @@ export function CmsCombo({
                   <span className="truncate">Criar “{name.trim()}” e adicionar traduções</span>
                 </button>
               )}
-            </div>
+            </div>,
+            document.body,
           )}
         </div>
       )}

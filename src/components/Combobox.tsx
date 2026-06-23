@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo, forwardRef, type MutableRefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon } from '../ui/icons.jsx'
+import { useAnchoredMenu } from './useAnchoredMenu'
 
 export interface ComboboxOption {
   value: string
@@ -40,16 +41,7 @@ export const Combobox = forwardRef<HTMLButtonElement, ComboboxProps>(function Co
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState(0)
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
-  const btnRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-
-  const setBtnRef = (el: HTMLButtonElement | null) => {
-    btnRef.current = el
-    if (typeof ref === 'function') ref(el)
-    else if (ref) (ref as MutableRefObject<HTMLButtonElement | null>).current = el
-  }
 
   const selected = options.find((o) => o.value === value) ?? null
 
@@ -59,25 +51,22 @@ export const Combobox = forwardRef<HTMLButtonElement, ComboboxProps>(function Co
     return options.filter((o) => o.label.toLowerCase().includes(q))
   }, [options, query])
 
-  const updatePos = () => {
-    const r = btnRef.current?.getBoundingClientRect()
-    if (r) setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+  // Posicionamento do menu (portal + flip-up) partilhado com o CmsCombo.
+  const { anchorRef, menuRef, style } = useAnchoredMenu<HTMLButtonElement>(open, [filtered.length])
+
+  const setBtnRef = (el: HTMLButtonElement | null) => {
+    anchorRef.current = el
+    if (typeof ref === 'function') ref(el)
+    else if (ref) (ref as MutableRefObject<HTMLButtonElement | null>).current = el
   }
 
-  // Posicionar ao abrir + reposicionar em scroll/resize (inclui scroll dentro do modal).
+  // Ao abrir: limpar pesquisa e focar o campo.
   useEffect(() => {
     if (!open) return
-    updatePos()
     setQuery('')
     setHighlight(0)
-    setTimeout(() => inputRef.current?.focus(), 0)
-    const onMove = () => updatePos()
-    window.addEventListener('scroll', onMove, true)
-    window.addEventListener('resize', onMove)
-    return () => {
-      window.removeEventListener('scroll', onMove, true)
-      window.removeEventListener('resize', onMove)
-    }
+    const t = setTimeout(() => inputRef.current?.focus(), 0)
+    return () => clearTimeout(t)
   }, [open])
 
   // Fechar ao clicar fora (botão ou menu no portal).
@@ -85,7 +74,7 @@ export const Combobox = forwardRef<HTMLButtonElement, ComboboxProps>(function Co
     if (!open) return
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node
-      if (btnRef.current?.contains(t) || menuRef.current?.contains(t)) return
+      if (anchorRef.current?.contains(t) || menuRef.current?.contains(t)) return
       setOpen(false)
     }
     document.addEventListener('mousedown', onDown)
@@ -124,10 +113,10 @@ export const Combobox = forwardRef<HTMLButtonElement, ComboboxProps>(function Co
         <Icon name="chevronDown" className={`w-4 h-4 text-zinc-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {open && pos && createPortal(
+      {open && createPortal(
         <div
           ref={menuRef}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 100 }}
+          style={style}
           className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg overflow-hidden"
         >
           <div className="p-2 border-b border-zinc-100 dark:border-zinc-800">

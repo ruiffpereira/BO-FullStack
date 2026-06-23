@@ -428,22 +428,23 @@ function CatalogoTab() {
   const qc = useQueryClient()
   const { data, isLoading } = useGetGymExercises()
   const exercises = (data ?? []) as GymExercise[]
-  const { names, colorOf, subGroupsOf } = useGymGroups()
+  const { names, colorOf, topGroups, groups } = useGymGroups()
 
   const [open, setOpen] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
   const [editing, setEditing] = useState<GymExercise | null>(null)
   const [name, setName] = useState('')
   const [contentKey, setContentKey] = useState<string | null>(null)
-  const [group, setGroup] = useState<string>('')
-  const [subGroup, setSubGroup] = useState<string>('')
+  // Relação por id (fonte de verdade); o nome é só display/cache no backend.
+  const [groupId, setGroupId] = useState<string>('')
+  const [subGroupId, setSubGroupId] = useState<string>('')
   const [active, setActive] = useState(true)
   const [media, setMedia] = useState<MediaItem[]>([])
   const [presets, setPresets] = useState<PresetDraft[]>([])
   const { data: langData } = useGetSettingsLanguages()
   const defaultLang = langData?.default ?? 'pt'
 
-  const subs = subGroupsOf(group)
+  const subs = groups.filter((g) => g.parentId === groupId)
 
   const invalidate = () => qc.invalidateQueries({ queryKey: [{ url: '/gym/exercises' }] })
 
@@ -457,11 +458,13 @@ function CatalogoTab() {
   })
 
   const startCreate = () => {
-    setEditing(null); setName(''); setContentKey(null); setGroup(names[0] ?? ''); setSubGroup(''); setActive(true)
+    setEditing(null); setName(''); setContentKey(null); setGroupId(topGroups[0]?.muscleGroupId ?? ''); setSubGroupId(''); setActive(true)
     setMedia([]); setPresets([]); setOpen(true)
   }
   const startEdit = (e: GymExercise) => {
-    setEditing(e); setName(e.name); setContentKey((e as any).contentKey ?? null); setGroup(e.muscleGroup); setSubGroup(e.subGroup ?? ''); setActive(e.active ?? true)
+    // Fallback p/ legados sem id: resolve pelo nome guardado.
+    const gid = (e as any).muscleGroupId ?? topGroups.find((g) => g.name === e.muscleGroup)?.muscleGroupId ?? ''
+    setEditing(e); setName(e.name); setContentKey((e as any).contentKey ?? null); setGroupId(gid); setSubGroupId((e as any).subGroupId ?? ''); setActive(e.active ?? true)
     setMedia((e.media ?? []) as MediaItem[])
     // Presets vindos da API; se vazios, semeia um a partir dos default* legados.
     const fromApi = (e.presets ?? []).map(toPresetDraft)
@@ -493,7 +496,7 @@ function CatalogoTab() {
       const cleanMedia = await uploadPendingMedia(media, 'gym')
       const key = await ensureCmsName(contentKey, 'gym', name, defaultLang)
       const body = {
-        name: name.trim(), contentKey: key, muscleGroup: group, subGroup: subGroup || null, active, media: cleanMedia,
+        name: name.trim(), contentKey: key, muscleGroupId: groupId, subGroupId: subGroupId || null, active, media: cleanMedia,
         presets: cleanPresets,
       } as any
       if (editing) return putGymExercisesId(editing.exerciseId, body)
@@ -573,7 +576,7 @@ function CatalogoTab() {
         footer={
           <>
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button isLoading={save.isPending} disabled={!name.trim() || !group} onClick={() => save.mutate()}>Guardar</Button>
+            <Button isLoading={save.isPending} disabled={!name.trim() || !groupId} onClick={() => save.mutate()}>Guardar</Button>
           </>
         }
       >
@@ -583,10 +586,10 @@ function CatalogoTab() {
             <div>
               <span className="block text-[11px] font-medium text-zinc-500 mb-1">Grupo muscular</span>
               <Combobox
-                value={group}
-                onChange={(v) => { setGroup(v); setSubGroup('') }}
-                options={names.map((g) => ({ value: g, label: g }))}
-                placeholder={names.length === 0 ? '(cria um grupo primeiro)' : 'Escolher grupo…'}
+                value={groupId}
+                onChange={(v) => { setGroupId(v); setSubGroupId('') }}
+                options={topGroups.map((g) => ({ value: g.muscleGroupId, label: g.name }))}
+                placeholder={topGroups.length === 0 ? '(cria um grupo primeiro)' : 'Escolher grupo…'}
                 searchPlaceholder="Pesquisar grupo…"
               />
             </div>
@@ -596,9 +599,9 @@ function CatalogoTab() {
                 <div className="px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 text-sm text-zinc-400">— sem subgrupos —</div>
               ) : (
                 <Combobox
-                  value={subGroup}
-                  onChange={setSubGroup}
-                  options={[{ value: '', label: 'Nenhum' }, ...subs.map((s) => ({ value: s.name, label: s.name }))]}
+                  value={subGroupId}
+                  onChange={setSubGroupId}
+                  options={[{ value: '', label: 'Nenhum' }, ...subs.map((s) => ({ value: s.muscleGroupId, label: s.name }))]}
                   placeholder="— nenhum —"
                   searchPlaceholder="Pesquisar subgrupo…"
                 />

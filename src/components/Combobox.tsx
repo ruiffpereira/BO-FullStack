@@ -52,7 +52,7 @@ export const Combobox = forwardRef<HTMLButtonElement, ComboboxProps>(function Co
   }, [options, query])
 
   // Posicionamento do menu (portal + flip-up) partilhado com o CmsCombo.
-  const { anchorRef, menuRef, style } = useAnchoredMenu<HTMLButtonElement>(open, [filtered.length])
+  const { anchorRef, menuRef, style } = useAnchoredMenu<HTMLButtonElement>(open, [filtered.length], highlight)
 
   const setBtnRef = (el: HTMLButtonElement | null) => {
     anchorRef.current = el
@@ -134,7 +134,7 @@ export const Combobox = forwardRef<HTMLButtonElement, ComboboxProps>(function Co
               <li className="px-3 py-2 text-sm text-zinc-400">Sem resultados</li>
             ) : (
               filtered.map((o, i) => (
-                <li key={o.value} role="option" aria-selected={o.value === value}>
+                <li key={o.value} role="option" aria-selected={o.value === value} data-idx={i}>
                   <button
                     type="button"
                     onMouseEnter={() => setHighlight(i)}

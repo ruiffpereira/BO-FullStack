@@ -62,7 +62,7 @@ export function CmsCombo({
 
   // Menu de sugestões: portal + flip-up partilhado com o Combobox.
   const menuOpen = open && !value && (suggestions.length > 0 || showCreate)
-  const { anchorRef, menuRef, style } = useAnchoredMenu<HTMLInputElement>(menuOpen, [suggestions.length, showCreate])
+  const { anchorRef, menuRef, style } = useAnchoredMenu<HTMLInputElement>(menuOpen, [suggestions.length, showCreate], highlighted)
 
   useEffect(() => { setHighlighted(0) }, [debouncedQ, open])
 
@@ -171,6 +171,7 @@ export function CmsCombo({
                       <button
                         key={r.key}
                         type="button"
+                        data-idx={idx}
                         onMouseDown={(e) => { e.preventDefault(); activate(idx) }}
                         onMouseEnter={() => setHighlighted(idx)}
                         className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors ${highlighted === idx ? 'bg-accent/[0.10] dark:bg-accent/[0.16]' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
@@ -185,6 +186,7 @@ export function CmsCombo({
               {showCreate && (
                 <button
                   type="button"
+                  data-idx={suggestions.length}
                   onMouseDown={(e) => { e.preventDefault(); activate(suggestions.length) }}
                   onMouseEnter={() => setHighlighted(suggestions.length)}
                   className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-accent border-t border-zinc-100 dark:border-zinc-800 transition-colors ${highlighted === suggestions.length ? 'bg-accent/[0.10]' : 'hover:bg-accent/[0.08]'}`}

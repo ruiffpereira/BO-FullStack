@@ -17,8 +17,16 @@ import { useState, useRef, useEffect, useLayoutEffect, type CSSProperties } from
  *
  * `open` controla a visibilidade; `deps` deve incluir o que muda a altura do menu
  * (ex.: número de itens) para reposicionar quando o conteúdo muda.
+ *
+ * `activeIndex` (opcional): índice do item em destaque na navegação por setas — o
+ * hook mantém-no visível dentro do menu com scroll (cada item deve ter
+ * `data-idx={i}`). Assim o highlight nunca sai de vista ao descer/subir.
  */
-export function useAnchoredMenu<T extends HTMLElement>(open: boolean, deps: unknown[] = []) {
+export function useAnchoredMenu<T extends HTMLElement>(
+  open: boolean,
+  deps: unknown[] = [],
+  activeIndex?: number,
+) {
   const anchorRef = useRef<T | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
@@ -59,6 +67,13 @@ export function useAnchoredMenu<T extends HTMLElement>(open: boolean, deps: unkn
     if (open) update()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, ...deps])
+
+  // Mantém o item ativo (navegação por setas) visível dentro do menu com scroll.
+  useEffect(() => {
+    if (!open || activeIndex == null) return
+    const el = menuRef.current?.querySelector(`[data-idx="${activeIndex}"]`) as HTMLElement | null
+    el?.scrollIntoView({ block: 'nearest' })
+  }, [open, activeIndex])
 
   const style: CSSProperties = {
     position: 'fixed',

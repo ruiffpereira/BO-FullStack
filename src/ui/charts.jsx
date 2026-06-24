@@ -19,9 +19,10 @@ function AreaChart({ data, height = 180, valueKey = 'v', labelKey = 'm', format 
   const w = 560, h = height, pad = { t: 16, r: 12, b: 28, l: yAxis ? 38 : 12 };
   const vals = data.map((d) => d[valueKey]);
   const max = Math.max(...vals) * 1.15, min = Math.min(...vals) * 0.85;
+  const span = (max - min) || 1;
   const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
-  const x = (i) => pad.l + (iw * i) / (data.length - 1);
-  const y = (v) => pad.t + ih - (ih * (v - min)) / (max - min);
+  const x = (i) => (data.length === 1 ? pad.l + iw / 2 : pad.l + (iw * i) / (data.length - 1));
+  const y = (v) => pad.t + ih - (ih * (v - min)) / span;
   const pts = data.map((d, i) => [x(i), y(d[valueKey])]);
   const line = pts.map((p, i) => (i === 0 ? `M${p[0]},${p[1]}` : `L${p[0]},${p[1]}`)).join(' ');
   const area = `${line} L${pts[pts.length - 1][0]},${pad.t + ih} L${pts[0][0]},${pad.t + ih} Z`;

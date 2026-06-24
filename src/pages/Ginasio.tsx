@@ -421,7 +421,7 @@ function CatalogoTab() {
   })
 
   const startCreate = () => {
-    setEditing(null); setName(''); setContentKey(null); setGroupId(topGroups[0]?.muscleGroupId ?? ''); setSubGroupId(''); setActive(true)
+    setEditing(null); setName(''); setContentKey(null); setGroupId(''); setSubGroupId(''); setActive(true)
     setPresets([]); setPresetEdit(null); setOpen(true)
   }
   const startEdit = (e: GymExercise) => {
@@ -577,7 +577,7 @@ function CatalogoTab() {
         footer={
           <>
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button isLoading={save.isPending} disabled={!name.trim() || !groupId} onClick={() => save.mutate()}>Guardar</Button>
+            <Button isLoading={save.isPending} disabled={!name.trim() || !groupId || presets.filter((p) => p.name.trim()).length === 0} onClick={() => save.mutate()}>Guardar</Button>
           </>
         }
       >
@@ -617,7 +617,7 @@ function CatalogoTab() {
               <Button size="sm" variant="ghost" icon="plus" onClick={() => setPresetEdit({ form: emptyPreset(), isNew: true })}>Adicionar preset</Button>
             </div>
             {presets.length === 0 && !presetEdit ? (
-              <p className="text-xs text-zinc-400 border border-dashed border-zinc-200 dark:border-zinc-700 rounded-lg p-3 text-center">Sem presets. Adiciona um (ex: “Iniciante”, “Avançado”). Presets de “tempo” servem para pranchas/mobilidade.</p>
+              <p className="text-xs text-amber-600 dark:text-amber-500 border border-dashed border-amber-300 dark:border-amber-500/40 rounded-lg p-3 text-center">É obrigatório pelo menos um preset (ex: “Iniciante”, “Avançado”). Presets de “tempo” servem para pranchas/mobilidade.</p>
             ) : (
               <div className="space-y-1.5">
                 {presets.map((p) => (
@@ -1627,14 +1627,18 @@ function ProgressoTab({ customerId }: { customerId: string }) {
   const totalGroupSets = byGroup.reduce((s, g) => s + (g.sets ?? 0), 0)
   const donut = byGroup.map((g) => ({ nome: g.group ?? '—', v: totalGroupSets ? Math.round(((g.sets ?? 0) / totalGroupSets) * 100) : 0, cor: colorOf(g.group ?? '') }))
   // Últimas (até) 7 sessões do exercício selecionado — peso máximo por sessão.
-  const areaData = (selectedSeries?.points ?? []).slice(-7).map((p) => ({ m: (p.date ?? '').slice(5), v: p.weight ?? 0 }))
+  const areaPoints = (selectedSeries?.points ?? []).slice(-7).map((p) => ({ m: (p.date ?? '').slice(5), v: p.weight ?? 0 }))
+  // Com uma só sessão, mostra na mesma uma linha plana nesse peso máximo.
+  const areaData = areaPoints.length === 1 ? [{ m: '', v: areaPoints[0].v }, areaPoints[0]] : areaPoints
   const kfmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`)
+  const adPct = adherence.percent ?? 0
+  const adTone: 'green' | 'amber' | 'red' = adPct >= 80 ? 'green' : adPct >= 50 ? 'amber' : 'red'
 
   return (
     <div className="space-y-5">
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <StatCard icon="check" tone="green" label="Adesão" value={`${adherence.percent ?? 0}%`} sub={`${adherence.done ?? 0}/${adherence.expected ?? 0} sessões feitas`} />
+        <StatCard icon="check" tone={adTone} label="Adesão (ritmo)" value={`${adPct}%`} sub={`${adherence.done ?? 0}/${adherence.expected ?? 0} sessões no plano`} />
         <StatCard icon="star" tone="amber" label="Recordes (PRs)" value={records.length} sub="recordes pessoais" />
       </div>
 
@@ -1656,10 +1660,10 @@ function ProgressoTab({ customerId }: { customerId: string }) {
               </div>
             )}
           </div>
-          {areaData.length >= 2 ? (
+          {areaPoints.length >= 1 ? (
             <AreaChart data={areaData} valueKey="v" labelKey="m" format={(n: number) => `${n} kg`} height={220} yAxis />
           ) : (
-            <p className="text-sm text-zinc-400 py-10 text-center">Sem dados suficientes de carga ainda.</p>
+            <p className="text-sm text-zinc-400 py-10 text-center">Sem dados de carga ainda.</p>
           )}
         </Card>
 

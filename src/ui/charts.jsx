@@ -13,10 +13,10 @@ function useAccent() {
 }
 
 // Smooth area + line chart
-function AreaChart({ data, height = 180, valueKey = 'v', labelKey = 'm', format = (n) => n }) {
+function AreaChart({ data, height = 180, valueKey = 'v', labelKey = 'm', format = (n) => n, yAxis = false }) {
   const accent = useAccent();
   const [hover, setHover] = useStateC(null);
-  const w = 560, h = height, pad = { t: 16, r: 12, b: 28, l: 12 };
+  const w = 560, h = height, pad = { t: 16, r: 12, b: 28, l: yAxis ? 38 : 12 };
   const vals = data.map((d) => d[valueKey]);
   const max = Math.max(...vals) * 1.15, min = Math.min(...vals) * 0.85;
   const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
@@ -36,6 +36,9 @@ function AreaChart({ data, height = 180, valueKey = 'v', labelKey = 'm', format 
       </defs>
       {[0.25, 0.5, 0.75, 1].map((g, i) => (
         <line key={i} x1={pad.l} x2={w - pad.r} y1={pad.t + ih * g} y2={pad.t + ih * g} className="stroke-zinc-100 dark:stroke-zinc-800" strokeWidth="1" />
+      ))}
+      {yAxis && [0, 0.25, 0.5, 0.75, 1].map((g, i) => (
+        <text key={i} x={pad.l - 6} y={pad.t + ih * g + 3} textAnchor="end" className="fill-zinc-400 text-[10px]">{Math.round(min + (max - min) * (1 - g))}</text>
       ))}
       <path d={area} fill={`url(#${gid})`} />
       <path d={line} fill="none" stroke={accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />

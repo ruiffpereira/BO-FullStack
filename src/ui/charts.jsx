@@ -13,12 +13,13 @@ function useAccent() {
 }
 
 // Smooth area + line chart
-function AreaChart({ data, height = 180, valueKey = 'v', labelKey = 'm', format = (n) => n, yAxis = false }) {
+function AreaChart({ data, height = 180, valueKey = 'v', labelKey = 'm', format = (n) => n, yAxis = false, refLine = null, refColor = '#1F8A5B', refLabel = '' }) {
   const accent = useAccent();
   const [hover, setHover] = useStateC(null);
   const w = 560, h = height, pad = { t: 16, r: 12, b: 28, l: yAxis ? 38 : 12 };
   const vals = data.map((d) => d[valueKey]);
-  const max = Math.max(...vals) * 1.15, min = Math.min(...vals) * 0.85;
+  const domain = refLine != null ? [...vals, refLine] : vals;
+  const max = Math.max(...domain) * 1.15, min = Math.min(...domain) * 0.85;
   const span = (max - min) || 1;
   const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
   const x = (i) => (data.length === 1 ? pad.l + iw / 2 : pad.l + (iw * i) / (data.length - 1));
@@ -43,6 +44,12 @@ function AreaChart({ data, height = 180, valueKey = 'v', labelKey = 'm', format 
       ))}
       <path d={area} fill={`url(#${gid})`} />
       <path d={line} fill="none" stroke={accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      {refLine != null && (
+        <g>
+          <line x1={pad.l} x2={w - pad.r} y1={y(refLine)} y2={y(refLine)} stroke={refColor} strokeWidth="1.5" strokeDasharray="5 4" />
+          <text x={w - pad.r} y={y(refLine) - 5} textAnchor="end" className="text-[10px] font-medium" fill={refColor}>{refLabel ? `${refLabel} ` : ''}{refLine} kg</text>
+        </g>
+      )}
       {pts.map((p, i) => (
         <g key={i}>
           <rect x={x(i) - iw / data.length / 2} y={pad.t} width={iw / data.length} height={ih} fill="transparent" onMouseEnter={() => setHover(i)} />

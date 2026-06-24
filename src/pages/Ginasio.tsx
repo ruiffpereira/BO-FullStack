@@ -1622,12 +1622,15 @@ function ProgressoTab({ customerId }: { customerId: string }) {
   const byGroup = stats?.byGroup ?? []
   const records = stats?.records ?? []
   const sessions = stats?.sessions ?? []
+  const progress = stats?.progress ?? []
   const adherence = stats?.adherence ?? { percent: 0, done: 0, expected: 0 }
 
   const totalGroupSets = byGroup.reduce((s, g) => s + (g.sets ?? 0), 0)
   const donut = byGroup.map((g) => ({ nome: g.group ?? '—', v: totalGroupSets ? Math.round(((g.sets ?? 0) / totalGroupSets) * 100) : 0, cor: colorOf(g.group ?? '') }))
   // Últimas (até) 7 sessões do exercício selecionado — peso máximo por sessão.
   const areaPoints = (selectedSeries?.points ?? []).slice(-7).map((p) => ({ m: (p.date ?? '').slice(5), v: p.weight ?? 0 }))
+  // Peso prescrito pelo plano para o exercício selecionado (linha de referência verde).
+  const planWeight = progress.find((p) => p.exerciseName === selectedSeries?.exerciseName)?.planWeight ?? null
   // Com uma só sessão, mostra na mesma uma linha plana nesse peso máximo.
   const areaData = areaPoints.length === 1 ? [{ m: '', v: areaPoints[0].v }, areaPoints[0]] : areaPoints
   const kfmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`)
@@ -1661,7 +1664,7 @@ function ProgressoTab({ customerId }: { customerId: string }) {
             )}
           </div>
           {areaPoints.length >= 1 ? (
-            <AreaChart data={areaData} valueKey="v" labelKey="m" format={(n: number) => `${n} kg`} height={220} yAxis />
+            <AreaChart data={areaData} valueKey="v" labelKey="m" format={(n: number) => `${n} kg`} height={220} yAxis refLine={planWeight && planWeight > 0 ? planWeight : null} refColor="#1F8A5B" refLabel="Plano" />
           ) : (
             <p className="text-sm text-zinc-400 py-10 text-center">Sem dados de carga ainda.</p>
           )}

@@ -21,3 +21,22 @@ test.describe("Ginásio — Smoke", () => {
     await expect(p.searchInput()).toBeVisible({ timeout: 8_000 });
   });
 });
+
+test.describe("Ginásio — Mensalidades", () => {
+  test("a tab Mensalidades mostra os KPIs do financeiro", async ({ page }) => {
+    const p = new GinasioPage(page);
+    await p.goto();
+    await p.openMensalidades();
+    await expect(p.kpiRecebido()).toBeVisible({ timeout: 8_000 });
+  });
+
+  test("criar uma subscrição no catálogo", async ({ page }) => {
+    const p = new GinasioPage(page);
+    await p.goto();
+    await p.openMensalidades();
+    await p.openSubscricoesSubtab();
+    const nome = `E2E ${Date.now()}`;
+    await p.createSubscription(nome, "25");
+    await expect(page.getByRole("heading", { name: nome })).toBeVisible({ timeout: 8_000 });
+  });
+});

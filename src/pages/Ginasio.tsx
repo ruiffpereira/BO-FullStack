@@ -1675,6 +1675,7 @@ function StatCard({ icon, tone = 'blue', label, value, sub }: { icon: string; to
 type SessaoExercise = {
   exerciseName?: string; group?: string | null; type?: string
   weight?: number; reps?: number; duration?: number
+  sets?: { weight?: number; reps?: number; duration?: number }[]
   prevWeight?: number | null; prevReps?: number | null; prevDuration?: number | null
   planWeight?: number | null; planReps?: number | null; planDuration?: number | null
 }
@@ -1698,6 +1699,7 @@ function SessaoModal({ sessao, onClose, colorOf }: { sessao: SessaoDetail; onClo
         <div className="space-y-2.5">
           {exs.map((e, i) => {
             const isTime = e.type === 'time'
+            const sets = e.sets ?? []
             const done = isTime ? (e.duration ?? 0) : (e.weight ?? 0)
             const prev = isTime ? e.prevDuration : e.prevWeight
             const plan = isTime ? e.planDuration : e.planWeight
@@ -1713,7 +1715,17 @@ function SessaoModal({ sessao, onClose, colorOf }: { sessao: SessaoDetail; onClo
                     {e.group && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: colorOf(e.group) }} />}
                     <div className="min-w-0">
                       <p className="font-medium text-zinc-900 dark:text-white truncate">{e.exerciseName}</p>
-                      <p className="text-xs text-zinc-400">{isTime ? `${e.duration ?? 0}s` : `${e.reps ?? 0} reps`}</p>
+                      {sets.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {sets.map((s, si) => (
+                            <span key={si} className="text-[10px] tabular-nums px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
+                              {isTime ? `${s.duration ?? 0}s` : (s.weight ? `${s.weight}×${s.reps ?? 0}` : `${s.reps ?? 0} reps`)}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-zinc-400">{isTime ? `${e.duration ?? 0}s` : `${e.reps ?? 0} reps`}</p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -1752,6 +1764,9 @@ function ProgressoTab({ customerId }: { customerId: string }) {
   const { data: stats, isLoading } = useGetGymClientsCustomeridStats(customerId, { query: { enabled: !!customerId } })
   const [exSel, setExSel] = useState<string>('')
   const [sessao, setSessao] = useState<SessaoDetail | null>(null)
+  // Séries visíveis no gráfico (vazio = todas). Clicar na legenda alterna cada uma.
+  const [shownSeries, setShownSeries] = useState<number[]>([])
+  const toggleSeries = (k: number) => setShownSeries((sel) => (sel.includes(k) ? sel.filter((x) => x !== k) : [...sel, k]))
 
   const loadSeries = stats?.loadSeries ?? []
   const selectedSeries = loadSeries.find((s) => s.exerciseName === exSel) ?? loadSeries[0]
@@ -1777,6 +1792,9 @@ function ProgressoTab({ customerId }: { customerId: string }) {
     color: LINE_COLORS[k % LINE_COLORS.length],
     values: sessoes.map((s) => (s.sets?.[k]?.weight ?? null)) as (number | null)[],
   }))
+  // Filtro da legenda: sem seleção → todas; com seleção → só as escolhidas.
+  const sel = shownSeries.filter((k) => k < maxSets)
+  const visibleSeries = sel.length === 0 ? lineSeries : lineSeries.filter((_, k) => sel.includes(k))
   // % e Δkg de cada série (1.ª → última sessão com valor).
   const kgFmt = (n: number) => (Number.isInteger(n) ? `${n}` : n.toFixed(1))
   const sgn = (n: number) => (n >= 0 ? '+' : '')
@@ -1817,7 +1835,7 @@ function ProgressoTab({ customerId }: { customerId: string }) {
               <div className="w-full sm:w-56">
                 <Combobox
                   value={selectedSeries?.exerciseName ?? ''}
-                  onChange={setExSel}
+                  onChange={(v) => { setExSel(v); setShownSeries([]) }}
                   options={loadSeries.map((s) => ({ value: s.exerciseName, label: s.exerciseName }))}
                 />
               </div>
@@ -1832,18 +1850,22 @@ function ProgressoTab({ customerId }: { customerId: string }) {
                 </Badge>
                 <span className="text-[11px] text-zinc-400">1RM estimada (média das séries)</span>
               </div>
-              <LineChart labels={lineLabels} series={lineSeries} height={220} format={(n: number) => `${n} kg`} refLine={planWeight && planWeight > 0 ? planWeight : null} refColor="#1F8A5B" refLabel="Plano" />
-              {/* Legenda: cada série com a sua % e Δkg */}
-              <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3">
-                {lineSeries.map((ls, k) => (
-                  <div key={k} className="flex items-center gap-1.5 text-xs">
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: ls.color }} />
-                    <span className="text-zinc-600 dark:text-zinc-300">{ls.name}</span>
-                    <span className={`tabular-nums font-medium ${lineStats[k].dkg > 0 ? 'text-emerald-600 dark:text-emerald-400' : lineStats[k].dkg < 0 ? 'text-red-500' : 'text-zinc-400'}`}>
-                      {sgn(lineStats[k].pct)}{lineStats[k].pct}% · {sgn(lineStats[k].dkg)}{kgFmt(lineStats[k].dkg)} kg
-                    </span>
-                  </div>
-                ))}
+              <LineChart labels={lineLabels} series={visibleSeries} height={220} format={(n: number) => `${n} kg`} refLine={planWeight && planWeight > 0 ? planWeight : null} refColor="#1F8A5B" refLabel="Plano" />
+              {/* Legenda clicável: alterna cada série; sem seleção mostra todas. */}
+              <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-3">
+                {lineSeries.map((ls, k) => {
+                  const on = sel.length === 0 || sel.includes(k)
+                  return (
+                    <button key={k} type="button" onClick={() => toggleSeries(k)} title="Mostrar/ocultar esta série"
+                      className={`flex items-center gap-1.5 text-xs rounded-lg px-1.5 py-0.5 transition ${on ? 'hover:bg-zinc-100 dark:hover:bg-zinc-800' : 'opacity-40 hover:opacity-70'}`}>
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: ls.color }} />
+                      <span className="text-zinc-600 dark:text-zinc-300">{ls.name}</span>
+                      <span className={`tabular-nums font-medium ${lineStats[k].dkg > 0 ? 'text-emerald-600 dark:text-emerald-400' : lineStats[k].dkg < 0 ? 'text-red-500' : 'text-zinc-400'}`}>
+                        {sgn(lineStats[k].pct)}{lineStats[k].pct}% · {sgn(lineStats[k].dkg)}{kgFmt(lineStats[k].dkg)} kg
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             </>
           ) : (

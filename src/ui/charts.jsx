@@ -69,7 +69,9 @@ function AreaChart({ data, height = 180, valueKey = 'v', labelKey = 'm', format 
 }
 
 // Multi-series line chart (one line per série). `series`: [{ name, color, values:(number|null)[] }].
-// `values` alinhado com `labels` (x). null = falha (a linha quebra nesse ponto).
+// `values` alinhado com `labels` (x). Cada linha tem área preenchida (cor da série) para
+// ser legível. Com 1 só treino o ponto fica na ponta esquerda e o nível estende-se em
+// banda; com mais treinos os pontos dividem-se ao longo da largura.
 function LineChart({ labels, series, height = 220, format = (n) => n, refLine = null, refColor = '#1F8A5B', refLabel = '' }) {
   const accent = useAccent();
   const [hover, setHover] = useStateC(null);
@@ -81,17 +83,25 @@ function LineChart({ labels, series, height = 220, format = (n) => n, refLine = 
   const span = (max - min) || 1;
   const n = labels.length;
   const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
-  const x = (i) => (n === 1 ? pad.l + iw / 2 : pad.l + (iw * i) / (n - 1));
+  const single = n <= 1;
+  // 1 treino → à esquerda (ponta); vários → divididos ao longo da largura.
+  const x = (i) => (single ? pad.l : pad.l + (iw * i) / (n - 1));
   const y = (v) => pad.t + ih - (ih * (v - min)) / span;
-  // path com quebras nos nulls
-  const pathOf = (values) => {
-    let d = '', pen = false;
-    values.forEach((v, i) => {
-      if (v == null) { pen = false; return; }
-      d += `${pen ? 'L' : 'M'}${x(i)},${y(v)} `;
-      pen = true;
-    });
-    return d.trim();
+  const baseline = pad.t + ih, rightX = w - pad.r;
+  // Linha + área (ignora nulls, ligando os pontos presentes). Com 1 ponto, estende
+  // uma banda plana até à direita para se ver o nível.
+  const buildPaths = (values) => {
+    const pts = [];
+    values.forEach((v, i) => { if (v != null) pts.push([x(i), y(v)]); });
+    if (pts.length === 0) return null;
+    if (pts.length === 1) {
+      const [px, py] = pts[0];
+      const line = `M${px},${py} L${rightX},${py}`;
+      return { line, area: `${line} L${rightX},${baseline} L${px},${baseline} Z`, dots: pts };
+    }
+    let line = '';
+    pts.forEach((p, i) => { line += `${i === 0 ? 'M' : 'L'}${p[0]},${p[1]} `; });
+    return { line: line.trim(), area: `${line} L${pts[pts.length - 1][0]},${baseline} L${pts[0][0]},${baseline} Z`, dots: pts };
   };
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height }} onMouseLeave={() => setHover(null)}>
@@ -107,18 +117,25 @@ function LineChart({ labels, series, height = 220, format = (n) => n, refLine = 
           <text x={w - pad.r} y={y(refLine) - 5} textAnchor="end" className="text-[10px] font-medium" fill={refColor}>{refLabel ? `${refLabel} ` : ''}{refLine} kg</text>
         </g>
       )}
-      {series.map((s, si) => (
-        <g key={si}>
-          <path d={pathOf(s.values)} fill="none" stroke={s.color || accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity={hover === null || hover === si ? 1 : 0.3} style={{ transition: 'opacity .15s' }} />
-          {s.values.map((v, i) => (v == null ? null : (
-            <circle key={i} cx={x(i)} cy={y(v)} r={hover === si ? 4 : 2.5} fill={s.color || accent} stroke="white" strokeWidth="1.5" />
-          )))}
-        </g>
-      ))}
+      {series.map((s, si) => {
+        const p = buildPaths(s.values);
+        if (!p) return null;
+        const col = s.color || accent;
+        const dim = hover !== null && hover !== si;
+        return (
+          <g key={si} opacity={dim ? 0.25 : 1} style={{ transition: 'opacity .15s' }}>
+            <path d={p.area} fill={col} fillOpacity={dim ? 0.06 : 0.16} />
+            <path d={p.line} fill="none" stroke={col} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            {p.dots.map((d, i) => (
+              <circle key={i} cx={d[0]} cy={d[1]} r={hover === si ? 4 : 2.5} fill={col} stroke="white" strokeWidth="1.5" />
+            ))}
+          </g>
+        );
+      })}
       {labels.map((lab, i) => (
-        <text key={i} x={x(i)} y={h - 8} textAnchor="middle" className="fill-zinc-400 text-[11px]">{lab}</text>
+        <text key={i} x={x(i)} y={h - 8} textAnchor={single ? 'start' : 'middle'} className="fill-zinc-400 text-[11px]">{lab}</text>
       ))}
-      {/* hover por série (destaca a linha) via legenda externa controla `hover`; aqui só desenha */}
+      {/* faixas invisíveis: hover destaca a série */}
       {series.map((s, si) => (
         <rect key={'h' + si} x={pad.l} y={pad.t + (ih / series.length) * si} width={iw} height={ih / series.length} fill="transparent" onMouseEnter={() => setHover(si)} />
       ))}

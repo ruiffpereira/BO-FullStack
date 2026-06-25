@@ -8,13 +8,31 @@ Backoffice multi-tenant — um único deploy serve todos os clientes da platafor
 ## Comandos
 
 ```bash
-pnpm dev        # gera código Kubb + inicia Vite (porta 5173)
-pnpm build      # gera código Kubb + build de produção
-pnpm kubb       # regenera hooks/types a partir do spec OpenAPI da API
-pnpm lint       # tsc --noEmit (type check)
+pnpm dev          # gera código Kubb + inicia Vite (porta 5173)
+pnpm build        # gera código Kubb + build de produção
+pnpm kubb         # regenera hooks/types a partir do spec OpenAPI da API
+pnpm lint         # tsc --noEmit (type check)
+pnpm test:unit    # testes de componentes (Vitest + RTL + jsdom) — isolados, sem servidor
+pnpm test:e2e     # testes end-to-end (Playwright) — precisam da app + API a correr
 ```
 
 A API deve estar a correr em `VITE_API_BASE_URL` (default: `http://localhost:3001/api`).
+
+---
+
+## Testes
+
+Duas camadas, ambas em `tests/`:
+
+- **Componentes (`tests/unit/`, Vitest + React Testing Library + jsdom):** testes unitários e isolados dos componentes partilhados — sem servidor nem API. Config em `vitest.config.ts`, setup em `tests/unit/setup.ts` (stub do `scrollIntoView`, matchers `jest-dom`). Hooks gerados (Kubb) que tocam a API são mockados (`vi.mock`). Cobertos: **Combobox, ConfirmDialog, DatePicker, DateRangePicker, FileUpload** (24 testes). Correr: `pnpm test:unit`.
+- **End-to-end (`tests/e2e/`, Playwright):** fluxos reais no browser (Chromium) contra a app + API a correr. Page objects em `tests/e2e/pages/`. Specs: admin, agenda, auth, clientes, conteudos, dashboard, despesas, errors, financeiro, ginasio, loja, security. Correr: `pnpm test:e2e` (arranca o dev server sozinho via `reuseExistingServer`). Precisa do `TEST_USER`/`TEST_PASSWORD` (`.env.test`) a existir na BD ligada.
+
+**Autenticação nos e2e — `tests/e2e/fixtures/auth.ts`:** os specs que precisam de sessão importam `{ test, expect }` deste fixture (não de `@playwright/test`). Faz **login fresco por worker** via API e partilha um `BrowserContext` vivo entre os testes do worker. Isto é necessário porque a API **roda os refresh tokens** (cada `POST /users/refresh` invalida o anterior) e o AuthContext faz refresh no arranque — um `storageState` estático partilhado invalidaria todos os testes após o primeiro. Os specs `auth`/`security` correm de propósito **sem** auth (`test.use({ storageState: vazio })`) e o `errors` intercepta a API, por isso continuam a usar `@playwright/test`.
+
+> **Notas:**
+> - Os modais expõem `role="dialog"` (no `Modal` de `ui/ui.jsx`) — os page objects detetam-nos por aí.
+> - O `authRateLimit` da API (10/min) isenta o **loopback** fora de produção (`src/middleware/security.ts`), para os vários logins dos e2e não darem 429 em dev.
+> - Se os e2e derem `socket hang up`/timeout no login, a **API não está de pé/estável** (`GET http://localhost:3001/health` deve dar 200).
 
 ---
 
@@ -40,7 +58,7 @@ src/
 
 | Página | Rota | Permissão | Descrição |
 |--------|------|-----------|-----------|
-| `Admin.tsx` | `/admin` | `VIEW_ADMIN` | Utilizadores, permissões, componentes RBAC, site tokens, línguas, **Atividade** (audit log) e **Sistema** (health + erros) |
+| `Admin.tsx` | `/admin` | `VIEW_ADMIN` | Utilizadores, permissões, componentes RBAC, site tokens, línguas, **Atividade** (audit log unificado — ações + erros 5xx, com filtro "Só erros") e **Sistema** (health) |
 | `Agenda.tsx` | `/agenda` | `VIEW_SCHEDULE` | Calendário de agendamentos, serviços, horários, bloqueios |
 | `Clientes.tsx` | `/clientes` | `VIEW_CUSTOMERS` | Lista de clientes, histórico de visitas |
 | `Conteudos.tsx` | `/conteudos` | `VIEW_CMS` | CMS multi-língua: secções, entradas, textos, imagens |
@@ -80,7 +98,7 @@ A navegação em `Shell.tsx` é gerada automaticamente a partir das permissões 
 | `useSSE.ts` | Ligação SSE para notificações em tempo real |
 | `usePushSubscription.ts` | Subscrição Web Push (subscribe/unsubscribe) |
 | `useDashboard.ts` | GET `/api/dashboard?period=` tipado (schedule + ecommerce + expenses) para a página Financeiro |
-| `useAuditLogs.ts` | `useAuditLogs`/`useErrorLogs`/`useHealth` — tabs Atividade e Sistema do Admin (só `VIEW_ADMIN`) |
+| `useAuditLogs.ts` | `useAuditLogs` (registo unificado; `errors:"true"` filtra 5xx) / `useHealth` — tabs Atividade e Sistema do Admin (só `VIEW_ADMIN`) |
 
 > Despesas usa hooks gerados pelo Kubb (`useGetExpenses`, `useGetExpensesSummary`, `usePostExpenses`, …) para as despesas, e o hook manual `useExpenseCategories.ts` (list/create/update/delete) para as **categorias criadas pelo tenant**. As categorias têm cor própria; `src/utils/expenseCategories.ts` só guarda a paleta de cores sugeridas.
 
@@ -100,7 +118,8 @@ Página com 5 tabs (por ordem do fluxo): **Exercícios** (catálogo), **Treinos*
 - **Grupos e subgrupos musculares** (`/api/gym/muscle-groups`): hierarquia de 1 nível via `parentId` (ex: *Peito → Peito superior*). Geridos no modal "Grupos" do Catálogo. A cor de um novo grupo/subgrupo vem **aleatória** de `GROUP_COLORS` (o user pode mudar). Apagar um grupo apaga os seus subgrupos (os exercícios guardam o nome em snapshot, por isso não corrompem).
 - **Catálogo de exercícios** (`/api/gym/exercises`): cada exercício pertence a um grupo de topo e, opcionalmente, a um `subGroup`. Em vez de um único conjunto de defaults, tem **presets nomeados** (`presets: [{ id, name, sets, reps, weight, rest }]`, ex: "Iniciante", "Avançado"). Os campos `default*` legados são derivados do 1.º preset (compat com a PWA/público).
 - **Montar treino** (`WorkoutModal`/`WorkoutTemplateModal`): ao adicionar um exercício do catálogo, se este tiver presets aparece um selector que pré-preenche séries/reps/peso/descanso — **continuam editáveis** por cliente. Os exercícios prescritos guardam snapshot de `group`/`subGroup`.
-- **Exercícios de tempo + modos de plano (overhaul 2026-06-24):** presets e exercícios prescritos têm `type` — `"strength"` (séries/reps/peso) ou `"time"` (duração em segundos, ex: prancha/mobilidade) — mais `notes`. **Tokens em inglês no modelo, PT só na UI.** Os `Plano`/`Program` têm `mode` `"weekly"` (dias da semana) ou `"free"` (dias numerados; cada treino tem `dayLabel` "Dia 1"). O `WorkoutModal` recebe o `mode` do programa e mostra `DaySelector` (weekly) ou input de `dayLabel` (free); o `PlanoModal` tem o toggle Semana fixa/Dias livres. "Editar o plano do cliente" = editar o **`Program`** (snapshot; não afeta a biblioteca). O tab **Progresso** usa gráficos reais de `src/ui/charts.jsx` (AreaChart de evolução de carga + DonutChart de volume por grupo) alimentados por `GET /api/gym/clients/:id/stats` (`byGroup`, `progress`, `loadSeries`, `sessions`, `adherence`, `records`).
+- **Exercícios de tempo + modos de plano (overhaul 2026-06-24):** presets e exercícios prescritos têm `type` — `"strength"` (séries/reps/peso) ou `"time"` (duração em segundos, ex: prancha/mobilidade) — mais `notes`. **Tokens em inglês no modelo, PT só na UI.**
+- **Série-a-série + dropsets (overhaul 2026-06-25):** presets e exercícios prescritos de força têm `mode` — `"uniform"` (todas as séries iguais: `sets`×`reps`×`weight`×`rest`) ou `"perSet"` (cada série definida em `setRows`). Cada `setRow` é `{ reps, weight, rest, drop, steps }`; uma **série composta/dropset** tem `drop:true` + `steps:[{reps,weight,rest}]` (e `rest` é o descanso DEPOIS da série inteira). Os escalares `sets/reps/weight/rest` são **sempre derivados** de `setRows` (sets=nº de séries; reps/weight do 1.º passo) para compat com a PWA/recordes — `setRows` é puramente aditivo. No Backoffice: `SetRowsEditor`/`StrengthFields` (toggle Iguais/Série-a-série, com gestão de passos do dropset) são partilhados pelo editor de preset do catálogo e pelo `AjustarModal`. As 3 tabelas de prescrição (`WorkoutExercises`, `WorkoutTemplateExercises`, `PlanoWorkoutExercises`) ganharam colunas `mode` (string) + `setRows` (JSON); presets vivem no JSON `ExerciseCatalog.presets` (sem migração). Na PWA, uma série composta é **expandida num registo por passo** para que cada peso/reps fique registado nas estatísticas. Os `Plano`/`Program` têm `mode` `"weekly"` (dias da semana) ou `"free"` (dias numerados; cada treino tem `dayLabel` "Dia 1"). O `WorkoutModal` recebe o `mode` do programa e mostra `DaySelector` (weekly) ou input de `dayLabel` (free); o `PlanoModal` tem o toggle Semana fixa/Dias livres. "Editar o plano do cliente" = editar o **`Program`** (snapshot; não afeta a biblioteca). O tab **Progresso** usa gráficos reais de `src/ui/charts.jsx` (AreaChart de evolução de carga + DonutChart de volume por grupo) alimentados por `GET /api/gym/clients/:id/stats` (`byGroup`, `progress`, `loadSeries`, `sessions`, `adherence`, `records`).
 
 - **Traduções (CMS)**: os nomes de **exercícios, treinos (templates), planos (+ cada treino do plano), treinos de programa e grupos/subgrupos musculares** são traduzíveis via CMS, no **contexto `gym`** (separado do `website`, que é o site público do ginásio). Cada entidade guarda um `contentKey`; o valor na **língua padrão** é o fallback e as outras línguas vivem no CMS.
   - **UI**: componente `CmsCombo` (`src/components/CmsCombo.tsx`) — campo de **texto livre** para o nome, com **autocomplete de entradas CMS existentes** (`/cms/search?context=gym`) que se podem reutilizar ao clicar. **Não há botão "criar entrada"**: se não reutilizares nenhuma, a entrada é criada **ao Guardar** o formulário, via `ensureCmsName(contentKey, context, name, defaultLang)` (`src/lib/gymCms.ts`) — gera `gym.<uuid>` se não houver `contentKey` e grava o nome na língua padrão. O botão "Traduções" abre o `CmsTranslationsModal`. Usado em exercícios, treinos, planos (+ treinos), treinos de programa e grupos/subgrupos musculares. Controlado por `value` (contentKey) + `name` (texto); `onChange(key, name)`.
@@ -214,6 +233,16 @@ O spec OpenAPI `/api-docs/backoffice.json` é lido pelo Kubb e gera:
 **Sempre que a API adiciona/modifica endpoints, correr `pnpm kubb`.**
 
 Os ficheiros em `src/gen/` não devem ser editados manualmente.
+
+### Fetch do spec atrás da Cloudflare (Bot Fight Mode)
+
+O `kubb.config.ts` faz **pré-fetch** do spec via `fetch` (em Node, build-time) e escreve `spec.json` (gitignored); o Kubb lê esse ficheiro em vez de ir buscar o URL diretamente (suporte a headers custom no input do Kubb é limitado).
+
+Quando a API está atrás da Cloudflare com Bot Fight Mode ativo, o fetch da build é bloqueado como bot. Solução: enviar um header de bypass.
+
+- **Env (build-time):** `CF_BYPASS_TOKEN` — definir no build do Coolify. **NUNCA prefixar com `VITE_`** (senão o Vite inclui-o no bundle do browser). Só é enviado no header `X-CI-Bypass` do pedido ao spec; não fica em `spec.json` nem em `src/gen/`.
+- **Cloudflare → WAF → Custom rule:** `Header X-CI-Bypass equals <segredo>` → action **Skip** Bot Fight Mode / Managed Challenge (opcionalmente restringir a `URI Path equals /api-docs/backoffice.json`).
+- Em localhost (sem Cloudflare) o token não é necessário — o header só é enviado se `CF_BYPASS_TOKEN` existir, por isso o `pnpm kubb`/`pnpm dev` local funciona na mesma.
 
 ---
 

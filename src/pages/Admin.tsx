@@ -48,10 +48,8 @@ import type { Permission } from "../gen/backoffice/types/Permission.js";
 import type { Component } from "../gen/backoffice/types/Component.js";
 import {
   useAuditLogs,
-  useErrorLogs,
   useHealth,
   type AuditLog,
-  type ErrorLog,
 } from "../hooks/useAuditLogs";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -1180,6 +1178,7 @@ function AtividadeTab() {
   const [page, setPage] = useState(1);
   const [method, setMethod] = useState("");
   const [q, setQ] = useState("");
+  const [onlyErrors, setOnlyErrors] = useState(false);
   const [detail, setDetail] = useState<AuditLog | null>(null);
   const [bodyTab, setBodyTab] = useState<"enviado" | "recebido">("enviado");
 
@@ -1188,6 +1187,7 @@ function AtividadeTab() {
     limit: 50,
     method: method || undefined,
     q: q || undefined,
+    errors: onlyErrors ? "true" : undefined,
   });
   const rows = data?.rows ?? [];
   const totalPages = data ? Math.max(1, Math.ceil(data.count / data.limit)) : 1;
@@ -1198,7 +1198,7 @@ function AtividadeTab() {
         <div className="flex-1 min-w-[180px]">
           <Input
             icon="search"
-            placeholder="Pesquisar (path, ator, recurso)…"
+            placeholder="Pesquisar (path, ator, recurso, mensagem)…"
             value={q}
             onChange={(e: any) => {
               setQ(e.target.value);
@@ -1223,6 +1223,20 @@ function AtividadeTab() {
           placeholder="Todos os métodos"
           searchPlaceholder="Pesquisar…"
         />
+        <button
+          type="button"
+          onClick={() => {
+            setOnlyErrors((v) => !v);
+            setPage(1);
+          }}
+          className={`px-3 py-2 rounded-lg text-sm font-medium border transition whitespace-nowrap ${
+            onlyErrors
+              ? "border-red-300 bg-red-50 text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400"
+              : "border-zinc-200 text-zinc-500 hover:text-zinc-800 dark:border-zinc-800 dark:hover:text-zinc-200"
+          }`}
+        >
+          Só erros
+        </button>
       </div>
 
       <TableWrapper>
@@ -1291,6 +1305,15 @@ function AtividadeTab() {
               <div><span className="text-zinc-400">Duração</span><p>{detail.durationMs != null ? `${detail.durationMs} ms` : "—"}</p></div>
               <div className="col-span-2"><span className="text-zinc-400">IP / Cliente</span><p className="text-xs">{detail.ip ?? "—"} · {detail.userAgent ?? "—"}</p></div>
             </div>
+            {(detail.message || detail.stack) && (
+              <div className="rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50/60 dark:bg-red-950/30 p-3">
+                <span className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wide">Erro do sistema</span>
+                {detail.message && <p className="mt-1 text-sm">{detail.message}</p>}
+                {detail.stack && (
+                  <pre className="mt-2 p-3 rounded-lg bg-white/70 dark:bg-zinc-900/60 text-xs overflow-x-auto whitespace-pre-wrap">{detail.stack}</pre>
+                )}
+              </div>
+            )}
             <div>
               <div className="flex gap-1 p-1 rounded-lg bg-zinc-100 dark:bg-zinc-800/60 w-fit mb-2">
                 {([["enviado", "Enviado"], ["recebido", "Recebido"]] as const).map(([id, lbl]) => (
@@ -1319,15 +1342,10 @@ function AtividadeTab() {
   );
 }
 
-// ─── Sistema (health + error logs) tab ──────────────────────────────────────
+// ─── Sistema (health) tab ────────────────────────────────────────────────────
+// Os erros recentes deixaram de viver aqui — estão na aba Atividade (filtro "Só erros").
 function SistemaTab() {
   const { data: health } = useHealth();
-  const [page, setPage] = useState(1);
-  const [detail, setDetail] = useState<ErrorLog | null>(null);
-  const { data, isLoading } = useErrorLogs({ page, limit: 50 });
-  const rows = data?.rows ?? [];
-  const totalPages = data ? Math.max(1, Math.ceil(data.count / data.limit)) : 1;
-
   const dbUp = health?.db === "up";
 
   return (
@@ -1354,72 +1372,9 @@ function SistemaTab() {
         </Card>
       </div>
 
-      <div>
-        <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">Erros recentes</h3>
-        <TableWrapper>
-          <thead className="text-left text-xs uppercase tracking-wide text-zinc-400 border-b border-zinc-100 dark:border-zinc-800">
-            <tr>
-              <th className="px-4 py-3">Quando</th>
-              <th className="px-4 py-3">Método</th>
-              <th className="px-4 py-3">Path</th>
-              <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3 hidden lg:table-cell">Mensagem</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {isLoading || rows.length === 0 ? (
-              <EmptyRow cols={5} />
-            ) : (
-              rows.map((r) => (
-                <tr
-                  key={r.errorLogId}
-                  onClick={() => setDetail(r)}
-                  className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-                >
-                  <td className="px-4 py-3 text-zinc-500 whitespace-nowrap">{fmtDateTime(r.createdAt)}</td>
-                  <td className="px-4 py-3">{r.method}</td>
-                  <td className="px-4 py-3 font-mono text-xs break-all">{r.path}</td>
-                  <td className="px-4 py-3"><Badge tone="red">{r.statusCode}</Badge></td>
-                  <td className="px-4 py-3 text-zinc-500 truncate max-w-[260px] hidden lg:table-cell">{r.message ?? "—"}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </TableWrapper>
-        <div className="flex items-center justify-between mt-4 text-sm text-zinc-500">
-          <span>{data?.count ?? 0} erros</span>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Anterior</Button>
-            <span>{page} / {totalPages}</span>
-            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Seguinte</Button>
-          </div>
-        </div>
-      </div>
-
-      <Modal open={!!detail} onClose={() => setDetail(null)} title="Detalhe do erro" width="max-w-2xl">
-        {detail && (
-          <div className="space-y-3 text-sm">
-            <div className="grid grid-cols-2 gap-3">
-              <div><span className="text-zinc-400">Quando</span><p>{fmtDateTime(detail.createdAt)}</p></div>
-              <div><span className="text-zinc-400">Estado</span><p>{detail.statusCode}</p></div>
-              <div className="col-span-2"><span className="text-zinc-400">Path</span><p className="font-mono text-xs break-all">{detail.method} {detail.path}</p></div>
-              <div className="col-span-2"><span className="text-zinc-400">Mensagem</span><p>{detail.message ?? "—"}</p></div>
-            </div>
-            {detail.stack && (
-              <div>
-                <span className="text-zinc-400">Stack trace</span>
-                <pre className="mt-1 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 text-xs overflow-x-auto whitespace-pre-wrap">{detail.stack}</pre>
-              </div>
-            )}
-            {detail.requestBody && (
-              <div>
-                <span className="text-zinc-400">Dados enviados</span>
-                <pre className="mt-1 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 text-xs overflow-x-auto">{JSON.stringify(detail.requestBody, null, 2)}</pre>
-              </div>
-            )}
-          </div>
-        )}
-      </Modal>
+      <p className="text-sm text-zinc-500">
+        Os erros do sistema (5xx) aparecem agora na aba <span className="font-medium text-zinc-700 dark:text-zinc-300">Atividade</span>, com o filtro <span className="font-medium text-red-600 dark:text-red-400">Só erros</span>.
+      </p>
     </div>
   );
 }

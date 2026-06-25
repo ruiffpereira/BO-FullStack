@@ -8,6 +8,11 @@ export interface Actor {
   email: string;
 }
 
+/**
+ * Registo unificado de atividade: uma ação de backoffice, um evento de
+ * autenticação ou um erro de servidor (5xx). Nos erros, `message`/`stack`
+ * vêm preenchidos (a antiga tabela ErrorLogs foi fundida nesta).
+ */
 export interface AuditLog {
   auditLogId: string;
   userId: string | null;
@@ -23,21 +28,8 @@ export interface AuditLog {
   requestBody: Record<string, unknown> | null;
   responseBody: Record<string, unknown> | null;
   durationMs: number | null;
-  createdAt: string;
-  actor?: Actor | null;
-}
-
-export interface ErrorLog {
-  errorLogId: string;
-  userId: string | null;
-  method: string;
-  path: string;
-  statusCode: number;
   message: string | null;
   stack: string | null;
-  requestBody: Record<string, unknown> | null;
-  ip: string | null;
-  userAgent: string | null;
   createdAt: string;
   actor?: Actor | null;
 }
@@ -55,6 +47,8 @@ export interface AuditFilters {
   method?: string;
   resourceType?: string;
   success?: string;
+  /** "true" → só erros de sistema (statusCode >= 500). */
+  errors?: string;
   from?: string;
   to?: string;
   q?: string;
@@ -78,22 +72,6 @@ export function useAuditLogs(filters: AuditFilters = {}) {
     enabled: isAuthenticated,
     queryFn: async () => {
       const res = await axiosInstance.get<Paginated<AuditLog>>("/audit-logs", {
-        params: clean({ ...filters }),
-        headers: authHeader(),
-        withCredentials: true,
-      });
-      return res.data;
-    },
-  });
-}
-
-export function useErrorLogs(filters: AuditFilters = {}) {
-  const { authHeader, isAuthenticated } = useAuth();
-  return useQuery<Paginated<ErrorLog>>({
-    queryKey: ["error-logs", filters],
-    enabled: isAuthenticated,
-    queryFn: async () => {
-      const res = await axiosInstance.get<Paginated<ErrorLog>>("/error-logs", {
         params: clean({ ...filters }),
         headers: authHeader(),
         withCredentials: true,

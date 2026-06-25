@@ -62,13 +62,13 @@ function Badge({ children, tone = 'neutral', dot = false, className = '' }) {
   );
 }
 
-function Input({ label, icon, className = '', hint, ...rest }) {
+function Input({ label, icon, className = '', hint, type = 'text', ...rest }) {
   return (
     <label className="block">
       {label && <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">{label}</span>}
       <div className="relative">
         {icon && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"><Icon name={icon} className="w-[18px] h-[18px]" /></span>}
-        <input className={`w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 px-3 py-2 ${icon ? 'pl-10' : ''} focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition ${className}`} {...rest} />
+        <input type={type} className={`w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 px-3 py-2 ${icon ? 'pl-10' : ''} focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition ${className}`} {...rest} />
       </div>
       {hint && <span className="block text-xs text-zinc-400 mt-1">{hint}</span>}
     </label>
@@ -120,7 +120,7 @@ function Modal({ open, onClose, title, subtitle, children, footer, width = 'max-
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-zinc-900/40 backdrop-blur-[2px] animate-[fade_.15s_ease]" onClick={onClose} />
-      <div className={`relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 w-full ${width} rounded-t-2xl sm:rounded-2xl shadow-xl animate-[pop_.18s_cubic-bezier(.2,.8,.2,1)] max-h-[92vh] flex flex-col`}>
+      <div role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined} className={`relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 w-full ${width} rounded-t-2xl sm:rounded-2xl shadow-xl animate-[pop_.18s_cubic-bezier(.2,.8,.2,1)] max-h-[92vh] flex flex-col`}>
         <div className="flex items-start justify-between gap-4 px-5 sm:px-6 py-4 border-b border-zinc-100 dark:border-zinc-800">
           <div>
             <h3 className="text-base font-semibold text-zinc-900 dark:text-white">{title}</h3>

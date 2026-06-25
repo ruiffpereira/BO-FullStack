@@ -40,7 +40,7 @@ export class DespesasPage {
   }
 
   async submitExpenseForm() {
-    await this.page.locator('[role="dialog"] button[type="submit"], [role="dialog"] button', { hasText: /gravar|guardar|confirmar|criar/i }).last().click();
+    await this.page.locator('[role="dialog"] button[type="submit"], [role="dialog"] button', { hasText: /gravar|guardar|confirmar|criar|registar/i }).last().click();
   }
 
   async createExpense(opts: { date: string; description: string; amount: string }) {
@@ -52,9 +52,11 @@ export class DespesasPage {
   // ── Delete ────────────────────────────────────────────────────────────────
 
   async deleteExpense(description: string) {
-    const row = this.page.locator("tr, [data-testid='expense-row']").filter({ hasText: description }).first();
-    await row.locator('button[title*="elimin"], button[title*="apagar"], button[aria-label*="delete"]').first().click();
-    // Confirm in modal
+    // Cada lançamento é um <div class="...group"> (não <tr>); o botão de eliminar
+    // é um IconButton com aria-label="Eliminar".
+    const row = this.page.locator("div.group").filter({ hasText: description }).first();
+    await row.getByRole("button", { name: /eliminar/i }).click();
+    // Confirmar no ConfirmDialog.
     await this.page.locator('[role="dialog"] button', { hasText: /eliminar|confirmar|apagar/i }).last().click();
   }
 
@@ -84,11 +86,12 @@ export class DespesasPage {
   // ── Assertions ────────────────────────────────────────────────────────────
 
   async expectExpenseVisible(description: string) {
-    await expect(this.page.locator("table, [data-testid='expense-list']").locator(`text=${description}`)).toBeVisible({ timeout: 8_000 });
+    // A lista de lançamentos é um card (não uma <table>) — procurar na página.
+    await expect(this.page.getByText(description, { exact: false }).first()).toBeVisible({ timeout: 8_000 });
   }
 
   async expectExpenseHidden(description: string) {
-    await expect(this.page.locator("table, [data-testid='expense-list']").locator(`text=${description}`)).not.toBeVisible({ timeout: 5_000 });
+    await expect(this.page.getByText(description, { exact: false })).toHaveCount(0, { timeout: 5_000 });
   }
 
   toastLocator() {

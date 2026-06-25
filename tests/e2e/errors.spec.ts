@@ -2,8 +2,10 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Tratamento de erros da API → UI", () => {
   test("401 em endpoint protegido → app tenta refresh, depois redireciona para login", async ({ page }) => {
-    // Intercept all API calls except auth endpoints and return 401
-    await page.route(/\/api\/(?!users\/(login|refresh|logout)|csrf-token)/, (route) => {
+    // Intercept all API calls (incluindo /users/refresh) e devolver 401, para o
+    // refresh falhar → sessão morre → app volta ao login. login/logout/csrf ficam
+    // acessíveis para o ecrã de login funcionar.
+    await page.route(/\/api\/(?!users\/(login|logout)|csrf-token)/, (route) => {
       return route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: "Unauthorized" }) });
     });
 

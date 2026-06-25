@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/auth";
 import { DespesasPage } from "./pages/DespesasPage";
 
 const today = new Date().toISOString().slice(0, 10);
@@ -78,10 +78,12 @@ test.describe("Despesas — Categorias", () => {
     const catName = `Cat E2E ${Date.now()}`;
     await p.createCategory(catName);
 
-    // Close modal and open expense form — category should be selectable
+    // Close modal and open expense form — category should be selectable.
     await page.keyboard.press("Escape");
     await p.openNewExpenseModal();
-    await expect(page.locator('[role="dialog"]').locator(`text=${catName}`)).toBeVisible({ timeout: 5_000 });
+    // O seletor de categoria é um Combobox (opções num portal, fora do dialog).
+    await page.getByRole("button", { name: /sem categoria/i }).click();
+    await expect(page.getByRole("option", { name: catName })).toBeVisible({ timeout: 5_000 });
   });
 
   test("criar categoria com nome duplicado → 409 → toast de erro", async ({ page }) => {

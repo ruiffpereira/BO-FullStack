@@ -22,10 +22,16 @@ export class AdminPage {
 
   async fillUserForm(opts: { username?: string; email?: string; phone?: string; password?: string }) {
     const dialog = this.page.locator('[role="dialog"]');
-    if (opts.username) await dialog.locator('input').filter({ hasText: /utilizador/i }).or(dialog.locator('input[placeholder*="utilizador"], input[autocomplete="username"]')).first().fill(opts.username);
-    if (opts.email)    await dialog.locator('input[type="email"], input[placeholder*="email"]').first().fill(opts.email);
-    if (opts.phone)    await dialog.locator('input[type="tel"], input[placeholder*="telef"]').first().fill(opts.phone).catch(() => {});
+    // O "username" no formulário é o campo "Nome" (primeiro input do modal).
+    if (opts.username) await dialog.locator("input").first().fill(opts.username);
+    if (opts.email)    await dialog.locator('input[type="email"]').first().fill(opts.email);
+    if (opts.phone)    await dialog.locator('input[placeholder*="912"]').first().fill(opts.phone).catch(() => {});
     if (opts.password) await dialog.locator('input[type="password"]').first().fill(opts.password).catch(() => {});
+    // Permissão é obrigatória (validação client-side). O seletor é um Combobox
+    // custom (opções num portal); escolher a 1ª permissão real (índice 1; o 0 é
+    // o placeholder "Seleccionar permissão").
+    await dialog.getByRole("button", { name: /seleccionar permissão/i }).click();
+    await this.page.locator('[role="option"]').nth(1).locator("button").click();
   }
 
   async submitUserForm() {
@@ -49,10 +55,10 @@ export class AdminPage {
   // ── Audit logs ────────────────────────────────────────────────────────────
 
   async searchAuditLogs(method: string) {
-    await this.page.locator('select, [role="combobox"]').filter({ hasText: /método|todos/i }).first().selectOption(method).catch(async () => {
-      await this.page.locator('select').first().selectOption(method);
-    });
-    await this.page.waitForTimeout(500);
+    // O filtro de método é um Combobox custom (botão + opções), não um <select>.
+    await this.page.getByRole("button", { name: /todos os métodos/i }).click();
+    await this.page.getByRole("button", { name: new RegExp(`^${method}`, "i") }).first().click();
+    await this.page.waitForTimeout(400);
   }
 
   auditLogsTable() {

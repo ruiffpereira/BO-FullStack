@@ -58,6 +58,7 @@ import { putGymMuscleGroupsId } from '../gen/backoffice/hooks/usePutGymMuscleGro
 import { deleteGymMuscleGroupsId } from '../gen/backoffice/hooks/useDeleteGymMuscleGroupsId.js'
 import type { GymExercise } from '../gen/backoffice/types/GymExercise.js'
 import type { GymExercisePreset } from '../gen/backoffice/types/GymExercisePreset.js'
+import type { GymSetRow } from '../gen/backoffice/types/GymSetRow.js'
 import type { GymMuscleGroup } from '../gen/backoffice/types/GymMuscleGroup.js'
 import type { GymProgram } from '../gen/backoffice/types/GymProgram.js'
 import type { GymWorkout } from '../gen/backoffice/types/GymWorkout.js'
@@ -121,10 +122,47 @@ function GymGroupsProvider({ children }: { children: ReactNode }) {
 
 type Tab = 'catalogo' | 'treinos' | 'planos' | 'clientes'
 
+// Série-a-série: cada série tem reps/peso/descanso próprios (campos string p/ vazio).
+// Série composta (dropset): drop=true + passos; `rest` é o descanso após a série toda.
+type SetStepDraft = { reps: string; weight: string; rest: string }
+type SetRowDraft = { reps: string; weight: string; rest: string; drop: boolean; steps: SetStepDraft[] }
+
 // Preset em edição no formulário (campos como string para permitir vazio = "—").
 // type 'strength' = séries/reps/peso · 'time' = duração (ex: prancha, mobilidade).
-type PresetDraft = { id: string; name: string; contentKey: string | null; type: 'strength' | 'time'; sets: string; reps: string; weight: string; rest: string; duration: string; notes: string }
-const emptyPreset = (): PresetDraft => ({ id: newUid(), name: '', contentKey: null, type: 'strength', sets: '', reps: '', weight: '', rest: '', duration: '', notes: '' })
+// mode 'uniform' = séries iguais · 'perSet' = série-a-série (usa `setRows`, com dropsets).
+type PresetDraft = { id: string; name: string; contentKey: string | null; type: 'strength' | 'time'; mode: 'uniform' | 'perSet'; sets: string; reps: string; weight: string; rest: string; duration: string; notes: string; setRows: SetRowDraft[] }
+const emptyPreset = (): PresetDraft => ({ id: newUid(), name: '', contentKey: null, type: 'strength', mode: 'uniform', sets: '', reps: '', weight: '', rest: '', duration: '', notes: '', setRows: [] })
+
+// ── Conversões série-a-série (draft ⇄ API) ─────────────────────────────────────
+const numOr0 = (v: string) => (v === '' ? 0 : Number(v))
+const emptySetRow = (seed?: { reps?: string; weight?: string; rest?: string }): SetRowDraft => ({
+  reps: seed?.reps || '10', weight: seed?.weight || '0', rest: seed?.rest || '60', drop: false, steps: [],
+})
+function setRowsToApi(rows: SetRowDraft[]): GymSetRow[] {
+  return rows.map((r) =>
+    r.drop
+      ? { drop: true, reps: numOr0(r.steps[0]?.reps ?? ''), weight: numOr0(r.steps[0]?.weight ?? ''), rest: numOr0(r.rest), steps: r.steps.map((s) => ({ reps: numOr0(s.reps), weight: numOr0(s.weight), rest: numOr0(s.rest) })) }
+      : { drop: false, reps: numOr0(r.reps), weight: numOr0(r.weight), rest: numOr0(r.rest), steps: [] },
+  )
+}
+function apiToSetRowDrafts(rows?: GymSetRow[] | null): SetRowDraft[] {
+  return (rows ?? []).map((r) => ({
+    reps: r.reps != null ? String(r.reps) : '',
+    weight: r.weight != null ? String(r.weight) : '',
+    rest: r.rest != null ? String(r.rest) : '',
+    drop: !!r.drop,
+    steps: (r.steps ?? []).map((s) => ({ reps: s.reps != null ? String(s.reps) : '', weight: s.weight != null ? String(s.weight) : '', rest: s.rest != null ? String(s.rest) : '' })),
+  }))
+}
+// Resumo legível de uma prescrição série-a-série.
+function setRowsResumo(rows: GymSetRow[]): string {
+  if (!rows.length) return '–'
+  const parts = rows.map((r) => (r.drop ? (r.steps ?? []).map((s) => s.reps ?? 0).join('-') + '↓' : `${r.reps ?? 0}`))
+  const weights = rows.flatMap((r) => (r.drop ? (r.steps ?? []).map((s) => s.weight) : [r.weight])).filter((w): w is number => w != null && w > 0)
+  let wTxt = ''
+  if (weights.length) { const mn = Math.min(...weights), mx = Math.max(...weights); wTxt = mn === mx ? ` · ${mn}kg` : ` · ${mn}-${mx}kg` }
+  return `${rows.length} séries (${parts.join(' · ')})${wTxt}`
+}
 
 type DraftExercise = {
   uid: string
@@ -133,12 +171,14 @@ type DraftExercise = {
   group: string
   subGroup?: string | null
   type: 'strength' | 'time'
+  mode: 'uniform' | 'perSet'
   sets: number
   reps: number
   weight: number
   rest: number
   duration: number
   notes?: string | null
+  setRows?: GymSetRow[] | null
   media?: MediaItem[]
 }
 
@@ -259,6 +299,110 @@ function NumField({ label, value, onChange }: { label: string; value: string; on
         className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm px-2.5 py-1.5 focus:outline-none focus:border-accent"
       />
     </label>
+  )
+}
+
+// Input numérico compacto (sem label) para as tabelas série-a-série.
+const SET_NUM_CLS = 'w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm tabular-nums px-2 py-1.5 focus:outline-none focus:border-accent'
+function SetNum({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return <input type="number" min={0} value={value} placeholder="—" onChange={(e) => onChange(e.target.value)} className={SET_NUM_CLS} />
+}
+
+// ── Editor série-a-série (com séries compostas / dropsets) ─────────────────────
+// Cada série pode ser normal (reps/peso/desc.) ou composta (vários passos, ex.
+// dropset). `rest` é sempre o descanso DEPOIS da série inteira. Tudo é registado.
+function SetRowsEditor({ rows, onChange }: { rows: SetRowDraft[]; onChange: (rows: SetRowDraft[]) => void }) {
+  const setRow = (i: number, patch: Partial<SetRowDraft>) => onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
+  const addRow = () => { const last = rows[rows.length - 1]; onChange([...rows, emptySetRow(last && !last.drop ? { reps: last.reps, weight: last.weight, rest: last.rest } : undefined)]) }
+  const delRow = (i: number) => onChange(rows.filter((_, idx) => idx !== i))
+  const toggleDrop = (i: number) => setRow(i, rows[i].drop
+    ? { drop: false }
+    : { drop: true, steps: [{ reps: rows[i].reps || '12', weight: rows[i].weight || '40', rest: '0' }, { reps: '8', weight: String(Math.round((Number(rows[i].weight) || 40) * 0.8)), rest: '0' }] })
+  const setStep = (i: number, j: number, patch: Partial<SetStepDraft>) => setRow(i, { steps: rows[i].steps.map((s, sj) => (sj === j ? { ...s, ...patch } : s)) })
+  const addStep = (i: number) => { const last = rows[i].steps[rows[i].steps.length - 1]; setRow(i, { steps: [...rows[i].steps, { reps: String(Math.max(1, (Number(last?.reps) || 8) - 2)), weight: String(Math.round((Number(last?.weight) || 30) * 0.85)), rest: '0' }] }) }
+  const delStep = (i: number, j: number) => setRow(i, { steps: rows[i].steps.filter((_, sj) => sj !== j) })
+
+  return (
+    <div className="space-y-1.5">
+      {rows.map((r, i) => (
+        <div key={i} className="rounded-lg border border-zinc-100 dark:border-zinc-800 p-2">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-[11px] font-medium text-zinc-500 tabular-nums">Série {i + 1}</span>
+            {r.drop && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 font-medium">Composta</span>}
+            <div className="ml-auto flex items-center gap-1">
+              <button type="button" onClick={() => toggleDrop(i)} title={r.drop ? 'Tornar série normal' : 'Tornar série composta (dropset)'} className={`w-6 h-6 flex items-center justify-center rounded ${r.drop ? 'text-amber-500' : 'text-zinc-400 hover:text-accent'}`}><Icon name="layers" className="w-3.5 h-3.5" /></button>
+              {rows.length > 1 && <button type="button" onClick={() => delRow(i)} title="Remover série" className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-red-500"><Icon name="trash" className="w-3.5 h-3.5" /></button>}
+            </div>
+          </div>
+          {!r.drop ? (
+            <div className="grid grid-cols-3 gap-2">
+              <label className="block"><span className="block text-[10px] text-zinc-400 mb-0.5">Reps</span><SetNum value={r.reps} onChange={(v) => setRow(i, { reps: v })} /></label>
+              <label className="block"><span className="block text-[10px] text-zinc-400 mb-0.5">Peso (kg)</span><SetNum value={r.weight} onChange={(v) => setRow(i, { weight: v })} /></label>
+              <label className="block"><span className="block text-[10px] text-zinc-400 mb-0.5">Desc. (s)</span><SetNum value={r.rest} onChange={(v) => setRow(i, { rest: v })} /></label>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <div className="grid grid-cols-[16px_1fr_1fr_1fr_22px] gap-2 px-0.5 text-[10px] text-zinc-400"><span /><span>Reps</span><span>Peso (kg)</span><span>Desc. (s)</span><span /></div>
+              {r.steps.map((s, j) => (
+                <div key={j} className="grid grid-cols-[16px_1fr_1fr_1fr_22px] gap-2 items-center">
+                  <span className="text-[10px] text-zinc-400 tabular-nums text-center">{j + 1}</span>
+                  <SetNum value={s.reps} onChange={(v) => setStep(i, j, { reps: v })} />
+                  <SetNum value={s.weight} onChange={(v) => setStep(i, j, { weight: v })} />
+                  <SetNum value={s.rest} onChange={(v) => setStep(i, j, { rest: v })} />
+                  <div className="flex justify-center">{r.steps.length > 1 && <button type="button" onClick={() => delStep(i, j)} title="Remover passo" className="w-5 h-6 flex items-center justify-center text-zinc-400 hover:text-red-500"><Icon name="x" className="w-3 h-3" /></button>}</div>
+                </div>
+              ))}
+              <div className="flex justify-end items-center gap-1.5 pt-0.5">
+                <span className="text-[10px] text-zinc-400">Após série (s)</span>
+                <input type="number" min={0} value={r.rest} onChange={(e) => setRow(i, { rest: e.target.value })} className={SET_NUM_CLS + ' w-16'} />
+              </div>
+              <button type="button" onClick={() => addStep(i)} className="w-full py-1.5 rounded-lg border border-dashed border-zinc-200 dark:border-zinc-700 text-[12px] text-zinc-500 hover:border-accent hover:text-accent transition flex items-center justify-center gap-1.5"><Icon name="plus" className="w-3 h-3" />Adicionar passo</button>
+            </div>
+          )}
+        </div>
+      ))}
+      <button type="button" onClick={addRow} className="w-full mt-1 py-1.5 rounded-lg border border-dashed border-zinc-200 dark:border-zinc-700 text-[13px] text-zinc-500 hover:border-accent hover:text-accent transition flex items-center justify-center gap-1.5"><Icon name="plus" className="w-3.5 h-3.5" />Adicionar série</button>
+    </div>
+  )
+}
+
+// Bloco partilhado de campos de prescrição de força/tempo (com toggle série-a-série),
+// usado tanto no editor de preset do catálogo como no "Ajustar p/ este treino".
+function StrengthFields({
+  mode, setRows, sets, reps, weight, rest,
+  onMode, onSetRows, onSets, onReps, onWeight, onRest,
+}: {
+  mode: 'uniform' | 'perSet'; setRows: SetRowDraft[]; sets: string; reps: string; weight: string; rest: string
+  onMode: (m: 'uniform' | 'perSet') => void; onSetRows: (r: SetRowDraft[]) => void
+  onSets: (v: string) => void; onReps: (v: string) => void; onWeight: (v: string) => void; onRest: (v: string) => void
+}) {
+  const goPerSet = () => {
+    onMode('perSet')
+    if (!setRows.length) {
+      const n = Math.max(1, Math.min(20, Number(sets) || 3))
+      onSetRows(Array.from({ length: n }, () => emptySetRow({ reps: reps || '10', weight: weight || '0', rest: rest || '60' })))
+    }
+  }
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Séries</span>
+        <div className="inline-flex p-0.5 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-xs">
+          <button type="button" onClick={() => onMode('uniform')} className={`px-2.5 py-1 rounded-md font-medium transition ${mode === 'uniform' ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500'}`}>Iguais</button>
+          <button type="button" onClick={goPerSet} className={`px-2.5 py-1 rounded-md font-medium transition ${mode === 'perSet' ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500'}`}>Série a série</button>
+        </div>
+      </div>
+      {mode === 'perSet' ? (
+        <SetRowsEditor rows={setRows} onChange={onSetRows} />
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <NumField label="Séries" value={sets} onChange={onSets} />
+          <NumField label="Reps" value={reps} onChange={onReps} />
+          <NumField label="Descanso (s)" value={rest} onChange={onRest} />
+          <NumField label="Peso (kg)" value={weight} onChange={onWeight} />
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -389,11 +533,15 @@ function CatalogoTab() {
   const presetResumo = (p: GymExercisePreset) =>
     (p as any).type === 'time'
       ? `${(p as any).duration ?? 0}s${p.rest ? ` · ${p.rest}s desc.` : ''}`
-      : `${p.sets ?? '–'}×${p.reps ?? '–'}${p.weight ? ` · ${p.weight}kg` : ''}${p.rest ? ` · ${p.rest}s` : ''}`
+      : (p as any).mode === 'perSet' && (p.setRows?.length)
+        ? setRowsResumo(p.setRows)
+        : `${p.sets ?? '–'}×${p.reps ?? '–'}${p.weight ? ` · ${p.weight}kg` : ''}${p.rest ? ` · ${p.rest}s` : ''}`
   const draftResumo = (p: PresetDraft) =>
     p.type === 'time'
       ? `${p.duration || '–'}s${p.rest ? ` · ${p.rest}s desc.` : ''}`
-      : `${p.sets || '–'}×${p.reps || '–'}${p.weight ? ` · ${p.weight}kg` : ''}${p.rest ? ` · ${p.rest}s` : ''}`
+      : p.mode === 'perSet' && p.setRows.length
+        ? setRowsResumo(setRowsToApi(p.setRows))
+        : `${p.sets || '–'}×${p.reps || '–'}${p.weight ? ` · ${p.weight}kg` : ''}${p.rest ? ` · ${p.rest}s` : ''}`
   const togCls = (on: boolean) => `py-1.5 rounded-lg border text-xs font-medium transition ${on ? 'border-accent bg-accent/[0.06] text-accent' : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'}`
   const setEditField = (patch: Partial<PresetDraft>) => setPresetEdit((pe) => (pe ? { ...pe, form: { ...pe.form, ...patch } } : pe))
   const savePresetEdit = () => {
@@ -412,12 +560,14 @@ function CatalogoTab() {
     name: p.name,
     contentKey: (p as any).contentKey ?? null,
     type: (p as any).type === 'time' ? 'time' : 'strength',
+    mode: (p as any).mode === 'perSet' && p.setRows?.length ? 'perSet' : 'uniform',
     sets: p.sets != null ? String(p.sets) : '',
     reps: p.reps != null ? String(p.reps) : '',
     weight: p.weight != null ? String(p.weight) : '',
     rest: p.rest != null ? String(p.rest) : '',
     duration: (p as any).duration != null ? String((p as any).duration) : '',
     notes: (p as any).notes ?? '',
+    setRows: apiToSetRowDrafts(p.setRows),
   })
 
   const startCreate = () => {
@@ -449,11 +599,14 @@ function CatalogoTab() {
       const cleanPresets = await Promise.all(
         presets.filter((p) => p.name.trim()).map(async (p) => {
           const pk = await ensureCmsName(p.contentKey, 'gym', p.name, defaultLang)
+          const perSet = p.type === 'strength' && p.mode === 'perSet' && p.setRows.length > 0
           return {
             id: p.id, name: p.name.trim(), contentKey: pk, type: p.type,
+            mode: perSet ? 'perSet' : 'uniform',
             sets: numOrNull(p.sets), reps: numOrNull(p.reps),
             weight: numOrNull(p.weight), rest: numOrNull(p.rest),
             duration: numOrNull(p.duration), notes: p.notes.trim() || null,
+            setRows: perSet ? setRowsToApi(p.setRows) : null,
           }
         }),
       )
@@ -648,12 +801,13 @@ function CatalogoTab() {
                     <NumField label="Descanso (s)" value={presetEdit.form.rest} onChange={(v) => setEditField({ rest: v })} />
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <NumField label="Séries" value={presetEdit.form.sets} onChange={(v) => setEditField({ sets: v })} />
-                    <NumField label="Reps" value={presetEdit.form.reps} onChange={(v) => setEditField({ reps: v })} />
-                    <NumField label="Descanso (s)" value={presetEdit.form.rest} onChange={(v) => setEditField({ rest: v })} />
-                    <NumField label="Peso (kg)" value={presetEdit.form.weight} onChange={(v) => setEditField({ weight: v })} />
-                  </div>
+                  <StrengthFields
+                    mode={presetEdit.form.mode} setRows={presetEdit.form.setRows}
+                    sets={presetEdit.form.sets} reps={presetEdit.form.reps} weight={presetEdit.form.weight} rest={presetEdit.form.rest}
+                    onMode={(m) => setEditField({ mode: m })} onSetRows={(r) => setEditField({ setRows: r })}
+                    onSets={(v) => setEditField({ sets: v })} onReps={(v) => setEditField({ reps: v })}
+                    onWeight={(v) => setEditField({ weight: v })} onRest={(v) => setEditField({ rest: v })}
+                  />
                 )}
                 <Input label="Notas (opcional)" value={presetEdit.form.notes} onChange={(ev: any) => setEditField({ notes: ev.target.value })} placeholder="Ex: cadência 2-0-2" />
                 <div className="flex justify-end gap-2">
@@ -687,35 +841,215 @@ function CatalogoTab() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Valores prescritos a partir de um preset (com fallbacks). Mantém-se editável.
-const presetValues = (p?: GymExercisePreset): Partial<DraftExercise> => ({
-  type: (p as any)?.type === 'time' ? 'time' : 'strength',
-  sets: p?.sets ?? 3,
-  reps: p?.reps ?? 10,
-  weight: p?.weight ?? 0,
-  rest: p?.rest ?? 60,
-  duration: (p as any)?.duration ?? 0,
-  notes: (p as any)?.notes ?? null,
+const presetValues = (p?: GymExercisePreset): Partial<DraftExercise> => {
+  const perSet = (p as any)?.mode === 'perSet' && !!p?.setRows?.length
+  return {
+    type: (p as any)?.type === 'time' ? 'time' : 'strength',
+    mode: perSet ? 'perSet' : 'uniform',
+    sets: p?.sets ?? 3,
+    reps: p?.reps ?? 10,
+    weight: p?.weight ?? 0,
+    rest: p?.rest ?? 60,
+    duration: (p as any)?.duration ?? 0,
+    notes: (p as any)?.notes ?? null,
+    setRows: perSet ? (p!.setRows as GymSetRow[]) : null,
+  }
+}
+
+// Mapeia um exercício de um DTO (treino/template/plano) para uma linha editável,
+// preservando type/mode/setRows (snapshot completo — tudo é registado).
+const dtoToRow = (e: any): DraftExercise => ({
+  uid: newUid(), exerciseId: e.exerciseId ?? null, name: e.name, group: e.group, subGroup: e.subGroup ?? null,
+  type: e.type === 'time' ? 'time' : 'strength',
+  mode: e.mode === 'perSet' ? 'perSet' : 'uniform',
+  sets: e.sets, reps: e.reps, weight: e.weight ?? 0, rest: e.rest ?? 60,
+  duration: e.duration ?? 0, notes: e.notes ?? null,
+  setRows: e.setRows ?? null,
+  media: (e.media ?? []) as MediaItem[],
+})
+// Serializa uma linha editável para o payload de exercício da API (com setRows).
+const rowToPayload = (r: DraftExercise) => ({
+  exerciseId: r.exerciseId, name: r.name, group: r.group, subGroup: r.subGroup ?? null,
+  type: r.type, mode: r.mode, sets: r.sets, reps: r.reps, weight: r.weight, rest: r.rest,
+  duration: r.duration, notes: r.notes, setRows: r.setRows ?? null, media: r.media,
 })
 
-// Selector de preset de uma linha de exercício — só aparece se o exercício do
-// catálogo tiver presets. Aplicar um preset pré-preenche os 4 campos (editáveis).
-function PresetPicker({ exercise, onPick }: { exercise?: GymExercise; onPick: (p: GymExercisePreset) => void }) {
-  const presets = exercise?.presets ?? []
-  const [val, setVal] = useState('')
-  if (presets.length === 0) return null
+// ─────────────────────────────────────────────────────────────────────────────
+// "Personalizado" = a prescrição da linha não corresponde a nenhum preset do
+// exercício (foi ajustada à mão para este treino). Comparamos com os valores que
+// aplicar o preset produziria (presetValues), para um preset aplicado coincidir.
+function presetMatchesRow(p: GymExercisePreset, r: DraftExercise): boolean {
+  const pv = presetValues(p)
+  if (pv.type !== r.type) return false
+  if (r.type === 'time') return pv.duration === r.duration && pv.rest === r.rest
+  if ((pv.mode === 'perSet') !== (r.mode === 'perSet')) return false
+  if (pv.mode === 'perSet') return JSON.stringify(pv.setRows ?? []) === JSON.stringify(r.setRows ?? [])
+  return pv.sets === r.sets && pv.reps === r.reps && pv.weight === r.weight && pv.rest === r.rest
+}
+function matchedPreset(catalog: GymExercise[], r: DraftExercise): GymExercisePreset | null {
+  const ex = catalog.find((c) => c.exerciseId === r.exerciseId)
+  return (ex?.presets ?? []).find((p) => presetMatchesRow(p, r)) ?? null
+}
+function isPersonalizado(catalog: GymExercise[], r: DraftExercise): boolean {
+  const ex = catalog.find((c) => c.exerciseId === r.exerciseId)
+  const presets = ex?.presets ?? []
+  return presets.length > 0 && !presets.some((p) => presetMatchesRow(p, r))
+}
+
+// Modal "Ajustar p/ este treino" — mesmos campos da criação/edição de preset.
+// Substitui a prescrição da linha só neste treino (marca-a como Personalizado).
+function AjustarModal({ row, onClose, onSave }: {
+  row: DraftExercise | null
+  onClose: () => void
+  onSave: (patch: Partial<DraftExercise>) => void
+}) {
+  const [type, setType] = useState<'strength' | 'time'>('strength')
+  const [mode, setMode] = useState<'uniform' | 'perSet'>('uniform')
+  const [sets, setSets] = useState('0')
+  const [reps, setReps] = useState('0')
+  const [weight, setWeight] = useState('0')
+  const [rest, setRest] = useState('0')
+  const [duration, setDuration] = useState('0')
+  const [notes, setNotes] = useState('')
+  const [setRows, setSetRows] = useState<SetRowDraft[]>([])
+  useEffect(() => {
+    if (!row) return
+    setType(row.type); setMode(row.mode === 'perSet' ? 'perSet' : 'uniform')
+    setSets(String(row.sets)); setReps(String(row.reps))
+    setWeight(String(row.weight)); setRest(String(row.rest)); setDuration(String(row.duration))
+    setNotes(row.notes ?? ''); setSetRows(apiToSetRowDrafts(row.setRows))
+  }, [row])
+  if (!row) return null
+  const togCls = (on: boolean) => `py-1.5 rounded-lg border text-xs font-medium transition ${on ? 'border-accent bg-accent/[0.06] text-accent' : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'}`
+  const save = () => {
+    const perSet = type === 'strength' && mode === 'perSet' && setRows.length > 0
+    onSave({
+      type, mode: perSet ? 'perSet' : 'uniform',
+      sets: Number(sets), reps: Number(reps), weight: Number(weight), rest: Number(rest),
+      duration: Number(duration), notes: notes.trim() || null,
+      setRows: perSet ? setRowsToApi(setRows) : null,
+    })
+  }
   return (
-    <Combobox
-      value={val}
-      onChange={(v) => {
-        setVal(v)
-        const p = presets.find((x) => x.id === v)
-        if (p) onPick(p)
-      }}
-      options={presets.map((p) => ({ value: p.id, label: p.name }))}
-      placeholder="Preset…"
-      searchPlaceholder="Pesquisar…"
-      className="w-32 shrink-0"
-    />
+    <Modal open onClose={onClose} width="max-w-md" title="Ajustar p/ este treino" subtitle={row.name}
+      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><Button icon="check" onClick={save}>Guardar</Button></>}>
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => setType('strength')} className={togCls(type === 'strength')}>Força (séries/reps)</button>
+          <button type="button" onClick={() => setType('time')} className={togCls(type === 'time')}>Tempo (duração)</button>
+        </div>
+        {type === 'time' ? (
+          <div className="grid grid-cols-2 gap-2">
+            <NumField label="Duração (s)" value={duration} onChange={setDuration} />
+            <NumField label="Descanso (s)" value={rest} onChange={setRest} />
+          </div>
+        ) : (
+          <StrengthFields
+            mode={mode} setRows={setRows} sets={sets} reps={reps} weight={weight} rest={rest}
+            onMode={setMode} onSetRows={setSetRows} onSets={setSets} onReps={setReps} onWeight={setWeight} onRest={setRest}
+          />
+        )}
+        <Input label="Notas (opcional)" value={notes} onChange={(e: any) => setNotes(e.target.value)} placeholder="Ex: cadência 2-0-2" />
+      </div>
+    </Modal>
+  )
+}
+
+// Lista partilhada de exercícios de um treino (preset + resumo + Ajustar +
+// Personalizado + drag). Usada por todos os editores de treino. Opera em `rows`.
+function ExerciseRowsEditor({ rows, setRows, catalog }: {
+  rows: DraftExercise[]
+  setRows: (updater: DraftExercise[] | ((prev: DraftExercise[]) => DraftExercise[])) => void
+  catalog: GymExercise[]
+}) {
+  const { colorOf } = useGymGroups()
+  const [addOpen, setAddOpen] = useState(false)
+  const [adjust, setAdjust] = useState<DraftExercise | null>(null)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
+  const addExercise = (ex: GymExercise) => {
+    const p0 = ex.presets?.[0]
+    setRows((r) => [...r, {
+      uid: newUid(), exerciseId: ex.exerciseId, name: ex.name, group: ex.muscleGroup, subGroup: ex.subGroup ?? null,
+      media: (ex.media ?? []) as MediaItem[], ...presetValues(p0),
+    } as DraftExercise])
+    setAddOpen(false)
+  }
+  const update = (uid: string, patch: Partial<DraftExercise>) => setRows((r) => r.map((row) => (row.uid === uid ? { ...row, ...patch } : row)))
+  const removeRow = (uid: string) => setRows((r) => r.filter((row) => row.uid !== uid))
+  const onDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    setRows((r) => {
+      const oldIdx = r.findIndex((x) => x.uid === active.id)
+      const newIdx = r.findIndex((x) => x.uid === over.id)
+      return oldIdx < 0 || newIdx < 0 ? r : arrayMove(r, oldIdx, newIdx)
+    })
+  }
+  const applyPreset = (uid: string, ex: GymExercise, presetId: string) => {
+    const p = (ex.presets ?? []).find((x) => x.id === presetId)
+    if (p) update(uid, presetValues(p))
+  }
+
+  if (rows.length === 0) {
+    return (
+      <>
+        <Card><EmptyState icon="layers" title="Treino vazio" desc="Adiciona exercícios da tua biblioteca." action={<Button icon="plus" onClick={() => setAddOpen(true)}>Adicionar exercício</Button>} /></Card>
+        <AddExercicioModal open={addOpen} catalog={catalog} onClose={() => setAddOpen(false)} onAdd={addExercise} />
+      </>
+    )
+  }
+
+  return (
+    <>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={rows.map((r) => r.uid)} strategy={verticalListSortingStrategy}>
+          <div className="space-y-2">
+            {rows.map((row, i) => {
+              const ex = catalog.find((c) => c.exerciseId === row.exerciseId)
+              const presets = ex?.presets ?? []
+              const matched = presets.find((p) => presetMatchesRow(p, row)) ?? null
+              const personalizado = presets.length > 0 && !matched
+              const resumo = row.type === 'time'
+                ? `${row.duration}s · ${row.rest}s desc.`
+                : row.mode === 'perSet' && row.setRows?.length
+                  ? setRowsResumo(row.setRows)
+                  : `${row.sets}×${row.reps} · ${row.weight}kg · ${row.rest}s`
+              return (
+                <Sortable key={row.uid} id={row.uid} className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 bg-white dark:bg-zinc-900">
+                  {(handle) => (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <DragHandle {...handle} />
+                        <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: colorOf(row.group) }}><span className="text-xs font-semibold">{i + 1}</span></span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">{row.name}</p>
+                          <p className="text-[11px] text-zinc-400">{row.group}{row.subGroup ? ` · ${row.subGroup}` : ''}</p>
+                        </div>
+                        <IconButton icon="trash" label="Remover" onClick={() => removeRow(row.uid)} />
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap mt-2 pl-10">
+                        {presets.length > 0 && (
+                          <div className="w-32 shrink-0">
+                            <Combobox value={matched?.id ?? ''} onChange={(id) => applyPreset(row.uid, ex!, id)} options={presets.map((p) => ({ value: p.id, label: p.name }))} placeholder="Preset…" searchPlaceholder="Pesquisar…" />
+                          </div>
+                        )}
+                        <span className="text-xs text-zinc-500 tabular-nums">{resumo}</span>
+                        {personalizado && <Badge tone="amber" dot>Personalizado</Badge>}
+                        <button type="button" onClick={() => setAdjust(row)} className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline"><Icon name="edit" className="w-3.5 h-3.5" />Ajustar p/ este treino</button>
+                      </div>
+                    </>
+                  )}
+                </Sortable>
+              )
+            })}
+          </div>
+        </SortableContext>
+        <Button variant="outline" icon="plus" className="w-full mt-2" onClick={() => setAddOpen(true)}>Adicionar exercício</Button>
+      </DndContext>
+      <AddExercicioModal open={addOpen} catalog={catalog} onClose={() => setAddOpen(false)} onAdd={addExercise} />
+      <AjustarModal row={adjust} onClose={() => setAdjust(null)} onSave={(patch) => { if (adjust) update(adjust.uid, patch); setAdjust(null) }} />
+    </>
   )
 }
 
@@ -737,11 +1071,8 @@ function WorkoutModal({ open, onClose, programId, workout, mode = 'weekly', cata
   const [days, setDays] = useState<number[]>([])
   const [dayLabel, setDayLabel] = useState('')
   const [rows, setRows] = useState<DraftExercise[]>([])
-  const [addOpen, setAddOpen] = useState(false)
   const { data: langData } = useGetSettingsLanguages()
   const defaultLang = langData?.default ?? 'pt'
-
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   // Reset when (re)opened or when editing a different workout
   useEffect(() => {
@@ -750,62 +1081,19 @@ function WorkoutModal({ open, onClose, programId, workout, mode = 'weekly', cata
     setContentKey((workout as any)?.contentKey ?? null)
     setDays(workout?.daysOfWeek ?? [])
     setDayLabel((workout as any)?.dayLabel ?? '')
-    setRows(
-      (workout?.exercises ?? []).map((e) => ({
-        uid: newUid(),
-        exerciseId: e.exerciseId ?? null, name: e.name, group: e.group,
-        subGroup: (e as any).subGroup ?? null,
-        type: (e as any).type === 'time' ? 'time' : 'strength',
-        sets: e.sets, reps: e.reps, weight: e.weight ?? 0, rest: e.rest ?? 60,
-        duration: (e as any).duration ?? 0, notes: (e as any).notes ?? null,
-        media: ((e as any).media ?? []) as MediaItem[],
-      })),
-    )
-    setAddOpen(false)
+    setRows((workout?.exercises ?? []).map(dtoToRow))
   }, [open, workout?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Associa um treino existente: copia exercícios (snapshot) + nome/chave se vazio.
   const associateTemplate = (templateId: string) => {
     const t = templates.find((x) => x.id === templateId)
     if (!t) return
-    const copied: DraftExercise[] = t.exercises.map((e) => ({
-      uid: newUid(), exerciseId: e.exerciseId ?? null, name: e.name, group: e.group, subGroup: (e as any).subGroup ?? null,
-      type: (e as any).type === 'time' ? 'time' : 'strength',
-      sets: e.sets, reps: e.reps, weight: e.weight ?? 0, rest: e.rest ?? 60,
-      duration: (e as any).duration ?? 0, notes: (e as any).notes ?? null,
-      media: ((e as any).media ?? []) as MediaItem[],
-    }))
+    const copied: DraftExercise[] = t.exercises.map(dtoToRow)
     setRows((r) => [...r, ...copied])
     if (!name.trim()) {
       setName(t.name)
       setContentKey((t as any).contentKey ?? null)
     }
-  }
-
-  const addExercise = (ex: GymExercise) => {
-    const p0 = ex.presets?.[0]
-    setRows((r) => [...r, {
-      uid: newUid(),
-      exerciseId: ex.exerciseId, name: ex.name, group: ex.muscleGroup, subGroup: ex.subGroup ?? null,
-      type: (p0 as any)?.type === 'time' ? 'time' : 'strength',
-      sets: p0?.sets ?? ex.defaultSets ?? 3, reps: p0?.reps ?? ex.defaultReps ?? 10,
-      weight: p0?.weight ?? ex.defaultWeight ?? 0, rest: p0?.rest ?? ex.defaultRest ?? 60,
-      duration: (p0 as any)?.duration ?? 0, notes: (p0 as any)?.notes ?? null,
-      media: (ex.media ?? []) as MediaItem[],
-    }])
-    setAddOpen(false)
-  }
-  const update = (uid: string, patch: Partial<DraftExercise>) =>
-    setRows((r) => r.map((row) => (row.uid === uid ? { ...row, ...patch } : row)))
-  const removeRow = (uid: string) => setRows((r) => r.filter((row) => row.uid !== uid))
-  const onRowsDragEnd = (e: DragEndEvent) => {
-    const { active, over } = e
-    if (!over || active.id === over.id) return
-    setRows((r) => {
-      const oldIdx = r.findIndex((x) => x.uid === active.id)
-      const newIdx = r.findIndex((x) => x.uid === over.id)
-      return oldIdx < 0 || newIdx < 0 ? r : arrayMove(r, oldIdx, newIdx)
-    })
   }
 
   const qc = useQueryClient()
@@ -836,6 +1124,7 @@ function WorkoutModal({ open, onClose, programId, workout, mode = 'weekly', cata
 
   const totalSeries = rows.reduce((s, r) => s + (r.type === 'time' ? 0 : (r.sets || 0)), 0)
   const gruposUsados = [...new Set(rows.map((r) => r.group))].filter(Boolean)
+  const personalizadosCount = rows.filter((r) => isPersonalizado(catalog, r)).length
 
   return (
     <div className="space-y-5">
@@ -864,63 +1153,7 @@ function WorkoutModal({ open, onClose, programId, workout, mode = 'weekly', cata
             )}
           </Card>
 
-          {rows.length === 0 ? (
-            <Card><EmptyState icon="layers" title="Treino vazio" desc="Adiciona exercícios da tua biblioteca." action={<Button icon="plus" onClick={() => setAddOpen(true)}>Adicionar exercício</Button>} /></Card>
-          ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onRowsDragEnd}>
-            <SortableContext items={rows.map((r) => r.uid)} strategy={verticalListSortingStrategy}>
-              <div className="space-y-2">
-                {rows.map((row, i) => (
-                  <Sortable key={row.uid} id={row.uid} className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 bg-white dark:bg-zinc-900">
-                    {(handle) => (
-                      <>
-                        <div className="flex items-center gap-2 mb-2">
-                          <DragHandle {...handle} />
-                          <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 text-xs font-semibold" style={{ background: colorOf(row.group) }}>{i + 1}</span>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">{row.name}</p>
-                            <p className="text-[11px] text-zinc-400">{row.group}{row.subGroup ? ` · ${row.subGroup}` : ''}</p>
-                          </div>
-                          <PresetPicker
-                            exercise={catalog.find((c) => c.exerciseId === row.exerciseId) as GymExercise | undefined}
-                            onPick={(p) => update(row.uid, presetValues(p))}
-                          />
-                          <IconButton icon="trash" label="Remover" onClick={() => removeRow(row.uid)} />
-                        </div>
-                        <div className="flex items-center gap-1.5 mb-2 pl-10">
-                          <button type="button" onClick={() => update(row.uid, { type: 'strength' })} className={`px-2 py-0.5 rounded-md border text-[11px] font-medium transition ${row.type !== 'time' ? 'border-accent bg-accent/[0.06] text-accent' : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'}`}>Força</button>
-                          <button type="button" onClick={() => update(row.uid, { type: 'time' })} className={`px-2 py-0.5 rounded-md border text-[11px] font-medium transition ${row.type === 'time' ? 'border-accent bg-accent/[0.06] text-accent' : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'}`}>Tempo</button>
-                        </div>
-                        <div className={`grid gap-2 pl-10 ${row.type === 'time' ? 'grid-cols-2' : 'grid-cols-4'}`}>
-                          {((row.type === 'time'
-                            ? [['Duração (s)', 'duration'], ['Descanso (s)', 'rest']]
-                            : [['Séries', 'sets'], ['Reps', 'reps'], ['Peso (kg)', 'weight'], ['Descanso (s)', 'rest']]) as [string, 'sets' | 'reps' | 'weight' | 'rest' | 'duration'][]).map(([label, field]) => (
-                            <label key={field} className="block">
-                              <span className="block text-[11px] font-medium text-zinc-500 mb-1">{label}</span>
-                              <input
-                                type="number" min={0}
-                                value={row[field]}
-                                onChange={(ev) => update(row.uid, { [field]: Number(ev.target.value) } as Partial<DraftExercise>)}
-                                className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm px-2.5 py-1.5 focus:outline-none focus:border-accent"
-                              />
-                            </label>
-                          ))}
-                        </div>
-                        <input
-                          value={row.notes ?? ''}
-                          onChange={(ev) => update(row.uid, { notes: ev.target.value })}
-                          placeholder="Notas (opcional)"
-                          className="mt-2 w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm px-2.5 py-1.5 focus:outline-none focus:border-accent text-zinc-800 dark:text-zinc-100 placeholder-zinc-400"
-                        />
-                      </>
-                    )}
-                  </Sortable>
-                ))}
-              </div>
-            </SortableContext>
-            <Button variant="outline" icon="plus" className="w-full mt-2" onClick={() => setAddOpen(true)}>Adicionar exercício</Button>
-          </DndContext>
-          )}
+          <ExerciseRowsEditor rows={rows} setRows={setRows} catalog={catalog} />
         </div>
 
         <div>
@@ -929,6 +1162,7 @@ function WorkoutModal({ open, onClose, programId, workout, mode = 'weekly', cata
             <div className="space-y-2.5 text-sm">
               <div className="flex justify-between"><span className="text-zinc-500">Exercícios</span><span className="font-medium text-zinc-800 dark:text-zinc-100 tabular-nums">{rows.length}</span></div>
               <div className="flex justify-between"><span className="text-zinc-500">Séries totais</span><span className="font-medium text-zinc-800 dark:text-zinc-100 tabular-nums">{totalSeries}</span></div>
+              <div className="flex justify-between"><span className="text-zinc-500">Personalizados</span><span className="font-medium text-zinc-800 dark:text-zinc-100 tabular-nums">{personalizadosCount}</span></div>
             </div>
             <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
               <p className="text-xs text-zinc-400 mb-2">Grupos trabalhados</p>
@@ -940,8 +1174,6 @@ function WorkoutModal({ open, onClose, programId, workout, mode = 'weekly', cata
           </Card>
         </div>
       </div>
-
-      <AddExercicioModal open={addOpen} catalog={catalog} onClose={() => setAddOpen(false)} onAdd={addExercise} />
     </div>
   )
 }
@@ -1003,55 +1235,15 @@ function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved, onCre
   const [name, setName] = useState('')
   const [contentKey, setContentKey] = useState<string | null>(null)
   const [rows, setRows] = useState<DraftExercise[]>([])
-  const [addOpen, setAddOpen] = useState(false)
   const { data: langData } = useGetSettingsLanguages()
   const defaultLang = langData?.default ?? 'pt'
-
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   useEffect(() => {
     if (!open) return
     setName(template?.name ?? '')
     setContentKey((template as any)?.contentKey ?? null)
-    setRows(
-      (template?.exercises ?? []).map((e) => ({
-        uid: newUid(),
-        exerciseId: e.exerciseId ?? null, name: e.name, group: e.group,
-        subGroup: (e as any).subGroup ?? null,
-        type: (e as any).type === 'time' ? 'time' : 'strength',
-        sets: e.sets, reps: e.reps, weight: e.weight ?? 0, rest: e.rest ?? 60,
-        duration: (e as any).duration ?? 0, notes: (e as any).notes ?? null,
-        media: ((e as any).media ?? []) as MediaItem[],
-      })),
-    )
-    setAddOpen(false)
+    setRows((template?.exercises ?? []).map(dtoToRow))
   }, [open, template?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const addExercise = (ex: GymExercise) => {
-    const p0 = ex.presets?.[0]
-    setRows((r) => [...r, {
-      uid: newUid(),
-      exerciseId: ex.exerciseId, name: ex.name, group: ex.muscleGroup, subGroup: ex.subGroup ?? null,
-      type: (p0 as any)?.type === 'time' ? 'time' : 'strength',
-      sets: p0?.sets ?? ex.defaultSets ?? 3, reps: p0?.reps ?? ex.defaultReps ?? 10,
-      weight: p0?.weight ?? ex.defaultWeight ?? 0, rest: p0?.rest ?? ex.defaultRest ?? 60,
-      duration: (p0 as any)?.duration ?? 0, notes: (p0 as any)?.notes ?? null,
-      media: (ex.media ?? []) as MediaItem[],
-    }])
-    setAddOpen(false)
-  }
-  const update = (uid: string, patch: Partial<DraftExercise>) =>
-    setRows((r) => r.map((row) => (row.uid === uid ? { ...row, ...patch } : row)))
-  const removeRow = (uid: string) => setRows((r) => r.filter((row) => row.uid !== uid))
-  const onRowsDragEnd = (e: DragEndEvent) => {
-    const { active, over } = e
-    if (!over || active.id === over.id) return
-    setRows((r) => {
-      const oldIdx = r.findIndex((x) => x.uid === active.id)
-      const newIdx = r.findIndex((x) => x.uid === over.id)
-      return oldIdx < 0 || newIdx < 0 ? r : arrayMove(r, oldIdx, newIdx)
-    })
-  }
 
   const qc = useQueryClient()
   const save = useMutation({
@@ -1074,6 +1266,7 @@ function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved, onCre
 
   const totalSeries = rows.reduce((s, r) => s + (r.type === 'time' ? 0 : (r.sets || 0)), 0)
   const gruposUsados = [...new Set(rows.map((r) => r.group))].filter(Boolean)
+  const personalizadosCount = rows.filter((r) => isPersonalizado(catalog, r)).length
 
   return (
     <div className="space-y-5">
@@ -1091,48 +1284,7 @@ function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved, onCre
               <CmsCombo label="Nome do treino" context="gym" value={contentKey} name={name} onChange={(key, nm) => { setContentKey(key); setName(nm) }} placeholder="Ex: Push A (Peito/Ombro/Tríceps)" />
             </Card>
 
-            {rows.length === 0 ? (
-              <Card><EmptyState icon="layers" title="Treino vazio" desc="Adiciona exercícios da tua biblioteca." action={<Button icon="plus" onClick={() => setAddOpen(true)}>Adicionar exercício</Button>} /></Card>
-            ) : (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onRowsDragEnd}>
-                <SortableContext items={rows.map((r) => r.uid)} strategy={verticalListSortingStrategy}>
-                  <div className="space-y-2">
-                    {rows.map((row, i) => (
-                      <Sortable key={row.uid} id={row.uid} className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 bg-white dark:bg-zinc-900">
-                        {(handle) => (
-                          <>
-                            <div className="flex items-center gap-2 mb-2">
-                              <DragHandle {...handle} />
-                              <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: colorOf(row.group) }}><span className="text-xs font-semibold">{i + 1}</span></span>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">{row.name}</p>
-                                <p className="text-[11px] text-zinc-400">{row.group}{row.subGroup ? ` · ${row.subGroup}` : ''}</p>
-                              </div>
-                              <PresetPicker exercise={catalog.find((c) => c.exerciseId === row.exerciseId) as GymExercise | undefined} onPick={(p) => update(row.uid, presetValues(p))} />
-                              <IconButton icon="trash" label="Remover" onClick={() => removeRow(row.uid)} />
-                            </div>
-                            <div className="flex items-center gap-1.5 mb-2 pl-9">
-                              <button type="button" onClick={() => update(row.uid, { type: 'strength' })} className={`px-2 py-0.5 rounded-md border text-[11px] font-medium transition ${row.type !== 'time' ? 'border-accent bg-accent/[0.06] text-accent' : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'}`}>Força</button>
-                              <button type="button" onClick={() => update(row.uid, { type: 'time' })} className={`px-2 py-0.5 rounded-md border text-[11px] font-medium transition ${row.type === 'time' ? 'border-accent bg-accent/[0.06] text-accent' : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'}`}>Tempo</button>
-                            </div>
-                            <div className={`grid gap-2 pl-9 ${row.type === 'time' ? 'grid-cols-2' : 'grid-cols-4'}`}>
-                              {((row.type === 'time' ? [['Duração (s)', 'duration'], ['Descanso (s)', 'rest']] : [['Séries', 'sets'], ['Reps', 'reps'], ['Peso (kg)', 'weight'], ['Descanso (s)', 'rest']]) as [string, 'sets' | 'reps' | 'weight' | 'rest' | 'duration'][]).map(([label, field]) => (
-                                <label key={field} className="block">
-                                  <span className="block text-[11px] font-medium text-zinc-500 mb-1">{label}</span>
-                                  <input type="number" min={0} value={row[field]} onChange={(ev) => update(row.uid, { [field]: Number(ev.target.value) } as Partial<DraftExercise>)} className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm px-2.5 py-1.5 focus:outline-none focus:border-accent" />
-                                </label>
-                              ))}
-                            </div>
-                            <input value={row.notes ?? ''} onChange={(ev) => update(row.uid, { notes: ev.target.value })} placeholder="Notas (opcional)" className="mt-2 ml-9 w-[calc(100%-2.25rem)] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm px-2.5 py-1.5 focus:outline-none focus:border-accent text-zinc-800 dark:text-zinc-100 placeholder-zinc-400" />
-                          </>
-                        )}
-                      </Sortable>
-                    ))}
-                  </div>
-                </SortableContext>
-                <Button variant="outline" icon="plus" className="w-full mt-2" onClick={() => setAddOpen(true)}>Adicionar exercício</Button>
-              </DndContext>
-            )}
+            <ExerciseRowsEditor rows={rows} setRows={setRows} catalog={catalog} />
           </div>
 
           <div>
@@ -1141,6 +1293,7 @@ function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved, onCre
               <div className="space-y-2.5 text-sm">
                 <div className="flex justify-between"><span className="text-zinc-500">Exercícios</span><span className="font-medium text-zinc-800 dark:text-zinc-100 tabular-nums">{rows.length}</span></div>
                 <div className="flex justify-between"><span className="text-zinc-500">Séries totais</span><span className="font-medium text-zinc-800 dark:text-zinc-100 tabular-nums">{totalSeries}</span></div>
+                <div className="flex justify-between"><span className="text-zinc-500">Personalizados</span><span className="font-medium text-zinc-800 dark:text-zinc-100 tabular-nums">{personalizadosCount}</span></div>
               </div>
               <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
                 <p className="text-xs text-zinc-400 mb-2">Grupos trabalhados</p>
@@ -1152,8 +1305,6 @@ function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved, onCre
             </Card>
           </div>
         </div>
-
-      <AddExercicioModal open={addOpen} catalog={catalog} onClose={() => setAddOpen(false)} onAdd={addExercise} />
     </div>
   )
 }
@@ -1261,10 +1412,8 @@ function ProgramasTab({ customerId }: { customerId: string }) {
           name: w.name,
           contentKey: (w as any).contentKey ?? null,
           daysOfWeek: w.daysOfWeek ?? [],
-          exercises: (w.exercises ?? []).map((e) => ({
-            exerciseId: e.exerciseId, name: e.name, group: e.group, subGroup: (e as any).subGroup ?? null,
-            sets: e.sets, reps: e.reps, weight: e.weight, rest: e.rest, media: (e as any).media ?? [],
-          })),
+          dayLabel: (w as any).dayLabel ?? null,
+          exercises: (w.exercises ?? []).map((e) => rowToPayload(dtoToRow(e))),
         } as any)
       }
     },
@@ -1747,18 +1896,13 @@ type DiaDraft = {
   label: string
   dayIndex: number | null         // semana: 0..6 (0=Dom); livre: null
   treinoId: string | null         // template de origem (para "treinos distintos")
+  workoutId?: string | null       // id do treino já existente no programa (preserva o id ao guardar)
   treinoName: string | null
   treinoContentKey: string | null
   rows: DraftExercise[]           // snapshot do treino; [] = descanso
 }
 
-const snapshotRows = (exs: any[]): DraftExercise[] => (exs ?? []).map((e) => ({
-  uid: newUid(), exerciseId: e.exerciseId ?? null, name: e.name, group: e.group, subGroup: (e as any).subGroup ?? null,
-  type: (e as any).type === 'time' ? 'time' : 'strength',
-  sets: e.sets, reps: e.reps, weight: e.weight ?? 0, rest: e.rest ?? 60,
-  duration: (e as any).duration ?? 0, notes: (e as any).notes ?? null,
-  media: ((e as any).media ?? []) as MediaItem[],
-}))
+const snapshotRows = (exs: any[]): DraftExercise[] => (exs ?? []).map(dtoToRow)
 
 // Datas (período do plano do cliente) — dois inputs nativos (início/fim), estilo da app.
 const todayISO = () => format(new Date(), 'yyyy-MM-dd')
@@ -1833,6 +1977,7 @@ function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
       const w = (workouts ?? []).find((x) => (x.daysOfWeek ?? []).includes(wd.value))
       return {
         uid: newUid(), label: wd.label, dayIndex: wd.value, treinoId: null,
+        workoutId: w?.id ?? null,
         treinoName: w?.name ?? null,
         treinoContentKey: w ? ((w as any).contentKey ?? null) : null,
         rows: w ? snapshotRows(w.exercises ?? []) : [],
@@ -1902,11 +2047,7 @@ function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
           name: d.treinoName?.trim() || 'Treino', contentKey: wkey,
           daysOfWeek: mode === 'weekly' && d.dayIndex !== null ? [d.dayIndex] : [],
           dayLabel: mode === 'free' ? (d.label.trim() || 'Dia') : null,
-          exercises: d.rows.map((r) => ({
-            exerciseId: r.exerciseId, name: r.name, group: r.group, subGroup: r.subGroup,
-            type: r.type, sets: r.sets, reps: r.reps, weight: r.weight, rest: r.rest,
-            duration: r.duration, notes: r.notes, media: r.media,
-          })),
+          exercises: d.rows.map(rowToPayload),
         }
       }))
       const body = { name: name.trim(), contentKey: planoKey, note: note || null, mode, workouts } as any
@@ -2133,35 +2274,10 @@ function DiaTreinoEditor({ initialName, initialContentKey, initialRows, catalog,
   const [name, setName] = useState(initialName)
   const [contentKey, setContentKey] = useState<string | null>(initialContentKey)
   const [rows, setRows] = useState<DraftExercise[]>(initialRows)
-  const [addOpen, setAddOpen] = useState(false)
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
-
-  const addExercise = (ex: GymExercise) => {
-    const p0 = ex.presets?.[0]
-    setRows((r) => [...r, {
-      uid: newUid(), exerciseId: ex.exerciseId, name: ex.name, group: ex.muscleGroup, subGroup: ex.subGroup ?? null,
-      type: (p0 as any)?.type === 'time' ? 'time' : 'strength',
-      sets: p0?.sets ?? ex.defaultSets ?? 3, reps: p0?.reps ?? ex.defaultReps ?? 10,
-      weight: p0?.weight ?? ex.defaultWeight ?? 0, rest: p0?.rest ?? ex.defaultRest ?? 60,
-      duration: (p0 as any)?.duration ?? 0, notes: (p0 as any)?.notes ?? null,
-      media: (ex.media ?? []) as MediaItem[],
-    }])
-    setAddOpen(false)
-  }
-  const update = (uid: string, patch: Partial<DraftExercise>) => setRows((r) => r.map((row) => (row.uid === uid ? { ...row, ...patch } : row)))
-  const removeRow = (uid: string) => setRows((r) => r.filter((row) => row.uid !== uid))
-  const onRowsDragEnd = (e: DragEndEvent) => {
-    const { active, over } = e
-    if (!over || active.id === over.id) return
-    setRows((r) => {
-      const oldIdx = r.findIndex((x) => x.uid === active.id)
-      const newIdx = r.findIndex((x) => x.uid === over.id)
-      return oldIdx < 0 || newIdx < 0 ? r : arrayMove(r, oldIdx, newIdx)
-    })
-  }
 
   const totalSeries = rows.reduce((s, r) => s + (r.type === 'time' ? 0 : (r.sets || 0)), 0)
   const gruposUsados = [...new Set(rows.map((r) => r.group))].filter(Boolean)
+  const personalizadosCount = rows.filter((r) => isPersonalizado(catalog, r)).length
 
   return (
     <div className="space-y-5">
@@ -2179,48 +2295,7 @@ function DiaTreinoEditor({ initialName, initialContentKey, initialRows, catalog,
             <CmsCombo label="Nome do treino" context="gym" value={contentKey} name={name} onChange={(k, nm) => { setContentKey(k); setName(nm) }} placeholder="Ex: Push A (Peito/Ombro/Tríceps)" />
           </Card>
 
-          {rows.length === 0 ? (
-            <Card><EmptyState icon="layers" title="Treino vazio" desc="Adiciona exercícios da tua biblioteca." action={<Button icon="plus" onClick={() => setAddOpen(true)}>Adicionar exercício</Button>} /></Card>
-          ) : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onRowsDragEnd}>
-              <SortableContext items={rows.map((r) => r.uid)} strategy={verticalListSortingStrategy}>
-                <div className="space-y-2">
-                  {rows.map((row, i) => (
-                    <Sortable key={row.uid} id={row.uid} className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 bg-white dark:bg-zinc-900">
-                      {(handle) => (
-                        <>
-                          <div className="flex items-center gap-2 mb-2">
-                            <DragHandle {...handle} />
-                            <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: colorOf(row.group) }}><span className="text-xs font-semibold">{i + 1}</span></span>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">{row.name}</p>
-                              <p className="text-[11px] text-zinc-400">{row.group}{row.subGroup ? ` · ${row.subGroup}` : ''}</p>
-                            </div>
-                            <PresetPicker exercise={catalog.find((c) => c.exerciseId === row.exerciseId) as GymExercise | undefined} onPick={(p) => update(row.uid, presetValues(p))} />
-                            <IconButton icon="trash" label="Remover" onClick={() => removeRow(row.uid)} />
-                          </div>
-                          <div className="flex items-center gap-1.5 mb-2 pl-9">
-                            <button type="button" onClick={() => update(row.uid, { type: 'strength' })} className={`px-2 py-0.5 rounded-md border text-[11px] font-medium transition ${row.type !== 'time' ? 'border-accent bg-accent/[0.06] text-accent' : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'}`}>Força</button>
-                            <button type="button" onClick={() => update(row.uid, { type: 'time' })} className={`px-2 py-0.5 rounded-md border text-[11px] font-medium transition ${row.type === 'time' ? 'border-accent bg-accent/[0.06] text-accent' : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'}`}>Tempo</button>
-                          </div>
-                          <div className={`grid gap-2 pl-9 ${row.type === 'time' ? 'grid-cols-2' : 'grid-cols-4'}`}>
-                            {((row.type === 'time' ? [['Duração (s)', 'duration'], ['Descanso (s)', 'rest']] : [['Séries', 'sets'], ['Reps', 'reps'], ['Peso (kg)', 'weight'], ['Descanso (s)', 'rest']]) as [string, 'sets' | 'reps' | 'weight' | 'rest' | 'duration'][]).map(([label, field]) => (
-                              <label key={field} className="block">
-                                <span className="block text-[11px] font-medium text-zinc-500 mb-1">{label}</span>
-                                <input type="number" min={0} value={row[field]} onChange={(ev) => update(row.uid, { [field]: Number(ev.target.value) } as Partial<DraftExercise>)} className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm px-2.5 py-1.5 focus:outline-none focus:border-accent" />
-                              </label>
-                            ))}
-                          </div>
-                          <input value={row.notes ?? ''} onChange={(ev) => update(row.uid, { notes: ev.target.value })} placeholder="Notas (opcional)" className="mt-2 ml-9 w-[calc(100%-2.25rem)] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm px-2.5 py-1.5 focus:outline-none focus:border-accent text-zinc-800 dark:text-zinc-100 placeholder-zinc-400" />
-                        </>
-                      )}
-                    </Sortable>
-                  ))}
-                </div>
-              </SortableContext>
-              <Button variant="outline" icon="plus" className="w-full mt-2" onClick={() => setAddOpen(true)}>Adicionar exercício</Button>
-            </DndContext>
-          )}
+          <ExerciseRowsEditor rows={rows} setRows={setRows} catalog={catalog} />
         </div>
 
         <div>
@@ -2229,6 +2304,7 @@ function DiaTreinoEditor({ initialName, initialContentKey, initialRows, catalog,
             <div className="space-y-2.5 text-sm">
               <div className="flex justify-between"><span className="text-zinc-500">Exercícios</span><span className="font-medium text-zinc-800 dark:text-zinc-100 tabular-nums">{rows.length}</span></div>
               <div className="flex justify-between"><span className="text-zinc-500">Séries totais</span><span className="font-medium text-zinc-800 dark:text-zinc-100 tabular-nums">{totalSeries}</span></div>
+              <div className="flex justify-between"><span className="text-zinc-500">Personalizados</span><span className="font-medium text-zinc-800 dark:text-zinc-100 tabular-nums">{personalizadosCount}</span></div>
             </div>
             <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
               <p className="text-xs text-zinc-400 mb-2">Grupos trabalhados</p>
@@ -2240,8 +2316,6 @@ function DiaTreinoEditor({ initialName, initialContentKey, initialRows, catalog,
           </Card>
         </div>
       </div>
-
-      <AddExercicioModal open={addOpen} catalog={catalog} onClose={() => setAddOpen(false)} onAdd={addExercise} />
     </div>
   )
 }
@@ -2277,6 +2351,7 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
       const w = (workouts ?? []).find((x) => (x.daysOfWeek ?? []).includes(wd.value))
       return {
         uid: newUid(), label: wd.label, dayIndex: wd.value, treinoId: null,
+        workoutId: w?.id ?? null,
         treinoName: w?.name ?? null,
         treinoContentKey: w ? ((w as any).contentKey ?? null) : null,
         rows: w ? snapshotRows(w.exercises ?? []) : [],
@@ -2288,7 +2363,7 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
     if (m === 'free') {
       setDias((program.workouts ?? []).map((w, i) => ({
         uid: newUid(), label: (w as any).dayLabel || `Dia ${i + 1}`, dayIndex: null,
-        treinoId: null, treinoName: w.name, treinoContentKey: (w as any).contentKey ?? null,
+        treinoId: null, workoutId: w.id, treinoName: w.name, treinoContentKey: (w as any).contentKey ?? null,
         rows: snapshotRows(w.exercises ?? []),
       })))
     } else {
@@ -2328,19 +2403,28 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
     mutationFn: async () => {
       const planoKey = await ensureCmsName(contentKey, 'gym', name, defaultLang)
       await putGymProgramsId(program.id, { name: name.trim(), contentKey: planoKey, note: note || null, mode, startDate: inicio || null, endDate: fim || null } as any)
-      for (const w of (program.workouts ?? [])) await deleteGymWorkoutsId(w.id)
+
+      // Preserva os ids dos treinos que já existem (PATCH), cria os novos (POST)
+      // e apaga os removidos (DELETE). Assim o histórico do cliente (logs por
+      // workoutId) e o "treino de hoje" continuam a bater certo após editar.
+      const kept = new Set<string>()
       for (const d of diasComTreino) {
         const wkey = await ensureCmsName(d.treinoContentKey, 'gym', d.treinoName?.trim() || 'Treino', defaultLang)
-        await postGymProgramsProgramidWorkouts(program.id, {
+        const body = {
           name: d.treinoName?.trim() || 'Treino', contentKey: wkey,
           daysOfWeek: mode === 'weekly' && d.dayIndex !== null ? [d.dayIndex] : [],
           dayLabel: mode === 'free' ? (d.label.trim() || 'Dia') : null,
-          exercises: d.rows.map((r) => ({
-            exerciseId: r.exerciseId, name: r.name, group: r.group, subGroup: r.subGroup,
-            type: r.type, sets: r.sets, reps: r.reps, weight: r.weight, rest: r.rest,
-            duration: r.duration, notes: r.notes, media: r.media,
-          })),
-        } as any)
+          exercises: d.rows.map(rowToPayload),
+        }
+        if (d.workoutId) {
+          await putGymWorkoutsId(d.workoutId, body as any)
+          kept.add(d.workoutId)
+        } else {
+          await postGymProgramsProgramidWorkouts(program.id, body as any)
+        }
+      }
+      for (const w of (program.workouts ?? [])) {
+        if (!kept.has(w.id)) await deleteGymWorkoutsId(w.id)
       }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: [{ url: '/gym/programs' }] }); toast.success('Plano do cliente atualizado'); onSaved(); onClose() },

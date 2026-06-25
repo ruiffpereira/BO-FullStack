@@ -10,9 +10,10 @@ test.describe("Rotas sem autenticação", () => {
     test(`${route} sem auth → mostra login`, async ({ page }) => {
       await page.goto(route);
 
-      // App should show login form (not crash, not show content)
+      // App mostra o login no mesmo URL (SPA, sem redirect) — a garantia é que
+      // se vê o ecrã de login e NÃO o conteúdo protegido.
       await expect(page.locator('button[type="submit"]')).toBeVisible({ timeout: 15_000 });
-      await expect(page).not.toHaveURL(new RegExp(route.replace("/", "")));
+      await expect(page.getByRole("heading", { name: "Entrar", level: 1 })).toBeVisible();
     });
   }
 

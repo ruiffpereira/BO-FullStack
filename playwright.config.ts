@@ -13,7 +13,10 @@ export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // 1 retry local (CI: 2): a suite corre em paralelo contra um backend partilhado
+  // e o mesmo utilizador admin autentica em vários workers — uma rara corrida de
+  // rotação de refresh token pode derrubar uma sessão; o retry reexecuta limpo.
+  retries: process.env.CI ? 2 : 1,
   workers: process.env.CI ? 1 : undefined,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {

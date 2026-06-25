@@ -52,9 +52,9 @@ test.describe("Logout", () => {
     const dashboard = new DashboardPage(page);
     await dashboard.logoutButton().click();
 
-    // After logout, app should return to login form
+    // After logout, app should return to login form (in-place, same URL).
     await expect(page.locator('button[type="submit"]')).toBeVisible({ timeout: 10_000 });
-    await expect(page).not.toHaveURL(/dashboard/);
+    await expect(page.getByRole("heading", { name: "Entrar", level: 1 })).toBeVisible();
   });
 });
 

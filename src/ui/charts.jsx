@@ -68,6 +68,64 @@ function AreaChart({ data, height = 180, valueKey = 'v', labelKey = 'm', format 
   );
 }
 
+// Multi-series line chart (one line per série). `series`: [{ name, color, values:(number|null)[] }].
+// `values` alinhado com `labels` (x). null = falha (a linha quebra nesse ponto).
+function LineChart({ labels, series, height = 220, format = (n) => n, refLine = null, refColor = '#1F8A5B', refLabel = '' }) {
+  const accent = useAccent();
+  const [hover, setHover] = useStateC(null);
+  const w = 560, h = height, pad = { t: 16, r: 12, b: 28, l: 40 };
+  const all = series.flatMap((s) => s.values).filter((v) => v != null);
+  if (all.length === 0) return null;
+  const domain = refLine != null ? [...all, refLine] : all;
+  const max = Math.max(...domain) * 1.12, min = Math.min(...domain) * 0.9;
+  const span = (max - min) || 1;
+  const n = labels.length;
+  const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
+  const x = (i) => (n === 1 ? pad.l + iw / 2 : pad.l + (iw * i) / (n - 1));
+  const y = (v) => pad.t + ih - (ih * (v - min)) / span;
+  // path com quebras nos nulls
+  const pathOf = (values) => {
+    let d = '', pen = false;
+    values.forEach((v, i) => {
+      if (v == null) { pen = false; return; }
+      d += `${pen ? 'L' : 'M'}${x(i)},${y(v)} `;
+      pen = true;
+    });
+    return d.trim();
+  };
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height }} onMouseLeave={() => setHover(null)}>
+      {[0.25, 0.5, 0.75, 1].map((g, i) => (
+        <line key={i} x1={pad.l} x2={w - pad.r} y1={pad.t + ih * g} y2={pad.t + ih * g} className="stroke-zinc-100 dark:stroke-zinc-800" strokeWidth="1" />
+      ))}
+      {[0, 0.25, 0.5, 0.75, 1].map((g, i) => (
+        <text key={i} x={pad.l - 6} y={pad.t + ih * g + 3} textAnchor="end" className="fill-zinc-400 text-[10px]">{Math.round(min + (max - min) * (1 - g))}</text>
+      ))}
+      {refLine != null && (
+        <g>
+          <line x1={pad.l} x2={w - pad.r} y1={y(refLine)} y2={y(refLine)} stroke={refColor} strokeWidth="1.5" strokeDasharray="5 4" />
+          <text x={w - pad.r} y={y(refLine) - 5} textAnchor="end" className="text-[10px] font-medium" fill={refColor}>{refLabel ? `${refLabel} ` : ''}{refLine} kg</text>
+        </g>
+      )}
+      {series.map((s, si) => (
+        <g key={si}>
+          <path d={pathOf(s.values)} fill="none" stroke={s.color || accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity={hover === null || hover === si ? 1 : 0.3} style={{ transition: 'opacity .15s' }} />
+          {s.values.map((v, i) => (v == null ? null : (
+            <circle key={i} cx={x(i)} cy={y(v)} r={hover === si ? 4 : 2.5} fill={s.color || accent} stroke="white" strokeWidth="1.5" />
+          )))}
+        </g>
+      ))}
+      {labels.map((lab, i) => (
+        <text key={i} x={x(i)} y={h - 8} textAnchor="middle" className="fill-zinc-400 text-[11px]">{lab}</text>
+      ))}
+      {/* hover por série (destaca a linha) via legenda externa controla `hover`; aqui só desenha */}
+      {series.map((s, si) => (
+        <rect key={'h' + si} x={pad.l} y={pad.t + (ih / series.length) * si} width={iw} height={ih / series.length} fill="transparent" onMouseEnter={() => setHover(si)} />
+      ))}
+    </svg>
+  );
+}
+
 // Vertical bar chart
 function BarChart({ data, height = 180, valueKey = 'v', labelKey = 'd', format = (n) => n }) {
   const accent = useAccent();
@@ -142,4 +200,4 @@ function Sparkline({ data, color, width = 90, height = 32, up = true }) {
   );
 }
 
-export { AreaChart, BarChart, DonutChart, Sparkline };
+export { AreaChart, LineChart, BarChart, DonutChart, Sparkline };

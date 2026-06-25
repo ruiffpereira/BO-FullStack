@@ -20,7 +20,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Button, IconButton, Badge, Input, Modal, PageHeader, EmptyState, Avatar, BADGE_TONES } from '../ui/ui.jsx'
-import { AreaChart, DonutChart } from '../ui/charts.jsx'
+import { LineChart, DonutChart } from '../ui/charts.jsx'
 import { useGetCustomers } from '../gen/backoffice/hooks/useGetCustomers.js'
 import { useGetGymExercises } from '../gen/backoffice/hooks/useGetGymExercises.js'
 import { postGymExercises } from '../gen/backoffice/hooks/usePostGymExercises.js'
@@ -524,7 +524,6 @@ function CatalogoTab() {
   // Layout do protótipo: sidebar de grupos (filtro) + pesquisa + cards expansíveis.
   const [grupoSel, setGrupoSel] = useState<string>('todos')
   const [q, setQ] = useState('')
-  const [expanded, setExpanded] = useState<string | null>(null)
   // Editor de preset inline (padrão do protótipo): cartões compactos + editor ao abrir.
   const [presetEdit, setPresetEdit] = useState<{ form: PresetDraft; isNew: boolean } | null>(null)
   const { data: langData } = useGetSettingsLanguages()
@@ -680,44 +679,35 @@ function CatalogoTab() {
             <EmptyState icon="box" title="Sem exercícios" desc="Cria exercícios para os usar nos treinos dos clientes." action={<Button icon="plus" onClick={startCreate}>Novo exercício</Button>} />
           ) : (
             <div className="space-y-2">
-              {filtered.map((e) => {
-                const isOpen = expanded === e.exerciseId
-                return (
-                  <Card key={e.exerciseId} className="overflow-hidden">
-                    <div className="flex items-center gap-3 p-3.5 cursor-pointer hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30" onClick={() => setExpanded(isOpen ? null : e.exerciseId)}>
-                      <span className="w-9 h-9 rounded-lg shrink-0" style={{ background: colorOf(e.muscleGroup) }} />
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-zinc-900 dark:text-white truncate">{e.name}</p>
-                        <p className="text-xs text-zinc-400">{e.muscleGroup}{e.subGroup ? ` · ${e.subGroup}` : ''}</p>
-                      </div>
-                      {!e.active && <Badge tone="neutral">Inactivo</Badge>}
-                      <Badge tone="neutral">{e.presets?.length ?? 0} preset{(e.presets?.length ?? 0) === 1 ? '' : 's'}</Badge>
-                      <span onClick={(ev) => ev.stopPropagation()}>
-                        <IconButton icon="edit" label="Editar" onClick={() => startEdit(e)} />
-                      </span>
-                      <Icon name="chevronDown" className={`w-4 h-4 text-zinc-300 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+              {filtered.map((e) => (
+                <Card key={e.exerciseId} className="overflow-hidden">
+                  <div className="flex items-center gap-3 p-3.5 cursor-pointer hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30" onClick={() => startEdit(e)}>
+                    <span className="w-9 h-9 rounded-lg shrink-0" style={{ background: colorOf(e.muscleGroup) }} />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-zinc-900 dark:text-white truncate">{e.name}</p>
+                      <p className="text-xs text-zinc-400">{e.muscleGroup}{e.subGroup ? ` · ${e.subGroup}` : ''}</p>
                     </div>
-                    {isOpen && (
-                      <div className="px-3.5 pb-3.5 pt-1 border-t border-zinc-50 dark:border-zinc-800/50">
-                        {(e.presets?.length ?? 0) > 0 ? (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                            {e.presets!.map((p) => (
-                              <div key={p.id} className="flex items-center gap-2.5 p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/40">
-                                <span className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 text-[10px] font-bold ${(p as any).type === 'time' ? 'bg-teal-100 text-teal-600 dark:bg-teal-500/20 dark:text-teal-300' : 'bg-accent/10 text-accent'}`}>{(p as any).type === 'time' ? 'T' : 'F'}</span>
-                                <div className="min-w-0"><p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{p.name}</p><p className="text-xs text-zinc-400 tabular-nums">{presetResumo(p)}</p></div>
-                              </div>
-                            ))}
+                    {!e.active && <Badge tone="neutral">Inactivo</Badge>}
+                    <Badge tone="neutral">{e.presets?.length ?? 0} preset{(e.presets?.length ?? 0) === 1 ? '' : 's'}</Badge>
+                    <span onClick={(ev) => ev.stopPropagation()} className="flex items-center gap-1">
+                      <IconButton icon="edit" label="Editar" onClick={() => startEdit(e)} />
+                      <IconButton icon="trash" label="Eliminar" className="hover:text-red-500" onClick={() => setConfirmDel(e)} />
+                    </span>
+                  </div>
+                  <div className="px-3.5 pb-3.5 pt-1 border-t border-zinc-50 dark:border-zinc-800/50">
+                    {(e.presets?.length ?? 0) > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                        {e.presets!.map((p) => (
+                          <div key={p.id} className="flex items-center gap-2.5 p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/40">
+                            <span className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 text-[10px] font-bold ${(p as any).type === 'time' ? 'bg-teal-100 text-teal-600 dark:bg-teal-500/20 dark:text-teal-300' : 'bg-accent/10 text-accent'}`}>{(p as any).type === 'time' ? 'T' : 'F'}</span>
+                            <div className="min-w-0"><p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{p.name}</p><p className="text-xs text-zinc-400 tabular-nums">{presetResumo(p)}</p></div>
                           </div>
-                        ) : <p className="text-xs text-zinc-400 mt-2">Sem presets.</p>}
-                        <div className="flex justify-end mt-3 gap-1">
-                          <Button variant="ghost" size="sm" icon="edit" onClick={() => startEdit(e)}>Gerir presets</Button>
-                          <Button variant="ghost" size="sm" icon="trash" className="text-red-500" onClick={() => setConfirmDel(e)}>Eliminar</Button>
-                        </div>
+                        ))}
                       </div>
-                    )}
-                  </Card>
-                )
-              })}
+                    ) : <p className="text-xs text-zinc-400 mt-2">Sem presets.</p>}
+                  </div>
+                </Card>
+              ))}
             </div>
           )}
         </div>
@@ -1776,12 +1766,33 @@ function ProgressoTab({ customerId }: { customerId: string }) {
 
   const totalGroupSets = byGroup.reduce((s, g) => s + (g.sets ?? 0), 0)
   const donut = byGroup.map((g) => ({ nome: g.group ?? '—', v: totalGroupSets ? Math.round(((g.sets ?? 0) / totalGroupSets) * 100) : 0, cor: colorOf(g.group ?? '') }))
-  // Últimas (até) 7 sessões do exercício selecionado — peso máximo por sessão.
-  const areaPoints = (selectedSeries?.points ?? []).slice(-7).map((p) => ({ m: (p.date ?? '').slice(5), v: p.weight ?? 0 }))
+  // Últimas (até) 7 sessões do exercício selecionado, cada uma com as suas séries.
+  const sessoes = (selectedSeries?.sessions ?? []).slice(-7)
+  const lineLabels = sessoes.map((s) => (s.date ?? '').slice(5))
+  // Uma linha por índice de série (Série 1, 2, …); falha quando a sessão teve menos séries.
+  const LINE_COLORS = ['#2A6FDB', '#1F8A5B', '#D97757', '#7C5CDB', '#E6B450', '#0EA5A4']
+  const maxSets = sessoes.length ? Math.min(6, Math.max(...sessoes.map((s) => s.sets?.length ?? 0))) : 0
+  const lineSeries = Array.from({ length: maxSets }, (_, k) => ({
+    name: `Série ${k + 1}`,
+    color: LINE_COLORS[k % LINE_COLORS.length],
+    values: sessoes.map((s) => (s.sets?.[k]?.weight ?? null)) as (number | null)[],
+  }))
+  // % e Δkg de cada série (1.ª → última sessão com valor).
+  const kgFmt = (n: number) => (Number.isInteger(n) ? `${n}` : n.toFixed(1))
+  const sgn = (n: number) => (n >= 0 ? '+' : '')
+  const lineStats = lineSeries.map((ls) => {
+    const present = ls.values.filter((v): v is number => v != null)
+    if (present.length < 1) return { dkg: 0, pct: 0 }
+    const first = present[0], last = present[present.length - 1]
+    return { dkg: last - first, pct: first > 0 ? Math.round(((last - first) / first) * 100) : 0 }
+  })
+  // % e kg totais de FORÇA = variação da 1RM estimada média (Epley) 1.ª → última sessão.
+  const e1rms = sessoes.map((s) => s.e1rm ?? 0).filter((x) => x > 0)
+  const totKg = e1rms.length ? Math.round(e1rms[e1rms.length - 1] - e1rms[0]) : 0
+  const totPct = e1rms.length && e1rms[0] > 0 ? Math.round(((e1rms[e1rms.length - 1] - e1rms[0]) / e1rms[0]) * 100) : 0
+  const totTone = totPct > 0 ? 'green' : totPct < 0 ? 'red' : 'neutral'
   // Peso prescrito pelo plano para o exercício selecionado (linha de referência verde).
   const planWeight = progress.find((p) => p.exerciseName === selectedSeries?.exerciseName)?.planWeight ?? null
-  // Com uma só sessão, mostra na mesma uma linha plana nesse peso máximo.
-  const areaData = areaPoints.length === 1 ? [{ m: '', v: areaPoints[0].v }, areaPoints[0]] : areaPoints
   const kfmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`)
   const adPct = adherence.percent ?? 0
   const adTone: 'green' | 'amber' | 'red' = adPct >= 80 ? 'green' : adPct >= 50 ? 'amber' : 'red'
@@ -1800,7 +1811,7 @@ function ProgressoTab({ customerId }: { customerId: string }) {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1">
             <div>
               <h3 className="font-semibold text-zinc-900 dark:text-white">Evolução de carga</h3>
-              <p className="text-[13px] text-zinc-500">Peso máximo nos últimos treinos</p>
+              <p className="text-[13px] text-zinc-500">Peso por série ao longo dos treinos</p>
             </div>
             {loadSeries.length > 0 && (
               <div className="w-full sm:w-56">
@@ -1812,8 +1823,29 @@ function ProgressoTab({ customerId }: { customerId: string }) {
               </div>
             )}
           </div>
-          {areaPoints.length >= 1 ? (
-            <AreaChart data={areaData} valueKey="v" labelKey="m" format={(n: number) => `${n} kg`} height={220} yAxis refLine={planWeight && planWeight > 0 ? planWeight : null} refColor="#1F8A5B" refLabel="Plano" />
+          {sessoes.length >= 1 ? (
+            <>
+              {/* Total de força (1RM estimada — Epley): % + kg */}
+              <div className="flex items-center gap-2 mb-2">
+                <Badge tone={totTone === 'green' ? 'green' : totTone === 'red' ? 'red' : 'neutral'} dot>
+                  Força {sgn(totPct)}{totPct}% · {sgn(totKg)}{totKg} kg
+                </Badge>
+                <span className="text-[11px] text-zinc-400">1RM estimada (média das séries)</span>
+              </div>
+              <LineChart labels={lineLabels} series={lineSeries} height={220} format={(n: number) => `${n} kg`} refLine={planWeight && planWeight > 0 ? planWeight : null} refColor="#1F8A5B" refLabel="Plano" />
+              {/* Legenda: cada série com a sua % e Δkg */}
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3">
+                {lineSeries.map((ls, k) => (
+                  <div key={k} className="flex items-center gap-1.5 text-xs">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: ls.color }} />
+                    <span className="text-zinc-600 dark:text-zinc-300">{ls.name}</span>
+                    <span className={`tabular-nums font-medium ${lineStats[k].dkg > 0 ? 'text-emerald-600 dark:text-emerald-400' : lineStats[k].dkg < 0 ? 'text-red-500' : 'text-zinc-400'}`}>
+                      {sgn(lineStats[k].pct)}{lineStats[k].pct}% · {sgn(lineStats[k].dkg)}{kgFmt(lineStats[k].dkg)} kg
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
             <p className="text-sm text-zinc-400 py-10 text-center">Sem dados de carga ainda.</p>
           )}

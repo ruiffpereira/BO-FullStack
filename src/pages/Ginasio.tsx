@@ -1700,27 +1700,58 @@ function SessaoModal({ sessao, onClose, colorOf }: { sessao: SessaoDetail; onClo
           {exs.map((e, i) => {
             const isTime = e.type === 'time'
             const sets = e.sets ?? []
-            // Só os dados do treino: séries feitas + volume do exercício. (Evolução → gráfico.)
-            const volume = isTime ? 0 : sets.reduce((acc, s) => acc + (s.weight ?? 0) * (s.reps ?? 0), 0)
+            const done = isTime ? (e.duration ?? 0) : (e.weight ?? 0)
+            // "Anterior" só conta com carga real (>0) — evita comparar contra 0 e mostrar "+X" falso.
+            const prevRaw = isTime ? e.prevDuration : e.prevWeight
+            const prev = prevRaw && prevRaw > 0 ? prevRaw : null
+            const plan = isTime ? e.planDuration : e.planWeight
+            const unit = isTime ? 's' : ' kg'
+            const delta = prev != null ? Math.round((done - prev) * 10) / 10 : null
+            const maxv = Math.max(done, prev ?? 0, plan ?? 0) * 1.12 || 1
+            const pct = (v: number) => Math.max(0, (v / maxv) * 100)
+            const meets = plan != null ? done >= plan : null
             return (
               <div key={i} className="p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
-                <div className="flex items-center gap-2">
-                  {e.group && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: colorOf(e.group) }} />}
-                  <p className="font-medium text-zinc-900 dark:text-white truncate flex-1 min-w-0">{e.exerciseName}</p>
-                  {volume > 0 && <span className="text-xs text-zinc-400 tabular-nums shrink-0">{volume} kg</span>}
-                </div>
-                {sets.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {sets.map((s, si) => (
-                      <span key={si} className="inline-flex items-center gap-1 text-xs tabular-nums px-2 py-1 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 text-zinc-700 dark:text-zinc-200">
-                        <span className="text-zinc-400">{si + 1}</span>
-                        {isTime ? `${s.duration ?? 0}s` : (s.weight ? `${s.weight}kg × ${s.reps ?? 0}` : `${s.reps ?? 0} reps`)}
-                      </span>
-                    ))}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex items-center gap-2">
+                    {e.group && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: colorOf(e.group) }} />}
+                    <div className="min-w-0">
+                      <p className="font-medium text-zinc-900 dark:text-white truncate">{e.exerciseName}</p>
+                      {sets.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {sets.map((s, si) => (
+                            <span key={si} className="text-[10px] tabular-nums px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
+                              {isTime ? `${s.duration ?? 0}s` : (s.weight ? `${s.weight}×${s.reps ?? 0}` : `${s.reps ?? 0} reps`)}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-zinc-400">{isTime ? `${e.duration ?? 0}s` : `${e.reps ?? 0} reps`}</p>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <p className="text-xs text-zinc-400 mt-1.5">{isTime ? `${e.duration ?? 0}s` : `${e.reps ?? 0} reps`}</p>
-                )}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-base font-semibold tabular-nums text-zinc-900 dark:text-white">{done}{unit}</span>
+                    {delta != null && delta !== 0 && (
+                      <span className={`text-[11px] font-semibold ${delta > 0 ? 'text-green-500' : 'text-red-400'}`}>{delta > 0 ? '↑ +' : '↓ '}{delta}{unit}</span>
+                    )}
+                  </div>
+                </div>
+                {/* Barras: anterior (cinza) + feito (verde/âmbar), linha do plano */}
+                <div className="mt-2.5 relative space-y-1.5">
+                  {plan != null && plan > 0 && (
+                    <div className="absolute -top-1 -bottom-1 z-10" style={{ left: `${pct(plan)}%` }}><div className="w-px h-full border-l border-dashed border-accent/80" /></div>
+                  )}
+                  {prev != null && (
+                    <div className="h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden"><div className="h-full rounded-full bg-zinc-300 dark:bg-zinc-600" style={{ width: `${pct(prev)}%` }} /></div>
+                  )}
+                  <div className="h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct(done)}%`, background: meets === false ? '#E6B450' : '#1F8A5B' }} /></div>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap mt-1.5 text-[10px] text-zinc-400">
+                  {prev != null && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-zinc-300 dark:bg-zinc-600" />Anterior {prev}{unit}</span>}
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: meets === false ? '#E6B450' : '#1F8A5B' }} />Feito {done}{unit}</span>
+                  {plan != null && plan > 0 && <span className="flex items-center gap-1 font-medium text-accent"><span className="w-2.5 border-t border-dashed border-accent" />Plano {plan}{unit}</span>}
+                </div>
               </div>
             )
           })}

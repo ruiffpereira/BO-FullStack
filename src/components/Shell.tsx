@@ -7,27 +7,27 @@ import { useAuth } from '../context/AuthContext'
 import { NotificationBell } from './NotificationBell'
 import { useSSE } from '../hooks/useSSE'
 
-const PERM_TO_PATH: Record<string, string> = {
+const PERM_TO_PATH: Record<string, string | string[]> = {
   VIEW_STATS:     '/financeiro',
   VIEW_EXPENSES:  '/despesas',
   VIEW_CUSTOMERS: '/clientes',
   VIEW_PRODUCTS:  '/loja',
   VIEW_SCHEDULE:  '/agenda',
-  VIEW_GYM:       '/ginasio',
+  VIEW_GYM:       ['/ginasio', '/financeiro'],
   VIEW_CMS:       '/conteudos',
   VIEW_ADMIN:     '/admin',
 }
 
 const ROUTE_META: Record<string, { nome: string; icon: string }> = {
-  '/dashboard':  { nome: 'Dashboard',  icon: 'dashboard' },
-  '/financeiro': { nome: 'Financeiro', icon: 'euro' },
-  '/despesas':   { nome: 'Despesas',   icon: 'card' },
-  '/clientes':   { nome: 'Clientes',   icon: 'users' },
-  '/loja':       { nome: 'Loja',       icon: 'store' },
-  '/agenda':     { nome: 'Agenda',     icon: 'calendar' },
-  '/ginasio':    { nome: 'Ginásio',    icon: 'trend' },
-  '/conteudos':  { nome: 'Conteúdos',  icon: 'layers' },
-  '/admin':      { nome: 'Admin',      icon: 'shield' },
+  '/dashboard':         { nome: 'Dashboard',  icon: 'dashboard' },
+  '/financeiro':        { nome: 'Financeiro', icon: 'euro' },
+  '/despesas':          { nome: 'Despesas',   icon: 'card' },
+  '/clientes':          { nome: 'Clientes',   icon: 'users' },
+  '/loja':              { nome: 'Loja',       icon: 'store' },
+  '/agenda':            { nome: 'Agenda',     icon: 'calendar' },
+  '/ginasio':           { nome: 'Ginásio',    icon: 'trend' },
+  '/conteudos':         { nome: 'Conteúdos',  icon: 'layers' },
+  '/admin':             { nome: 'Admin',      icon: 'shield' },
 }
 
 interface Props {
@@ -172,8 +172,10 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   const accessiblePaths = [
     '/dashboard',
     ...permissions
-      .map((p) => PERM_TO_PATH[p.name ?? ''])
-      .filter(Boolean)
+      .flatMap((p) => {
+        const v = PERM_TO_PATH[p.name ?? '']
+        return Array.isArray(v) ? v : v ? [v] : []
+      })
       .filter((v, i, arr) => arr.indexOf(v) === i),
   ]
 

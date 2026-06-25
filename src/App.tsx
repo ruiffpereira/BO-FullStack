@@ -5,7 +5,6 @@ import { Shell } from "./components/Shell";
 import { Login } from "./components/Login";
 import { SetupPassword } from "./pages/SetupPassword";
 import { Dashboard } from "./pages/Dashboard";
-import { Financeiro } from "./pages/Financeiro";
 import { Despesas } from "./pages/Despesas";
 import { Clientes } from "./pages/Clientes";
 import { Loja } from "./pages/Loja";
@@ -13,6 +12,7 @@ import { Agenda } from "./pages/Agenda";
 import { Admin } from "./pages/Admin";
 import { Conteudos } from "./pages/Conteudos";
 import { Ginasio } from "./pages/Ginasio";
+import { FinanceiroRoute } from "./pages/FinanceiroRoute";
 
 function App() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
@@ -58,7 +58,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/financeiro" element={<Financeiro />} />
+        <Route path="/financeiro" element={<FinanceiroRoute />} />
         <Route path="/despesas" element={<Despesas />} />
         <Route path="/clientes" element={<Clientes />} />
         <Route path="/loja" element={<Loja />} />

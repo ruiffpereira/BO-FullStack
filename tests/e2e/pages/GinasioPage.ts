@@ -21,9 +21,16 @@ export class GinasioPage {
     await this.page.waitForSelector('[role="dialog"]', { timeout: 5_000 });
   }
 
-  // ── Mensalidades ──
-  async openMensalidades() {
-    await this.page.getByRole("button", { name: /mensalidades/i }).first().click();
+  // ── Financeiro do ginásio (menu lateral "Financeiro"; mostra ginásio com VIEW_GYM) ──
+  async gotoFinanceiro() {
+    await this.page.goto("/financeiro");
+    await this.page.waitForURL("**/financeiro", { timeout: 15_000 });
+    // Se o KPI do ginásio já estiver visível (tenant só-ginásio), nada a fazer.
+    // Caso contrário (VIEW_STATS + VIEW_GYM) há um toggle Geral · Ginásio: o botão
+    // "Ginásio" do toggle está no conteúdo (depois da nav lateral) → usa o último.
+    if (!(await this.kpiRecebido().isVisible().catch(() => false))) {
+      await this.page.getByRole("button", { name: "Ginásio", exact: true }).last().click().catch(() => {});
+    }
   }
 
   async openSubscricoesSubtab() {

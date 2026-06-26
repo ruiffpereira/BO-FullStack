@@ -37,4 +37,18 @@ test.describe("Isolamento multi-tenant — cada tenant só vê os seus dados", (
     await expect(page.getByText(/Despesa A •/)).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText(/Despesa B •/)).toHaveCount(0);
   });
+
+  test("Ginásio: A só vê o seu exercício (Supino A), não o de B", async ({ page, context }) => {
+    await loginAs(context, "tenantA@e2e");
+    await page.goto("/ginasio");
+    await expect(page.getByText("Supino A")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Supino B")).toHaveCount(0);
+  });
+
+  test("Conteúdos (CMS): A só vê as suas entradas, não as de B", async ({ page, context }) => {
+    await loginAs(context, "tenantA@e2e");
+    await page.goto("/conteudos");
+    await expect(page.getByText("Bem-vindo A").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Bem-vindo B")).toHaveCount(0);
+  });
 });

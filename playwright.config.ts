@@ -23,7 +23,10 @@ export default defineConfig({
   // e o mesmo utilizador admin autentica em vários workers — uma rara corrida de
   // rotação de refresh token pode derrubar uma sessão; o retry reexecuta limpo.
   retries: process.env.CI ? 2 : 1,
-  workers: process.env.CI ? 1 : undefined,
+  // Serial: a API e2e é um único processo ts-node e os tenants partilhados fazem
+  // login por teste — concorrência causa sobrecarga + corridas de rotação de token.
+  // Em série a suite é mais lenta (~5min) mas 100% fiável.
+  workers: 1,
   reporter: [["list"], ["html", { open: "never" }]],
   // Semeia a BD api_e2e (tenants/permissões/dados) antes de toda a suite.
   globalSetup: "./tests/e2e/global-setup.ts",

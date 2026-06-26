@@ -21,7 +21,6 @@ import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Button, IconButton, Badge, Input, Modal, PageHeader, EmptyState, Avatar, BADGE_TONES } from '../ui/ui.jsx'
 import { LineChart, DonutChart } from '../ui/charts.jsx'
-import { MensalidadesTab } from './GymMensalidade'
 import { useGetCustomers } from '../gen/backoffice/hooks/useGetCustomers.js'
 import { useGetGymExercises } from '../gen/backoffice/hooks/useGetGymExercises.js'
 import { postGymExercises } from '../gen/backoffice/hooks/usePostGymExercises.js'
@@ -121,7 +120,7 @@ function GymGroupsProvider({ children }: { children: ReactNode }) {
   return <GymGroupsContext.Provider value={value}>{children}</GymGroupsContext.Provider>
 }
 
-type Tab = 'catalogo' | 'treinos' | 'planos' | 'clientes' | 'mensalidades'
+type Tab = 'catalogo' | 'treinos' | 'planos' | 'clientes'
 
 // Série-a-série: cada série tem reps/peso/descanso próprios (campos string p/ vazio).
 // Série composta (dropset): drop=true + passos; `rest` é o descanso após a série toda.
@@ -2799,7 +2798,6 @@ export function Ginasio() {
     { key: 'treinos', label: 'Treinos', icon: 'layers' },
     { key: 'planos', label: 'Planos', icon: 'calendar' },
     { key: 'clientes', label: 'Clientes', icon: 'user' },
-    { key: 'mensalidades', label: 'Mensalidades', icon: 'euro' },
   ]
 
   return (
@@ -2824,7 +2822,6 @@ export function Ginasio() {
       {tab === 'treinos' && <TreinosTab />}
       {tab === 'planos' && <PlanosTab />}
       {tab === 'clientes' && <ClientesTab customers={customers} />}
-      {tab === 'mensalidades' && <MensalidadesTab />}
     </div>
     </GymGroupsProvider>
   )

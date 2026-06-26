@@ -15,6 +15,10 @@ const MODULE_PERM_TO_PATH: Record<string, string> = {
   VIEW_GYM:       '/ginasio',
 }
 
+// Ordem fixa de apresentação na sidebar (independente de core/módulos/admin).
+// Cada item só aparece se for acessível ao tenant (permissões + admin).
+const MENU_ORDER = ['/dashboard', '/admin', '/clientes', '/conteudos', '/loja', '/agenda', '/ginasio', '/financeiro']
+
 const ROUTE_META: Record<string, { nome: string; icon: string }> = {
   '/dashboard':         { nome: 'Dashboard',  icon: 'dashboard' },
   '/financeiro':        { nome: 'Financeiro', icon: 'euro' },
@@ -167,14 +171,18 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   }
 
   const isAdmin = permissions.some((p) => p.name === 'VIEW_ADMIN')
-  const accessiblePaths = [
+  // Conjunto de rotas acessíveis (dashboard + módulos por permissão + core + admin)…
+  const accessible = new Set<string>([
     '/dashboard',
-    // Módulos (por permissão): agenda, loja, ginásio.
     ...permissions.map((p) => MODULE_PERM_TO_PATH[p.name ?? '']).filter(Boolean),
-    // Core (todos): clientes, financeiro, conteúdos.
     ...CORE_PATHS,
     ...(isAdmin ? ['/admin'] : []),
-  ].filter((v, i, arr) => arr.indexOf(v) === i)
+  ])
+  // …apresentadas pela ordem fixa de MENU_ORDER (extras desconhecidos vão para o fim).
+  const accessiblePaths = [
+    ...MENU_ORDER.filter((p) => accessible.has(p)),
+    ...[...accessible].filter((p) => !MENU_ORDER.includes(p)),
+  ]
 
   // Fecha o drawer ao navegar
   useEffect(() => { setDrawer(false) }, [location.pathname])

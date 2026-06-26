@@ -5,7 +5,7 @@ import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
-import { Card, Badge, Avatar, Modal, Input, Button, IconButton, PageHeader, EmptyState } from '../ui/ui.jsx'
+import { Card, Badge, Avatar, Modal, Input, Button, IconButton, PageHeader, EmptyState, Tabs } from '../ui/ui.jsx'
 import { useGetCustomers, getCustomersQueryKey } from '../gen/backoffice/hooks/useGetCustomers.js'
 import { useGetScheduleServices } from '../gen/backoffice/hooks/useGetScheduleServices.js'
 import { useGetCustomersIdHistory, getCustomersIdHistoryQueryKey } from '../gen/backoffice/hooks/useGetCustomersIdHistory.js'
@@ -74,11 +74,11 @@ export function Clientes() {
   const [selAppt, setSelAppt] = useState<HistoryAppt | null>(null)
   // Tab ativa na ficha do cliente (cada tab só aparece com a permissão respetiva).
   const profileTabs = [
-    ...(canSchedule ? [{ key: 'agenda' as const, label: 'Agenda', icon: 'calendar' }] : []),
-    ...(canGym ? [{ key: 'ginasio' as const, label: 'Ginásio', icon: 'euro' }] : []),
+    ...(canSchedule ? [{ id: 'agenda' as const, label: 'Agenda', icon: 'calendar' }] : []),
+    ...(canGym ? [{ id: 'ginasio' as const, label: 'Ginásio', icon: 'euro' }] : []),
   ]
   const [profileTab, setProfileTab] = useState<'agenda' | 'ginasio'>('agenda')
-  useEffect(() => { if (profileId) setProfileTab(profileTabs[0]?.key ?? 'agenda') }, [profileId]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (profileId) setProfileTab(profileTabs[0]?.id ?? 'agenda') }, [profileId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data, isLoading, isError } = useGetCustomers()
   const { data: svcData } = useGetScheduleServices({ query: { enabled: canSchedule } })
@@ -378,18 +378,11 @@ export function Clientes() {
 
             {/* Tabs por permissão (Agenda / Ginásio / …) */}
             {profileTabs.length > 0 && (
-              <div className="flex gap-1 p-1 rounded-xl bg-zinc-100 dark:bg-zinc-800/60 w-full">
-                {profileTabs.map((t) => (
-                  <button key={t.key} onClick={() => setProfileTab(t.key)}
-                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition ${profileTab === t.key ? 'bg-white dark:bg-zinc-900 text-accent shadow-sm' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}>
-                    <Icon name={t.icon} className="w-4 h-4" />{t.label}
-                  </button>
-                ))}
-              </div>
+              <Tabs tabs={profileTabs} value={profileTab} onChange={setProfileTab} fullWidth size="sm" />
             )}
 
             {/* Tab Ginásio — mensalidade do cliente */}
-            {profileTab === 'ginasio' && canGym && <ClienteMensalidade customerId={profileCustomer.customerId} />}
+            {profileTab === 'ginasio' && canGym && <ClienteMensalidade customerId={profileCustomer.customerId} dense />}
 
             {/* Tab Agenda — stats + histórico de marcações */}
             {profileTab === 'agenda' && canSchedule && loadingHistory && (

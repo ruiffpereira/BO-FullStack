@@ -14,6 +14,7 @@ import {
   Input,
   Modal,
   PageHeader,
+  Tabs,
 } from "../ui/ui.jsx";
 import { Combobox } from "../components/Combobox";
 
@@ -56,7 +57,9 @@ import {
 function TableWrapper({ children }: { children: React.ReactNode }) {
   return (
     <div className="overflow-hidden rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm">
-      <table className="w-full text-sm">{children}</table>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[34rem]">{children}</table>
+      </div>
     </div>
   );
 }
@@ -1381,12 +1384,12 @@ function SistemaTab() {
 
 // ─── Admin root ───────────────────────────────────────────────────────────────
 const TABS = [
-  ["utilizadores", "Utilizadores"],
-  ["permissoes", "Permissões"],
-  ["componentes", "Componentes"],
-  ["tokens", "Tokens de site"],
-  ["atividade", "Atividade"],
-  ["sistema", "Sistema"],
+  { id: "utilizadores", label: "Utilizadores", icon: "users" },
+  { id: "permissoes", label: "Permissões", icon: "shield" },
+  { id: "componentes", label: "Componentes", icon: "grid" },
+  { id: "tokens", label: "Tokens de site", icon: "key" },
+  { id: "atividade", label: "Atividade", icon: "clock" },
+  { id: "sistema", label: "Sistema", icon: "settings" },
 ] as const;
 
 export function Admin() {
@@ -1401,17 +1404,7 @@ export function Admin() {
         title="Admin"
         subtitle="Gere utilizadores, permissões e componentes."
       />
-      <div className="flex items-center gap-1 border-b border-zinc-200 dark:border-zinc-800 mb-6 overflow-x-auto">
-        {TABS.map(([id, label]) => (
-          <button
-            key={id}
-            onClick={() => setTab(id as typeof tab)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition ${tab === id ? "border-accent text-accent" : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <Tabs tabs={TABS as any} value={tab} onChange={(id) => setTab(id as typeof tab)} className="mb-6" />
       {tab === "utilizadores" && <UtilizadoresTab headers={headers} />}
       {tab === "permissoes" && <PermissoesTab headers={headers} />}
       {tab === "componentes" && <ComponentesTab headers={headers} />}

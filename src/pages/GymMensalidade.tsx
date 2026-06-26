@@ -4,6 +4,8 @@ import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Button, IconButton, Badge, Input, Select, Toggle, Modal, EmptyState, Avatar, BADGE_TONES } from '../ui/ui.jsx'
+import { DatePicker } from '../components/DatePicker'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useGetGymSubscriptions } from '../gen/backoffice/hooks/useGetGymSubscriptions.js'
 import { postGymSubscriptions } from '../gen/backoffice/hooks/usePostGymSubscriptions.js'
 import { putGymSubscriptionsId } from '../gen/backoffice/hooks/usePutGymSubscriptionsId.js'
@@ -18,7 +20,7 @@ import { deleteGymMensalidadePaymentsPaymentid } from '../gen/backoffice/hooks/u
 // ── Tipos (espelham a API; PT só na UI) ──────────────────────────────────────
 type Status = 'paid' | 'debt' | 'unpaid'
 export type Sub = { subscriptionId: string; name: string; price: number; dueDay: number; active: boolean; clientCount?: number }
-export type Payment = { paymentId: string; period: string; amount: number; dueDate: string; status: Status; paidAt: string | null; method: string | null; notes: string | null; paidAmount: number | null; debtSince: string | null; overdue: boolean }
+export type Payment = { paymentId: string; period: string; amount: number; dueDate: string; status: Status; paidAt: string | null; method: string | null; notes: string | null; paidAmount: number | null; debtSince: string | null; overdue: boolean; updatedAt?: string | null; createdAt?: string | null }
 export type Membership = { customerId: string; name: string; blocked: boolean; subscription: Sub | null; payments: Payment[]; currentPeriod: string; today: string }
 type FinanceRow = { customerId: string; name: string; blocked: boolean; subscription: Sub | null; payment: Payment | null; status: Status; overdue: boolean }
 type Finance = { period: string; today: string; kpis: { recebido: number; emDivida: number; emAtraso: number; mrr: number; blocked: number }; rows: FinanceRow[] }
@@ -29,12 +31,29 @@ const EST: Record<Status, { t: string; tone: keyof typeof BADGE_TONES }> = {
   debt: { t: 'Em dívida', tone: 'amber' },
   unpaid: { t: 'Não pago', tone: 'neutral' },
 }
+// Tema visual por estado do mês (inclui "overdue", que é derivado e não persistido).
+const STATUS_VIEW: Record<'paid' | 'debt' | 'unpaid' | 'overdue', {
+  label: string; tone: keyof typeof BADGE_TONES; icon: string; tint: string; fg: string; bar: string
+}> = {
+  paid: { label: 'Pago', tone: 'green', icon: 'check', tint: 'bg-emerald-50 dark:bg-emerald-500/10', fg: 'text-emerald-600 dark:text-emerald-400', bar: 'bg-emerald-500' },
+  debt: { label: 'Em dívida', tone: 'amber', icon: 'clock', tint: 'bg-amber-50 dark:bg-amber-500/10', fg: 'text-amber-600 dark:text-amber-400', bar: 'bg-amber-500' },
+  overdue: { label: 'Em atraso', tone: 'red', icon: 'alertTriangle', tint: 'bg-red-50 dark:bg-red-500/10', fg: 'text-red-600 dark:text-red-400', bar: 'bg-red-500' },
+  unpaid: { label: 'Não pago', tone: 'neutral', icon: 'euro', tint: 'bg-zinc-100 dark:bg-zinc-800', fg: 'text-zinc-500 dark:text-zinc-400', bar: 'bg-zinc-300 dark:bg-zinc-600' },
+}
 const METODOS = ['Numerário', 'MB Way', 'Transferência', 'Multibanco', 'Cartão']
 const eur = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' })
 const fmtEur = (n: number) => eur.format(n ?? 0)
 const MES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 const fmtPeriodo = (p?: string) => { if (!p) return '—'; const [y, m] = p.split('-'); return `${MES[+m - 1]} ${y}` }
+const MES_LONG = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+const fmtPeriodoLong = (p?: string) => { if (!p) return '—'; const [y, m] = p.split('-'); return `${MES_LONG[+m - 1]} ${y}` }
 const fmtData = (s?: string | null) => { if (!s) return '—'; const [y, m, d] = s.split('-'); return `${+d} ${MES[+m - 1]} ${y}` }
+const pad2 = (n: number) => String(n).padStart(2, '0')
+const shiftPeriod = (period: string, delta: number) => { const [y, m] = period.split('-').map(Number); const d = new Date(y, (m - 1) + delta, 1); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}` }
+const dueForPeriod = (period: string, dueDay = 8) => `${period}-${pad2(Math.min(28, Math.max(1, dueDay)))}`
+const daysUntil = (iso: string, today: string) => Math.round((Date.parse(iso) - Date.parse(today)) / 86400000)
+const fmtDateTime = (iso?: string | null) => { if (!iso) return '—'; return new Date(iso).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }
+const currentPeriod = () => new Date().toISOString().slice(0, 7)
 const AV_COLORS = ['#2A6FDB', '#1F8A5B', '#D97757', '#E6B450', '#7C5CDB', '#0EA5A4', '#DB2777']
 const colorFromName = (name: string) => { let h = 0; for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h); return AV_COLORS[Math.abs(h) % AV_COLORS.length] }
 
@@ -183,7 +202,7 @@ function PagamentoModal({ customerId, period, amount, onClose, onSaved }: { cust
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <Input label="Valor (€)" type="number" value={valor} onChange={(e: any) => setValor(e.target.value)} />
-          <label className="block"><span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Data</span><input type="date" value={pagoEm} onChange={(e) => setPagoEm(e.target.value)} className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 px-3 py-2 focus:outline-none focus:border-accent" /></label>
+          <label className="block"><span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Data</span><DatePicker value={pagoEm} onChange={setPagoEm} max={new Date().toISOString().slice(0, 10)} /></label>
         </div>
         <Select label="Método" value={metodo} onChange={(e: any) => setMetodo(e.target.value)}>{METODOS.map((m) => <option key={m}>{m}</option>)}</Select>
         <Input label="Notas (opcional)" value={notas} onChange={(e: any) => setNotas(e.target.value)} />
@@ -193,12 +212,15 @@ function PagamentoModal({ customerId, period, amount, onClose, onSaved }: { cust
 }
 
 // ── Painel de mensalidade de UM cliente (partilhado) ─────────────────────────
-export function ClienteMensalidade({ customerId }: { customerId: string }) {
+// `dense` = contexto estreito (modal da ficha do cliente): empilha tudo numa
+// coluna. Sem `dense` (página Mensalidades, larga) usa 2 colunas + tabela.
+export function ClienteMensalidade({ customerId, dense = false }: { customerId: string; dense?: boolean }) {
   const qc = useQueryClient()
   const { data, isLoading } = useGetGymMensalidadeCustomersCustomerid(customerId, { query: { enabled: !!customerId } })
   const mem = data as Membership | undefined
   const [atribuir, setAtribuir] = useState(false)
   const [pagModal, setPagModal] = useState<{ period: string; amount: number } | null>(null)
+  const [downgrade, setDowngrade] = useState<Exclude<Status, 'paid'> | null>(null)
 
   const onSaved = () => invalidateMens(qc)
   const upsert = useMutation({
@@ -210,151 +232,331 @@ export function ClienteMensalidade({ customerId }: { customerId: string }) {
     onSuccess: onSaved, onError: (e) => toast.error(getApiError(e)),
   })
 
-  if (isLoading || !mem) return <Card className="p-6 text-center text-zinc-400">A carregar mensalidade…</Card>
+  if (isLoading || !mem) return <Card className="p-6 text-center text-sm text-zinc-400">A carregar mensalidade…</Card>
   const sub = mem.subscription
   const period = mem.currentPeriod
-  const pagAtual = mem.payments.find((p) => p.period === period) ?? null
-  const estado: Status = pagAtual?.status ?? 'unpaid'
-  const atraso = pagAtual?.overdue ?? false
+  const realPay = mem.payments.find((p) => p.period === period) ?? null
+  // Mês corrente "automático": sem registo ainda → usa um efémero "por pagar".
+  // Marcar paga/dívida cria o registo via upsert (sem botão "Gerar mês").
+  const dueDefault = dueForPeriod(period, sub?.dueDay ?? 8)
+  const eff: Payment = realPay ?? {
+    paymentId: '', period, amount: sub?.price ?? 0, dueDate: dueDefault,
+    status: 'unpaid', paidAt: null, method: null, notes: null, paidAmount: null, debtSince: null,
+    overdue: mem.today > dueDefault, updatedAt: null, createdAt: null,
+  }
+  const estado: Status = eff.status
+  const atraso = eff.overdue
+  const view = STATUS_VIEW[atraso ? 'overdue' : estado]
+  const falta = Math.max(0, (eff.amount || 0) - (eff.paidAmount || 0))
   const setEstado = (st: Status) => {
-    if (st === 'paid') { setPagModal({ period, amount: pagAtual?.amount ?? sub?.price ?? 0 }); return }
+    if (st === 'paid') { setPagModal({ period, amount: eff.amount || sub?.price || 0 }); return }
+    // Baixar de "pago" para dívida/não pago apaga o registo do pagamento → confirmar.
+    if (estado === 'paid') { setDowngrade(st); return }
     upsert.mutate({ period, status: st })
   }
 
+  // Linha "Bloqueado" reutilizada (com e sem subscrição).
+  const blockRow = (
+    <div className="flex items-center justify-between gap-3">
+      <div><p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">Bloqueado</p><p className="text-xs text-zinc-400">Suspende o acesso à app do ginásio.</p></div>
+      <Toggle checked={mem.blocked} onChange={(v: boolean) => block.mutate(v)} />
+    </div>
+  )
+
+  // ── Corpo "mês corrente" (vive dentro do cartão da subscrição) ──
+  const monthBody = (
+    <div className="p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">Mês corrente</p>
+          <p className="font-semibold text-zinc-900 dark:text-white leading-tight truncate">{fmtPeriodoLong(period)}</p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-xl font-semibold text-zinc-900 dark:text-white tabular-nums leading-none">{fmtEur(eff.amount)}</p>
+          <Badge tone={view.tone} dot className="mt-2">{view.label}</Badge>
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-2.5">
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <span className="text-zinc-500">Vencimento</span>
+          <div className="w-40 shrink-0"><DatePicker value={eff.dueDate} onChange={(iso) => upsert.mutate({ period, dueDate: iso })} /></div>
+        </div>
+        {estado === 'paid' && (
+          <div className="flex items-center justify-between gap-2 text-sm">
+            <span className="text-zinc-500">Pago</span>
+            <span className="text-zinc-700 dark:text-zinc-200">{fmtData(eff.paidAt)}{eff.method ? ` · ${eff.method}` : ''}</span>
+          </div>
+        )}
+        {estado === 'debt' && (
+          <>
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="text-zinc-500">Em dívida desde</span>
+              <div className="w-40 shrink-0"><DatePicker value={eff.debtSince ?? mem.today} onChange={(iso) => upsert.mutate({ period, debtSince: iso })} /></div>
+            </div>
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="text-zinc-500">Já pagou</span>
+              <div className="relative"><span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-400 text-[13px]">€</span><input type="number" defaultValue={eff.paidAmount ?? 0} onBlur={(e) => upsert.mutate({ period, paidAmount: e.target.value === '' ? 0 : +e.target.value })} className={`w-24 ${dueInput} pl-5 border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-100`} /></div>
+            </div>
+            <div className="flex items-center justify-between text-sm pt-2.5 border-t border-zinc-100 dark:border-zinc-800">
+              <span className="text-zinc-500">Em falta</span>
+              <span className="font-semibold text-amber-600 dark:text-amber-400 tabular-nums">{fmtEur(falta)}</span>
+            </div>
+          </>
+        )}
+        {realPay?.updatedAt
+          ? <p className="text-[11px] text-zinc-400 pt-0.5">Registado a {fmtDateTime(realPay.updatedAt)}</p>
+          : <p className="text-[11px] text-zinc-400 pt-0.5">Sem registo ainda — marca o estado para registar.</p>}
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-1.5">
+        <button onClick={() => setEstado('paid')} className={`py-2 rounded-lg text-[13px] font-medium border transition ${estado === 'paid' ? 'bg-emerald-500 text-white border-emerald-500' : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-emerald-400 hover:text-emerald-600'}`}>Paga</button>
+        <button onClick={() => setEstado('debt')} className={`py-2 rounded-lg text-[13px] font-medium border transition ${estado === 'debt' ? 'bg-amber-500 text-white border-amber-500' : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-amber-400 hover:text-amber-600'}`}>Em dívida</button>
+        <button onClick={() => setEstado('unpaid')} className={`py-2 rounded-lg text-[13px] font-medium border transition ${estado === 'unpaid' ? 'bg-zinc-700 text-white border-zinc-700' : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-zinc-400'}`}>Não pago</button>
+      </div>
+    </div>
+  )
+
   return (
-    <div className="space-y-4">
+    <div className={dense ? 'space-y-3' : 'space-y-4'}>
       {mem.blocked && (
         <div className="flex items-center gap-3 p-3.5 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20">
           <Icon name="ban" className="w-5 h-5 text-red-500 shrink-0" />
-          <p className="text-sm text-red-700 dark:text-red-300 flex-1">Cliente <strong>bloqueado</strong> por falta de pagamento. O acesso fica suspenso até desbloquear.</p>
+          <p className="text-sm text-red-700 dark:text-red-300 flex-1">Cliente <strong>bloqueado</strong>. O acesso à app do ginásio fica suspenso até desbloquear.</p>
           <Button variant="outline" size="sm" onClick={() => block.mutate(false)}>Desbloquear</Button>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Subscrição + bloqueio */}
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-zinc-900 dark:text-white flex items-center gap-2"><Icon name="euro" className="w-4 h-4 text-zinc-400" />Subscrição</h3>
-            <Button variant="ghost" size="sm" icon={sub ? 'edit' : 'plus'} onClick={() => setAtribuir(true)}>{sub ? 'Trocar' : 'Atribuir'}</Button>
-          </div>
-          {sub ? (
-            <div className="flex items-center gap-3">
-              <span className="w-11 h-11 rounded-xl bg-accent/10 text-accent flex items-center justify-center shrink-0"><Icon name="euro" className="w-5 h-5" /></span>
-              <div><p className="font-medium text-zinc-900 dark:text-white">{sub.name}</p><p className="text-sm text-zinc-500"><span className="font-semibold text-zinc-800 dark:text-zinc-100">{fmtEur(sub.price)}</span>/mês · vence dia {sub.dueDay}</p></div>
+      {sub ? (
+        // Um só cartão: subscrição (cabeçalho) → mês corrente → bloqueio (rodapé),
+        // com a barra de estado a percorrer a lateral.
+        <Card className="overflow-hidden">
+          <div className="flex items-stretch">
+            <div className={`w-1 shrink-0 ${view.bar}`} aria-hidden />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 p-4 sm:p-5 border-b border-zinc-100 dark:border-zinc-800">
+                <span className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center shrink-0"><Icon name="euro" className="w-5 h-5" /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-zinc-900 dark:text-white truncate">{sub.name}</p>
+                  <p className="text-sm text-zinc-500"><span className="font-medium text-zinc-700 dark:text-zinc-200 tabular-nums">{fmtEur(sub.price)}</span>/mês · vence dia {sub.dueDay}</p>
+                </div>
+                <Button variant="ghost" size="sm" icon="edit" onClick={() => setAtribuir(true)}>Trocar</Button>
+              </div>
+              {monthBody}
+              <div className="px-4 sm:px-5 py-3.5 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40">{blockRow}</div>
             </div>
-          ) : <p className="text-sm text-zinc-400 py-2">Sem subscrição atribuída.</p>}
-          <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-50 dark:border-zinc-800">
-            <div><p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">Bloqueado</p><p className="text-xs text-zinc-400">Suspende o acesso do cliente.</p></div>
-            <Toggle checked={mem.blocked} onChange={(v: boolean) => block.mutate(v)} />
           </div>
         </Card>
-
-        {/* Mês atual */}
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-zinc-900 dark:text-white flex items-center gap-2"><Icon name="calendar" className="w-4 h-4 text-zinc-400" />{fmtPeriodo(period)}</h3>
-            <Badge tone={atraso ? 'red' : EST[estado].tone} dot>{atraso ? 'Em atraso' : EST[estado].t}</Badge>
+      ) : (
+        <Card className="p-6 border-dashed">
+          <div className="flex flex-col items-center text-center">
+            <span className="w-12 h-12 rounded-xl bg-accent/10 text-accent flex items-center justify-center mb-3"><Icon name="euro" className="w-6 h-6" /></span>
+            <h3 className="font-semibold text-zinc-900 dark:text-white">Sem mensalidade</h3>
+            <p className="text-sm text-zinc-500 mt-1 max-w-xs">Atribui uma subscrição para começar a cobrar a mensalidade deste cliente.</p>
+            <Button className="mt-4" icon="plus" onClick={() => setAtribuir(true)}>Atribuir subscrição</Button>
           </div>
-          {pagAtual ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-zinc-500">Vencimento</span>
-                <input type="date" value={pagAtual.dueDate} onChange={(e) => upsert.mutate({ period, dueDate: e.target.value })} className={`ml-auto ${dueInput} ${atraso ? 'border-red-300 text-red-600 dark:text-red-400' : 'border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200'}`} />
-              </div>
-              {estado === 'paid' && <p className="text-xs text-zinc-400">Pago em {fmtData(pagAtual.paidAt)}{pagAtual.method ? ` · ${pagAtual.method}` : ''}</p>}
-              {estado === 'debt' && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-zinc-500">Em dívida desde</span>
-                    <input type="date" value={pagAtual.debtSince ?? mem.today} onChange={(e) => upsert.mutate({ period, debtSince: e.target.value })} className={`ml-auto ${dueInput} border-amber-300 dark:border-amber-500/40 text-amber-600 dark:text-amber-400`} />
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-zinc-500">Já pagou</span>
-                    <div className="ml-auto relative"><span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-400 text-[13px]">€</span><input type="number" defaultValue={pagAtual.paidAmount ?? 0} onBlur={(e) => upsert.mutate({ period, paidAmount: e.target.value === '' ? 0 : +e.target.value })} className={`w-24 ${dueInput} pl-5 border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-100`} /></div>
-                  </div>
-                  <div className="flex items-center justify-between text-sm pt-2 border-t border-zinc-100 dark:border-zinc-800">
-                    <span className="text-zinc-500">Em falta</span>
-                    <span className="font-semibold text-amber-600 dark:text-amber-400 tabular-nums">{fmtEur(Math.max(0, (pagAtual.amount || 0) - (pagAtual.paidAmount || 0)))}</span>
-                  </div>
-                </div>
-              )}
-              <div className="grid grid-cols-3 gap-2">
-                <button onClick={() => setEstado('paid')} className={`py-2 rounded-lg text-[13px] font-medium border transition ${estado === 'paid' ? 'bg-emerald-500 text-white border-emerald-500' : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-emerald-400 hover:text-emerald-600'}`}>Paga</button>
-                <button onClick={() => setEstado('debt')} className={`py-2 rounded-lg text-[13px] font-medium border transition ${estado === 'debt' ? 'bg-amber-500 text-white border-amber-500' : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-amber-400 hover:text-amber-600'}`}>Em dívida</button>
-                <button onClick={() => setEstado('unpaid')} className={`py-2 rounded-lg text-[13px] font-medium border transition ${estado === 'unpaid' ? 'bg-zinc-700 text-white border-zinc-700' : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-zinc-400'}`}>Não pago</button>
-              </div>
+          <div className="mt-5 pt-4 border-t border-zinc-100 dark:border-zinc-800">{blockRow}</div>
+        </Card>
+      )}
+
+      {/* Histórico de pagamentos */}
+      {(sub || mem.payments.length > 0) && (
+        <Card className="overflow-hidden">
+          <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800">
+            <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Histórico de pagamentos</h3>
+            {mem.payments.length > 0 && <span className="text-xs text-zinc-400">{mem.payments.length} registo{mem.payments.length !== 1 ? 's' : ''}</span>}
+          </div>
+          {mem.payments.length === 0 ? (
+            <div className="px-5 py-8 text-center">
+              <p className="text-sm font-medium text-zinc-600 dark:text-zinc-300">Sem pagamentos ainda</p>
+              <p className="text-xs text-zinc-400 mt-1">Os registos de mensalidade aparecem aqui.</p>
             </div>
+          ) : dense ? (
+            <ul>
+              {mem.payments.map((p) => {
+                const pv = STATUS_VIEW[p.overdue ? 'overdue' : p.status]
+                return (
+                  <li key={p.paymentId} className="flex items-center gap-3 px-4 sm:px-5 py-2.5 border-b border-zinc-50 dark:border-zinc-800/50 last:border-0">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${pv.bar}`} aria-hidden />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-zinc-900 dark:text-white">{fmtPeriodo(p.period)}</p>
+                      <p className="text-xs text-zinc-400 truncate">{p.status === 'paid' ? (p.method || 'Pago') : p.overdue ? `Venceu ${fmtData(p.dueDate)}` : 'Por pagar'}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm text-zinc-700 dark:text-zinc-200 tabular-nums">{fmtEur(p.amount)}</p>
+                      <span className={`text-xs font-medium ${pv.fg}`}>{pv.label}</span>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
           ) : (
-            <div className="text-center py-3">
-              <p className="text-sm text-zinc-400 mb-3">Ainda não há registo para este mês.</p>
-              <Button size="sm" icon="plus" disabled={!sub || upsert.isPending} onClick={() => upsert.mutate({ period, status: 'unpaid' })}>Gerar mês</Button>
-              {!sub && <p className="text-xs text-zinc-400 mt-2">Atribui uma subscrição primeiro.</p>}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="text-left text-zinc-500 border-b border-zinc-100 dark:border-zinc-800">
+                  <th className="font-medium px-5 py-3">Mês</th><th className="font-medium px-4 py-3">Valor</th>
+                  <th className="font-medium px-4 py-3 hidden sm:table-cell">Vencimento</th><th className="font-medium px-4 py-3">Estado</th>
+                  <th className="font-medium px-4 py-3 hidden md:table-cell">Método</th>
+                </tr></thead>
+                <tbody>
+                  {mem.payments.map((p) => (
+                    <tr key={p.paymentId} className="border-b border-zinc-50 dark:border-zinc-800/50 last:border-0">
+                      <td className="px-5 py-3 font-medium text-zinc-900 dark:text-white">{fmtPeriodo(p.period)}</td>
+                      <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300 tabular-nums">{fmtEur(p.amount)}</td>
+                      <td className={`px-4 py-3 tabular-nums hidden sm:table-cell ${p.overdue ? 'text-red-500 font-medium' : 'text-zinc-400'}`}>{fmtData(p.dueDate)}</td>
+                      <td className="px-4 py-3"><Badge tone={p.overdue ? 'red' : EST[p.status].tone} dot>{p.overdue ? 'Em atraso' : EST[p.status].t}</Badge></td>
+                      <td className="px-4 py-3 text-zinc-400 hidden md:table-cell">{p.status === 'paid' ? (p.method || '—') : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </Card>
-      </div>
-
-      {/* Histórico de pagamentos */}
-      <Card className="overflow-hidden">
-        <div className="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800"><h3 className="font-semibold text-zinc-900 dark:text-white">Histórico de pagamentos</h3></div>
-        {mem.payments.length ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="text-left text-zinc-500 border-b border-zinc-100 dark:border-zinc-800">
-                <th className="font-medium px-5 py-3">Mês</th><th className="font-medium px-4 py-3">Valor</th>
-                <th className="font-medium px-4 py-3 hidden sm:table-cell">Vencimento</th><th className="font-medium px-4 py-3">Estado</th>
-                <th className="font-medium px-4 py-3 hidden md:table-cell">Método</th>
-              </tr></thead>
-              <tbody>
-                {mem.payments.map((p) => (
-                  <tr key={p.paymentId} className="border-b border-zinc-50 dark:border-zinc-800/50 last:border-0">
-                    <td className="px-5 py-3 font-medium text-zinc-900 dark:text-white">{fmtPeriodo(p.period)}</td>
-                    <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300 tabular-nums">{fmtEur(p.amount)}</td>
-                    <td className={`px-4 py-3 tabular-nums hidden sm:table-cell ${p.overdue ? 'text-red-500 font-medium' : 'text-zinc-400'}`}>{fmtData(p.dueDate)}</td>
-                    <td className="px-4 py-3"><Badge tone={p.overdue ? 'red' : EST[p.status].tone} dot>{p.overdue ? 'Em atraso' : EST[p.status].t}</Badge></td>
-                    <td className="px-4 py-3 text-zinc-400 hidden md:table-cell">{p.status === 'paid' ? (p.method || '—') : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : <EmptyState icon="euro" title="Sem pagamentos" desc="Ainda não há registos de mensalidade para este cliente." />}
-      </Card>
+      )}
 
       {atribuir && <AtribuirSubModal customerId={customerId} current={sub?.subscriptionId ?? null} onClose={() => setAtribuir(false)} onSaved={onSaved} />}
       {pagModal && <PagamentoModal customerId={customerId} period={pagModal.period} amount={pagModal.amount} onClose={() => setPagModal(null)} onSaved={onSaved} />}
+      <ConfirmDialog
+        open={!!downgrade}
+        onClose={() => setDowngrade(null)}
+        onConfirm={() => { if (downgrade) upsert.mutate({ period, status: downgrade }); setDowngrade(null) }}
+        variant="warning"
+        title="Alterar pagamento?"
+        description={<>Este mês está marcado como <strong>pago</strong>. Ao mudar para <strong>{downgrade === 'debt' ? 'em dívida' : 'não pago'}</strong>, o registo do pagamento (data, método e valor) é apagado. Tens a certeza?</>}
+        confirmLabel="Sim, alterar"
+        pendingLabel="A alterar…"
+      />
     </div>
   )
 }
 
-// ── Tab principal: Financeiro do ginásio (Mensalidades + Subscrições) ─────────
-function StatCard({ icon, tone, label, value }: { icon: string; tone: keyof typeof BADGE_TONES; label: string; value: string | number }) {
+// ── Cockpit de Cobranças: "quem falta cobrar este mês", cobra num clique ──────
+function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) => void }) {
+  const qc = useQueryClient()
+  const [period, setPeriod] = useState(currentPeriod())
+  const [filter, setFilter] = useState<'cobrar' | 'pago' | 'todos'>('cobrar')
+  const [q, setQ] = useState('')
+  const [pag, setPag] = useState<{ customerId: string; period: string; amount: number } | null>(null)
+  const { data, isLoading } = useGetGymMensalidadeFinance({ period })
+  const fin = data as Finance | undefined
+
+  if (isLoading || !fin) return <Card className="p-8 text-center text-sm text-zinc-400">A carregar…</Card>
+
+  const isPaid = (r: FinanceRow) => r.status === 'paid'
+  const billable = fin.rows.filter((r) => r.subscription)
+  const counts = { cobrar: billable.filter((r) => !isPaid(r)).length, pago: billable.filter(isPaid).length, todos: billable.length }
+  const base = filter === 'cobrar' ? billable.filter((r) => !isPaid(r)) : filter === 'pago' ? billable.filter(isPaid) : billable
+  const list = base
+    .filter((r) => r.name.toLowerCase().includes(q.toLowerCase()))
+    .sort((a, b) => (Number(b.overdue) - Number(a.overdue)) || a.name.localeCompare(b.name))
+
+  const previsto = fin.kpis.mrr
+  const recebido = fin.kpis.recebido
+  const pct = previsto > 0 ? Math.min(100, Math.round((recebido / previsto) * 100)) : 0
+  const porCobrarValor = billable
+    .filter((r) => !isPaid(r))
+    .reduce((s, r) => s + (r.payment ? Math.max(0, (r.payment.amount ?? 0) - (r.payment.paidAmount ?? 0)) : (r.subscription?.price ?? 0)), 0)
+
+  const dueInfo = (r: FinanceRow): { text: string; fg: string } => {
+    if (r.status === 'paid') return { text: r.payment?.method ? `Pago · ${r.payment.method}` : 'Pago', fg: 'text-emerald-600 dark:text-emerald-400' }
+    if (r.status === 'debt') return { text: `Falta ${fmtEur(Math.max(0, (r.payment?.amount ?? 0) - (r.payment?.paidAmount ?? 0)))}`, fg: 'text-amber-600 dark:text-amber-400' }
+    const dd = r.payment?.dueDate ?? dueForPeriod(period, r.subscription?.dueDay ?? 8)
+    const d = daysUntil(dd, fin.today)
+    if (d < 0) return { text: `Venceu há ${-d} dia${-d !== 1 ? 's' : ''}`, fg: 'text-red-600 dark:text-red-400' }
+    if (d === 0) return { text: 'Vence hoje', fg: 'text-amber-600 dark:text-amber-400' }
+    return { text: `Vence em ${d} dia${d !== 1 ? 's' : ''}`, fg: 'text-zinc-400' }
+  }
+
   return (
-    <Card className="p-4 flex items-center gap-3">
-      <span className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${BADGE_TONES[tone]}`}><Icon name={icon} className="w-5 h-5" /></span>
-      <div><p className="text-xl font-semibold text-zinc-900 dark:text-white tabular-nums">{value}</p><p className="text-[13px] text-zinc-500">{label}</p></div>
-    </Card>
+    <div className="space-y-5">
+      {/* Mês + resumo de cobrança */}
+      <Card className="p-5">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="inline-flex items-center gap-1">
+            <IconButton icon="chevronLeft" label="Mês anterior" onClick={() => setPeriod((p) => shiftPeriod(p, -1))} />
+            <span className="text-sm font-semibold text-zinc-900 dark:text-white capitalize min-w-[130px] text-center">{fmtPeriodoLong(period)}</span>
+            <IconButton icon="chevronRight" label="Mês seguinte" onClick={() => setPeriod((p) => shiftPeriod(p, 1))} />
+          </div>
+          {period !== currentPeriod() && <Button variant="ghost" size="sm" onClick={() => setPeriod(currentPeriod())}>Mês atual</Button>}
+        </div>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Recebido</p>
+            <p className="text-3xl font-semibold text-zinc-900 dark:text-white tabular-nums leading-tight">{fmtEur(recebido)} <span className="text-base font-normal text-zinc-400">/ {fmtEur(previsto)}</span></p>
+          </div>
+          <div className="flex gap-6 text-sm">
+            <div><p className="text-zinc-400 text-xs">Por cobrar</p><p className="font-semibold text-zinc-800 dark:text-zinc-100 tabular-nums">{fmtEur(porCobrarValor)}</p></div>
+            <div><p className="text-zinc-400 text-xs">Em atraso</p><p className={`font-semibold tabular-nums ${fin.kpis.emAtraso ? 'text-red-600 dark:text-red-400' : 'text-zinc-800 dark:text-zinc-100'}`}>{fin.kpis.emAtraso}</p></div>
+            <div><p className="text-zinc-400 text-xs">MRR</p><p className="font-semibold text-zinc-800 dark:text-zinc-100 tabular-nums">{fmtEur(fin.kpis.mrr)}</p></div>
+          </div>
+        </div>
+        <div className="mt-3 h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+          <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+        </div>
+      </Card>
+
+      {/* Filtro + pesquisa */}
+      <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+        <div className="inline-flex rounded-lg border border-zinc-200 dark:border-zinc-700 p-0.5 bg-white dark:bg-zinc-900">
+          {([['cobrar', 'Por cobrar'], ['pago', 'Pagos'], ['todos', 'Todos']] as const).map(([id, label]) => (
+            <button key={id} onClick={() => setFilter(id)} className={`px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors ${filter === id ? 'bg-accent text-white' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}>
+              {label} <span className={filter === id ? 'opacity-80' : 'text-zinc-400'}>{counts[id]}</span>
+            </button>
+          ))}
+        </div>
+        <div className="relative sm:ml-auto sm:max-w-xs flex-1">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"><Icon name="search" className="w-[18px] h-[18px]" /></span>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Procurar cliente…" className="w-full bg-zinc-50 dark:bg-zinc-800/60 border border-transparent rounded-lg text-sm pl-10 pr-3 py-2 focus:bg-white dark:focus:bg-zinc-900 focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none text-zinc-800 dark:text-zinc-100" />
+        </div>
+      </div>
+
+      {/* Lista de cobrança */}
+      {billable.length === 0 ? (
+        <Card><EmptyState icon="euro" title="Sem clientes com plano" desc="Atribui uma subscrição a um cliente (na ficha do cliente ou na tab Subscrições) para começar a cobrar." /></Card>
+      ) : list.length === 0 ? (
+        <Card className="p-10 text-center text-sm text-zinc-400">{filter === 'cobrar' ? 'Tudo cobrado neste mês. 🎉' : 'Nada a mostrar.'}</Card>
+      ) : (
+        <Card className="overflow-hidden divide-y divide-zinc-50 dark:divide-zinc-800/50">
+          {list.map((r) => {
+            const di = dueInfo(r)
+            const amount = r.payment?.amount ?? r.subscription?.price ?? 0
+            return (
+              <div key={r.customerId} onClick={() => onOpen({ id: r.customerId, name: r.name })} className="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 cursor-pointer">
+                <Avatar name={r.name} color={colorFromName(r.name)} size={36} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-medium text-zinc-900 dark:text-white truncate">{r.name}</p>
+                    {r.blocked && <Badge tone="red">Bloqueado</Badge>}
+                  </div>
+                  <p className="text-xs text-zinc-400 truncate">{r.subscription?.name} · {fmtEur(r.subscription?.price ?? 0)} · <span className={di.fg}>{di.text}</span></p>
+                </div>
+                {isPaid(r) ? (
+                  <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums shrink-0">{fmtEur(amount)}</span>
+                ) : (
+                  <Button size="sm" icon="check" onClick={(e?: any) => { e?.stopPropagation(); setPag({ customerId: r.customerId, period, amount }) }}>Marcar pago</Button>
+                )}
+                <Icon name="chevronRight" className="w-4 h-4 text-zinc-300 shrink-0" />
+              </div>
+            )
+          })}
+        </Card>
+      )}
+
+      {pag && <PagamentoModal customerId={pag.customerId} period={pag.period} amount={pag.amount} onClose={() => setPag(null)} onSaved={() => invalidateMens(qc)} />}
+    </div>
   )
 }
 
+// ── Tab principal: Financeiro do ginásio (Cobranças + Subscrições) ────────────
 export function MensalidadesTab() {
-  const qc = useQueryClient()
-  const [aba, setAba] = useState<'mensalidades' | 'subscricoes'>('mensalidades')
+  const [aba, setAba] = useState<'cobrancas' | 'subscricoes'>('cobrancas')
   const [sel, setSel] = useState<{ id: string; name: string } | null>(null)
-  const { data, isLoading } = useGetGymMensalidadeFinance()
-  const fin = data as Finance | undefined
-
-  const marcar = useMutation({
-    mutationFn: ({ customerId, status }: { customerId: string; status: Status }) =>
-      postGymMensalidadeCustomersCustomeridPayments(customerId, { status } as any),
-    onSuccess: () => invalidateMens(qc), onError: (e) => toast.error(getApiError(e)),
-  })
 
   if (sel) {
     return (
       <div>
-        <button onClick={() => setSel(null)} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 mb-5"><Icon name="chevronLeft" className="w-4 h-4" />Voltar ao financeiro</button>
+        <button onClick={() => setSel(null)} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 mb-5"><Icon name="chevronLeft" className="w-4 h-4" />Voltar às cobranças</button>
         <div className="flex items-center gap-3 mb-5">
           <Avatar name={sel.name} color={colorFromName(sel.name)} size={48} />
           <div><h2 className="text-xl font-semibold text-zinc-900 dark:text-white">{sel.name}</h2><p className="text-sm text-zinc-500">Mensalidade</p></div>
@@ -367,71 +569,15 @@ export function MensalidadesTab() {
   return (
     <div>
       <div className="flex items-center gap-1 p-1 mb-5 bg-zinc-100 dark:bg-zinc-800/60 rounded-xl w-full sm:w-auto sm:inline-flex">
-        {([['mensalidades', 'Mensalidades', 'euro'], ['subscricoes', 'Subscrições', 'layers']] as const).map(([id, label, icon]) => (
+        {([['cobrancas', 'Cobranças', 'euro'], ['subscricoes', 'Subscrições', 'layers']] as const).map(([id, label, icon]) => (
           <button key={id} onClick={() => setAba(id)} className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${aba === id ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}>
             <Icon name={icon} className="w-4 h-4" />{label}
           </button>
         ))}
       </div>
 
+      {aba === 'cobrancas' && <CobrancasView onOpen={setSel} />}
       {aba === 'subscricoes' && <SubscricoesTab />}
-
-      {aba === 'mensalidades' && (
-        isLoading || !fin ? <Card className="p-8 text-center text-zinc-400">A carregar…</Card> : (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm text-zinc-500">Estado de {fmtPeriodo(fin.period)} · {fin.rows.length} clientes</p>
-              {fin.kpis.blocked > 0 && <Badge tone="red" dot>{fin.kpis.blocked} bloqueado{fin.kpis.blocked !== 1 ? 's' : ''}</Badge>}
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-              <StatCard icon="euro" tone="green" label="Recebido este mês" value={fmtEur(fin.kpis.recebido)} />
-              <StatCard icon="clock" tone="amber" label="Em dívida" value={fmtEur(fin.kpis.emDivida)} />
-              <StatCard icon="ban" tone="red" label="Em atraso" value={fin.kpis.emAtraso} />
-              <StatCard icon="trend" tone="blue" label="MRR potencial" value={fmtEur(fin.kpis.mrr)} />
-            </div>
-
-            {fin.rows.length ? (
-              <Card className="overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead><tr className="text-left text-zinc-500 border-b border-zinc-100 dark:border-zinc-800">
-                      <th className="font-medium px-4 sm:px-5 py-3">Cliente</th>
-                      <th className="font-medium px-4 py-3 hidden sm:table-cell">Subscrição</th>
-                      <th className="font-medium px-4 py-3">Valor</th>
-                      <th className="font-medium px-4 py-3 hidden md:table-cell">Vencimento</th>
-                      <th className="font-medium px-4 py-3">Estado</th>
-                      <th className="font-medium px-4 py-3 text-right">Ações</th>
-                    </tr></thead>
-                    <tbody>
-                      {fin.rows.map((r) => (
-                        <tr key={r.customerId} onClick={() => setSel({ id: r.customerId, name: r.name })} className="border-b border-zinc-50 dark:border-zinc-800/50 last:border-0 hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 cursor-pointer">
-                          <td className="px-4 sm:px-5 py-3">
-                            <div className="flex items-center gap-2.5">
-                              <Avatar name={r.name} color={colorFromName(r.name)} size={30} />
-                              <div className="min-w-0"><p className="font-medium text-zinc-900 dark:text-white truncate">{r.name}</p>{r.blocked && <span className="text-[11px] text-red-500 font-medium">Bloqueado</span>}</div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-zinc-500 hidden sm:table-cell">{r.subscription ? r.subscription.name : '—'}</td>
-                          <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300 tabular-nums">{r.subscription ? fmtEur(r.payment ? r.payment.amount : r.subscription.price) : '—'}</td>
-                          <td className={`px-4 py-3 tabular-nums hidden md:table-cell ${r.overdue ? 'text-red-500 font-medium' : 'text-zinc-400'}`}>{r.payment ? fmtData(r.payment.dueDate) : '—'}</td>
-                          <td className="px-4 py-3"><Badge tone={r.overdue ? 'red' : EST[r.status].tone} dot>{r.overdue ? 'Em atraso' : EST[r.status].t}</Badge></td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center justify-end gap-1">
-                              {r.status !== 'paid' && <button onClick={(e) => { e.stopPropagation(); marcar.mutate({ customerId: r.customerId, status: 'paid' }) }} className="px-2 py-1 rounded-md text-[12px] font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10">Paga</button>}
-                              {r.status !== 'debt' && <button onClick={(e) => { e.stopPropagation(); marcar.mutate({ customerId: r.customerId, status: 'debt' }) }} className="px-2 py-1 rounded-md text-[12px] font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10">Dívida</button>}
-                              <Icon name="chevronRight" className="w-4 h-4 text-zinc-300" />
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-            ) : <Card><EmptyState icon="euro" title="Sem clientes com mensalidade" desc="Atribui uma subscrição a um cliente (na ficha do cliente) para aparecer aqui." /></Card>}
-          </div>
-        )
-      )}
     </div>
   )
 }

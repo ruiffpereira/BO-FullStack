@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Icon } from '../ui/icons.jsx'
+import { Tabs } from '../ui/ui.jsx'
 import { useAuth } from '../context/AuthContext'
 import { Financeiro } from './Financeiro'
 import { Despesas } from './Despesas'
@@ -22,22 +22,15 @@ export function FinanceiroPage({ initialTab = 'negocio' }: { initialTab?: Financ
   const [tab, setTab] = useState<FinanceiroTab>(initialTab)
   const effectiveTab = tab === 'ginasio' && !canGym ? 'negocio' : tab
 
-  const tabs: [FinanceiroTab, string, string][] = [
-    ['negocio', 'O Negócio', 'euro'],
-    ['despesas', 'Despesas', 'card'],
-    ...(canGym ? [['ginasio', 'Ginásio', 'trend'] as [FinanceiroTab, string, string]] : []),
+  const tabs: { id: FinanceiroTab; label: string; icon: string }[] = [
+    { id: 'negocio', label: 'O Negócio', icon: 'euro' },
+    { id: 'despesas', label: 'Despesas', icon: 'card' },
+    ...(canGym ? [{ id: 'ginasio' as FinanceiroTab, label: 'Ginásio', icon: 'trend' }] : []),
   ]
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 p-1 rounded-xl bg-zinc-100 dark:bg-zinc-800/60 w-full sm:w-auto sm:inline-flex">
-        {tabs.map(([id, label, icon]) => (
-          <button key={id} onClick={() => setTab(id)}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${effectiveTab === id ? 'bg-white dark:bg-zinc-900 text-accent shadow-sm' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}>
-            <Icon name={icon} className="w-4 h-4" />{label}
-          </button>
-        ))}
-      </div>
+      <Tabs tabs={tabs} value={effectiveTab} onChange={setTab} />
       {effectiveTab === 'negocio' && <Financeiro />}
       {effectiveTab === 'despesas' && <Despesas />}
       {effectiveTab === 'ginasio' && <MensalidadesTab />}

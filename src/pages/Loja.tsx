@@ -20,6 +20,7 @@ import {
   PageHeader,
   EmptyState,
   ImgPlaceholder,
+  Tabs,
   BADGE_TONES,
 } from "../ui/ui.jsx";
 import { Combobox } from "../components/Combobox";
@@ -715,23 +716,16 @@ export function Loja() {
         ))}
       </div>
 
-      <div className="flex items-center gap-1 border-b border-zinc-200 dark:border-zinc-800 mb-5">
-        {(
-          [
-            ["produtos", "Produtos"],
-            ["encomendas", "Encomendas"],
-            ["categorias", "Categorias"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition ${tab === id ? "border-accent text-accent" : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        tabs={[
+          { id: "produtos", label: "Produtos", icon: "box" },
+          { id: "encomendas", label: "Encomendas", icon: "cart" },
+          { id: "categorias", label: "Categorias", icon: "folder" },
+        ]}
+        value={tab}
+        onChange={setTab}
+        className="mb-5"
+      />
 
       {tab === "produtos" && (
         <div>

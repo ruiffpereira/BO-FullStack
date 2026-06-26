@@ -89,13 +89,21 @@ function Select({ label, children, className = '', ...rest }) {
   );
 }
 
-function Toggle({ checked, onChange, size = 'md' }) {
-  const w = size === 'sm' ? 'w-9 h-5' : 'w-11 h-6';
-  const k = size === 'sm' ? 'w-3.5 h-3.5' : 'w-4.5 h-4.5';
-  const tx = size === 'sm' ? (checked ? 'translate-x-4' : 'translate-x-0.5') : (checked ? 'translate-x-5' : 'translate-x-1');
+function Toggle({ checked, onChange, size = 'md', disabled = false }) {
+  // Track com padding fixo + knob centrado por flexbox; só translateX no knob.
+  const d = size === 'sm'
+    ? { track: 'w-9 h-5', knob: 'h-4 w-4', on: 'translate-x-4' }
+    : { track: 'w-11 h-6', knob: 'h-5 w-5', on: 'translate-x-5' };
   return (
-    <button onClick={() => onChange(!checked)} className={`${w} rounded-full relative transition-colors shrink-0 ${checked ? 'bg-accent' : 'bg-zinc-200 dark:bg-zinc-700'}`}>
-      <span className={`absolute top-1/2 -translate-y-1/2 ${k} rounded-full bg-white shadow transition-transform ${tx}`} style={{ width: size === 'sm' ? 14 : 18, height: size === 'sm' ? 14 : 18 }} />
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`${d.track} inline-flex items-center rounded-full p-0.5 shrink-0 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-50 disabled:cursor-not-allowed ${checked ? 'bg-accent' : 'bg-zinc-300 dark:bg-zinc-600'}`}
+    >
+      <span className={`${d.knob} rounded-full bg-white shadow-sm transition-transform duration-200 ease-out ${checked ? d.on : 'translate-x-0'}`} />
     </button>
   );
 }
@@ -146,6 +154,45 @@ function ImgPlaceholder({ label = 'imagem', className = '', tint = '#2A6FDB', ro
   );
 }
 
+// Segmented pill tabs — the canonical way to switch sections across the app.
+// tabs: [{ id, label, icon? }]. Keyboard: ←/→ move between tabs.
+function Tabs({ tabs, value, onChange, fullWidth = false, size = 'md', className = '' }) {
+  const onKey = (e) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    e.preventDefault();
+    const i = tabs.findIndex((t) => t.id === value);
+    const dir = e.key === 'ArrowRight' ? 1 : -1;
+    onChange(tabs[(i + dir + tabs.length) % tabs.length].id);
+  };
+  const pad = size === 'sm' ? 'px-3 py-1.5' : 'px-3.5 py-2';
+  return (
+    <div role="tablist" onKeyDown={onKey}
+      className={`flex gap-1 p-1 rounded-xl bg-zinc-100 dark:bg-zinc-800/60 overflow-x-auto ${fullWidth ? 'w-full' : 'w-full sm:w-auto sm:inline-flex'} ${className}`}>
+      {tabs.map((t) => {
+        const active = t.id === value;
+        return (
+          <button key={t.id} role="tab" aria-selected={active} tabIndex={active ? 0 : -1}
+            onClick={() => onChange(t.id)}
+            className={`inline-flex items-center gap-1.5 ${pad} rounded-lg text-sm font-medium whitespace-nowrap transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${fullWidth ? 'flex-1 justify-center' : ''} ${active ? 'bg-white dark:bg-zinc-900 text-accent shadow-sm' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}>
+            {t.icon && <Icon name={t.icon} className="w-4 h-4" />}
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Eyebrow heading for sections inside a Card. Optional `right` slot for a count/action.
+function SectionTitle({ children, right, className = '' }) {
+  return (
+    <div className={`flex items-center justify-between gap-2 mb-3 ${className}`}>
+      <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">{children}</h2>
+      {right}
+    </div>
+  );
+}
+
 function PageHeader({ title, subtitle, children }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-6">
@@ -169,4 +216,4 @@ function EmptyState({ icon = 'box', title, desc, action }) {
   );
 }
 
-export { Card, Button, IconButton, Badge, Input, Select, Toggle, Avatar, Modal, ImgPlaceholder, PageHeader, EmptyState, BADGE_TONES };
+export { Card, Button, IconButton, Badge, Input, Select, Toggle, Avatar, Modal, ImgPlaceholder, PageHeader, EmptyState, Tabs, SectionTitle, BADGE_TONES };

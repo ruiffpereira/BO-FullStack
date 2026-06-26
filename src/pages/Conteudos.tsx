@@ -29,6 +29,7 @@ import {
   Button,
   PageHeader,
   EmptyState,
+  Tabs,
 } from "../ui/ui.jsx";
 import {
   useGetSettingsLanguages,
@@ -1482,22 +1483,7 @@ export function Conteudos() {
 
       {/* ── Tab bar ── */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-800/60 p-1 rounded-xl">
-          {visibleTabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === tab.id
-                  ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-sm"
-                  : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
-              }`}
-            >
-              <Icon name={tab.icon as any} className="w-4 h-4" />
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <Tabs tabs={visibleTabs} value={activeTab} onChange={setActiveTab} />
         {activeTab !== "linguas" && activeTab !== "emails" && (
           <button
             onClick={() => importFileRef.current?.click()}

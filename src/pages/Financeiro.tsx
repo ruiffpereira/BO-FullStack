@@ -1,23 +1,20 @@
 import { useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { Icon } from '../ui/icons.jsx'
-import { Card, Badge, PageHeader, EmptyState, BADGE_TONES } from '../ui/ui.jsx'
+import { Card, Badge, PageHeader, EmptyState, SectionTitle, BADGE_TONES } from '../ui/ui.jsx'
 import { useDashboard, type DashboardPeriod } from '../hooks/useDashboard'
 import { DEFAULT_CATEGORY_COLOR } from '../utils/expenseCategories'
+import { DateRangePicker, type DateRange } from '../components/DateRangePicker'
+import { format } from 'date-fns'
+import { pt } from 'date-fns/locale'
 
 const fmtEur = (n: number) =>
   '€' + (n || 0).toLocaleString('pt-PT', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })
 
-const todayStr = () => new Date().toISOString().split('T')[0]
-
-const PERIODS_ABS: { key: DashboardPeriod; label: string }[] = [
+// Um único conjunto de períodos (janelas progressivas, sem duplicar
+// "calendário" vs "rolling") + "Personalizado" via DateRangePicker.
+const PRESETS: { key: DashboardPeriod; label: string }[] = [
   { key: 'today', label: 'Hoje' },
-  { key: 'week', label: 'Semana' },
-  { key: 'month', label: 'Mês' },
-  { key: 'total', label: 'Total' },
-]
-
-const PERIODS_REL: { key: DashboardPeriod; label: string }[] = [
   { key: '7d', label: '7 dias' },
   { key: '30d', label: '30 dias' },
   { key: '90d', label: '90 dias' },
@@ -54,15 +51,14 @@ function Kpi({ label, value, icon, tone, delta, deltaGood = 'up', sub, loading }
   )
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-4">{children}</h2>
-}
 
 export function Financeiro() {
   const { username } = useAuth()
   const [period, setPeriod] = useState<DashboardPeriod>('30d')
-  const [customStart, setCustomStart] = useState(todayStr)
-  const [customEnd, setCustomEnd] = useState(todayStr)
+  const [range, setRange] = useState<DateRange | undefined>()
+  const [customOpen, setCustomOpen] = useState(false)
+  const customStart = range?.from ? format(range.from, 'yyyy-MM-dd') : ''
+  const customEnd = range?.to ? format(range.to, 'yyyy-MM-dd') : ''
   const { data, isLoading } = useDashboard(period, customStart, customEnd)
 
   const sched = data?.schedule
@@ -127,57 +123,40 @@ export function Financeiro() {
   return (
     <div className="space-y-6">
       <PageHeader title="Financeiro" subtitle={`Resumo do negócio${username ? `, ${username}` : ''}.`}>
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="inline-flex rounded-lg border border-zinc-200 dark:border-zinc-700 p-0.5 bg-white dark:bg-zinc-900">
-            {PERIODS_ABS.map((p) => (
+        <div className="relative">
+          <div className="inline-flex flex-wrap items-center rounded-lg border border-zinc-200 dark:border-zinc-700 p-0.5 bg-white dark:bg-zinc-900">
+            {PRESETS.map((p) => (
               <button
                 key={p.key}
-                onClick={() => setPeriod(p.key)}
+                onClick={() => { setPeriod(p.key); setCustomOpen(false) }}
                 className={`px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors ${period === p.key ? 'bg-accent text-white' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}
               >
                 {p.label}
               </button>
             ))}
+            <span className="w-px h-5 bg-zinc-200 dark:bg-zinc-700 mx-0.5" />
+            <button
+              onClick={() => { setPeriod('custom'); setCustomOpen((o) => !o) }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors ${period === 'custom' ? 'bg-accent text-white' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}
+            >
+              <Icon name="calendar" className="w-3.5 h-3.5" />
+              {period === 'custom' && range?.from && range?.to
+                ? `${format(range.from, 'd MMM', { locale: pt })} – ${format(range.to, 'd MMM', { locale: pt })}`
+                : 'Personalizado'}
+            </button>
           </div>
-          <div className="inline-flex rounded-lg border border-zinc-200 dark:border-zinc-700 p-0.5 bg-white dark:bg-zinc-900">
-            {PERIODS_REL.map((p) => (
-              <button
-                key={p.key}
-                onClick={() => setPeriod(p.key)}
-                className={`px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors ${period === p.key ? 'bg-accent text-white' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={() => setPeriod('custom')}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-lg border transition-colors ${period === 'custom' ? 'bg-accent text-white border-accent' : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}
-          >
-            <Icon name="calendar" className="w-3.5 h-3.5" />
-            Personalizado
-          </button>
+          {customOpen && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setCustomOpen(false)} />
+              <div className="absolute right-0 top-full mt-2 z-40 shadow-lg rounded-xl">
+                <DateRangePicker
+                  value={range}
+                  onChange={(r) => { setRange(r); setPeriod('custom'); if (r?.from && r?.to) setCustomOpen(false) }}
+                />
+              </div>
+            </>
+          )}
         </div>
-        {period === 'custom' && (
-          <div className="flex items-center gap-2 mt-2">
-            <input
-              type="date"
-              value={customStart}
-              max={customEnd}
-              onChange={(e) => setCustomStart(e.target.value)}
-              className="px-2.5 py-1.5 text-[13px] rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-accent/40"
-            />
-            <span className="text-zinc-400 text-sm">→</span>
-            <input
-              type="date"
-              value={customEnd}
-              min={customStart}
-              max={todayStr()}
-              onChange={(e) => setCustomEnd(e.target.value)}
-              className="px-2.5 py-1.5 text-[13px] rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-accent/40"
-            />
-          </div>
-        )}
       </PageHeader>
 
       {/* ── 6 cartões principais ── */}

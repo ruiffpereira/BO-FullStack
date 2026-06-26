@@ -19,7 +19,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
-import { Card, Button, IconButton, Badge, Input, Modal, PageHeader, EmptyState, Avatar, BADGE_TONES } from '../ui/ui.jsx'
+import { Card, Button, IconButton, Badge, Input, Modal, PageHeader, EmptyState, Avatar, Tabs, BADGE_TONES } from '../ui/ui.jsx'
 import { LineChart, DonutChart } from '../ui/charts.jsx'
 import { useGetCustomers } from '../gen/backoffice/hooks/useGetCustomers.js'
 import { useGetGymExercises } from '../gen/backoffice/hooks/useGetGymExercises.js'
@@ -123,7 +123,7 @@ function GymGroupsProvider({ children }: { children: ReactNode }) {
   return <GymGroupsContext.Provider value={value}>{children}</GymGroupsContext.Provider>
 }
 
-type Tab = 'catalogo' | 'treinos' | 'planos' | 'clientes' | 'mensalidades'
+type Tab = 'catalogo' | 'treinos' | 'planos' | 'clientes'
 
 // Série-a-série: cada série tem reps/peso/descanso próprios (campos string p/ vazio).
 // Série composta (dropset): drop=true + passos; `rest` é o descanso após a série toda.
@@ -2875,12 +2875,11 @@ export function Ginasio() {
   const { data: custData } = useGetCustomers()
   const customers = (custData?.rows ?? []) as { customerId: string; name: string }[]
 
-  const tabs: { key: Tab; label: string; icon: string }[] = [
-    { key: 'catalogo', label: 'Exercícios', icon: 'grid' },
-    { key: 'treinos', label: 'Treinos', icon: 'layers' },
-    { key: 'planos', label: 'Planos', icon: 'calendar' },
-    { key: 'clientes', label: 'Clientes', icon: 'user' },
-    { key: 'mensalidades', label: 'Mensalidades', icon: 'euro' },
+  const tabs: { id: Tab; label: string; icon: string }[] = [
+    { id: 'catalogo', label: 'Exercícios', icon: 'grid' },
+    { id: 'treinos', label: 'Treinos', icon: 'layers' },
+    { id: 'planos', label: 'Planos', icon: 'calendar' },
+    { id: 'clientes', label: 'Clientes', icon: 'user' },
   ]
 
   return (
@@ -2888,24 +2887,12 @@ export function Ginasio() {
     <div className="space-y-6">
       <PageHeader title="Ginásio" subtitle="Exercícios, treinos, planos e progresso dos clientes." />
 
-      <div className="flex gap-1 p-1 rounded-xl bg-zinc-100 dark:bg-zinc-800/60 w-full lg:w-auto lg:inline-flex overflow-x-auto">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${tab === t.key ? 'bg-white dark:bg-zinc-900 text-accent shadow-sm' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}
-          >
-            <Icon name={t.icon} className="w-4 h-4" />
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <Tabs tabs={tabs} value={tab} onChange={setTab} />
 
       {tab === 'catalogo' && <CatalogoTab />}
       {tab === 'treinos' && <TreinosTab />}
       {tab === 'planos' && <PlanosTab />}
       {tab === 'clientes' && <ClientesTab customers={customers} />}
-      {tab === 'mensalidades' && <MensalidadesTab />}
     </div>
     </GymGroupsProvider>
   )

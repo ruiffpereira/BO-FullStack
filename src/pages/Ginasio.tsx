@@ -56,6 +56,9 @@ import { useGetGymMuscleGroups } from '../gen/backoffice/hooks/useGetGymMuscleGr
 import { postGymMuscleGroups } from '../gen/backoffice/hooks/usePostGymMuscleGroups.js'
 import { putGymMuscleGroupsId } from '../gen/backoffice/hooks/usePutGymMuscleGroupsId.js'
 import { deleteGymMuscleGroupsId } from '../gen/backoffice/hooks/useDeleteGymMuscleGroupsId.js'
+import { useGetGymMensalidadeFinance } from '../gen/backoffice/hooks/useGetGymMensalidadeFinance.js'
+import { useGetGymSubscriptions } from '../gen/backoffice/hooks/useGetGymSubscriptions.js'
+import { usePostGymSubscriptions } from '../gen/backoffice/hooks/usePostGymSubscriptions.js'
 import type { GymExercise } from '../gen/backoffice/types/GymExercise.js'
 import type { GymExercisePreset } from '../gen/backoffice/types/GymExercisePreset.js'
 import type { GymSetRow } from '../gen/backoffice/types/GymSetRow.js'
@@ -120,7 +123,7 @@ function GymGroupsProvider({ children }: { children: ReactNode }) {
   return <GymGroupsContext.Provider value={value}>{children}</GymGroupsContext.Provider>
 }
 
-type Tab = 'catalogo' | 'treinos' | 'planos' | 'clientes'
+type Tab = 'catalogo' | 'treinos' | 'planos' | 'clientes' | 'mensalidades'
 
 // Série-a-série: cada série tem reps/peso/descanso próprios (campos string p/ vazio).
 // Série composta (dropset): drop=true + passos; `rest` é o descanso após a série toda.
@@ -2788,6 +2791,85 @@ function ClientesTab({ customers }: { customers: Cliente[] }) {
   )
 }
 
+// ── Mensalidades (subscrições + KPIs financeiros) ──
+function MensalidadesTab() {
+  const [sub, setSub] = useState<'visao' | 'subscricoes'>('visao')
+  const { data: finance } = useGetGymMensalidadeFinance()
+  const kpis = ((finance as any)?.kpis ?? {}) as { recebido?: number; emDivida?: number; emAtraso?: number; mrr?: number }
+  const { data: subsData, refetch } = useGetGymSubscriptions()
+  const subs = (subsData ?? []) as { subscriptionId: string; name: string; price: number }[]
+
+  const [modalOpen, setModalOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [price, setPrice] = useState('')
+  const createMut = usePostGymSubscriptions({
+    mutation: {
+      onSuccess: () => { void refetch(); setModalOpen(false); setName(''); setPrice('') },
+      onError: (e) => toast.error(getApiError(e)),
+    },
+  })
+
+  const eur = (n?: number) => new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(Number(n ?? 0))
+  const subtabs = [
+    { key: 'visao' as const, label: 'Visão geral' },
+    { key: 'subscricoes' as const, label: 'Subscrições' },
+  ]
+
+  return (
+    <div className="space-y-6">
+      <div className="flex gap-1 p-1 rounded-lg bg-zinc-100 dark:bg-zinc-800/60 w-fit">
+        {subtabs.map((s) => (
+          <button key={s.key} onClick={() => setSub(s.key)}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${sub === s.key ? 'bg-white dark:bg-zinc-900 text-accent shadow-sm' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {sub === 'visao' && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="p-4"><p className="text-[13px] text-zinc-500">Recebido este mês</p><p className="mt-1 text-lg font-semibold">{eur(kpis.recebido)}</p></Card>
+          <Card className="p-4"><p className="text-[13px] text-zinc-500">Em dívida</p><p className="mt-1 text-lg font-semibold text-red-600 dark:text-red-400">{eur(kpis.emDivida)}</p></Card>
+          <Card className="p-4"><p className="text-[13px] text-zinc-500">Em atraso</p><p className="mt-1 text-lg font-semibold">{kpis.emAtraso ?? 0}</p></Card>
+          <Card className="p-4"><p className="text-[13px] text-zinc-500">MRR</p><p className="mt-1 text-lg font-semibold">{eur(kpis.mrr)}</p></Card>
+        </div>
+      )}
+
+      {sub === 'subscricoes' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Catálogo de subscrições</h2>
+            <Button icon="plus" size="sm" onClick={() => setModalOpen(true)}>Nova subscrição</Button>
+          </div>
+          {subs.length === 0 ? (
+            <EmptyState icon="euro" title="Sem subscrições" desc="Cria a primeira subscrição (mensalidade) para os teus clientes." action={<Button icon="plus" onClick={() => setModalOpen(true)}>Nova subscrição</Button>} />
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {subs.map((s) => (
+                <Card key={s.subscriptionId} className="p-4">
+                  <h3 className="font-semibold text-zinc-900 dark:text-white">{s.name}</h3>
+                  <p className="text-sm text-zinc-500 mt-1">{eur(s.price)}/mês</p>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Nova subscrição" width="max-w-md"
+        footer={<>
+          <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
+          <Button isLoading={createMut.isPending} disabled={!name.trim()} onClick={() => createMut.mutate({ data: { name: name.trim(), price: Number(price) || 0 } as any })}>Criar</Button>
+        </>}>
+        <div className="space-y-3">
+          <Input label="Nome" value={name} onChange={(e: any) => setName(e.target.value)} placeholder="Ex: Mensalidade Base" />
+          <Input label="Preço (€)" type="number" step={0.01} min={0} value={price} onChange={(e: any) => setPrice(e.target.value)} placeholder="25" />
+        </div>
+      </Modal>
+    </div>
+  )
+}
+
 export function Ginasio() {
   const [tab, setTab] = useState<Tab>('catalogo')
   const { data: custData } = useGetCustomers()
@@ -2798,6 +2880,7 @@ export function Ginasio() {
     { key: 'treinos', label: 'Treinos', icon: 'layers' },
     { key: 'planos', label: 'Planos', icon: 'calendar' },
     { key: 'clientes', label: 'Clientes', icon: 'user' },
+    { key: 'mensalidades', label: 'Mensalidades', icon: 'euro' },
   ]
 
   return (
@@ -2822,6 +2905,7 @@ export function Ginasio() {
       {tab === 'treinos' && <TreinosTab />}
       {tab === 'planos' && <PlanosTab />}
       {tab === 'clientes' && <ClientesTab customers={customers} />}
+      {tab === 'mensalidades' && <MensalidadesTab />}
     </div>
     </GymGroupsProvider>
   )

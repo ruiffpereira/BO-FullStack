@@ -51,4 +51,20 @@ test.describe("Isolamento multi-tenant — cada tenant só vê os seus dados", (
     await expect(page.getByText("Bem-vindo A").first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("Bem-vindo B")).toHaveCount(0);
   });
+
+  test("Deep-link: A não consegue abrir a ficha de um cliente de B por URL", async ({ page, context, request }) => {
+    const API = process.env.VITE_API_BASE_URL ?? "http://localhost:3002/api";
+    // Obter, via API, o id de um cliente do tenant B.
+    const loginB = await request.post(`${API}/users/login`, { data: { username: "tenantB@e2e", password: "E2ePass123!" } });
+    const tokenB = (await loginB.json()).accessToken as string;
+    const custB = await request.get(`${API}/customers`, { headers: { Authorization: `Bearer ${tokenB}` } });
+    const bId = (await custB.json()).rows[0].customerId as string;
+
+    // Login como A e tentar abrir a ficha do cliente de B pelo deep-link.
+    await loginAs(context, "tenantA@e2e");
+    await page.goto(`/clientes?cliente=${bId}`);
+    await expect(page.getByText("Clientes", { exact: false }).first()).toBeVisible({ timeout: 15_000 });
+    // A API recusa o recurso de outro tenant → os dados de B nunca aparecem.
+    await expect(page.getByText(/Cliente B •/)).toHaveCount(0);
+  });
 });

@@ -11,14 +11,13 @@ import { pt } from 'date-fns/locale'
 const fmtEur = (n: number) =>
   '€' + (n || 0).toLocaleString('pt-PT', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })
 
-// Um único conjunto de períodos (janelas progressivas, sem duplicar
-// "calendário" vs "rolling") + "Personalizado" via DateRangePicker.
+// Períodos de calendário (sem duplicação) + "Personalizado" via DateRangePicker.
 const PRESETS: { key: DashboardPeriod; label: string }[] = [
   { key: 'today', label: 'Hoje' },
-  { key: '7d', label: '7 dias' },
-  { key: '30d', label: '30 dias' },
-  { key: '90d', label: '90 dias' },
-  { key: '12m', label: '12 meses' },
+  { key: 'week', label: 'Esta semana' },
+  { key: 'month', label: 'Este mês' },
+  { key: 'lastMonth', label: 'Último mês' },
+  { key: 'year', label: 'Ano' },
 ]
 
 function Kpi({ label, value, icon, tone, delta, deltaGood = 'up', sub, loading }: {
@@ -54,7 +53,7 @@ function Kpi({ label, value, icon, tone, delta, deltaGood = 'up', sub, loading }
 
 export function Financeiro() {
   const { username } = useAuth()
-  const [period, setPeriod] = useState<DashboardPeriod>('30d')
+  const [period, setPeriod] = useState<DashboardPeriod>('month')
   const [range, setRange] = useState<DateRange | undefined>()
   const [customOpen, setCustomOpen] = useState(false)
   const customStart = range?.from ? format(range.from, 'yyyy-MM-dd') : ''

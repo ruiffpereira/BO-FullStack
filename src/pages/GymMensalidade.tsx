@@ -397,6 +397,7 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
                   <th className="font-medium px-5 py-3">Mês</th><th className="font-medium px-4 py-3">Valor</th>
                   <th className="font-medium px-4 py-3 hidden sm:table-cell">Vencimento</th><th className="font-medium px-4 py-3">Estado</th>
                   <th className="font-medium px-4 py-3 hidden md:table-cell">Método</th>
+                  <th className="font-medium px-4 py-3 hidden lg:table-cell">Registado</th>
                 </tr></thead>
                 <tbody>
                   {mem.payments.map((p) => (
@@ -406,6 +407,7 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
                       <td className={`px-4 py-3 tabular-nums hidden sm:table-cell ${p.overdue ? 'text-red-500 font-medium' : 'text-zinc-400'}`}>{fmtData(p.dueDate)}</td>
                       <td className="px-4 py-3"><Badge tone={p.overdue ? 'red' : EST[p.status].tone} dot>{p.overdue ? 'Em atraso' : EST[p.status].t}</Badge></td>
                       <td className="px-4 py-3 text-zinc-400 hidden md:table-cell">{p.status === 'paid' ? (p.method || '—') : '—'}</td>
+                      <td className="px-4 py-3 text-zinc-400 hidden lg:table-cell whitespace-nowrap">{fmtDateTime(p.updatedAt)}</td>
                     </tr>
                   ))}
                 </tbody>

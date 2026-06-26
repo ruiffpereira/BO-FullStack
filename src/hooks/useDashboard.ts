@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { axiosInstance } from "@kubb/plugin-client/clients/axios";
 import { useAuth } from "../context/AuthContext";
 
-export type DashboardPeriod = "7d" | "30d" | "90d" | "12m" | "today" | "week" | "month" | "total" | "custom";
+export type DashboardPeriod = "7d" | "30d" | "90d" | "12m" | "today" | "week" | "month" | "lastMonth" | "year" | "total" | "custom";
 
 export interface RevenuePoint {
   date: string;

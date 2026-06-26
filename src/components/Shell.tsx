@@ -7,15 +7,12 @@ import { useAuth } from '../context/AuthContext'
 import { NotificationBell } from './NotificationBell'
 import { useSSE } from '../hooks/useSSE'
 
-const PERM_TO_PATH: Record<string, string | string[]> = {
-  VIEW_STATS:     '/financeiro',
-  VIEW_EXPENSES:  '/despesas',
-  VIEW_CUSTOMERS: '/clientes',
-  VIEW_PRODUCTS:  '/loja',
+// Core: todos os tenants têm (sem permissão). Módulos: por permissão.
+const CORE_PATHS = ['/clientes', '/financeiro', '/conteudos']
+const MODULE_PERM_TO_PATH: Record<string, string> = {
   VIEW_SCHEDULE:  '/agenda',
-  VIEW_GYM:       ['/ginasio', '/financeiro'],
-  VIEW_CMS:       '/conteudos',
-  VIEW_ADMIN:     '/admin',
+  VIEW_PRODUCTS:  '/loja',
+  VIEW_GYM:       '/ginasio',
 }
 
 const ROUTE_META: Record<string, { nome: string; icon: string }> = {
@@ -169,22 +166,26 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
     })
   }
 
+  const isAdmin = permissions.some((p) => p.name === 'VIEW_ADMIN')
   const accessiblePaths = [
     '/dashboard',
-    ...permissions
-      .flatMap((p) => {
-        const v = PERM_TO_PATH[p.name ?? '']
-        return Array.isArray(v) ? v : v ? [v] : []
-      })
-      .filter((v, i, arr) => arr.indexOf(v) === i),
-  ]
+    // Módulos (por permissão): agenda, loja, ginásio.
+    ...permissions.map((p) => MODULE_PERM_TO_PATH[p.name ?? '']).filter(Boolean),
+    // Core (todos): clientes, financeiro, conteúdos.
+    ...CORE_PATHS,
+    ...(isAdmin ? ['/admin'] : []),
+  ].filter((v, i, arr) => arr.indexOf(v) === i)
 
   // Fecha o drawer ao navegar
   useEffect(() => { setDrawer(false) }, [location.pathname])
 
+  // Rotas válidas para o guard (inclui deep-links sem item de menu, ex.: /despesas
+  // abre o Financeiro na tab Despesas).
+  const allowedPaths = [...accessiblePaths, '/despesas']
+
   // Redirige para rota acessível se a actual não o for
   useEffect(() => {
-    if (accessiblePaths.length && !accessiblePaths.includes(location.pathname)) {
+    if (accessiblePaths.length && !allowedPaths.includes(location.pathname)) {
       navigate(accessiblePaths[0], { replace: true })
     }
   }, [location.pathname, permissions]) // eslint-disable-line

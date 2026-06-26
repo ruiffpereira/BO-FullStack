@@ -29,12 +29,11 @@ test.describe("Financeiro", () => {
     }
   });
 
-  test("sem permissão VIEW_STATS → não aparece na sidebar", async ({ page }) => {
-    // If the current test user has VIEW_STATS this test is skipped — it's
-    // validated more rigorously in security.spec.ts with a restricted user.
+  test("Financeiro é core — abre com as tabs O Negócio / Despesas", async ({ page }) => {
     await page.goto("/financeiro");
-    // With the admin test user this page should load normally
-    await expect(page.locator("body")).toBeVisible();
+    await page.waitForURL("**/financeiro", { timeout: 15_000 });
+    await expect(page.getByRole("button", { name: "O Negócio" })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("button", { name: "Despesas", exact: true })).toBeVisible();
   });
 
   test("página não crasha com parâmetros inválidos na URL", async ({ page }) => {

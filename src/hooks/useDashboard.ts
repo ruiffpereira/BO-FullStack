@@ -76,10 +76,21 @@ export interface ExpensesStats {
   expensesByPeriod: { date: string; amount: number }[];
 }
 
+export interface GymStats {
+  period: {
+    revenue: number;
+    revenuePrevious: number;
+    revenueGrowth: number | null;
+  };
+  revenueByPeriod: RevenuePoint[];
+  activeMembers: number;
+}
+
 export interface DashboardData {
   period: DashboardPeriod;
   schedule?: ScheduleStats;
   ecommerce?: EcommerceStats;
+  gym?: GymStats;
   expenses?: ExpensesStats;
 }
 

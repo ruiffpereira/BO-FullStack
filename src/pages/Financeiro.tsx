@@ -67,11 +67,12 @@ export function Financeiro() {
 
   const sched = data?.schedule
   const ecom = data?.ecommerce
+  const gym = data?.gym
   const exp = data?.expenses
 
-  // ── KPIs agregados ──────────────────────────────────────────────────────────
-  const revenue = (sched?.period.revenue ?? 0) + (ecom?.period.revenue ?? 0)
-  const revenuePrev = (sched?.period.revenuePrevious ?? 0) + (ecom?.period.revenuePrevious ?? 0)
+  // ── KPIs agregados (inclui mensalidades do ginásio) ──────────────────────────
+  const revenue = (sched?.period.revenue ?? 0) + (ecom?.period.revenue ?? 0) + (gym?.period.revenue ?? 0)
+  const revenuePrev = (sched?.period.revenuePrevious ?? 0) + (ecom?.period.revenuePrevious ?? 0) + (gym?.period.revenuePrevious ?? 0)
   const revenueGrowth = revenuePrev === 0 ? null : Math.round(((revenue - revenuePrev) / revenuePrev) * 1000) / 10
   const expenses = exp?.period.total ?? 0
   const profit = revenue - expenses
@@ -91,11 +92,12 @@ export function Financeiro() {
     }
     sched?.revenueByPeriod.forEach((p) => add(p.date, p.revenue, 0))
     ecom?.revenueByPeriod.forEach((p) => add(p.date, p.revenue, 0))
+    gym?.revenueByPeriod.forEach((p) => add(p.date, p.revenue, 0))
     exp?.expensesByPeriod.forEach((p) => add(p.date, 0, p.amount))
     return [...map.values()]
       .sort((a, b) => a.date.localeCompare(b.date))
       .map((p) => ({ ...p, profit: p.revenue - p.expenses }))
-  }, [sched, ecom, exp])
+  }, [sched, ecom, gym, exp])
 
   const maxBar = Math.max(1, ...series.map((p) => Math.max(p.revenue, p.expenses)))
 
@@ -104,11 +106,12 @@ export function Financeiro() {
     const items: { name: string; revenue: number; kind: string }[] = []
     sched?.topServices.forEach((s) => items.push({ name: s.name ?? 'Serviço', revenue: s.revenue, kind: 'Serviço' }))
     ecom?.topProducts.forEach((p) => items.push({ name: p.name ?? 'Produto', revenue: p.totalRevenue, kind: 'Produto' }))
+    if (gym && gym.period.revenue > 0) items.push({ name: 'Mensalidades', revenue: gym.period.revenue, kind: 'Ginásio' })
     return items.sort((a, b) => b.revenue - a.revenue).slice(0, 8)
-  }, [sched, ecom])
+  }, [sched, ecom, gym])
   const maxItem = Math.max(1, ...topItems.map((i) => i.revenue))
 
-  const hasAnything = sched || ecom || exp
+  const hasAnything = sched || ecom || gym || exp
 
   if (!isLoading && !hasAnything) {
     return (

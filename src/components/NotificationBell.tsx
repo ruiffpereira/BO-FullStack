@@ -8,6 +8,19 @@ import {
 } from "../hooks/useNotifications";
 import { usePushSubscription } from "../hooks/usePushSubscription";
 
+// Taxonomia unificada (espelha src/utils/notifyUser.ts na API): label + cores
+// por tipo, para o centro de notificações renderizar tudo de forma consistente.
+const NOTIF_META: Record<string, { label: string; dot: string; chip: string }> = {
+  booking: { label: "Marcação", dot: "bg-blue-500", chip: "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400" },
+  order: { label: "Encomenda", dot: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400" },
+  customer: { label: "Cliente", dot: "bg-violet-500", chip: "bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400" },
+  gym: { label: "Ginásio", dot: "bg-indigo-500", chip: "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400" },
+  payment: { label: "Pagamento", dot: "bg-amber-500", chip: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400" },
+  stock: { label: "Stock", dot: "bg-orange-500", chip: "bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400" },
+  reminder: { label: "Lembrete", dot: "bg-rose-500", chip: "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400" },
+  system: { label: "Sistema", dot: "bg-zinc-400", chip: "bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300" },
+};
+
 function BellIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -69,7 +82,7 @@ function NotificationItem({
     hour: "2-digit",
     minute: "2-digit",
   });
-  const typeLabel = n.type === "booking" ? "Marcação" : "Encomenda";
+  const meta = NOTIF_META[n.type] ?? NOTIF_META.system;
 
   return (
     <div
@@ -78,9 +91,7 @@ function NotificationItem({
       }`}
     >
       <span
-        className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${
-          n.type === "booking" ? "bg-blue-500" : "bg-emerald-500"
-        } ${n.read ? "opacity-0" : ""}`}
+        className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${meta.dot} ${n.read ? "opacity-0" : ""}`}
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
@@ -94,12 +105,8 @@ function NotificationItem({
               </p>
             )}
             <p className="text-[12px] text-zinc-400 mt-1.5">
-              <span className={`inline-block px-1.5 py-0.5 rounded-full text-[11px] font-medium mr-1.5 ${
-                n.type === "booking"
-                  ? "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400"
-                  : "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
-              }`}>
-                {typeLabel}
+              <span className={`inline-block px-1.5 py-0.5 rounded-full text-[11px] font-medium mr-1.5 ${meta.chip}`}>
+                {meta.label}
               </span>
               {when}
             </p>

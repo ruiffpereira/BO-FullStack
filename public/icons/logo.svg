@@ -1,15 +1,20 @@
-<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="boTile" x1="24" y1="0" x2="24" y2="48" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#F4474D"/>
-      <stop offset="1" stop-color="#DC2026"/>
+    <linearGradient id="tile" x1="256" y1="0" x2="256" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#28374F"/>
+      <stop offset="1" stop-color="#131B2A"/>
+    </linearGradient>
+    <linearGradient id="card" x1="256" y1="150" x2="256" y2="362" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ECEFF3"/>
+      <stop offset="1" stop-color="#DBE0E8"/>
     </linearGradient>
   </defs>
-  <rect width="48" height="48" rx="13" fill="url(#boTile)"/>
-  <!-- brilho subtil no topo -->
-  <rect width="48" height="24" rx="13" fill="#ffffff" opacity="0.08"/>
-  <!-- Monograma RV -->
-  <text x="24" y="25" text-anchor="middle" dominant-baseline="central"
-    font-family="'Hanken Grotesk', 'Segoe UI', Arial, sans-serif" font-weight="800"
-    font-size="21" letter-spacing="0.5" fill="#ffffff">RV</text>
+  <rect width="512" height="512" rx="112" fill="url(#tile)"/>
+  <rect width="512" height="256" rx="112" fill="#ffffff" opacity="0.04"/>
+  <rect x="100" y="150" width="312" height="212" rx="22" fill="url(#card)"/>
+  <text x="256" y="262" text-anchor="middle" dominant-baseline="central"
+    font-family="'Hanken Grotesk','Segoe UI',Arial,sans-serif" font-weight="800"
+    font-size="150" letter-spacing="2">
+    <tspan fill="#16233C">R</tspan><tspan fill="#EF3A40">V</tspan>
+  </text>
 </svg>

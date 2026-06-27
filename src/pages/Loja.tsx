@@ -145,6 +145,8 @@ type ProdForm = {
   description: string;
   reference: string;
   price: string;
+  cost: string;
+  vatRate: string;
   stock: string;
   categoryId: string;
   photo: ProductImage | null;
@@ -160,6 +162,8 @@ const emptyForm: ProdForm = {
   description: "",
   reference: "",
   price: "",
+  cost: "",
+  vatRate: "",
   stock: "",
   categoryId: "",
   photo: null,
@@ -200,6 +204,8 @@ function ProdutoModal({
             description: (produto as any).description ?? "",
             reference: produto.reference ?? "",
             price: String(produto.price ?? ""),
+            cost: (produto as any).cost != null ? String((produto as any).cost) : "",
+            vatRate: (produto as any).vatRate != null ? String((produto as any).vatRate) : "",
             stock: String(produto.stock ?? 0),
             categoryId: produto.categoryId ?? "",
             photo: null,
@@ -362,6 +368,20 @@ function ProdutoModal({
             placeholder="0"
             value={form.stock}
             onChange={set("stock")}
+          />
+          <Input
+            label="Custo (€)"
+            type="number"
+            placeholder="0.00"
+            value={form.cost}
+            onChange={set("cost")}
+          />
+          <Input
+            label="IVA (%)"
+            type="number"
+            placeholder="23"
+            value={form.vatRate}
+            onChange={set("vatRate")}
           />
         </div>
         <CmsCombo
@@ -651,6 +671,8 @@ export function Loja() {
           data: {
             reference: form.reference || undefined,
             price: form.price ? Number(form.price) : undefined,
+            cost: form.cost !== "" ? Number(form.cost) : undefined,
+            vatRate: form.vatRate !== "" ? Number(form.vatRate) : undefined,
             stock: form.stock !== "" ? Number(form.stock) : undefined,
             categoryId: form.categoryId || undefined,
             photos: photoPayload,
@@ -663,6 +685,8 @@ export function Loja() {
           data: {
             reference: form.reference || undefined,
             price: form.price ? Number(form.price) : undefined,
+            cost: form.cost !== "" ? Number(form.cost) : undefined,
+            vatRate: form.vatRate !== "" ? Number(form.vatRate) : undefined,
             stock: form.stock !== "" ? Number(form.stock) : undefined,
             categoryId: form.categoryId || undefined,
             photos: photoPayload,

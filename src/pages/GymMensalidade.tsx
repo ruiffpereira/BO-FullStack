@@ -6,6 +6,10 @@ import { Icon } from '../ui/icons.jsx'
 import { Card, Button, IconButton, Badge, Input, Select, Toggle, Modal, EmptyState, Avatar, BADGE_TONES } from '../ui/ui.jsx'
 import { DatePicker } from '../components/DatePicker'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { LineChart, Waterfall } from '../ui/charts.jsx'
+import { useGymAnalytics } from '../hooks/useGymAnalytics'
+import { useAuth } from '../context/AuthContext'
+import { gymGenerateMonth, gymBulkMarkPaid, gymRemind } from '../hooks/useFinanceiro'
 import { useGetGymSubscriptions } from '../gen/backoffice/hooks/useGetGymSubscriptions.js'
 import { postGymSubscriptions } from '../gen/backoffice/hooks/usePostGymSubscriptions.js'
 import { putGymSubscriptionsId } from '../gen/backoffice/hooks/usePutGymSubscriptionsId.js'
@@ -442,6 +446,24 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
   const [pag, setPag] = useState<{ customerId: string; period: string; amount: number } | null>(null)
   const { data, isLoading } = useGetGymMensalidadeFinance({ period })
   const fin = data as Finance | undefined
+  const { authHeader } = useAuth()
+  const [sel, setSel] = useState<Set<string>>(new Set())
+  const [busy, setBusy] = useState(false)
+  const toggleSel = (id: string) => { const n = new Set(sel); n.has(id) ? n.delete(id) : n.add(id); setSel(n) }
+  const onGerar = async () => {
+    setBusy(true)
+    try { const r = await gymGenerateMonth(authHeader, period); toast.success(`${r.created} mensalidade${r.created === 1 ? '' : 's'} gerada${r.created === 1 ? '' : 's'}`); invalidateMens(qc) }
+    catch (e) { toast.error(getApiError(e)) } finally { setBusy(false) }
+  }
+  const onLembrar = async (ids?: string[]) => {
+    try { const r = await gymRemind(authHeader, ids?.length ? { customerIds: ids, period } : { period }); toast.success(`${r.sent} lembrete${r.sent === 1 ? '' : 's'} enviado${r.sent === 1 ? '' : 's'}`) }
+    catch (e) { toast.error(getApiError(e)) }
+  }
+  const onBulkPay = async () => {
+    setBusy(true)
+    try { const r = await gymBulkMarkPaid(authHeader, { customerIds: [...sel], period }); toast.success(`${r.paid} marcado${r.paid === 1 ? '' : 's'} pago${r.paid === 1 ? '' : 's'}`); setSel(new Set()); invalidateMens(qc) }
+    catch (e) { toast.error(getApiError(e)) } finally { setBusy(false) }
+  }
 
   if (isLoading || !fin) return <Card className="p-8 text-center text-sm text-zinc-400">A carregar…</Card>
 
@@ -480,7 +502,11 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
             <span className="text-sm font-semibold text-zinc-900 dark:text-white capitalize min-w-[130px] text-center">{fmtPeriodoLong(period)}</span>
             <IconButton icon="chevronRight" label="Mês seguinte" onClick={() => setPeriod((p) => shiftPeriod(p, 1))} />
           </div>
-          {period !== currentPeriod() && <Button variant="ghost" size="sm" onClick={() => setPeriod(currentPeriod())}>Mês atual</Button>}
+          <div className="flex items-center gap-2">
+            {period !== currentPeriod() && <Button variant="ghost" size="sm" onClick={() => setPeriod(currentPeriod())}>Mês atual</Button>}
+            <Button variant="outline" size="sm" icon="plus" isLoading={busy} onClick={onGerar}>Gerar mês</Button>
+            <Button variant="ghost" size="sm" icon="mail" onClick={() => onLembrar()}>Lembrar atrasados</Button>
+          </div>
         </div>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -525,6 +551,7 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
             const amount = r.payment?.amount ?? r.subscription?.price ?? 0
             return (
               <div key={r.customerId} onClick={() => onOpen({ id: r.customerId, name: r.name })} className="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 cursor-pointer">
+                {!isPaid(r) && <input type="checkbox" checked={sel.has(r.customerId)} onClick={(e) => e.stopPropagation()} onChange={(e) => { e.stopPropagation(); toggleSel(r.customerId) }} className="w-4 h-4 accent-accent shrink-0" aria-label={`Selecionar ${r.name}`} />}
                 <Avatar name={r.name} color={colorFromName(r.name)} size={36} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
@@ -545,14 +572,89 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
         </Card>
       )}
 
+      {sel.size > 0 && (
+        <div className="sticky bottom-3 z-20 flex items-center gap-3 px-4 py-2.5 rounded-xl bg-zinc-900 text-white shadow-lg mx-auto max-w-lg">
+          <span className="text-sm font-medium">{sel.size} selecionado{sel.size > 1 ? 's' : ''}</span>
+          <button onClick={() => setSel(new Set())} className="text-xs text-zinc-400 hover:text-white">Limpar</button>
+          <div className="ml-auto flex gap-2">
+            <button onClick={() => onLembrar([...sel])} className="text-sm px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20">Lembrar</button>
+            <button onClick={onBulkPay} disabled={busy} className="text-sm px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 font-medium disabled:opacity-50">Marcar pagos</button>
+          </div>
+        </div>
+      )}
+
       {pag && <PagamentoModal customerId={pag.customerId} period={pag.period} amount={pag.amount} onClose={() => setPag(null)} onSaved={() => invalidateMens(qc)} />}
     </div>
   )
 }
 
-// ── Tab principal: Financeiro do ginásio (Cobranças + Subscrições) ────────────
+// ── Análise: churn / retenção / LTV / MRR trend ──────────────────────────────
+function KpiCard({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: 'green' | 'red' | 'amber' }) {
+  const toneFg = tone === 'green' ? 'text-emerald-600 dark:text-emerald-400'
+    : tone === 'red' ? 'text-red-600 dark:text-red-400'
+    : tone === 'amber' ? 'text-amber-600 dark:text-amber-400'
+    : 'text-zinc-900 dark:text-white'
+  return (
+    <Card className="p-4 sm:p-5">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">{label}</p>
+      <p className={`text-2xl sm:text-[28px] font-semibold tabular-nums leading-tight mt-1 ${toneFg}`}>{value}</p>
+      {hint && <p className="text-xs text-zinc-400 mt-1">{hint}</p>}
+    </Card>
+  )
+}
+
+function AnaliseView() {
+  const { data, isLoading } = useGymAnalytics()
+  if (isLoading || !data) return <Card className="p-8 text-center text-sm text-zinc-400">A carregar análise…</Card>
+
+  const churnTone = data.churn.rate > 10 ? 'red' : data.churn.rate > 0 ? 'amber' : 'green'
+  const trendLabels = data.mrrTrend.map((t) => fmtPeriodo(t.period))
+  const trendSeries = [{ name: 'Recebido', color: '#1F8A5B', values: data.mrrTrend.map((t) => t.recebido) }]
+  const hasTrend = data.mrrTrend.some((t) => t.recebido > 0)
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <KpiCard label="MRR" value={fmtEur(data.mrr)} hint="Subscrições ativas" />
+        <KpiCard label="ARR" value={fmtEur(data.arr)} hint="Receita anual (MRR×12)" />
+        <KpiCard label="Taxa de cobrança" value={`${data.collectionRate}%`} hint="Recebido / esperado" tone={data.collectionRate >= 80 ? 'green' : 'amber'} />
+        <KpiCard label="Membros ativos" value={String(data.activeMembers)} hint={data.blockedMembers ? `${data.blockedMembers} bloqueado${data.blockedMembers !== 1 ? 's' : ''}` : 'Com subscrição'} />
+        <KpiCard label="Inativos" value={String(data.inactiveMembers)} hint={`sem treinar há +${data.inactiveAfterDays}d`} tone={data.inactiveMembers > 0 ? 'amber' : 'green'} />
+        <KpiCard label="Churn" value={`${data.churn.rate}%`} hint={`${data.churn.count} de ${data.churn.base} no último mês`} tone={churnTone} />
+        <KpiCard label="Retenção" value={`${data.retentionRate}%`} hint="Mês anterior → atual" tone="green" />
+        <KpiCard label="LTV" value={fmtEur(data.ltv)} hint={`~${data.avgLifetimeMonths} meses pagos`} />
+      </div>
+
+      <Card className="p-5">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Tendência do MRR</h3>
+          <span className="text-xs text-zinc-400">Recebido · 6 meses</span>
+        </div>
+        {hasTrend ? (
+          <LineChart labels={trendLabels} series={trendSeries} height={220} format={(n: number) => fmtEur(n)} />
+        ) : (
+          <div className="py-10 text-center text-sm text-zinc-400">Sem pagamentos registados nos últimos 6 meses.</div>
+        )}
+      </Card>
+
+      <Card className="p-5">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Movimento do MRR</h3>
+          <span className="text-xs text-zinc-400">ganho (novo+expansão) vs perda</span>
+        </div>
+        {data.waterfall?.some((w) => w.novo || w.perdido || w.expansao || w.contracao) ? (
+          <Waterfall data={data.waterfall} format={(n: number) => fmtEur(n)} />
+        ) : (
+          <div className="py-10 text-center text-sm text-zinc-400">Sem movimento de mensalidades nos últimos meses.</div>
+        )}
+      </Card>
+    </div>
+  )
+}
+
+// ── Tab principal: Financeiro do ginásio (Cobranças + Subscrições + Análise) ───
 export function MensalidadesTab() {
-  const [aba, setAba] = useState<'cobrancas' | 'subscricoes'>('cobrancas')
+  const [aba, setAba] = useState<'cobrancas' | 'subscricoes' | 'analise'>('cobrancas')
   const [sel, setSel] = useState<{ id: string; name: string } | null>(null)
 
   if (sel) {
@@ -571,7 +673,7 @@ export function MensalidadesTab() {
   return (
     <div>
       <div className="flex items-center gap-1 p-1 mb-5 bg-zinc-100 dark:bg-zinc-800/60 rounded-xl w-full sm:w-auto sm:inline-flex">
-        {([['cobrancas', 'Cobranças', 'euro'], ['subscricoes', 'Subscrições', 'layers']] as const).map(([id, label, icon]) => (
+        {([['cobrancas', 'Cobranças', 'euro'], ['subscricoes', 'Subscrições', 'layers'], ['analise', 'Análise', 'trend']] as const).map(([id, label, icon]) => (
           <button key={id} onClick={() => setAba(id)} className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${aba === id ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}>
             <Icon name={icon} className="w-4 h-4" />{label}
           </button>
@@ -580,6 +682,7 @@ export function MensalidadesTab() {
 
       {aba === 'cobrancas' && <CobrancasView onOpen={setSel} />}
       {aba === 'subscricoes' && <SubscricoesTab />}
+      {aba === 'analise' && <AnaliseView />}
     </div>
   )
 }

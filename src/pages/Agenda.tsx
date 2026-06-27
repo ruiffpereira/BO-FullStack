@@ -35,9 +35,6 @@ import {
   useGetScheduleAppointments,
   getScheduleAppointmentsQueryKey,
 } from "../gen/backoffice/hooks/useGetScheduleAppointments.js";
-import { usePostScheduleAppointmentsIdNotify } from "../gen/backoffice/hooks/usePostScheduleAppointmentsIdNotify.js";
-import { postScheduleAppointmentsIdNotify } from "../gen/backoffice/hooks/usePostScheduleAppointmentsIdNotify.js";
-import { putScheduleAppointmentsId } from "../gen/backoffice/hooks/usePutScheduleAppointmentsId.js";
 import { usePostScheduleAppointments } from "../gen/backoffice/hooks/usePostScheduleAppointments.js";
 import { usePutScheduleAppointmentsId } from "../gen/backoffice/hooks/usePutScheduleAppointmentsId.js";
 import {
@@ -907,10 +904,6 @@ function CalendarioView() {
     newDate: string;
     newTime: string;
   } | null>(null);
-  const [isNotifying, setIsNotifying] = useState(false);
-  const notifyAfterSaveRef = useRef<string | null>(null);
-  const notifyAfterReactivateRef = useRef<string | null>(null);
-  const notifyContextRef = useRef<"save" | "reactivate">("save");
   const [novaDate, setNovaDate] = useState<Date | null>(null);
   const [novaTime, setNovaTime] = useState<string | null>(null);
 
@@ -1023,54 +1016,18 @@ function CalendarioView() {
       onError: (error) => toast.error(getApiError(error)),
     },
   });
-  const notifyAppt = usePostScheduleAppointmentsIdNotify({
-    mutation: {
-      onSuccess: () => {
-        const ctx = notifyContextRef.current;
-        notifyContextRef.current = "save";
-        toast.success(
-          ctx === "reactivate"
-            ? "Marcação reativada e cliente notificado"
-            : "Marcação guardada e cliente notificado",
-        );
-        setIsNotifying(false);
-        setPendingReschedule(null);
-        setRescheduledFrom(null);
-        setSelAppt(null);
-      },
-      onError: (error) => {
-        const ctx = notifyContextRef.current;
-        notifyContextRef.current = "save";
-        toast.success(
-          ctx === "reactivate" ? "Marcação reativada" : "Marcação guardada",
-        );
-        toast.error(getApiError(error) || "Erro ao enviar email ao cliente");
-        setIsNotifying(false);
-        setPendingReschedule(null);
-        setRescheduledFrom(null);
-        setSelAppt(null);
-      },
-    },
-  });
-
+  // Guardar = notificar: o backend avisa o cliente automaticamente ao
+  // criar/editar/cancelar. O frontend só guarda.
   const updateAppt = usePutScheduleAppointmentsId({
     mutation: {
       onSuccess: () => {
         invalidateAppts();
-        const notifyId = notifyAfterSaveRef.current;
-        if (notifyId) {
-          notifyAfterSaveRef.current = null;
-          setIsNotifying(true);
-          notifyAppt.mutate({ id: notifyId });
-        } else {
-          toast.success("Marcação actualizada");
-          setPendingReschedule(null);
-          setRescheduledFrom(null);
-          setSelAppt(null);
-        }
+        toast.success("Marcação actualizada");
+        setPendingReschedule(null);
+        setRescheduledFrom(null);
+        setSelAppt(null);
       },
       onError: (error) => {
-        notifyAfterSaveRef.current = null;
         toast.error(getApiError(error));
       },
     },
@@ -1078,50 +1035,20 @@ function CalendarioView() {
   const lastStatusRef = useRef<string | null>(null);
   const setStatusAppt = usePutScheduleAppointmentsId({
     mutation: {
-      onSuccess: (_d, vars) => {
+      onSuccess: () => {
         invalidateAppts();
-        const reactivateNotifyId = notifyAfterReactivateRef.current;
-        if (reactivateNotifyId) {
-          notifyAfterReactivateRef.current = null;
-          notifyContextRef.current = "reactivate";
-          setIsNotifying(true);
-          notifyAppt.mutate({ id: reactivateNotifyId });
-        } else {
-          toast.success(
-            lastStatusRef.current === "cancelled"
-              ? "Marcação cancelada"
-              : "Marcação reativada",
-          );
-          setPendingReschedule(null);
-          setRescheduledFrom(null);
-          setSelAppt(null);
-        }
+        toast.success(
+          lastStatusRef.current === "cancelled"
+            ? "Marcação cancelada"
+            : "Marcação reativada",
+        );
+        setPendingReschedule(null);
+        setRescheduledFrom(null);
+        setSelAppt(null);
       },
       onError: (error) => {
-        notifyAfterReactivateRef.current = null;
         toast.error(getApiError(error));
       },
-    },
-  });
-  const cancelAndNotifyAppt = useMutation({
-    mutationFn: async (id: string) => {
-      await putScheduleAppointmentsId(id, { status: "cancelled" } as any);
-      await postScheduleAppointmentsIdNotify(id);
-    },
-    onSuccess: () => {
-      toast.success("Marcação cancelada e cliente notificado");
-      invalidateAppts();
-      setPendingReschedule(null);
-      setRescheduledFrom(null);
-      setSelAppt(null);
-    },
-    onError: (error) => {
-      toast.success("Marcação cancelada");
-      toast.error(getApiError(error) || "Erro ao enviar email ao cliente");
-      invalidateAppts();
-      setPendingReschedule(null);
-      setRescheduledFrom(null);
-      setSelAppt(null);
     },
   });
   const blockSlot = usePostScheduleBlockedSlots({
@@ -1980,25 +1907,8 @@ function CalendarioView() {
           rescheduledFrom={rescheduledFrom ?? undefined}
           initialDate={pendingReschedule?.newDate}
           initialTime={pendingReschedule?.newTime}
-          onSaveAndNotify={(id, data) => {
-            notifyContextRef.current = "save";
-            notifyAfterSaveRef.current = id;
-            updateAppt.mutate({ id, data });
-          }}
-          onReactivateAndNotify={(id, data) => {
-            notifyAfterReactivateRef.current = id;
-            lastStatusRef.current = "confirmed";
-            setStatusAppt.mutate({
-              id,
-              data: { status: "confirmed", ...data },
-            });
-          }}
-          onCancelAndNotify={(id) => cancelAndNotifyAppt.mutate(id)}
-          isNotifying={isNotifying}
           isSaving={updateAppt.isPending}
-          isSettingStatus={
-            setStatusAppt.isPending || cancelAndNotifyAppt.isPending
-          }
+          isSettingStatus={setStatusAppt.isPending}
           onOpenCustomer={(() => {
             const currentAppt = rescheduledFrom
               ? selAppt
@@ -2819,56 +2729,21 @@ function MarcacoesPanel() {
   const [profileCustomerId, setProfileCustomerId] = useState<string | null>(
     null,
   );
-  const [isNotifyingList, setIsNotifyingList] = useState(false);
-  const notifyAfterSaveListRef = useRef<string | null>(null);
-  const notifyAfterReactivateListRef = useRef<string | null>(null);
-  const notifyContextListRef = useRef<"save" | "reactivate">("save");
-
   const { data: allAppts = [], isLoading } =
     useGetScheduleAppointments(undefined);
   const { data: services = [] } = useGetScheduleServices();
   const { data: customersData } = useGetCustomers();
   const customers = customersData?.rows ?? [];
 
+  // Guardar = notificar: o backend avisa o cliente automaticamente ao guardar.
   const updateAppt = usePutScheduleAppointmentsId({
     mutation: {
       onSuccess: () => {
-        if (!notifyAfterSaveListRef.current)
-          toast.success("Marcação actualizada");
+        toast.success("Marcação actualizada");
         qc.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() });
-        const notifyId = notifyAfterSaveListRef.current;
-        if (notifyId) {
-          notifyAfterSaveListRef.current = null;
-          setIsNotifyingList(true);
-          notifyApptList.mutate({ id: notifyId });
-        }
       },
       onError: (error) => {
-        notifyAfterSaveListRef.current = null;
         toast.error(getApiError(error));
-      },
-    },
-  });
-  const notifyApptList = usePostScheduleAppointmentsIdNotify({
-    mutation: {
-      onSuccess: () => {
-        const ctx = notifyContextListRef.current;
-        notifyContextListRef.current = "save";
-        toast.success(
-          ctx === "reactivate"
-            ? "Marcação reativada e cliente notificado"
-            : "Marcação guardada e cliente notificado",
-        );
-        setIsNotifyingList(false);
-      },
-      onError: (error) => {
-        const ctx = notifyContextListRef.current;
-        notifyContextListRef.current = "save";
-        toast.success(
-          ctx === "reactivate" ? "Marcação reativada" : "Marcação guardada",
-        );
-        toast.error(getApiError(error) || "Erro ao enviar email ao cliente");
-        setIsNotifyingList(false);
       },
     },
   });
@@ -2877,42 +2752,16 @@ function MarcacoesPanel() {
     mutation: {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() });
-        const reactivateNotifyId = notifyAfterReactivateListRef.current;
-        if (reactivateNotifyId) {
-          notifyAfterReactivateListRef.current = null;
-          notifyContextListRef.current = "reactivate";
-          setIsNotifyingList(true);
-          notifyApptList.mutate({ id: reactivateNotifyId });
-        } else {
-          toast.success(
-            lastStatusRef.current === "cancelled"
-              ? "Marcação cancelada"
-              : "Marcação reativada",
-          );
-          setSelAppt(null);
-        }
+        toast.success(
+          lastStatusRef.current === "cancelled"
+            ? "Marcação cancelada"
+            : "Marcação reativada",
+        );
+        setSelAppt(null);
       },
       onError: (error) => {
-        notifyAfterReactivateListRef.current = null;
         toast.error(getApiError(error));
       },
-    },
-  });
-  const cancelAndNotifyApptList = useMutation({
-    mutationFn: async (id: string) => {
-      await putScheduleAppointmentsId(id, { status: "cancelled" } as any);
-      await postScheduleAppointmentsIdNotify(id);
-    },
-    onSuccess: () => {
-      toast.success("Marcação cancelada e cliente notificado");
-      qc.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() });
-      setSelAppt(null);
-    },
-    onError: (error) => {
-      toast.success("Marcação cancelada");
-      toast.error(getApiError(error) || "Erro ao enviar email ao cliente");
-      qc.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() });
-      setSelAppt(null);
     },
   });
 
@@ -3162,29 +3011,12 @@ function MarcacoesPanel() {
           services={services}
           onClose={() => setSelAppt(null)}
           onSave={(id, data) => updateAppt.mutate({ id, data })}
-          onSaveAndNotify={(id, data) => {
-            notifyContextListRef.current = "save";
-            notifyAfterSaveListRef.current = id;
-            updateAppt.mutate({ id, data });
-          }}
-          onReactivateAndNotify={(id, data) => {
-            notifyAfterReactivateListRef.current = id;
-            lastStatusRef.current = "confirmed";
-            setStatusAppt.mutate({
-              id,
-              data: { status: "confirmed", ...data },
-            });
-          }}
-          onCancelAndNotify={(id) => cancelAndNotifyApptList.mutate(id)}
-          isNotifying={isNotifyingList}
           onSetStatus={(id, status, data) => {
             lastStatusRef.current = status;
             setStatusAppt.mutate({ id, data: { status, ...data } });
           }}
           isSaving={updateAppt.isPending}
-          isSettingStatus={
-            setStatusAppt.isPending || cancelAndNotifyApptList.isPending
-          }
+          isSettingStatus={setStatusAppt.isPending}
           onOpenCustomer={(() => {
             const currentAppt =
               allAppts.find((a) => a.appointmentId === selAppt.appointmentId) ??

@@ -11,10 +11,14 @@ import { useAuth } from "../context/AuthContext";
 
 export type { GetNotificationsQueryKey } from "../gen/backoffice/hooks/useGetNotifications.js";
 
+// Taxonomia unificada (espelha src/utils/notifyUser.ts na API).
+export type NotificationType =
+  | "booking" | "order" | "customer" | "gym" | "payment" | "stock" | "reminder" | "system";
+
 export interface Notification {
   notificationId: string;
   userId: string;
-  type: "booking" | "order";
+  type: NotificationType;
   title: string;
   body: string | null;
   data: Record<string, unknown> | null;

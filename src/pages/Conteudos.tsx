@@ -61,12 +61,13 @@ import { postCmsSetup } from "../gen/backoffice/hooks/usePostCmsSetup.js";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { RichTextEditor } from "../components/RichTextEditor";
 import { EmailsPanel } from "../components/EmailsPanel";
+import { NotificationsPanel } from "../components/NotificationsPanel";
 import { Combobox } from "../components/Combobox";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type CmsContext = "website" | "product" | "service" | "gym";
-type TabId = CmsContext | "linguas" | "emails";
+type TabId = CmsContext | "linguas" | "emails" | "notificacoes";
 type Section = {
   sectionId: string;
   parentId: string | null;
@@ -127,6 +128,7 @@ const CMS_TABS: {
   { id: "gym", label: "Ginásio", icon: "trend", permission: "VIEW_GYM" },
   { id: "linguas", label: "Línguas", icon: "globe", permission: null },
   { id: "emails", label: "Emails", icon: "mail", permission: null },
+  { id: "notificacoes", label: "Notificações", icon: "bell", permission: null },
 ];
 
 function localeLabel(code: string): string {
@@ -1484,7 +1486,7 @@ export function Conteudos() {
       {/* ── Tab bar ── */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <Tabs tabs={visibleTabs} value={activeTab} onChange={setActiveTab} />
-        {activeTab !== "linguas" && activeTab !== "emails" && (
+        {activeTab !== "linguas" && activeTab !== "emails" && activeTab !== "notificacoes" && (
           <button
             onClick={() => importFileRef.current?.click()}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-600 text-sm text-zinc-500 hover:border-accent hover:text-accent transition"
@@ -1513,8 +1515,11 @@ export function Conteudos() {
       {/* ── Emails tab ── */}
       {activeTab === "emails" && <EmailsPanel />}
 
-      {/* ── CMS content (hidden on línguas/emails tabs) ── */}
-      {activeTab !== "linguas" && activeTab !== "emails" && (
+      {/* ── Notificações tab ── */}
+      {activeTab === "notificacoes" && <NotificationsPanel />}
+
+      {/* ── CMS content (hidden on línguas/emails/notificações tabs) ── */}
+      {activeTab !== "linguas" && activeTab !== "emails" && activeTab !== "notificacoes" && (
         <>
           {/* ── Mobile section selector ── */}
           <button

@@ -12,11 +12,12 @@ import { useGetCustomersIdHistory, getCustomersIdHistoryQueryKey } from '../gen/
 import { postCustomers } from '../gen/backoffice/hooks/usePostCustomers.js'
 import { patchCustomersId } from '../gen/backoffice/hooks/usePatchCustomersId.js'
 import { putScheduleAppointmentsId } from '../gen/backoffice/hooks/usePutScheduleAppointmentsId.js'
-import { postScheduleAppointmentsIdNotify } from '../gen/backoffice/hooks/usePostScheduleAppointmentsIdNotify.js'
 import type { Customer } from '../gen/backoffice/types/Customer.js'
 import type { Appointment } from '../gen/backoffice/types/Appointment.js'
 import { ApptModal } from '../components/ApptModal.js'
 import { ClienteMensalidade } from './GymMensalidade'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+import { axiosInstance } from '@kubb/plugin-client/clients/axios'
 
 function colorFromName(name: string) {
   const colors = ['#2A6FDB', '#1F8A5B', '#D97757', '#7C5CDB', '#E6B450', '#0EA5A4']
@@ -72,6 +73,8 @@ export function Clientes() {
   const [editCustomer, setEditCustomer] = useState<Customer | null>(null)
   const [form, setForm] = useState<CustomerForm>(emptyForm)
   const [selAppt, setSelAppt] = useState<HistoryAppt | null>(null)
+  const [eraseTarget, setEraseTarget] = useState<Customer | null>(null)
+  const [exporting, setExporting] = useState(false)
   // Tab ativa na ficha do cliente (cada tab só aparece com a permissão respetiva).
   const profileTabs = [
     ...(canSchedule ? [{ id: 'agenda' as const, label: 'Agenda', icon: 'calendar' }] : []),
@@ -152,48 +155,44 @@ export function Clientes() {
     onError: (e: any) => toast.error(getApiError(e)),
   })
 
-  const reactivateAndNotifyMut = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
-      await putScheduleAppointmentsId(id, { status: 'confirmed', ...data } as any)
-      await postScheduleAppointmentsIdNotify(id)
-    },
-    onSuccess: () => {
-      toast.success('Marcação reativada e cliente notificado')
-      setSelAppt(null)
-      if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
-    },
-    onError: (e: any) => {
-      toast.success('Marcação reativada')
-      toast.error(getApiError(e) || 'Erro ao enviar email ao cliente')
-      setSelAppt(null)
-      if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
-    },
-  })
-
-  const cancelAndNotifyMut = useMutation({
-    mutationFn: async (id: string) => {
-      await putScheduleAppointmentsId(id, { status: 'cancelled' } as any)
-      await postScheduleAppointmentsIdNotify(id)
-    },
-    onSuccess: () => {
-      toast.success('Marcação cancelada e cliente notificado')
-      setSelAppt(null)
-      if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
-    },
-    onError: (e: any) => {
-      toast.success('Marcação cancelada')
-      toast.error(getApiError(e) || 'Erro ao enviar email ao cliente')
-      setSelAppt(null)
-      if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
-    },
-  })
-
   const blockMut = useMutation({
     mutationFn: ({ id, blocked }: { id: string; blocked: boolean }) => patchCustomersId(id, { blocked } as any),
     onSuccess: (_d, { blocked }) => {
       toast.success(blocked ? 'Cliente bloqueado' : 'Cliente desbloqueado')
       qc.invalidateQueries({ queryKey: getCustomersQueryKey() })
       if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
+    },
+    onError: (e: any) => toast.error(getApiError(e)),
+  })
+
+  // ── RGPD: exportar / anonimizar ──
+  const exportData = async (c: Customer) => {
+    try {
+      setExporting(true)
+      const res = await axiosInstance.get(`/customers/${c.customerId}/export`, { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data as Blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `dados-cliente-${c.customerId}.json`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      toast.success('Exportação concluída')
+    } catch (e) {
+      toast.error(getApiError(e))
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const eraseMut = useMutation({
+    mutationFn: (id: string) => axiosInstance.delete(`/customers/${id}`),
+    onSuccess: () => {
+      toast.success('Dados pessoais anonimizados (RGPD)')
+      qc.invalidateQueries({ queryKey: getCustomersQueryKey() })
+      setEraseTarget(null)
+      closeProfile()
     },
     onError: (e: any) => toast.error(getApiError(e)),
   })
@@ -442,9 +441,29 @@ export function Clientes() {
                 )}
               </>
             )}
+
+            {/* Privacidade (RGPD) */}
+            <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide mr-auto">Privacidade (RGPD)</span>
+              <Button variant="outline" size="sm" icon="package" isLoading={exporting} onClick={() => exportData(profileCustomer)}>Exportar dados</Button>
+              <Button variant="outline" size="sm" icon="trash" className="text-red-500 border-red-200 hover:bg-red-50 dark:border-red-500/30 dark:hover:bg-red-500/10" onClick={() => setEraseTarget(profileCustomer)}>Apagar dados</Button>
+            </div>
           </div>
         </Modal>
       )}
+
+      {/* ── RGPD: confirmar anonimização ── */}
+      <ConfirmDialog
+        open={!!eraseTarget}
+        onClose={() => setEraseTarget(null)}
+        onConfirm={() => eraseTarget && eraseMut.mutate(eraseTarget.customerId)}
+        variant="danger"
+        title="Apagar dados do cliente?"
+        description={<>Os dados pessoais de <strong>{eraseTarget?.name}</strong> serão <strong>anonimizados</strong> (nome, email, telefone, NIF, data de nascimento, notas) e as marcações deixam de conter dados pessoais. O histórico e os registos financeiros mantêm-se. <strong>Esta ação é irreversível.</strong></>}
+        confirmLabel="Anonimizar"
+        pendingLabel="A anonimizar…"
+        isPending={eraseMut.isPending}
+      />
 
       {/* ── Create customer modal ── */}
       {createOpen && (
@@ -493,10 +512,8 @@ export function Clientes() {
           onClose={() => setSelAppt(null)}
           onSave={(id, data) => updateApptMut.mutate({ id, data })}
           onSetStatus={(id, status, data) => setStatusApptMut.mutate({ id, status, data })}
-          onReactivateAndNotify={(id, data) => reactivateAndNotifyMut.mutate({ id, data })}
-          onCancelAndNotify={(id) => cancelAndNotifyMut.mutate(id)}
           isSaving={updateApptMut.isPending}
-          isSettingStatus={setStatusApptMut.isPending || reactivateAndNotifyMut.isPending || cancelAndNotifyMut.isPending}
+          isSettingStatus={setStatusApptMut.isPending}
         />
       )}
 

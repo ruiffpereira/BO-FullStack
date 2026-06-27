@@ -217,4 +217,64 @@ function Sparkline({ data, color, width = 90, height = 32, up = true }) {
   );
 }
 
-export { AreaChart, LineChart, BarChart, DonutChart, Sparkline };
+// Heatmap dia × hora (ocupação). data: [{ dayOfWeek, hour, count }]. Cor = intensidade (accent).
+function Heatmap({ data }) {
+  const dayNames = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  const hours = [...new Set(data.map((d) => d.hour))].sort((a, b) => a - b);
+  const map = new Map();
+  let max = 0;
+  data.forEach((d) => { map.set(`${d.dayOfWeek}-${d.hour}`, d.count); if (d.count > max) max = d.count; });
+  if (!hours.length) return <p className="text-sm text-zinc-400">Sem marcações no período.</p>;
+  return (
+    <div className="overflow-x-auto" role="img" aria-label="Mapa de ocupação por dia da semana e hora">
+      <div className="inline-grid gap-1" style={{ gridTemplateColumns: `auto repeat(${hours.length}, minmax(18px, 1fr))` }}>
+        <div />
+        {hours.map((h) => <div key={h} className="text-[10px] text-zinc-400 text-center">{h}h</div>)}
+        {order.map((dow, ri) => (
+          <React.Fragment key={dow}>
+            <div className="text-[11px] text-zinc-500 pr-2 flex items-center">{dayNames[ri]}</div>
+            {hours.map((h) => {
+              const c = map.get(`${dow}-${h}`) ?? 0;
+              const op = max > 0 ? 0.15 + 0.85 * (c / max) : 0;
+              return (
+                <div
+                  key={h}
+                  title={`${dayNames[ri]} ${h}h — ${c} marcaç${c === 1 ? 'ão' : 'ões'}`}
+                  className={`aspect-square rounded-sm ${c ? '' : 'bg-zinc-100 dark:bg-zinc-800'}`}
+                  style={c ? { backgroundColor: `rgb(var(--accent) / ${op})` } : undefined}
+                />
+              );
+            })}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// MRR waterfall. data: [{ period, novo, expansao, contracao, perdido, liquido }].
+// Barra verde = ganho (novo+expansão), vermelha = perda (contração+perdido), net por baixo.
+function Waterfall({ data, format = (n) => n }) {
+  const ups = data.map((d) => (d.novo || 0) + (d.expansao || 0));
+  const downs = data.map((d) => Math.abs((d.contracao || 0) + (d.perdido || 0)));
+  const max = Math.max(1, ...ups, ...downs);
+  return (
+    <div className="flex items-end gap-2 h-48" role="img" aria-label="Movimento mensal do MRR: ganhos (novo e expansão) versus perdas">
+      {data.map((d, i) => (
+        <div key={i} className="flex-1 flex flex-col items-center gap-1 min-w-[24px]">
+          <div className="w-full flex items-end justify-center gap-0.5 h-36">
+            <div className="w-1/2 rounded-t bg-emerald-500/90" title={`Ganho ${format(ups[i])}`} style={{ height: `${Math.max(2, (ups[i] / max) * 100)}%` }} />
+            <div className="w-1/2 rounded-t bg-red-400/90" title={`Perda ${format(downs[i])}`} style={{ height: `${Math.max(2, (downs[i] / max) * 100)}%` }} />
+          </div>
+          <span className="text-[9px] text-zinc-400">{String(d.period).slice(5)}</span>
+          <span className={`text-[10px] font-semibold tabular-nums ${d.liquido >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+            {d.liquido >= 0 ? '+' : ''}{format(d.liquido)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export { AreaChart, LineChart, BarChart, DonutChart, Sparkline, Heatmap, Waterfall };

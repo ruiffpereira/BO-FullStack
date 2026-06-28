@@ -22,6 +22,7 @@ import {
   useGetUsers,
   getUsersQueryKey,
 } from "../gen/backoffice/hooks/useGetUsers.js";
+import { usePagination, Pagination } from "../components/Pagination";
 import { usePostUsersRegister } from "../gen/backoffice/hooks/usePostUsersRegister.js";
 import { usePutUsers } from "../gen/backoffice/hooks/usePutUsers.js";
 import { useDeleteUsersUserid } from "../gen/backoffice/hooks/useDeleteUsersUserid.js";
@@ -221,6 +222,7 @@ function UserFormFields({
 function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
   const qc = useQueryClient();
   const { data: users = [], isLoading } = useGetUsers({ client: { headers } });
+  const pgUsers = usePagination(users as User[]);
   const { data: permissions = [] } = useGetPermissions({ client: { headers } });
   const invalidate = () =>
     qc.invalidateQueries({ queryKey: getUsersQueryKey() });
@@ -319,7 +321,7 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
           ) : users.length === 0 ? (
             <EmptyRow cols={6} />
           ) : null}
-          {(users as User[]).map((u) => (
+          {pgUsers.pageItems.map((u) => (
             <tr
               key={u.userId}
               onClick={() => openEdit(u)}
@@ -378,6 +380,7 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
           ))}
         </tbody>
       </TableWrapper>
+      <Pagination {...pgUsers} />
 
       <Modal
         open={createOpen}
@@ -1289,17 +1292,8 @@ function AtividadeTab() {
         </tbody>
       </TableWrapper>
 
-      <div className="flex items-center justify-between mt-4 text-sm text-zinc-500">
-        <span>{data?.count ?? 0} registos</span>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-            Anterior
-          </Button>
-          <span>{page} / {totalPages}</span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-            Seguinte
-          </Button>
-        </div>
+      <div className="mt-4">
+        <Pagination page={page} setPage={setPage} pageCount={totalPages} total={data?.count ?? 0} start={(page - 1) * 50} end={Math.min(page * 50, data?.count ?? 0)} />
       </div>
 
       <Modal open={!!detail} onClose={() => setDetail(null)} title="Detalhe da ação" width="max-w-2xl">

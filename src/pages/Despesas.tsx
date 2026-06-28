@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Badge, Button, Input, Modal, PageHeader, EmptyState, IconButton, BADGE_TONES } from '../ui/ui.jsx'
+import { usePagination, Pagination } from '../components/Pagination'
 import { Combobox } from '../components/Combobox'
 import { useGetExpenses, getExpensesQueryKey } from '../gen/backoffice/hooks/useGetExpenses.js'
 import { useGetExpensesSummary, getExpensesSummaryQueryKey } from '../gen/backoffice/hooks/useGetExpensesSummary.js'
@@ -193,6 +194,7 @@ export function Despesas() {
   )
 
   const rows = useMemo(() => listData?.rows ?? [], [listData])
+  const pg = usePagination(rows, { resetKey: month })
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: getExpensesQueryKey({ month }) })
@@ -331,8 +333,9 @@ export function Despesas() {
           ) : rows.length === 0 ? (
             <EmptyState icon="euro" title="Sem despesas" desc="Regista a primeira despesa deste mês." action={<Button icon="plus" onClick={openCreate}>Nova despesa</Button>} />
           ) : (
+            <>
             <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {rows.map((e) => (
+              {pg.pageItems.map((e) => (
                 <div key={e.expenseId} className="flex items-center gap-3 px-5 py-3 group">
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: e.category?.color ?? catColor(e.categoryId) }} />
                   <div className="min-w-0 flex-1">
@@ -349,6 +352,8 @@ export function Despesas() {
                 </div>
               ))}
             </div>
+            <div className="px-5 pb-2"><Pagination {...pg} /></div>
+            </>
           )}
         </Card>
       </div>

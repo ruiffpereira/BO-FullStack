@@ -59,6 +59,7 @@ export interface NegocioFinance {
   revenueBySource: Partial<Record<'agenda' | 'loja' | 'gym', number>>
   health: {
     score: number
+    hasData: boolean
     factors: { key: string; label: string; score: number; weight: number; detail: string }[]
   }
 }

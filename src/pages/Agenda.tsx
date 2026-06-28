@@ -81,6 +81,7 @@ import {
   STATUS_LABELS,
 } from "../components/ApptModal.js";
 import { Combobox } from "../components/Combobox";
+import { CalendarSubscribeCard } from "../components/CalendarSubscribeCard";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const AG_H_START = 8;
@@ -1743,6 +1744,7 @@ function CalendarioView() {
             Nova marcação
           </Button>
         </Card>
+        <CalendarSubscribeCard />
         <Card className="p-4">
           <h3 className="font-semibold text-zinc-900 dark:text-white text-sm flex items-center gap-2 mb-3">
             <Icon name="calendar" className="w-4 h-4 text-accent" />

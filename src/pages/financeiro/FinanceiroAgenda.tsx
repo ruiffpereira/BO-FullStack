@@ -3,7 +3,8 @@ import type { DashboardPeriod } from '../../hooks/useDashboard'
 import { Card, Badge, SectionTitle, EmptyState } from '../../ui/ui.jsx'
 import { Icon } from '../../ui/icons.jsx'
 import { AreaChart, DonutChart, BarChart, Heatmap } from '../../ui/charts.jsx'
-import { KpiCard, MoneyTriad, fmtEur } from '../../components/financeiro/kit'
+import { KpiCard, MoneyTriad, fmtEur, InfoDot } from '../../components/financeiro/kit'
+import { INFO } from '../../components/financeiro/info'
 
 const STATUS_PT: Record<string, string> = { pending: 'Pendentes', confirmed: 'Confirmadas', completed: 'Concluídas', cancelled: 'Canceladas', no_show: 'Faltas' }
 
@@ -32,30 +33,30 @@ export function FinanceiroAgenda({ period, iva, customStart, customEnd }: {
       <MoneyTriad money={data?.money} loading={isLoading} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Valor médio por marcação" icon="star" tone="blue" loading={isLoading} value={fmtEur(data?.valorMedioPorMarcacao ?? 0)} />
-        <KpiCard label="Ocupação da agenda" icon="calendar" tone="violet" loading={isLoading} value={`${data?.occupancy.occupancyPct ?? 0}%`} sub={`${data?.occupancy.bookedHours ?? 0}h de ${data?.occupancy.availableHours ?? 0}h`} />
-        <KpiCard label="Receita por hora de cadeira" icon="trend" tone="green" loading={isLoading} value={fmtEur(data?.occupancy.revenuePerHour ?? 0)} />
-        <KpiCard label="Taxa de retorno" icon="users" tone="amber" loading={isLoading} value={`${data?.customers.taxaRetorno ?? 0}%`} sub="clientes que voltam" />
+        <KpiCard label="Valor médio por marcação" icon="star" tone="blue" loading={isLoading} value={fmtEur(data?.valorMedioPorMarcacao ?? 0)} info={INFO.valorMarcacao} />
+        <KpiCard label="Ocupação da agenda" icon="calendar" tone="violet" loading={isLoading} value={`${data?.occupancy.occupancyPct ?? 0}%`} sub={`${data?.occupancy.bookedHours ?? 0}h de ${data?.occupancy.availableHours ?? 0}h`} info={INFO.ocupacao} />
+        <KpiCard label="Receita por hora de cadeira" icon="trend" tone="green" loading={isLoading} value={fmtEur(data?.occupancy.revenuePerHour ?? 0)} info={INFO.receitaHora} />
+        <KpiCard label="Taxa de retorno" icon="users" tone="amber" loading={isLoading} value={`${data?.customers.taxaRetorno ?? 0}%`} sub="clientes que voltam" info={INFO.taxaRetorno} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="p-5 lg:col-span-2">
-          <SectionTitle>Faturação ao longo do tempo</SectionTitle>
+          <SectionTitle right={<InfoDot title={INFO.faturacaoTempo.title} body={INFO.faturacaoTempo.body} />}>Faturação ao longo do tempo</SectionTitle>
           {serie.length > 0 ? <AreaChart data={serie} valueKey="v" labelKey="m" format={fmtEur} yAxis height={200} /> : <p className="text-sm text-zinc-400 mt-3">Sem dados no período.</p>}
         </Card>
         <Card className="p-5">
-          <SectionTitle>Métodos de pagamento</SectionTitle>
+          <SectionTitle right={<InfoDot title={INFO.metodos.title} body={INFO.metodos.body} />}>Métodos de pagamento</SectionTitle>
           {pmData.length > 0 ? <div className="mt-3"><DonutChart data={pmData} /></div> : <p className="text-sm text-zinc-400 mt-3">Sem pagamentos no período.</p>}
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="p-5">
-          <SectionTitle>Ocupação por dia e hora</SectionTitle>
+          <SectionTitle right={<InfoDot title={INFO.heatmap.title} body={INFO.heatmap.body} />}>Ocupação por dia e hora</SectionTitle>
           <div className="mt-4"><Heatmap data={data?.heatmap ?? []} /></div>
         </Card>
         <Card className="p-5">
-          <SectionTitle>Estados das marcações</SectionTitle>
+          <SectionTitle right={<InfoDot title={INFO.funil.title} body={INFO.funil.body} />}>Estados das marcações</SectionTitle>
           {funnel.length > 0 ? <BarChart data={funnel} valueKey="v" labelKey="d" height={200} /> : <p className="text-sm text-zinc-400 mt-3">Sem marcações.</p>}
           <div className="flex flex-wrap gap-3 mt-3 text-xs text-zinc-500">
             <span>Conclusão <strong className="text-emerald-600">{data?.rates.completion ?? 0}%</strong></span>
@@ -66,7 +67,7 @@ export function FinanceiroAgenda({ period, iva, customStart, customEnd }: {
       </div>
 
       <Card className="p-5">
-        <SectionTitle>Top serviços</SectionTitle>
+        <SectionTitle right={<InfoDot title={INFO.topServicos.title} body={INFO.topServicos.body} />}>Top serviços</SectionTitle>
         {(data?.topServices ?? []).length === 0 ? <p className="text-sm text-zinc-400 mt-3">Sem serviços no período.</p> : (
           <div className="space-y-3 mt-3">
             {data!.topServices.map((s, i) => {
@@ -93,9 +94,9 @@ export function FinanceiroAgenda({ period, iva, customStart, customEnd }: {
 
       {/* Clientes: novos / recorrentes / perdidos + lista de quem está a fugir */}
       <div className="grid grid-cols-3 gap-4">
-        <KpiCard label="Clientes novos" icon="users" tone="green" loading={isLoading} value={String(data?.customers.novos ?? 0)} delta={data?.customers.novosGrowth} deltaGood="up" />
-        <KpiCard label="Recorrentes" icon="users" tone="blue" loading={isLoading} value={String(data?.customers.recorrentes ?? 0)} />
-        <KpiCard label="Perdidos" icon="ban" tone="red" loading={isLoading} value={String(data?.customers.perdidos ?? 0)} sub={`sem marcar há +${data?.customers.lostAfterDays ?? 60}d`} />
+        <KpiCard label="Clientes novos" icon="users" tone="green" loading={isLoading} value={String(data?.customers.novos ?? 0)} delta={data?.customers.novosGrowth} deltaGood="up" info={INFO.novos} />
+        <KpiCard label="Recorrentes" icon="users" tone="blue" loading={isLoading} value={String(data?.customers.recorrentes ?? 0)} info={INFO.recorrentes} />
+        <KpiCard label="Perdidos" icon="ban" tone="red" loading={isLoading} value={String(data?.customers.perdidos ?? 0)} sub={`sem marcar há +${data?.customers.lostAfterDays ?? 60}d`} info={INFO.perdidos} />
       </div>
 
       {(data?.lostCustomers ?? []).length > 0 && (

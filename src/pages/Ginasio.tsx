@@ -20,6 +20,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Button, IconButton, Badge, Input, Modal, PageHeader, EmptyState, Avatar, Tabs, BADGE_TONES } from '../ui/ui.jsx'
+import { usePagination, Pagination } from '../components/Pagination'
 import { LineChart, DonutChart } from '../ui/charts.jsx'
 import { useGetCustomers } from '../gen/backoffice/hooks/useGetCustomers.js'
 import { useGetGymExercises } from '../gen/backoffice/hooks/useGetGymExercises.js'
@@ -637,6 +638,7 @@ function CatalogoTab() {
       e.name.toLowerCase().includes(q.toLowerCase()),
     )
   }, [exercises, grupoSel, q, topGroups])
+  const pg = usePagination(filtered, { resetKey: `${q}|${grupoSel}` })
   const countByGroup = (gName: string) => exercises.filter((e) => e.muscleGroup === gName).length
 
   return (
@@ -681,8 +683,9 @@ function CatalogoTab() {
           ) : filtered.length === 0 ? (
             <EmptyState icon="box" title="Sem exercícios" desc="Cria exercícios para os usar nos treinos dos clientes." action={<Button icon="plus" onClick={startCreate}>Novo exercício</Button>} />
           ) : (
+            <>
             <div className="space-y-2">
-              {filtered.map((e) => (
+              {pg.pageItems.map((e) => (
                 <Card key={e.exerciseId} className="overflow-hidden">
                   <div className="flex items-center gap-3 p-3.5 cursor-pointer hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30" onClick={() => startEdit(e)}>
                     <span className="w-9 h-9 rounded-lg shrink-0" style={{ background: colorOf(e.muscleGroup) }} />
@@ -712,6 +715,8 @@ function CatalogoTab() {
                 </Card>
               ))}
             </div>
+            <Pagination {...pg} />
+            </>
           )}
         </div>
       </div>

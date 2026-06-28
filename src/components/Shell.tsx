@@ -8,7 +8,7 @@ import { NotificationBell } from './NotificationBell'
 import { useSSE } from '../hooks/useSSE'
 
 // Core: todos os tenants têm (sem permissão). Módulos: por permissão.
-const CORE_PATHS = ['/clientes', '/financeiro', '/conteudos']
+const CORE_PATHS = ['/clientes', '/financeiro', '/conteudos', '/estatisticas']
 const MODULE_PERM_TO_PATH: Record<string, string> = {
   VIEW_SCHEDULE:  '/agenda',
   VIEW_PRODUCTS:  '/loja',
@@ -17,10 +17,11 @@ const MODULE_PERM_TO_PATH: Record<string, string> = {
 
 // Ordem fixa de apresentação na sidebar (independente de core/módulos/admin).
 // Cada item só aparece se for acessível ao tenant (permissões + admin).
-const MENU_ORDER = ['/dashboard', '/admin', '/clientes', '/conteudos', '/loja', '/agenda', '/ginasio', '/financeiro']
+const MENU_ORDER = ['/dashboard', '/estatisticas', '/admin', '/clientes', '/conteudos', '/loja', '/agenda', '/ginasio', '/financeiro']
 
 const ROUTE_META: Record<string, { nome: string; icon: string }> = {
   '/dashboard':         { nome: 'Dashboard',  icon: 'dashboard' },
+  '/estatisticas':      { nome: 'Estatísticas', icon: 'trend' },
   '/financeiro':        { nome: 'Financeiro', icon: 'euro' },
   '/despesas':          { nome: 'Despesas',   icon: 'card' },
   '/clientes':          { nome: 'Clientes',   icon: 'users' },

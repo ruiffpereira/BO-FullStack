@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Badge, Avatar, Modal, Input, Button, IconButton, PageHeader, EmptyState, Tabs } from '../ui/ui.jsx'
+import { usePagination, Pagination } from '../components/Pagination'
 import { useGetCustomers, getCustomersQueryKey } from '../gen/backoffice/hooks/useGetCustomers.js'
 import { useGetScheduleServices } from '../gen/backoffice/hooks/useGetScheduleServices.js'
 import { useGetCustomersIdHistory, getCustomersIdHistoryQueryKey } from '../gen/backoffice/hooks/useGetCustomersIdHistory.js'
@@ -104,6 +105,7 @@ export function Clientes() {
       (c.contact ?? '').includes(q),
     ),
   [customers, q])
+  const pg = usePagination(filtered, { resetKey: q })
 
   const createMut = useMutation({
     mutationFn: (data: CustomerForm) => postCustomers({
@@ -273,7 +275,7 @@ export function Clientes() {
               {isError && (
                 <tr><td colSpan={4} className="px-4 py-8 text-center text-red-500 text-sm">Erro ao carregar clientes.</td></tr>
               )}
-              {!isLoading && !isError && filtered.map((c) => (
+              {!isLoading && !isError && pg.pageItems.map((c) => (
                 <tr
                   key={c.customerId}
                   onClick={() => openProfile(c.customerId)}
@@ -302,6 +304,9 @@ export function Clientes() {
           </table>
           {!isLoading && !isError && filtered.length === 0 && (
             <EmptyState icon="users" title="Sem clientes" desc="Não há clientes que correspondam à pesquisa." />
+          )}
+          {!isLoading && !isError && filtered.length > 0 && (
+            <div className="px-4 sm:px-5 pb-1"><Pagination {...pg} /></div>
           )}
         </div>
       </Card>

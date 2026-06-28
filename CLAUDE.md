@@ -24,7 +24,7 @@ A API deve estar a correr em `VITE_API_BASE_URL` (default: `http://localhost:300
 
 Duas camadas, ambas em `tests/`:
 
-- **Componentes (`tests/unit/`, Vitest + React Testing Library + jsdom):** testes unitários e isolados dos componentes partilhados — sem servidor nem API. Config em `vitest.config.ts`, setup em `tests/unit/setup.ts` (stub do `scrollIntoView`, matchers `jest-dom`). Hooks gerados (Kubb) que tocam a API são mockados (`vi.mock`). Cobertos: **Combobox, ConfirmDialog, DatePicker, DateRangePicker, FileUpload** (24 testes). Correr: `pnpm test:unit`.
+- **Componentes (`tests/unit/`, Vitest + React Testing Library + jsdom):** testes unitários e isolados dos componentes/páginas — sem servidor nem API. Config em `vitest.config.ts`, setup em `tests/unit/setup.ts` (stub do `scrollIntoView`, matchers `jest-dom`). Hooks gerados (Kubb)/manuais que tocam a API são mockados (`vi.mock`). Cobertos: **Combobox, ConfirmDialog, DatePicker, DateRangePicker, FileUpload, ApptModal, NotificationsPanel** e a página **Estatísticas** (`Estatisticas.test.tsx` — mocka `useSiteAnalytics` para os 3 estados: `no-plausible`, `no-domain` com input de domínio, e configurado com KPIs). Correr: `pnpm test:unit`.
 - **End-to-end (`tests/e2e/`, Playwright):** fluxos reais no browser (Chromium). Correr: **`pnpm test:e2e`** — não precisa de nada ligado à mão (~87 testes, serial). Specs: admin, **admin-tokens**, agenda, **agenda-pagamentos**, **auth-setup-password**, auth, clientes, conteudos, **conteudos-multilingua**, dashboard, despesas, errors, financeiro, ginasio, **ginasio-detalhe**, loja, **loja-encomendas**, **notificacoes**, **rbac** (matriz de permissões), **isolamento** (multi-tenant, incl. deep-link), security. Page objects em `tests/e2e/pages/`; helper `fixtures/login.ts` (`loginAs`) para autenticar tenants específicos.
 
 **Infra isolada (NUNCA toca em dev):** o `playwright.config.ts` arranca **dois** servidores próprios e semeia uma BD dedicada antes de tudo:
@@ -65,18 +65,19 @@ src/
 | Página | Rota | Permissão | Descrição |
 |--------|------|-----------|-----------|
 | `Admin.tsx` | `/admin` | `VIEW_ADMIN` | Utilizadores, permissões, componentes RBAC, site tokens, línguas, **Atividade** (audit log unificado — ações + erros 5xx, com filtro "Só erros"), **Sistema** (health) e **Integrações** (Google Calendar sync + Reviews — `useGoogleIntegration.ts`; OAuth env-gated) |
-| `Agenda.tsx` | `/agenda` | `VIEW_SCHEDULE` | Calendário de agendamentos, serviços, horários, bloqueios |
+| `Agenda.tsx` | `/agenda` | `VIEW_SCHEDULE` | Calendário de agendamentos, serviços, horários, bloqueios + card **Subscrever calendário** (feed .ics da agenda, `CalendarSubscribeCard`) |
 | `Clientes.tsx` | `/clientes` | **core** (todos) | Lista de clientes; ficha com **tabs por permissão** (cabeçalho fixo + tab **Agenda** se `VIEW_SCHEDULE` = stats/histórico, tab **Ginásio** se `VIEW_GYM` = mensalidade do cliente via `ClienteMensalidade`) |
 | `Conteudos.tsx` | `/conteudos` | **core** (todos) | CMS multi-língua: secções, entradas, textos, imagens |
 | `Dashboard.tsx` | `/` | qualquer | Resumo operacional centrado no **dia**: header com data/hora viva, faixa de KPIs (sparkline 14 dias + delta 7d/7d e receita de hoje — só dados reais), **timeline "Hoje"** (`DayRail` — rail vertical das marcações com marcador "agora" e banner do próximo cliente) e, à direita, estado das marcações do mês + últimas encomendas. Fallback sem `VIEW_SCHEDULE`: encomendas/empty states |
+| `Estatisticas.tsx` | `/estatisticas` | **core** (todos) | Estatísticas do site público do tenant via **Plausible auto-hospedado** (`useSiteAnalytics.ts`). Selector de período (7d/30d/Este mês/6 meses), KPIs (Visitantes, Visualizações, Taxa de saída, Duração média), `LineChart` de visitantes, listas de **páginas mais vistas** e **origem do tráfego**. Estados: `no-plausible` (admin tem de configurar) · `no-domain` (input para guardar o domínio via PUT) · dashboard. Env-gated no servidor; a key do Plausible nunca chega ao browser |
 | `FinanceiroPage.tsx` | `/financeiro` | **core** (todos) | Página "Financeiro" com tabs **O Negócio** (`Financeiro.tsx` — dashboard que agrega agenda/loja/**ginásio**+despesas), **Despesas** (`Despesas.tsx`) e **Ginásio** (`MensalidadesTab` de `GymMensalidade.tsx` — mensalidades+subscrições; só `VIEW_GYM`). `/despesas` é deep-link que abre a tab Despesas (não está na sidebar). **KPIs condicionais por negócio (tab O Negócio):** Receita/Despesas/Lucro aparecem sempre; **Clientes novos** só com Loja (`ecommerce`); **Vendas / Marcações** e **Ticket médio** só com Loja ou Agenda (pressupõem transações avulsas). Um tenant só de ginásio (mensalidades recorrentes) vê apenas Receita/Despesas/Lucro — flags `hasEcom`/`hasSales` em `Financeiro.tsx` |
 | `Ginasio.tsx` | `/ginasio` | `VIEW_GYM` | Ginásio: exercícios, treinos, planos, programas/progresso por cliente (`/api/gym`). **Mensalidades vivem no Financeiro** (tab Ginásio), não aqui |
 | `Loja.tsx` | `/loja` | `VIEW_PRODUCTS` | Produtos, categorias, subcategorias, encomendas, cupões |
 
 A navegação em `Shell.tsx` decide **o que** aparece por duas famílias e **a ordem** por um array fixo:
-- **Core (todos os tenants, sem permissão):** Dashboard · **Clientes** · **Financeiro** (Negócio + Despesas) · **Conteúdos**. No backend, `/customers`, `/expenses`, `/cms` e `/dashboard` só exigem `authenticateToken` (dados scoped por `userId`).
+- **Core (todos os tenants, sem permissão):** Dashboard · **Estatísticas** · **Clientes** · **Financeiro** (Negócio + Despesas) · **Conteúdos**. No backend, `/customers`, `/expenses`, `/cms`, `/dashboard` e `/analytics` só exigem `authenticateToken` (dados scoped por `userId`).
 - **Módulos (por permissão, em `MODULE_PERM_TO_PATH`):** Agenda (`VIEW_SCHEDULE`) · Loja (`VIEW_PRODUCTS`) · Ginásio (`VIEW_GYM`). **Admin** (`VIEW_ADMIN`) à parte.
-- **Ordem da sidebar** (`MENU_ORDER`, overhaul 2026-06-26): Dashboard · Admin · Clientes · Conteúdos · Loja · Agenda · Ginásio · Financeiro. As rotas acessíveis (conjunto core+módulos+admin) são apresentadas por esta ordem fixa; itens não listados vão para o fim. O redirect inicial continua a usar `accessiblePaths[0]` (= Dashboard, que todos têm).
+- **Ordem da sidebar** (`MENU_ORDER`): Dashboard · Estatísticas · Admin · Clientes · Conteúdos · Loja · Agenda · Ginásio · Financeiro. As rotas acessíveis (conjunto core+módulos+admin) são apresentadas por esta ordem fixa; itens não listados vão para o fim. O redirect inicial continua a usar `accessiblePaths[0]` (= Dashboard, que todos têm).
 - `/despesas` continua a funcionar como **deep-link** (abre o Financeiro na tab Despesas) mas **não** aparece na sidebar; o guard de rotas usa `allowedPaths = accessiblePaths + /despesas`.
 
 ---
@@ -110,6 +111,8 @@ A navegação em `Shell.tsx` decide **o que** aparece por duas famílias e **a o
 | `usePushSubscription.ts` | Subscrição Web Push (subscribe/unsubscribe) |
 | `useDashboard.ts` | GET `/api/dashboard?period=` tipado (schedule + ecommerce + **gym** + expenses) para a tab "O Negócio" do Financeiro |
 | `useAuditLogs.ts` | `useAuditLogs` (registo unificado; `errors:"true"` filtra 5xx) / `useHealth` — tabs Atividade e Sistema do Admin (só `VIEW_ADMIN`) |
+| `useSiteAnalytics.ts` | `useSiteAnalytics(period)` (GET `/api/analytics/site`) + `useSiteDomain`/`useSetSiteDomain` (GET/PUT do domínio). Alimenta a página **Estatísticas**; fala só com a nossa API (a key do Plausible fica no servidor) |
+| `useScheduleCalendar.ts` | `useScheduleCalendarFeed` (GET `/api/schedule/calendar` → URL .ics da agenda, gera token na 1.ª vez) + `useRotateScheduleCalendarToken` (POST `/rotate`). Alimenta o `CalendarSubscribeCard` da Agenda |
 
 > Despesas usa hooks gerados pelo Kubb (`useGetExpenses`, `useGetExpensesSummary`, `usePostExpenses`, …) para as despesas, e o hook manual `useExpenseCategories.ts` (list/create/update/delete) para as **categorias criadas pelo tenant**. As categorias têm cor própria; `src/utils/expenseCategories.ts` só guarda a paleta de cores sugeridas.
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { usePagination, Pagination } from "../components/Pagination";
 import { useSearchParams } from "react-router-dom";
 import {
   TranslationInputs,
@@ -603,6 +604,7 @@ export function Loja() {
       products.filter((p) => p.name.toLowerCase().includes(q.toLowerCase())),
     [products, q],
   );
+  const pgProd = usePagination(filtered, { resetKey: q });
 
   const stats = useMemo(
     () => ({
@@ -619,6 +621,7 @@ export function Loja() {
     () => orders.reduce((s, o) => s + (Number(o.price) || 0), 0),
     [orders],
   );
+  const pgOrders = usePagination(orders, { resetKey: tab });
 
   const openEdit = useCallback((prod: Product) => {
     setEditing(prod);
@@ -780,8 +783,9 @@ export function Loja() {
               ))}
             </div>
           ) : filtered.length ? (
+            <>
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filtered.map((p) => (
+              {pgProd.pageItems.map((p) => (
                 <ProdutoCard
                   key={p.productId}
                   p={p}
@@ -793,6 +797,8 @@ export function Loja() {
                 />
               ))}
             </div>
+            <Pagination {...pgProd} />
+            </>
           ) : (
             <Card>
               <EmptyState
@@ -853,7 +859,7 @@ export function Loja() {
                         </td>
                       </tr>
                     )}
-                    {orders.map((o) => (
+                    {pgOrders.pageItems.map((o) => (
                       <tr
                         key={o.orderId}
                         className="border-b border-zinc-50 dark:border-zinc-800/50 last:border-0 hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 transition"
@@ -875,6 +881,7 @@ export function Loja() {
                 </table>
               </div>
             )}
+            {!loadingOrders && <div className="px-4 sm:px-5 pb-2"><Pagination {...pgOrders} /></div>}
           </Card>
         </div>
       )}

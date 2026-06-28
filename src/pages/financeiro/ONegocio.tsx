@@ -3,7 +3,8 @@ import { useNegocioFinance, type VatMode } from '../../hooks/useFinanceiro'
 import { useDashboard, type DashboardPeriod } from '../../hooks/useDashboard'
 import { Card, Badge, SectionTitle, EmptyState } from '../../ui/ui.jsx'
 import { DonutChart } from '../../ui/charts.jsx'
-import { KpiCard, MoneyTriad, HealthScore, fmtEur } from '../../components/financeiro/kit'
+import { KpiCard, MoneyTriad, HealthScore, fmtEur, InfoDot } from '../../components/financeiro/kit'
+import { INFO } from '../../components/financeiro/info'
 
 const SOURCE = { agenda: { nome: 'Agenda', cor: '#2A6FDB' }, loja: { nome: 'Loja', cor: '#1F8A5B' }, gym: { nome: 'Ginásio', cor: '#7C5CDB' } }
 
@@ -47,23 +48,26 @@ export function ONegocio({ period, iva, customStart, customEnd }: {
     <div className="space-y-6">
       {/* Score de saúde + tríade */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {data ? <HealthScore score={data.health.score} factors={data.health.factors} /> : <Card className="p-5 h-44 animate-pulse" />}
+        {data ? <HealthScore score={data.health.score} hasData={data.health.hasData} factors={data.health.factors} /> : <Card className="p-5 h-44 animate-pulse" />}
         <MoneyTriad money={data?.money} loading={isLoading} />
       </div>
 
       {/* Dinheiro */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Receita (recebido)" icon="euro" tone="green" loading={isLoading} value={fmtEur(data?.money.recebido ?? 0)} delta={data?.money.recebidoGrowth} deltaGood="up" />
-        <KpiCard label="Despesas" icon="card" tone="red" loading={isLoading} value={fmtEur(data?.despesas ?? 0)} />
-        <KpiCard label="Lucro" icon="trend" tone={(data?.lucro ?? 0) >= 0 ? 'blue' : 'red'} loading={isLoading} value={fmtEur(data?.lucro ?? 0)} sub={`Margem ${data?.margem ?? 0}%`} />
-        <KpiCard label="Em dívida" icon="star" tone="amber" loading={isLoading} value={fmtEur(data?.money.emDivida ?? 0)} sub="a receber" />
+        <KpiCard label="Receita (recebido)" icon="euro" tone="green" loading={isLoading} value={fmtEur(data?.money.recebido ?? 0)} delta={data?.money.recebidoGrowth} deltaGood="up" info={INFO.receita} />
+        <KpiCard label="Despesas" icon="card" tone="red" loading={isLoading} value={fmtEur(data?.despesas ?? 0)} info={INFO.despesas} />
+        <KpiCard label="Lucro" icon="trend" tone={(data?.lucro ?? 0) >= 0 ? 'blue' : 'red'} loading={isLoading} value={fmtEur(data?.lucro ?? 0)} sub={`Margem ${data?.margem ?? 0}%`} info={INFO.lucro} />
+        <KpiCard label="Em dívida" icon="star" tone="amber" loading={isLoading} value={fmtEur(data?.money.emDivida ?? 0)} sub="a receber" info={{ title: 'Em dívida', body: 'Faturado − Recebido: o que ainda falta entrar em caixa no período.' }} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Receita vs Despesas */}
         <Card className="p-5 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
-            <SectionTitle>Receita vs Despesas</SectionTitle>
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Receita vs Despesas</h2>
+              <InfoDot title={INFO.revVsExp.title} body={INFO.revVsExp.body} />
+            </div>
             <div className="flex items-center gap-4 text-xs">
               <span className="flex items-center gap-1.5 text-zinc-500"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Receita</span>
               <span className="flex items-center gap-1.5 text-zinc-500"><span className="w-2.5 h-2.5 rounded-sm bg-red-400" /> Despesas</span>
@@ -91,7 +95,10 @@ export function ONegocio({ period, iva, customStart, customEnd }: {
         </Card>
         {/* Distribuição de receita por fonte */}
         <Card className="p-5">
-          <SectionTitle>Receita por fonte</SectionTitle>
+          <div className="flex items-center gap-1.5 mb-3">
+            <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Receita por fonte</h2>
+            <InfoDot title={INFO.revSource.title} body={INFO.revSource.body} />
+          </div>
           {sourceData.length > 0 ? <div className="mt-3"><DonutChart data={sourceData} /></div> : <p className="text-sm text-zinc-400 mt-3">Sem receita no período.</p>}
         </Card>
       </div>

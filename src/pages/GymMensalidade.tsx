@@ -9,7 +9,10 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { LineChart, Waterfall } from '../ui/charts.jsx'
 import { useGymAnalytics } from '../hooks/useGymAnalytics'
 import { useAuth } from '../context/AuthContext'
-import { gymGenerateMonth, gymBulkMarkPaid, gymRemind } from '../hooks/useFinanceiro'
+import { gymBulkMarkPaid, gymRemind } from '../hooks/useFinanceiro'
+import { InfoDot } from '../components/financeiro/kit'
+import { INFO } from '../components/financeiro/info'
+import { usePagination, Pagination } from '../components/Pagination'
 import { useGetGymSubscriptions } from '../gen/backoffice/hooks/useGetGymSubscriptions.js'
 import { postGymSubscriptions } from '../gen/backoffice/hooks/usePostGymSubscriptions.js'
 import { putGymSubscriptionsId } from '../gen/backoffice/hooks/usePutGymSubscriptionsId.js'
@@ -107,7 +110,8 @@ function SubscricaoModal({ subscricao, onClose, onSaved }: { subscricao: Sub | n
   )
 }
 
-function SubscricoesTab() {
+// Catálogo de subscrições numa MODAL (ver lista; criar/editar abre a SubscricaoModal).
+function SubscricoesModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
   const { data } = useGetGymSubscriptions()
   const subs = (data ?? []) as Sub[]
@@ -119,42 +123,46 @@ function SubscricoesTab() {
     onError: (e) => toast.error(getApiError(e)),
   })
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-zinc-500">{subs.length} subscrições no catálogo</p>
-        <Button icon="plus" size="sm" onClick={() => setModal({ sub: null })}>Nova subscrição</Button>
-      </div>
-      {subs.length ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {subs.map((s) => (
-            <Card key={s.subscriptionId} className="p-5 group">
-              <div className="flex items-start justify-between">
-                <span className="w-10 h-10 rounded-lg bg-accent/10 text-accent flex items-center justify-center shrink-0"><Icon name="euro" className="w-5 h-5" /></span>
-                <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition">
-                  <IconButton icon="edit" label="Editar" onClick={() => setModal({ sub: s })} />
-                  <IconButton icon="trash" label="Eliminar" className="hover:text-red-500" onClick={() => setConfirmDel(s)} />
-                </div>
-              </div>
-              <h3 className="font-semibold text-zinc-900 dark:text-white mt-3">{s.name}</h3>
-              <div className="flex items-baseline gap-1 mt-1">
-                <span className="text-2xl font-semibold text-zinc-900 dark:text-white tabular-nums">{fmtEur(s.price)}</span>
-                <span className="text-sm text-zinc-400">/mês</span>
-              </div>
-              <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-50 dark:border-zinc-800 text-[13px]">
-                <span className="inline-flex items-center gap-1.5 text-zinc-500"><Icon name="user" className="w-3.5 h-3.5" /><span className="font-medium text-zinc-800 dark:text-zinc-100">{s.clientCount ?? 0}</span> clientes · vence dia {s.dueDay}</span>
-                {s.active ? <Badge tone="green" dot>Ativa</Badge> : <Badge tone="neutral">Inativa</Badge>}
-              </div>
-            </Card>
-          ))}
+    <Modal open onClose={onClose} width="max-w-3xl" title="Subscrições"
+      subtitle="O catálogo de mensalidades que atribuis aos alunos."
+      footer={<Button variant="ghost" onClick={onClose}>Fechar</Button>}>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-zinc-500">{subs.length} subscriç{subs.length === 1 ? 'ão' : 'ões'} no catálogo</p>
+          <Button icon="plus" size="sm" onClick={() => setModal({ sub: null })}>Nova subscrição</Button>
         </div>
-      ) : <Card><EmptyState icon="euro" title="Sem subscrições" desc="Cria a primeira mensalidade do catálogo." action={<Button icon="plus" onClick={() => setModal({ sub: null })}>Nova subscrição</Button>} /></Card>}
+        {subs.length ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {subs.map((s) => (
+              <Card key={s.subscriptionId} className="p-5">
+                <div className="flex items-start justify-between">
+                  <span className="w-10 h-10 rounded-lg bg-accent/10 text-accent flex items-center justify-center shrink-0"><Icon name="euro" className="w-5 h-5" /></span>
+                  <div className="flex gap-0.5">
+                    <IconButton icon="edit" label="Editar" onClick={() => setModal({ sub: s })} />
+                    <IconButton icon="trash" label="Eliminar" className="hover:text-red-500" onClick={() => setConfirmDel(s)} />
+                  </div>
+                </div>
+                <h3 className="font-semibold text-zinc-900 dark:text-white mt-3">{s.name}</h3>
+                <div className="flex items-baseline gap-1 mt-1">
+                  <span className="text-2xl font-semibold text-zinc-900 dark:text-white tabular-nums">{fmtEur(s.price)}</span>
+                  <span className="text-sm text-zinc-400">/mês</span>
+                </div>
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-50 dark:border-zinc-800 text-[13px]">
+                  <span className="inline-flex items-center gap-1.5 text-zinc-500"><Icon name="user" className="w-3.5 h-3.5" /><span className="font-medium text-zinc-800 dark:text-zinc-100">{s.clientCount ?? 0}</span> clientes · vence dia {s.dueDay}</span>
+                  {s.active ? <Badge tone="green" dot>Ativa</Badge> : <Badge tone="neutral">Inativa</Badge>}
+                </div>
+              </Card>
+            ))}
+          </div>
+        ) : <EmptyState icon="euro" title="Sem subscrições" desc="Cria a primeira mensalidade do catálogo." action={<Button icon="plus" onClick={() => setModal({ sub: null })}>Nova subscrição</Button>} />}
+      </div>
 
       {modal && <SubscricaoModal subscricao={modal.sub} onClose={() => setModal(null)} onSaved={() => invalidateMens(qc)} />}
       <Modal open={!!confirmDel} onClose={() => setConfirmDel(null)} title="Eliminar subscrição?"
         footer={<><Button variant="ghost" onClick={() => setConfirmDel(null)}>Cancelar</Button><Button variant="danger" isLoading={del.isPending} onClick={() => { if (confirmDel) del.mutate(confirmDel.subscriptionId); setConfirmDel(null) }}>Eliminar</Button></>}>
         <p className="text-sm text-zinc-500">Os clientes ligados ficam sem subscrição; os pagamentos mantêm-se. Continuar?</p>
       </Modal>
-    </div>
+    </Modal>
   )
 }
 
@@ -450,11 +458,6 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
   const toggleSel = (id: string) => { const n = new Set(sel); n.has(id) ? n.delete(id) : n.add(id); setSel(n) }
-  const onGerar = async () => {
-    setBusy(true)
-    try { const r = await gymGenerateMonth(authHeader, period); toast.success(`${r.created} mensalidade${r.created === 1 ? '' : 's'} gerada${r.created === 1 ? '' : 's'}`); invalidateMens(qc) }
-    catch (e) { toast.error(getApiError(e)) } finally { setBusy(false) }
-  }
   const onLembrar = async (ids?: string[]) => {
     try { const r = await gymRemind(authHeader, ids?.length ? { customerIds: ids, period } : { period }); toast.success(`${r.sent} lembrete${r.sent === 1 ? '' : 's'} enviado${r.sent === 1 ? '' : 's'}`) }
     catch (e) { toast.error(getApiError(e)) }
@@ -465,16 +468,18 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
     catch (e) { toast.error(getApiError(e)) } finally { setBusy(false) }
   }
 
-  if (isLoading || !fin) return <Card className="p-8 text-center text-sm text-zinc-400">A carregar…</Card>
-
+  // Lista filtrada/ordenada (null-safe) + paginação — os hooks têm de vir ANTES do guard de loading.
   const isPaid = (r: FinanceRow) => r.status === 'paid'
-  const billable = fin.rows.filter((r) => r.subscription)
-  const counts = { cobrar: billable.filter((r) => !isPaid(r)).length, pago: billable.filter(isPaid).length, todos: billable.length }
+  const billable = (fin?.rows ?? []).filter((r) => r.subscription)
   const base = filter === 'cobrar' ? billable.filter((r) => !isPaid(r)) : filter === 'pago' ? billable.filter(isPaid) : billable
   const list = base
     .filter((r) => r.name.toLowerCase().includes(q.toLowerCase()))
     .sort((a, b) => (Number(b.overdue) - Number(a.overdue)) || a.name.localeCompare(b.name))
+  const pg = usePagination(list, { resetKey: `${filter}|${q}|${period}` })
 
+  if (isLoading || !fin) return <Card className="p-8 text-center text-sm text-zinc-400">A carregar…</Card>
+
+  const counts = { cobrar: billable.filter((r) => !isPaid(r)).length, pago: billable.filter(isPaid).length, todos: billable.length }
   const previsto = fin.kpis.mrr
   const recebido = fin.kpis.recebido
   const pct = previsto > 0 ? Math.min(100, Math.round((recebido / previsto) * 100)) : 0
@@ -502,11 +507,7 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
             <span className="text-sm font-semibold text-zinc-900 dark:text-white capitalize min-w-[130px] text-center">{fmtPeriodoLong(period)}</span>
             <IconButton icon="chevronRight" label="Mês seguinte" onClick={() => setPeriod((p) => shiftPeriod(p, 1))} />
           </div>
-          <div className="flex items-center gap-2">
-            {period !== currentPeriod() && <Button variant="ghost" size="sm" onClick={() => setPeriod(currentPeriod())}>Mês atual</Button>}
-            <Button variant="outline" size="sm" icon="plus" isLoading={busy} onClick={onGerar}>Gerar mês</Button>
-            <Button variant="ghost" size="sm" icon="mail" onClick={() => onLembrar()}>Lembrar atrasados</Button>
-          </div>
+          {period !== currentPeriod() && <Button variant="ghost" size="sm" onClick={() => setPeriod(currentPeriod())}>Mês atual</Button>}
         </div>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -514,6 +515,7 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
             <p className="text-3xl font-semibold text-zinc-900 dark:text-white tabular-nums leading-tight">{fmtEur(recebido)} <span className="text-base font-normal text-zinc-400">/ {fmtEur(previsto)}</span></p>
           </div>
           <div className="flex gap-6 text-sm">
+            <div><p className="text-zinc-400 text-xs">Cobrança</p><p className={`font-semibold tabular-nums ${pct >= 80 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>{pct}%</p></div>
             <div><p className="text-zinc-400 text-xs">Por cobrar</p><p className="font-semibold text-zinc-800 dark:text-zinc-100 tabular-nums">{fmtEur(porCobrarValor)}</p></div>
             <div><p className="text-zinc-400 text-xs">Em atraso</p><p className={`font-semibold tabular-nums ${fin.kpis.emAtraso ? 'text-red-600 dark:text-red-400' : 'text-zinc-800 dark:text-zinc-100'}`}>{fin.kpis.emAtraso}</p></div>
             <div><p className="text-zinc-400 text-xs">MRR</p><p className="font-semibold text-zinc-800 dark:text-zinc-100 tabular-nums">{fmtEur(fin.kpis.mrr)}</p></div>
@@ -545,8 +547,9 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
       ) : list.length === 0 ? (
         <Card className="p-10 text-center text-sm text-zinc-400">{filter === 'cobrar' ? 'Tudo cobrado neste mês. 🎉' : 'Nada a mostrar.'}</Card>
       ) : (
-        <Card className="overflow-hidden divide-y divide-zinc-50 dark:divide-zinc-800/50">
-          {list.map((r) => {
+        <div>
+          <Card className="overflow-hidden divide-y divide-zinc-50 dark:divide-zinc-800/50">
+          {pg.pageItems.map((r) => {
             const di = dueInfo(r)
             const amount = r.payment?.amount ?? r.subscription?.price ?? 0
             return (
@@ -569,7 +572,9 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
               </div>
             )
           })}
-        </Card>
+          </Card>
+          <Pagination {...pg} />
+        </div>
       )}
 
       {sel.size > 0 && (
@@ -589,14 +594,17 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
 }
 
 // ── Análise: churn / retenção / LTV / MRR trend ──────────────────────────────
-function KpiCard({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: 'green' | 'red' | 'amber' }) {
+function KpiCard({ label, value, hint, tone, info }: { label: string; value: string; hint?: string; tone?: 'green' | 'red' | 'amber'; info?: { title: string; body: React.ReactNode } }) {
   const toneFg = tone === 'green' ? 'text-emerald-600 dark:text-emerald-400'
     : tone === 'red' ? 'text-red-600 dark:text-red-400'
     : tone === 'amber' ? 'text-amber-600 dark:text-amber-400'
     : 'text-zinc-900 dark:text-white'
   return (
     <Card className="p-4 sm:p-5">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">{label}</p>
+      <div className="flex items-center gap-1">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">{label}</p>
+        {info && <InfoDot title={info.title} body={info.body} />}
+      </div>
       <p className={`text-2xl sm:text-[28px] font-semibold tabular-nums leading-tight mt-1 ${toneFg}`}>{value}</p>
       {hint && <p className="text-xs text-zinc-400 mt-1">{hint}</p>}
     </Card>
@@ -615,19 +623,22 @@ function AnaliseView() {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <KpiCard label="MRR" value={fmtEur(data.mrr)} hint="Subscrições ativas" />
-        <KpiCard label="ARR" value={fmtEur(data.arr)} hint="Receita anual (MRR×12)" />
-        <KpiCard label="Taxa de cobrança" value={`${data.collectionRate}%`} hint="Recebido / esperado" tone={data.collectionRate >= 80 ? 'green' : 'amber'} />
-        <KpiCard label="Membros ativos" value={String(data.activeMembers)} hint={data.blockedMembers ? `${data.blockedMembers} bloqueado${data.blockedMembers !== 1 ? 's' : ''}` : 'Com subscrição'} />
-        <KpiCard label="Inativos" value={String(data.inactiveMembers)} hint={`sem treinar há +${data.inactiveAfterDays}d`} tone={data.inactiveMembers > 0 ? 'amber' : 'green'} />
-        <KpiCard label="Churn" value={`${data.churn.rate}%`} hint={`${data.churn.count} de ${data.churn.base} no último mês`} tone={churnTone} />
-        <KpiCard label="Retenção" value={`${data.retentionRate}%`} hint="Mês anterior → atual" tone="green" />
-        <KpiCard label="LTV" value={fmtEur(data.ltv)} hint={`~${data.avgLifetimeMonths} meses pagos`} />
+        <KpiCard label="MRR" value={fmtEur(data.mrr)} hint="Subscrições ativas" info={INFO.mrr} />
+        <KpiCard label="ARR" value={fmtEur(data.arr)} hint="Receita anual (MRR×12)" info={INFO.arr} />
+        <KpiCard label="Taxa de cobrança" value={`${data.collectionRate}%`} hint="Recebido / esperado" tone={data.collectionRate >= 80 ? 'green' : 'amber'} info={INFO.collection} />
+        <KpiCard label="Membros ativos" value={String(data.activeMembers)} hint={data.blockedMembers ? `${data.blockedMembers} bloqueado${data.blockedMembers !== 1 ? 's' : ''}` : 'Com subscrição'} info={INFO.activeMembers} />
+        <KpiCard label="Inativos" value={String(data.inactiveMembers)} hint={`sem treinar há +${data.inactiveAfterDays}d`} tone={data.inactiveMembers > 0 ? 'amber' : 'green'} info={INFO.inactive} />
+        <KpiCard label="Churn" value={`${data.churn.rate}%`} hint={`${data.churn.count} de ${data.churn.base} no último mês`} tone={churnTone} info={INFO.churn} />
+        <KpiCard label="Retenção" value={`${data.retentionRate}%`} hint="Mês anterior → atual" tone="green" info={INFO.retention} />
+        <KpiCard label="LTV" value={fmtEur(data.ltv)} hint={`~${data.avgLifetimeMonths} meses pagos`} info={INFO.ltv} />
       </div>
 
       <Card className="p-5">
         <div className="flex items-center justify-between mb-1">
-          <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Tendência do MRR</h3>
+          <div className="flex items-center gap-1.5">
+            <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Tendência do MRR</h3>
+            <InfoDot title={INFO.mrrTrend.title} body={INFO.mrrTrend.body} />
+          </div>
           <span className="text-xs text-zinc-400">Recebido · 6 meses</span>
         </div>
         {hasTrend ? (
@@ -639,7 +650,10 @@ function AnaliseView() {
 
       <Card className="p-5">
         <div className="flex items-center justify-between mb-1">
-          <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Movimento do MRR</h3>
+          <div className="flex items-center gap-1.5">
+            <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Movimento do MRR</h3>
+            <InfoDot title={INFO.waterfall.title} body={INFO.waterfall.body} />
+          </div>
           <span className="text-xs text-zinc-400">ganho (novo+expansão) vs perda</span>
         </div>
         {data.waterfall?.some((w) => w.novo || w.perdido || w.expansao || w.contracao) ? (
@@ -654,13 +668,14 @@ function AnaliseView() {
 
 // ── Tab principal: Financeiro do ginásio (Cobranças + Subscrições + Análise) ───
 export function MensalidadesTab() {
-  const [aba, setAba] = useState<'cobrancas' | 'subscricoes' | 'analise'>('cobrancas')
   const [sel, setSel] = useState<{ id: string; name: string } | null>(null)
+  const [subsOpen, setSubsOpen] = useState(false)
+  const [analiseOpen, setAnaliseOpen] = useState(false)
 
   if (sel) {
     return (
       <div>
-        <button onClick={() => setSel(null)} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 mb-5"><Icon name="chevronLeft" className="w-4 h-4" />Voltar às cobranças</button>
+        <button onClick={() => setSel(null)} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 mb-5"><Icon name="chevronLeft" className="w-4 h-4" />Voltar</button>
         <div className="flex items-center gap-3 mb-5">
           <Avatar name={sel.name} color={colorFromName(sel.name)} size={48} />
           <div><h2 className="text-xl font-semibold text-zinc-900 dark:text-white">{sel.name}</h2><p className="text-sm text-zinc-500">Mensalidade</p></div>
@@ -670,19 +685,28 @@ export function MensalidadesTab() {
     )
   }
 
+  // Página = cockpit de Cobranças (pulso no topo + lista). Análise e Subscrições
+  // vivem em modais, para a lista (que pode ser enorme) não enterrar nada.
   return (
-    <div>
-      <div className="flex items-center gap-1 p-1 mb-5 bg-zinc-100 dark:bg-zinc-800/60 rounded-xl w-full sm:w-auto sm:inline-flex">
-        {([['cobrancas', 'Cobranças', 'euro'], ['subscricoes', 'Subscrições', 'layers'], ['analise', 'Análise', 'trend']] as const).map(([id, label, icon]) => (
-          <button key={id} onClick={() => setAba(id)} className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${aba === id ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}>
-            <Icon name={icon} className="w-4 h-4" />{label}
-          </button>
-        ))}
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-zinc-500">Cobranças das mensalidades.</p>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" icon="trend" onClick={() => setAnaliseOpen(true)}>Análise</Button>
+          <Button variant="outline" size="sm" icon="layers" onClick={() => setSubsOpen(true)}>Subscrições</Button>
+        </div>
       </div>
 
-      {aba === 'cobrancas' && <CobrancasView onOpen={setSel} />}
-      {aba === 'subscricoes' && <SubscricoesTab />}
-      {aba === 'analise' && <AnaliseView />}
+      <CobrancasView onOpen={setSel} />
+
+      {subsOpen && <SubscricoesModal onClose={() => setSubsOpen(false)} />}
+      {analiseOpen && (
+        <Modal open onClose={() => setAnaliseOpen(false)} width="max-w-4xl" title="Análise"
+          subtitle="Saúde das mensalidades: recorrência, retenção e movimento do MRR."
+          footer={<Button variant="ghost" onClick={() => setAnaliseOpen(false)}>Fechar</Button>}>
+          <AnaliseView />
+        </Modal>
+      )}
     </div>
   )
 }

@@ -32,6 +32,7 @@ import {
 } from "../ui/ui.jsx";
 import { confirmDialog } from "../components/confirm";
 import { DatePicker } from "../components/DatePicker";
+import { TimeField } from "../components/TimeField";
 
 import {
   useGetScheduleAppointments,
@@ -669,12 +670,8 @@ function NovaApptModal({
             <DatePicker value={editDate} onChange={setEditDate} />
           </div>
           <div className="w-28">
-            <Input
-              label="Hora *"
-              type="time"
-              value={form.time}
-              onChange={set("time")}
-            />
+            <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Hora *</span>
+            <TimeField value={form.time} onChange={(v) => setForm((f) => ({ ...f, time: v }))} />
           </div>
         </div>
         {/* ── Customer selector ── */}

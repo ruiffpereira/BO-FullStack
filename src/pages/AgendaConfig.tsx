@@ -5,6 +5,7 @@ import { getApiError } from "../lib/apiError";
 import { Icon } from "../ui/icons.jsx";
 import { Card, Button, IconButton, Badge, Modal, Input, Toggle, EmptyState, BADGE_TONES } from "../ui/ui.jsx";
 import { DatePicker } from "../components/DatePicker";
+import { TimeField } from "../components/TimeField";
 import {
   useGetScheduleWorkingHours,
   getScheduleWorkingHoursQueryKey,
@@ -50,60 +51,9 @@ function workingHoursChanged(a: WorkingHours[], b: WorkingHours[]) {
 }
 
 // Opções HH:MM (15 min, 06:00–23:45) + garante que o valor atual aparece na lista.
-const BASE_TIMES: string[] = (() => {
-  const out: string[] = [];
-  for (let h = 6; h <= 23; h++) for (const m of [0, 15, 30, 45]) out.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-  return out;
-})();
-const timeOptions = (value?: string | null) => {
-  const set = new Set(BASE_TIMES);
-  if (value) set.add(value);
-  return [...set].sort();
-};
 const hhmmToH = (t?: string | null) => { if (!t) return 0; const [h, m] = t.split(":").map(Number); return h + (m || 0) / 60; };
 const fmtDataCurta = (s?: string | null) => { if (!s) return "—"; const [, m, d] = s.split("-"); return `${+d} ${MES[+m - 1]}`; };
 const addDayStr = (s: string, n: number) => { const d = new Date(s + "T00:00:00"); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
-
-// Seletor de hora compacto (popover, sem control nativo) — estilo do protótipo.
-// `before`/`after` (HH:MM) restringem as opções (ex.: fecho > abertura).
-function TimeField({ value, onChange, before, after, tone = "default" }: {
-  value: string;
-  onChange: (v: string) => void;
-  before?: string;
-  after?: string;
-  tone?: "default" | "lunch";
-}) {
-  const [open, setOpen] = useState(false);
-  const opts = timeOptions(value).filter((t) => (before == null || t < before) && (after == null || t > after));
-  const toneCls = tone === "lunch"
-    ? "border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 hover:border-amber-400"
-    : "border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-100 bg-white dark:bg-zinc-900 hover:border-accent";
-  return (
-    <div className="relative">
-      <button type="button" onClick={() => setOpen((o) => !o)} className={`inline-flex items-center gap-1.5 rounded-lg border pl-2.5 pr-2 py-1.5 text-[13px] font-medium tabular-nums transition ${toneCls}`}>
-        {value}
-        <Icon name="chevronDown" className={`w-3.5 h-3.5 opacity-50 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <>
-          <button type="button" aria-hidden tabIndex={-1} className="fixed inset-0 z-30 cursor-default" onClick={() => setOpen(false)} />
-          <div className="absolute z-40 mt-1 left-0 w-24 max-h-52 overflow-y-auto rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl p-1 animate-[pop_.12s_ease]">
-            {opts.map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => { onChange(t); setOpen(false); }}
-                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[13px] tabular-nums transition ${t === value ? "bg-accent text-white font-medium" : "text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
 
 // Barra visual de cobertura do dia (abertura preenchida, almoço recortado).
 function DayBar({ startTime, endTime, lunchStart, lunchEnd }: { startTime: string; endTime: string; lunchStart: string | null; lunchEnd: string | null }) {

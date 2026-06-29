@@ -17,6 +17,7 @@ import { Modal, Avatar, Badge, Button } from "../ui/ui.jsx";
 import { Combobox } from "./Combobox";
 import { PriceFillChip } from "./PriceFillChip";
 import { confirmDialog } from "./confirm";
+import { TimeField } from "./TimeField";
 import type {
   Appointment,
   AppointmentStatusEnum,
@@ -460,12 +461,7 @@ export function ApptModal({
                 {canEdit ? (
                   <div>
                     <p className="text-xs text-zinc-400 mb-1">Hora</p>
-                    <input
-                      type="time"
-                      value={editTime}
-                      onChange={(e) => setEditTime(e.target.value)}
-                      className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent"
-                    />
+                    <TimeField value={editTime} onChange={setEditTime} />
                   </div>
                 ) : (
                   <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-2.5">

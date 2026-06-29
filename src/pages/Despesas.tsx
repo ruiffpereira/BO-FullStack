@@ -8,6 +8,7 @@ import { Icon } from '../ui/icons.jsx'
 import { Card, Badge, Button, Input, Modal, PageHeader, EmptyState, IconButton, BADGE_TONES } from '../ui/ui.jsx'
 import { usePagination, Pagination } from '../components/Pagination'
 import { Combobox } from '../components/Combobox'
+import { DatePicker } from '../components/DatePicker'
 import { useGetExpenses, getExpensesQueryKey } from '../gen/backoffice/hooks/useGetExpenses.js'
 import { useGetExpensesSummary, getExpensesSummaryQueryKey } from '../gen/backoffice/hooks/useGetExpensesSummary.js'
 import { usePostExpenses } from '../gen/backoffice/hooks/usePostExpenses.js'
@@ -376,7 +377,10 @@ export function Despesas() {
         <div className="space-y-4">
           <Input label="Descrição" value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} placeholder="Ex: Fatura eletricidade" />
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Data" type="date" value={form.date} onChange={(e: any) => setForm({ ...form, date: e.target.value })} />
+            <div>
+              <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Data</span>
+              <DatePicker value={form.date} onChange={(v) => setForm({ ...form, date: v })} />
+            </div>
             <Input label="Valor (€)" type="number" step={0.01} min={0} value={form.amount} onChange={(e: any) => setForm({ ...form, amount: e.target.value })} placeholder="0.00" />
           </div>
           <div>

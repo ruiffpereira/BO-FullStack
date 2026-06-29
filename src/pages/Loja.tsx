@@ -7,6 +7,7 @@ import {
 } from "../components/TranslationInputs";
 import { useGetSettingsLanguages } from "../hooks/useSettingsLanguages";
 import { CmsCombo } from "../components/CmsCombo";
+import { confirmDialog } from "../components/confirm";
 import { ensureCmsName } from "../lib/gymCms";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -790,10 +791,10 @@ export function Loja() {
                   key={p.productId}
                   p={p}
                   onEdit={() => openEdit(p)}
-                  onDelete={() =>
-                    confirm(`Eliminar "${p.name}"?`) &&
-                    deleteProduct.mutate({ id: p.productId })
-                  }
+                  onDelete={async () => {
+                    if (await confirmDialog({ title: `Eliminar "${p.name}"?`, danger: true }))
+                      deleteProduct.mutate({ id: p.productId });
+                  }}
                 />
               ))}
             </div>
@@ -1004,8 +1005,8 @@ export function Loja() {
                       <Icon name="globe" className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={() => {
-                        if (confirm(`Eliminar categoria "${cat.name}"?`))
+                      onClick={async () => {
+                        if (await confirmDialog({ title: `Eliminar categoria "${cat.name}"?`, message: "As subcategorias e a associação aos produtos são afetadas.", danger: true }))
                           delCategory.mutate({ id: cat.categoryId });
                       }}
                       className="p-1.5 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition"
@@ -1094,8 +1095,8 @@ export function Loja() {
                           <Icon name="globe" className="w-3 h-3" />
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm(`Eliminar subcategoria "${sub.name}"?`))
+                          onClick={async () => {
+                            if (await confirmDialog({ title: `Eliminar subcategoria "${sub.name}"?`, danger: true }))
                               delSubcategory.mutate({ id: sub.subcategoryId });
                           }}
                           className="p-1 rounded text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition"

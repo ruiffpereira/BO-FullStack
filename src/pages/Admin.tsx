@@ -17,6 +17,7 @@ import {
   Tabs,
 } from "../ui/ui.jsx";
 import { Combobox } from "../components/Combobox";
+import { confirmDialog } from "../components/confirm";
 
 import {
   useGetUsers,
@@ -622,10 +623,10 @@ function PermissoesTab({ headers }: { headers: Record<string, string> }) {
                   <IconButton
                     icon="trash"
                     label="Eliminar"
-                    onClick={() =>
-                      confirm(`Eliminar "${p.name}"?`) &&
-                      deleteM.mutate({ id: p.permissionId })
-                    }
+                    onClick={async () => {
+                      if (await confirmDialog({ title: `Eliminar "${p.name}"?`, danger: true }))
+                        deleteM.mutate({ id: p.permissionId });
+                    }}
                     className="hover:text-red-500"
                   />
                 </div>
@@ -880,10 +881,10 @@ function ComponentesTab({ headers }: { headers: Record<string, string> }) {
                   <IconButton
                     icon="trash"
                     label="Eliminar"
-                    onClick={() =>
-                      confirm(`Eliminar "${c.name}"?`) &&
-                      deleteM.mutate({ id: c.componentId })
-                    }
+                    onClick={async () => {
+                      if (await confirmDialog({ title: `Eliminar "${c.name}"?`, danger: true }))
+                        deleteM.mutate({ id: c.componentId });
+                    }}
                     className="hover:text-red-500"
                   />
                 </div>
@@ -1086,14 +1087,14 @@ function TokensTab({ headers }: { headers: Record<string, string> }) {
                         icon="x"
                         label="Revogar"
                         title="Revogar token"
-                        onClick={() => window.confirm(`Revogar "${t.label}"?`) && revokeMut.mutate({ id: t.tokenId })}
+                        onClick={async () => { if (await confirmDialog({ title: `Revogar "${t.label}"?`, message: "O token deixa de funcionar imediatamente.", confirmLabel: "Revogar", danger: true })) revokeMut.mutate({ id: t.tokenId }); }}
                         className="hover:text-amber-500"
                       />
                     )}
                     <IconButton
                       icon="trash"
                       label="Eliminar"
-                      onClick={() => window.confirm(`Eliminar "${t.label}"?`) && deleteMut.mutate({ id: t.tokenId })}
+                      onClick={async () => { if (await confirmDialog({ title: `Eliminar "${t.label}"?`, danger: true })) deleteMut.mutate({ id: t.tokenId }); }}
                       className="hover:text-red-500"
                     />
                   </div>

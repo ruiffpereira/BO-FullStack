@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Card, Button } from "../ui/ui.jsx";
 import { Icon } from "../ui/icons.jsx";
+import { confirmDialog } from "./confirm";
 import {
   useScheduleCalendarFeed,
   useRotateScheduleCalendarToken,
@@ -134,12 +135,8 @@ export function CalendarSubscribeCard() {
                 size="sm"
                 className="w-full"
                 disabled={rotate.isPending}
-                onClick={() => {
-                  if (
-                    confirm(
-                      "Regenerar o link invalida a subscrição atual em todos os dispositivos. Continuar?",
-                    )
-                  )
+                onClick={async () => {
+                  if (await confirmDialog({ title: "Regenerar o link de subscrição?", message: "A subscrição atual deixa de funcionar em todos os dispositivos.", confirmLabel: "Regenerar", danger: true }))
                     rotate.mutate();
                 }}
               >

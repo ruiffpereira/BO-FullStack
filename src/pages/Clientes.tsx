@@ -7,6 +7,7 @@ import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Badge, Avatar, Modal, Input, Button, IconButton, PageHeader, EmptyState, Tabs } from '../ui/ui.jsx'
 import { usePagination, Pagination } from '../components/Pagination'
+import { DatePicker } from '../components/DatePicker'
 import { useGetCustomers, getCustomersQueryKey } from '../gen/backoffice/hooks/useGetCustomers.js'
 import { useGetScheduleServices } from '../gen/backoffice/hooks/useGetScheduleServices.js'
 import { useGetCustomersIdHistory, getCustomersIdHistoryQueryKey } from '../gen/backoffice/hooks/useGetCustomersIdHistory.js'
@@ -493,7 +494,7 @@ export function Clientes() {
             <Input label="NIF (opcional)" value={form.nif} onChange={set('nif')} placeholder="123456789" />
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Data de nascimento (opcional)</label>
-              <input type="date" value={form.birthday} onChange={set('birthday')} className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" />
+              <DatePicker value={form.birthday} onChange={(v) => setForm((f) => ({ ...f, birthday: v }))} max={new Date().toISOString().slice(0, 10)} yearNav clearable />
             </div>
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Notas internas (opcional)</label>
@@ -545,7 +546,7 @@ export function Clientes() {
             <Input label="NIF" value={form.nif} onChange={set('nif')} />
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Data de nascimento</label>
-              <input type="date" value={form.birthday} onChange={set('birthday')} className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent" />
+              <DatePicker value={form.birthday} onChange={(v) => setForm((f) => ({ ...f, birthday: v }))} max={new Date().toISOString().slice(0, 10)} yearNav clearable />
             </div>
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Notas internas</label>

@@ -27,6 +27,8 @@ export function DatePicker({
   max,
   placeholder = 'Escolher data…',
   className = '',
+  clearable = false,
+  yearNav = false,
 }: {
   value: string
   onChange: (iso: string) => void
@@ -34,6 +36,9 @@ export function DatePicker({
   max?: string
   placeholder?: string
   className?: string
+  clearable?: boolean
+  /** Mostra dropdowns de mês/ano (útil para datas distantes, ex.: nascimento). */
+  yearNav?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const { anchorRef, menuRef, style } = useAnchoredMenu<HTMLButtonElement>(open, [open])
@@ -57,17 +62,34 @@ export function DatePicker({
   if (minD) disabled.push({ before: minD })
   if (maxD) disabled.push({ after: maxD })
 
+  const showClear = clearable && !!value
+  const now = new Date()
+  const startMonth = yearNav ? (minD ?? new Date(now.getFullYear() - 100, 0)) : undefined
+  const endMonth = yearNav ? (maxD ?? new Date(now.getFullYear() + 5, 11)) : undefined
+
   return (
     <>
-      <button
-        type="button"
-        ref={anchorRef}
-        onClick={() => setOpen((o) => !o)}
-        className={`w-full flex items-center gap-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm px-3 py-2 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition ${value ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-400'} ${className}`}
-      >
-        <Icon name="calendar" className="w-4 h-4 text-zinc-400 shrink-0" />
-        <span className="flex-1 text-left">{selected ? format(selected, 'dd/MM/yyyy') : placeholder}</span>
-      </button>
+      <div className="relative w-full">
+        <button
+          type="button"
+          ref={anchorRef}
+          onClick={() => setOpen((o) => !o)}
+          className={`w-full flex items-center gap-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm px-3 py-2 ${showClear ? 'pr-9' : ''} focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition ${value ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-400'} ${className}`}
+        >
+          <Icon name="calendar" className="w-4 h-4 text-zinc-400 shrink-0" />
+          <span className="flex-1 text-left">{selected ? format(selected, 'dd/MM/yyyy') : placeholder}</span>
+        </button>
+        {showClear && (
+          <span
+            role="button"
+            aria-label="Limpar data"
+            onClick={(e) => { e.stopPropagation(); onChange(''); setOpen(false) }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer"
+          >
+            <Icon name="x" className="w-3.5 h-3.5" />
+          </span>
+        )}
+      </div>
       {open &&
         createPortal(
           <div
@@ -84,6 +106,9 @@ export function DatePicker({
               weekStartsOn={1}
               defaultMonth={selected}
               disabled={disabled}
+              captionLayout={yearNav ? 'dropdown' : 'label'}
+              startMonth={startMonth}
+              endMonth={endMonth}
             />
           </div>,
           document.body,

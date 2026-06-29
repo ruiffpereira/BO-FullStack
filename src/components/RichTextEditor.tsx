@@ -8,6 +8,7 @@ import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import TextAlign from '@tiptap/extension-text-align'
 import { TextStyle } from '@tiptap/extension-text-style'
+import { promptDialog } from './confirm'
 
 interface Props {
   value: string
@@ -80,9 +81,9 @@ export function RichTextEditor({ value, onChange, placeholder = 'Escreve aqui…
 
   if (!editor) return null
 
-  const setLink = () => {
+  const setLink = async () => {
     const prev = editor.getAttributes('link').href ?? ''
-    const url = window.prompt('URL do link', prev)
+    const url = await promptDialog({ title: 'Inserir link', label: 'URL', placeholder: 'https://…', defaultValue: prev, confirmLabel: 'Aplicar' })
     if (url === null) return
     if (url === '') { editor.chain().focus().extendMarkRange('link').unsetLink().run(); return }
     editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()

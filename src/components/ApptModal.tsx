@@ -16,6 +16,7 @@ import { Icon } from "../ui/icons.jsx";
 import { Modal, Avatar, Badge, Button } from "../ui/ui.jsx";
 import { Combobox } from "./Combobox";
 import { PriceFillChip } from "./PriceFillChip";
+import { confirmDialog } from "./confirm";
 import type {
   Appointment,
   AppointmentStatusEnum,
@@ -199,8 +200,9 @@ export function ApptModal({
     if (Object.keys(data).length) onSave(appt.appointmentId, data);
   };
 
-  const handleCancelPayment = () => {
-    if (confirm("Anular o pagamento registado?")) setCancelPayment(true);
+  const handleCancelPayment = async () => {
+    if (await confirmDialog({ title: "Anular o pagamento registado?", message: "Os valores e o histórico de pagamento são limpos ao guardar.", confirmLabel: "Anular", danger: true }))
+      setCancelPayment(true);
   };
 
   const handleDiscard = () => {

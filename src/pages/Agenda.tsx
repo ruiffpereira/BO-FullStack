@@ -84,9 +84,10 @@ import { Combobox } from "../components/Combobox";
 import { CalendarSubscribeCard } from "../components/CalendarSubscribeCard";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const AG_H_START = 8;
-const AG_H_END = 20;
+const AG_H_START = 0; // grelha cobre o dia todo (00:00–24:00)
+const AG_H_END = 24;
 const AG_ROW_H = 80;
+const AG_SCROLL_START_H = 8; // scroll arranca nas 8h (mas dá para subir até às 0h)
 
 const SERVICE_COLORS = [
   "#2A6FDB",
@@ -958,6 +959,19 @@ function CalendarioView() {
   const setSelApptRef = useRef(setSelAppt);
   const dayColRefs = useRef<Map<string, HTMLElement>>(new Map());
 
+  // Scroll inicial da grelha (arranca nas 8h, mas dá para subir até às 0h).
+  const didInitScroll = useRef(false);
+  const calScrollRef = useCallback((node: HTMLDivElement | null) => {
+    if (node && !didInitScroll.current) {
+      node.scrollTop = (AG_SCROLL_START_H - AG_H_START) * AG_ROW_H;
+      didInitScroll.current = true;
+    }
+  }, []);
+  // Slot de 15 min sob o rato (hover) → realce + tooltip dia/hora.
+  const [hoverSlot, setHoverSlot] = useState<{ day: Date; min: number } | null>(
+    null,
+  );
+
   const month = format(weekStart, "yyyy-MM");
   const days = Array.from({ length: 6 }, (_, i) => addDays(weekStart, i));
   const hours = Array.from(
@@ -1387,7 +1401,7 @@ function CalendarioView() {
         )}
 
         {/* ── Área com scroll ── */}
-        <div className="overflow-auto flex-1 min-h-0">
+        <div ref={calScrollRef} className="overflow-auto flex-1 min-h-0">
           <div className="min-w-[600px]">
             {/* cabeçalho dos dias — sticky */}
             <div
@@ -1509,6 +1523,25 @@ function CalendarioView() {
                         setDragSel({ day, startMin: snapped, endMin: snapped });
                       }
                     }}
+                    onMouseMove={(e) => {
+                      if (dragRef.current?.active) return;
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const y = Math.max(0, e.clientY - rect.top);
+                      const totalMin = (y / AG_ROW_H) * 60 + AG_H_START * 60;
+                      const min = Math.min(
+                        Math.max(
+                          Math.floor(totalMin / 15) * 15,
+                          AG_H_START * 60,
+                        ),
+                        AG_H_END * 60 - 15,
+                      );
+                      setHoverSlot((prev) =>
+                        prev && prev.min === min && isSameDay(prev.day, day)
+                          ? prev
+                          : { day, min },
+                      );
+                    }}
+                    onMouseLeave={() => setHoverSlot(null)}
                   >
                     {/* Grelha: linha de hora (forte) + ticks de 15/30/45 min */}
                     {hours.map((h) => (
@@ -1522,6 +1555,27 @@ function CalendarioView() {
                         <div className="pointer-events-none absolute inset-x-0 top-3/4 border-t border-dashed border-zinc-100/60 dark:border-zinc-800/25" />
                       </div>
                     ))}
+
+                    {/* Hover: realce da célula de 15 min + tooltip dia/hora */}
+                    {hoverSlot &&
+                      isSameDay(hoverSlot.day, day) &&
+                      !hasDragSel && (
+                        <div
+                          className="pointer-events-none absolute inset-x-0 z-[6]"
+                          style={{
+                            top:
+                              ((hoverSlot.min - AG_H_START * 60) / 60) *
+                              AG_ROW_H,
+                            height: AG_ROW_H / 4,
+                          }}
+                        >
+                          <div className="h-full bg-accent/10 ring-1 ring-inset ring-accent/30 dark:bg-accent/20" />
+                          <span className="absolute left-1 top-0 -translate-y-1/2 whitespace-nowrap rounded-md bg-zinc-900/90 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900">
+                            {format(hoverSlot.day, "dd/MM")} -{" "}
+                            {minuteToTime(hoverSlot.min)}
+                          </span>
+                        </div>
+                      )}
 
                     {/* Blocked slots overlay */}
                     {dayBlocked.map((bs: any) => {

@@ -65,7 +65,7 @@ src/
 | Página | Rota | Permissão | Descrição |
 |--------|------|-----------|-----------|
 | `Admin.tsx` | `/admin` | `VIEW_ADMIN` | Utilizadores, permissões, componentes RBAC, site tokens, línguas, **Atividade** (audit log unificado — ações + erros 5xx, com filtro "Só erros"), **Sistema** (health) e **Integrações** (Google Calendar sync + Reviews — `useGoogleIntegration.ts`; OAuth env-gated) |
-| `Agenda.tsx` | `/agenda` | `VIEW_SCHEDULE` | Calendário de agendamentos, serviços, horários, bloqueios + card **Subscrever calendário** (feed .ics da agenda, `CalendarSubscribeCard`). Grelha horária com **ticks de 15 min** (linha de hora forte + 15/30/45 min ténues; `AG_ROW_H=80px`, drag já faz snap a 15 min) |
+| `Agenda.tsx` | `/agenda` | `VIEW_SCHEDULE` | Calendário de agendamentos, serviços, horários, bloqueios + card **Subscrever calendário** (feed .ics da agenda, `CalendarSubscribeCard`). Grelha **00–24h** (`AG_H_START=0`/`AG_H_END=24`, `AG_ROW_H=80px`) com **scroll a arrancar nas 8h** (`AG_SCROLL_START_H`, via callback-ref no contentor de scroll), **ticks de 15 min** (linha de hora forte + 15/30/45 min ténues), e **hover** que realça a célula de 15 min sob o rato + tooltip `DD/MM - HH:MM` (`hoverSlot`). O drag-to-create faz snap a 15 min. No tab **Pagamento** do `ApptModal`, pílulas **Dinheiro/MBway/Cartão** que preenchem o valor do serviço num clique (`PriceFillChip`) |
 | `Clientes.tsx` | `/clientes` | **core** (todos) | Lista de clientes; ficha com **tabs por permissão** (cabeçalho fixo + tab **Agenda** se `VIEW_SCHEDULE` = stats/histórico, tab **Ginásio** se `VIEW_GYM` = mensalidade do cliente via `ClienteMensalidade`) |
 | `Conteudos.tsx` | `/conteudos` | **core** (todos) | CMS multi-língua: secções, entradas, textos, imagens |
 | `Dashboard.tsx` | `/` | qualquer | Resumo operacional centrado no **dia**: header com data/hora viva, faixa de KPIs (sparkline 14 dias + delta 7d/7d e receita de hoje — só dados reais), **timeline "Hoje"** (`DayRail` — rail vertical das marcações com marcador "agora" e banner do próximo cliente) e, à direita, estado das marcações do mês + últimas encomendas. Fallback sem `VIEW_SCHEDULE`: encomendas/empty states |
@@ -97,6 +97,7 @@ A navegação em `Shell.tsx` decide **o que** aparece por duas famílias e **a o
 | `Combobox.tsx` | Dropdown custom com pesquisa. Menu renderizado em **portal** (`document.body`, posição fixa) para não ser cortado por overflow de modais. `ref` aponta para o botão; tem `label`/`disabled` |
 | `DateRangePicker.tsx` | Selector de intervalo de datas (`react-day-picker`, modo range, locale PT). Usado ao atribuir um programa |
 | `TranslationInputs.tsx` | Campos de tradução por língua com bandeiras reais |
+| `PriceFillChip.tsx` | Pílula que preenche um campo de valor com um preço de referência (preço do serviço na Agenda / da subscrição no ginásio) num clique. Usada no `ApptModal` (pagamento) e no `PagamentoModal` do gym (`GymMensalidade.tsx`). Props: `amount`, `label`, `onClick`, `active?` |
 
 ---
 

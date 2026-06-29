@@ -15,6 +15,7 @@ import { pt } from "date-fns/locale";
 import { Icon } from "../ui/icons.jsx";
 import { Modal, Avatar, Badge, Button } from "../ui/ui.jsx";
 import { Combobox } from "./Combobox";
+import { PriceFillChip } from "./PriceFillChip";
 import type {
   Appointment,
   AppointmentStatusEnum,
@@ -133,6 +134,26 @@ export function ApptModal({
   const debtAmount = Math.max(0, snapshotPrice - totalPaid);
   const hasDebt = status === "completed" && debtAmount > 0;
   const paymentHistory = (appt as any).paymentHistory as Array<{ at: string; cash: number; mbway: number; card: number }> | null | undefined;
+
+  // Preço de referência do serviço → preenche o pagamento num clique (por método).
+  const fillPrice = price || snapshotPrice;
+  const fillMethod = (which: "cash" | "mbway" | "card") => {
+    setCash(which === "cash" ? String(fillPrice) : "");
+    setMbway(which === "mbway" ? String(fillPrice) : "");
+    setCard(which === "card" ? String(fillPrice) : "");
+  };
+  const payNoTip =
+    (parseFloat(cash) || 0) + (parseFloat(mbway) || 0) + (parseFloat(card) || 0);
+  const activeMethod =
+    fillPrice > 0 && Math.abs(payNoTip - fillPrice) < 0.01
+      ? (parseFloat(cash) || 0) === payNoTip
+        ? "cash"
+        : (parseFloat(mbway) || 0) === payNoTip
+          ? "mbway"
+          : (parseFloat(card) || 0) === payNoTip
+            ? "card"
+            : null
+      : null;
 
   const paymentChanged =
     cancelPayment ||
@@ -708,6 +729,33 @@ export function ApptModal({
                     <div className="flex justify-between items-center p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-lg text-sm font-semibold text-red-700 dark:text-red-400">
                       <span>Em dívida</span>
                       <span>{debtAmount.toFixed(2)} €</span>
+                    </div>
+                  )}
+                  {fillPrice > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-zinc-400">
+                        Recebeu o valor do serviço?
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        <PriceFillChip
+                          amount={fillPrice}
+                          label="Dinheiro"
+                          active={activeMethod === "cash"}
+                          onClick={() => fillMethod("cash")}
+                        />
+                        <PriceFillChip
+                          amount={fillPrice}
+                          label="MBway"
+                          active={activeMethod === "mbway"}
+                          onClick={() => fillMethod("mbway")}
+                        />
+                        <PriceFillChip
+                          amount={fillPrice}
+                          label="Cartão"
+                          active={activeMethod === "card"}
+                          onClick={() => fillMethod("card")}
+                        />
+                      </div>
                     </div>
                   )}
                   <div className="grid grid-cols-3 gap-2">

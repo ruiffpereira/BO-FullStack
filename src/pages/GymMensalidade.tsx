@@ -6,6 +6,7 @@ import { Icon } from '../ui/icons.jsx'
 import { Card, Button, IconButton, Badge, Input, Select, Toggle, Modal, EmptyState, Avatar, BADGE_TONES } from '../ui/ui.jsx'
 import { DatePicker } from '../components/DatePicker'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { PriceFillChip } from '../components/PriceFillChip'
 import { LineChart, Waterfall } from '../ui/charts.jsx'
 import { useGymAnalytics } from '../hooks/useGymAnalytics'
 import { useAuth } from '../context/AuthContext'
@@ -213,7 +214,14 @@ function PagamentoModal({ customerId, period, amount, onClose, onSaved }: { cust
       footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><Button icon="check" isLoading={save.isPending} onClick={() => save.mutate()}>Marcar paga</Button></>}>
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
-          <Input label="Valor (€)" type="number" value={valor} onChange={(e: any) => setValor(e.target.value)} />
+          <div>
+            <Input label="Valor (€)" type="number" value={valor} onChange={(e: any) => setValor(e.target.value)} />
+            {amount > 0 && (
+              <div className="mt-1.5">
+                <PriceFillChip amount={amount} label="Subscrição" active={(parseFloat(valor) || 0) === amount} onClick={() => setValor(String(amount))} />
+              </div>
+            )}
+          </div>
           <label className="block"><span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Data</span><DatePicker value={pagoEm} onChange={setPagoEm} max={new Date().toISOString().slice(0, 10)} /></label>
         </div>
         <Select label="Método" value={metodo} onChange={(e: any) => setMetodo(e.target.value)}>{METODOS.map((m) => <option key={m}>{m}</option>)}</Select>

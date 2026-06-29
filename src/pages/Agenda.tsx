@@ -989,19 +989,20 @@ function CalendarioView() {
     }
   };
 
-  const month = format(weekStart, "yyyy-MM");
   const days = Array.from({ length: 6 }, (_, i) => addDays(weekStart, i));
+  // O calendário pede exatamente o intervalo de dias que mostra. A semana pode
+  // atravessar a virada do mês, por isso filtramos por [from, to] (não por mês).
+  const from = format(days[0], "yyyy-MM-dd");
+  const to = format(days[days.length - 1], "yyyy-MM-dd");
   const hours = Array.from(
     { length: AG_H_END - AG_H_START },
     (_, i) => AG_H_START + i,
   );
 
-  const { data: appointments = [], isLoading } = useGetScheduleAppointments({
-    month,
-  });
+  const { data: appointments = [], isLoading } = useGetScheduleAppointments({ from, to });
   const { data: services = [] } = useGetScheduleServices();
   const { data: customersData } = useGetCustomers();
-  const { data: blockedSlots = [] } = useGetScheduleBlockedSlots({ month });
+  const { data: blockedSlots = [] } = useGetScheduleBlockedSlots({ from, to });
   const { data: workingHours = [] } = useGetScheduleWorkingHours();
   const customers = customersData?.rows ?? [];
 

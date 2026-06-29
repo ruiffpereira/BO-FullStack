@@ -971,6 +971,23 @@ function CalendarioView() {
   const [hoverSlot, setHoverSlot] = useState<{ day: Date; min: number } | null>(
     null,
   );
+  // Exibição da hora nas células: "always" (sempre visível, discreto) vs
+  // "hover" (só ao passar o rato). Toggle p/ o utilizador escolher; persistido.
+  const [cellTimeMode, setCellTimeMode] = useState<"always" | "hover">(() => {
+    if (typeof localStorage !== "undefined") {
+      const v = localStorage.getItem("ag_cellTimeMode");
+      if (v === "always" || v === "hover") return v;
+    }
+    return "hover";
+  });
+  const changeCellTimeMode = (m: "always" | "hover") => {
+    setCellTimeMode(m);
+    try {
+      localStorage.setItem("ag_cellTimeMode", m);
+    } catch {
+      /* ignore */
+    }
+  };
 
   const month = format(weekStart, "yyyy-MM");
   const days = Array.from({ length: 6 }, (_, i) => addDays(weekStart, i));
@@ -1299,20 +1316,48 @@ function CalendarioView() {
               onClick={() => setWeekStart((d) => addWeeks(d, 1))}
             />
           </div>
-          <button
-            ref={miniCalBtnRef}
-            onClick={() => {
-              setMiniCalMonth(startOfMonth(weekStart));
-              setShowMiniCal((v) => !v);
-            }}
-            className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800 dark:text-zinc-100 capitalize hover:text-accent transition px-2 py-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          >
-            {format(weekStart, "MMMM yyyy", { locale: pt })}
-            <Icon
-              name="chevronDown"
-              className={`w-3.5 h-3.5 transition-transform ${showMiniCal ? "rotate-180" : ""}`}
-            />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Toggle: hora sempre visível vs só no hover (escolha do utilizador) */}
+            <div className="hidden sm:inline-flex items-center rounded-lg bg-zinc-100 dark:bg-zinc-800/60 p-0.5 text-[11px] font-medium">
+              {(
+                [
+                  ["always", "Sempre"],
+                  ["hover", "Ao passar"],
+                ] as const
+              ).map(([m, lbl]) => (
+                <button
+                  key={m}
+                  onClick={() => changeCellTimeMode(m)}
+                  title={
+                    m === "always"
+                      ? "Horas sempre visíveis nas células"
+                      : "Hora só ao passar o rato"
+                  }
+                  className={`rounded-md px-2 py-1 transition ${
+                    cellTimeMode === m
+                      ? "bg-white dark:bg-zinc-900 shadow-sm text-accent"
+                      : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                  }`}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
+            <button
+              ref={miniCalBtnRef}
+              onClick={() => {
+                setMiniCalMonth(startOfMonth(weekStart));
+                setShowMiniCal((v) => !v);
+              }}
+              className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800 dark:text-zinc-100 capitalize hover:text-accent transition px-2 py-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            >
+              {format(weekStart, "MMMM yyyy", { locale: pt })}
+              <Icon
+                name="chevronDown"
+                className={`w-3.5 h-3.5 transition-transform ${showMiniCal ? "rotate-180" : ""}`}
+              />
+            </button>
+          </div>
         </div>
 
         {/* ── Mini calendar popup ── */}
@@ -1495,7 +1540,7 @@ function CalendarioView() {
                         dayColRefs.current.set(format(day, "yyyy-MM-dd"), el);
                       else dayColRefs.current.delete(format(day, "yyyy-MM-dd"));
                     }}
-                    className={`relative border-l border-zinc-50 dark:border-zinc-800/50 ${dragSel ? "cursor-copy" : "cursor-pointer"} select-none ${isToday ? "bg-accent/[0.04] dark:bg-accent/[0.07]" : ""}`}
+                    className={`relative border-l border-zinc-50 dark:border-zinc-800/50 ${dragSel ? "cursor-crosshair" : "cursor-pointer"} select-none ${isToday ? "bg-accent/[0.04] dark:bg-accent/[0.07]" : ""}`}
                     style={{ touchAction: "none" }}
                     onPointerDown={(e) => {
                       if (e.button !== 0) return;
@@ -1525,6 +1570,7 @@ function CalendarioView() {
                     }}
                     onMouseMove={(e) => {
                       if (dragRef.current?.active) return;
+                      if (cellTimeMode !== "hover") return;
                       const rect = e.currentTarget.getBoundingClientRect();
                       const y = Math.max(0, e.clientY - rect.top);
                       const totalMin = (y / AG_ROW_H) * 60 + AG_H_START * 60;
@@ -1544,20 +1590,41 @@ function CalendarioView() {
                     onMouseLeave={() => setHoverSlot(null)}
                   >
                     {/* Grelha: linha de hora (forte) + ticks de 15/30/45 min */}
-                    {hours.map((h) => (
-                      <div
-                        key={h}
-                        className="relative border-b border-zinc-100 dark:border-zinc-800/50"
-                        style={{ height: AG_ROW_H }}
-                      >
-                        <div className="pointer-events-none absolute inset-x-0 top-1/4 border-t border-dashed border-zinc-100/60 dark:border-zinc-800/25" />
-                        <div className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-zinc-100/80 dark:border-zinc-800/35" />
-                        <div className="pointer-events-none absolute inset-x-0 top-3/4 border-t border-dashed border-zinc-100/60 dark:border-zinc-800/25" />
-                      </div>
-                    ))}
+                    {hours.map((h) => {
+                      const hh = String(h).padStart(2, "0");
+                      return (
+                        <div
+                          key={h}
+                          className="relative border-b border-zinc-100 dark:border-zinc-800/50"
+                          style={{ height: AG_ROW_H }}
+                        >
+                          <div className="pointer-events-none absolute inset-x-0 top-1/4 border-t border-dashed border-zinc-100/60 dark:border-zinc-800/25" />
+                          <div className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-zinc-100/80 dark:border-zinc-800/35" />
+                          <div className="pointer-events-none absolute inset-x-0 top-3/4 border-t border-dashed border-zinc-100/60 dark:border-zinc-800/25" />
+                          {/* Variante A: hora discreta sempre visível em cada célula de 15 min */}
+                          {cellTimeMode === "always" && (
+                            <>
+                              <span className="pointer-events-none absolute left-1 top-0.5 text-[9px] leading-none tabular-nums text-zinc-400/70 dark:text-zinc-500/60">
+                                {hh}:00
+                              </span>
+                              <span className="pointer-events-none absolute left-1 top-1/4 mt-0.5 text-[9px] leading-none tabular-nums text-zinc-300/70 dark:text-zinc-600/50">
+                                {hh}:15
+                              </span>
+                              <span className="pointer-events-none absolute left-1 top-1/2 mt-0.5 text-[9px] leading-none tabular-nums text-zinc-400/70 dark:text-zinc-500/55">
+                                {hh}:30
+                              </span>
+                              <span className="pointer-events-none absolute left-1 top-3/4 mt-0.5 text-[9px] leading-none tabular-nums text-zinc-300/70 dark:text-zinc-600/50">
+                                {hh}:45
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
 
                     {/* Hover: realce da célula de 15 min + tooltip dia/hora */}
-                    {hoverSlot &&
+                    {cellTimeMode === "hover" &&
+                      hoverSlot &&
                       isSameDay(hoverSlot.day, day) &&
                       !hasDragSel && (
                         <div
@@ -1569,9 +1636,9 @@ function CalendarioView() {
                             height: AG_ROW_H / 4,
                           }}
                         >
-                          <div className="h-full bg-accent/10 ring-1 ring-inset ring-accent/30 dark:bg-accent/20" />
-                          <span className="absolute left-1 top-0 -translate-y-1/2 whitespace-nowrap rounded-md bg-zinc-900/90 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900">
-                            {format(hoverSlot.day, "dd/MM")} -{" "}
+                          <div className="mx-0.5 h-full rounded-md bg-accent/10 ring-1 ring-inset ring-accent/40 dark:bg-accent/20" />
+                          <span className="absolute left-1.5 top-0 inline-flex -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold tabular-nums text-white shadow-md ring-1 ring-black/5">
+                            {format(hoverSlot.day, "dd/MM")} ·{" "}
                             {minuteToTime(hoverSlot.min)}
                           </span>
                         </div>

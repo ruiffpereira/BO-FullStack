@@ -3,7 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { getApiError } from "../lib/apiError";
 import { Icon } from "../ui/icons.jsx";
-import { Card, Button, IconButton, Badge, Modal, Input, Select, Toggle, EmptyState, BADGE_TONES } from "../ui/ui.jsx";
+import { Card, Button, IconButton, Badge, Modal, Input, Toggle, EmptyState, BADGE_TONES } from "../ui/ui.jsx";
+import { DatePicker } from "../components/DatePicker";
 import {
   useGetScheduleWorkingHours,
   getScheduleWorkingHoursQueryKey,
@@ -63,12 +64,44 @@ const hhmmToH = (t?: string | null) => { if (!t) return 0; const [h, m] = t.spli
 const fmtDataCurta = (s?: string | null) => { if (!s) return "—"; const [, m, d] = s.split("-"); return `${+d} ${MES[+m - 1]}`; };
 const addDayStr = (s: string, n: number) => { const d = new Date(s + "T00:00:00"); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
 
-// Select de hora (componente da app), compacto.
-function TimeSelect({ value, onChange, className = "w-[88px]" }: { value: string; onChange: (v: string) => void; className?: string }) {
+// Seletor de hora compacto (popover, sem control nativo) — estilo do protótipo.
+// `before`/`after` (HH:MM) restringem as opções (ex.: fecho > abertura).
+function TimeField({ value, onChange, before, after, tone = "default" }: {
+  value: string;
+  onChange: (v: string) => void;
+  before?: string;
+  after?: string;
+  tone?: "default" | "lunch";
+}) {
+  const [open, setOpen] = useState(false);
+  const opts = timeOptions(value).filter((t) => (before == null || t < before) && (after == null || t > after));
+  const toneCls = tone === "lunch"
+    ? "border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 hover:border-amber-400"
+    : "border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-100 bg-white dark:bg-zinc-900 hover:border-accent";
   return (
-    <Select value={value} onChange={(e: any) => onChange(e.target.value)} className={className}>
-      {timeOptions(value).map((t) => <option key={t} value={t}>{t}</option>)}
-    </Select>
+    <div className="relative">
+      <button type="button" onClick={() => setOpen((o) => !o)} className={`inline-flex items-center gap-1.5 rounded-lg border pl-2.5 pr-2 py-1.5 text-[13px] font-medium tabular-nums transition ${toneCls}`}>
+        {value}
+        <Icon name="chevronDown" className={`w-3.5 h-3.5 opacity-50 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <>
+          <button type="button" aria-hidden tabIndex={-1} className="fixed inset-0 z-30 cursor-default" onClick={() => setOpen(false)} />
+          <div className="absolute z-40 mt-1 left-0 w-24 max-h-52 overflow-y-auto rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl p-1 animate-[pop_.12s_ease]">
+            {opts.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => { onChange(t); setOpen(false); }}
+                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[13px] tabular-nums transition ${t === value ? "bg-accent text-white font-medium" : "text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -117,9 +150,9 @@ function HorarioEditor({ hours, updateDay, onCopyAll }: {
               {h.isActive ? (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <TimeSelect value={h.startTime} onChange={(v) => updateDay(h.dayOfWeek, { startTime: v })} />
+                    <TimeField value={h.startTime} before={h.endTime} onChange={(v) => updateDay(h.dayOfWeek, { startTime: v })} />
                     <span className="text-zinc-300 dark:text-zinc-600 text-sm">–</span>
-                    <TimeSelect value={h.endTime} onChange={(v) => updateDay(h.dayOfWeek, { endTime: v })} />
+                    <TimeField value={h.endTime} after={h.startTime} onChange={(v) => updateDay(h.dayOfWeek, { endTime: v })} />
                   </div>
                   <div className={`flex items-center gap-2 rounded-lg px-2 py-1 transition-colors ${hasLunch ? "bg-amber-50 dark:bg-amber-500/10" : ""}`}>
                     <button
@@ -131,9 +164,9 @@ function HorarioEditor({ hours, updateDay, onCopyAll }: {
                     </button>
                     {hasLunch && (
                       <div className="flex items-center gap-1">
-                        <TimeSelect value={h.lunchStart as string} onChange={(v) => updateDay(h.dayOfWeek, { lunchStart: v })} />
+                        <TimeField value={h.lunchStart as string} after={h.startTime} before={h.lunchEnd as string} onChange={(v) => updateDay(h.dayOfWeek, { lunchStart: v })} tone="lunch" />
                         <span className="text-amber-400/60 text-xs">–</span>
-                        <TimeSelect value={h.lunchEnd as string} onChange={(v) => updateDay(h.dayOfWeek, { lunchEnd: v })} />
+                        <TimeField value={h.lunchEnd as string} after={h.lunchStart as string} before={h.endTime} onChange={(v) => updateDay(h.dayOfWeek, { lunchEnd: v })} tone="lunch" />
                       </div>
                     )}
                   </div>
@@ -212,8 +245,14 @@ function BloqueioModal({ open, onClose, onSave, pending }: {
     >
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
-          <Input label="De" type="date" value={form.de} onChange={(e: any) => setForm((f) => ({ ...f, de: e.target.value, ate: f.ate < e.target.value ? e.target.value : f.ate }))} />
-          <Input label="Até" type="date" value={form.ate} onChange={(e: any) => setForm((f) => ({ ...f, ate: e.target.value }))} />
+          <div>
+            <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">De</span>
+            <DatePicker value={form.de} min={hoje} onChange={(v) => setForm((f) => ({ ...f, de: v, ate: f.ate < v ? v : f.ate }))} />
+          </div>
+          <div>
+            <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Até</span>
+            <DatePicker value={form.ate} min={form.de} onChange={(v) => setForm((f) => ({ ...f, ate: v }))} />
+          </div>
         </div>
         {!range && (
           <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50">
@@ -223,9 +262,9 @@ function BloqueioModal({ open, onClose, onSave, pending }: {
         )}
         {!range && !form.inteiro && (
           <div className="flex items-center gap-2">
-            <TimeSelect value={form.startTime} onChange={(v) => setForm((f) => ({ ...f, startTime: v }))} />
+            <TimeField value={form.startTime} before={form.endTime} onChange={(v) => setForm((f) => ({ ...f, startTime: v }))} />
             <span className="text-zinc-400 text-sm">–</span>
-            <TimeSelect value={form.endTime} onChange={(v) => setForm((f) => ({ ...f, endTime: v }))} />
+            <TimeField value={form.endTime} after={form.startTime} onChange={(v) => setForm((f) => ({ ...f, endTime: v }))} />
           </div>
         )}
         <Input label="Motivo (opcional)" value={form.motivo} onChange={(e: any) => setForm((f) => ({ ...f, motivo: e.target.value }))} placeholder="Ex: Férias de verão" />
@@ -297,7 +336,7 @@ export function ConfiguracoesPanel() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+    <div className="space-y-6">
       {/* Horário semanal — resumo + editor em modal */}
       <Card className="p-5">
         <div className="flex items-center justify-between gap-3 mb-3">
@@ -355,7 +394,7 @@ export function ConfiguracoesPanel() {
             })}
           </div>
         ) : (
-          <Card><EmptyState icon="calendar" title="Sem períodos bloqueados" desc="Adiciona férias, feriados ou um bloqueio pontual." action={<Button icon="plus" onClick={() => setBloqueioOpen(true)}>Adicionar período</Button>} /></Card>
+          <Card><EmptyState icon="calendar" title="Sem períodos bloqueados" desc="Usa “Adicionar período” (acima) para bloquear férias, feriados ou um dia." /></Card>
         )}
       </div>
 
@@ -366,7 +405,7 @@ export function ConfiguracoesPanel() {
         width="max-w-2xl"
         title="Horário semanal"
         subtitle="Horas de abertura e pausa de almoço de cada dia. Usa “Copiar p/ todos” para replicar um dia."
-        footer={<><Button variant="ghost" onClick={() => setHorarioOpen(false)}>Fechar</Button><Button icon="check" isLoading={saveHours.isPending} disabled={!hasUnsaved} onClick={() => saveHours.mutate({ data: { hours } })}>{hasUnsaved ? "Guardar horários" : "Sem alterações"}</Button></>}
+        footer={<><Button variant="ghost" onClick={() => setHorarioOpen(false)}>Fechar</Button><Button icon="check" variant={hasUnsaved ? "primary" : "secondary"} isLoading={saveHours.isPending} disabled={!hasUnsaved} onClick={() => saveHours.mutate({ data: { hours } })}>{hasUnsaved ? "Guardar horários" : "Sem alterações"}</Button></>}
       >
         <HorarioEditor hours={hours} updateDay={updateDay} onCopyAll={onCopyAll} />
       </Modal>

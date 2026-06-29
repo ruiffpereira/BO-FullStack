@@ -69,6 +69,7 @@ import {
 import { patchCustomersId } from "../gen/backoffice/hooks/usePatchCustomersId.js";
 import { useGetSettingsLanguages } from "../hooks/useSettingsLanguages";
 import { CmsCombo } from "../components/CmsCombo";
+import { ConfiguracoesPanel as ConfigPanel } from "./AgendaConfig";
 import { ensureCmsName } from "../lib/gymCms";
 
 import type { Appointment } from "../gen/backoffice/types/Appointment.js";
@@ -971,23 +972,7 @@ function CalendarioView() {
   const [hoverSlot, setHoverSlot] = useState<{ day: Date; min: number } | null>(
     null,
   );
-  // Exibição da hora nas células: "always" (sempre visível, discreto) vs
-  // "hover" (só ao passar o rato). Toggle p/ o utilizador escolher; persistido.
-  const [cellTimeMode, setCellTimeMode] = useState<"always" | "hover">(() => {
-    if (typeof localStorage !== "undefined") {
-      const v = localStorage.getItem("ag_cellTimeMode");
-      if (v === "always" || v === "hover") return v;
-    }
-    return "hover";
-  });
-  const changeCellTimeMode = (m: "always" | "hover") => {
-    setCellTimeMode(m);
-    try {
-      localStorage.setItem("ag_cellTimeMode", m);
-    } catch {
-      /* ignore */
-    }
-  };
+  // A hora aparece só ao passar o rato (hover) sobre slots livres — sem toggle.
 
   const days = Array.from({ length: 6 }, (_, i) => addDays(weekStart, i));
   // O calendário pede exatamente o intervalo de dias que mostra. A semana pode
@@ -1318,32 +1303,6 @@ function CalendarioView() {
             />
           </div>
           <div className="flex items-center gap-2">
-            {/* Toggle: hora sempre visível vs só no hover (escolha do utilizador) */}
-            <div className="hidden sm:inline-flex items-center rounded-lg bg-zinc-100 dark:bg-zinc-800/60 p-0.5 text-[11px] font-medium">
-              {(
-                [
-                  ["always", "Sempre"],
-                  ["hover", "Ao passar"],
-                ] as const
-              ).map(([m, lbl]) => (
-                <button
-                  key={m}
-                  onClick={() => changeCellTimeMode(m)}
-                  title={
-                    m === "always"
-                      ? "Horas sempre visíveis nas células"
-                      : "Hora só ao passar o rato"
-                  }
-                  className={`rounded-md px-2 py-1 transition ${
-                    cellTimeMode === m
-                      ? "bg-white dark:bg-zinc-900 shadow-sm text-accent"
-                      : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
-                  }`}
-                >
-                  {lbl}
-                </button>
-              ))}
-            </div>
             <button
               ref={miniCalBtnRef}
               onClick={() => {
@@ -1532,6 +1491,17 @@ function CalendarioView() {
                   isSameDay(new Date((bs as any).date + "T00:00:00"), day),
                 );
                 const hasDragSel = dragSel && isSameDay(dragSel.day, day);
+                // Há marcação a cobrir este minuto? → não sugerir "criar aqui" (hover).
+                const slotHasAppt = (min: number) =>
+                  effectiveAppts.some((a) => {
+                    const [h, m] = a.time.split(":").map(Number);
+                    const startMin = h * 60 + m;
+                    const dur =
+                      a.duration ??
+                      services.find((s) => s.serviceId === a.serviceId)?.duration ??
+                      30;
+                    return min >= startMin && min < startMin + dur;
+                  });
 
                 return (
                   <div
@@ -1571,7 +1541,6 @@ function CalendarioView() {
                     }}
                     onMouseMove={(e) => {
                       if (dragRef.current?.active) return;
-                      if (cellTimeMode !== "hover") return;
                       const rect = e.currentTarget.getBoundingClientRect();
                       const y = Math.max(0, e.clientY - rect.top);
                       const totalMin = (y / AG_ROW_H) * 60 + AG_H_START * 60;
@@ -1582,6 +1551,11 @@ function CalendarioView() {
                         ),
                         AG_H_END * 60 - 15,
                       );
+                      // Slot já ocupado por uma marcação → não mostrar o hover de "criar aqui".
+                      if (slotHasAppt(min)) {
+                        setHoverSlot((prev) => (prev ? null : prev));
+                        return;
+                      }
                       setHoverSlot((prev) =>
                         prev && prev.min === min && isSameDay(prev.day, day)
                           ? prev
@@ -1591,41 +1565,20 @@ function CalendarioView() {
                     onMouseLeave={() => setHoverSlot(null)}
                   >
                     {/* Grelha: linha de hora (forte) + ticks de 15/30/45 min */}
-                    {hours.map((h) => {
-                      const hh = String(h).padStart(2, "0");
-                      return (
-                        <div
-                          key={h}
-                          className="relative border-b border-zinc-100 dark:border-zinc-800/50"
-                          style={{ height: AG_ROW_H }}
-                        >
-                          <div className="pointer-events-none absolute inset-x-0 top-1/4 border-t border-dashed border-zinc-100/60 dark:border-zinc-800/25" />
-                          <div className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-zinc-100/80 dark:border-zinc-800/35" />
-                          <div className="pointer-events-none absolute inset-x-0 top-3/4 border-t border-dashed border-zinc-100/60 dark:border-zinc-800/25" />
-                          {/* Variante A: hora discreta sempre visível em cada célula de 15 min */}
-                          {cellTimeMode === "always" && (
-                            <>
-                              <span className="pointer-events-none absolute left-1 top-0.5 text-[9px] leading-none tabular-nums text-zinc-400/70 dark:text-zinc-500/60">
-                                {hh}:00
-                              </span>
-                              <span className="pointer-events-none absolute left-1 top-1/4 mt-0.5 text-[9px] leading-none tabular-nums text-zinc-300/70 dark:text-zinc-600/50">
-                                {hh}:15
-                              </span>
-                              <span className="pointer-events-none absolute left-1 top-1/2 mt-0.5 text-[9px] leading-none tabular-nums text-zinc-400/70 dark:text-zinc-500/55">
-                                {hh}:30
-                              </span>
-                              <span className="pointer-events-none absolute left-1 top-3/4 mt-0.5 text-[9px] leading-none tabular-nums text-zinc-300/70 dark:text-zinc-600/50">
-                                {hh}:45
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      );
-                    })}
+                    {hours.map((h) => (
+                      <div
+                        key={h}
+                        className="relative border-b border-zinc-100 dark:border-zinc-800/50"
+                        style={{ height: AG_ROW_H }}
+                      >
+                        <div className="pointer-events-none absolute inset-x-0 top-1/4 border-t border-dashed border-zinc-100/60 dark:border-zinc-800/25" />
+                        <div className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-zinc-100/80 dark:border-zinc-800/35" />
+                        <div className="pointer-events-none absolute inset-x-0 top-3/4 border-t border-dashed border-zinc-100/60 dark:border-zinc-800/25" />
+                      </div>
+                    ))}
 
-                    {/* Hover: realce da célula de 15 min + tooltip dia/hora */}
-                    {cellTimeMode === "hover" &&
-                      hoverSlot &&
+                    {/* Hover: realce da célula de 15 min + tooltip dia/hora (só em slots livres) */}
+                    {hoverSlot &&
                       isSameDay(hoverSlot.day, day) &&
                       !hasDragSel && (
                         <div
@@ -3202,7 +3155,7 @@ export function Agenda() {
       {vista === "cal" && <CalendarioView />}
       {vista === "marcacoes" && <MarcacoesPanel />}
       {vista === "servicos" && <ServicosPanel />}
-      {vista === "config" && <ConfiguracoesPanel />}
+      {vista === "config" && <ConfigPanel />}
     </div>
   );
 }

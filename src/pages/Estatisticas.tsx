@@ -18,6 +18,7 @@ import {
  */
 
 const PRESETS: { key: AnalyticsPeriod; label: string }[] = [
+  { key: 'day', label: 'Hoje' },
   { key: '7d', label: '7 dias' },
   { key: '30d', label: '30 dias' },
   { key: 'month', label: 'Este mês' },
@@ -111,7 +112,7 @@ function DomainForm({ initial = '' }: { initial?: string }) {
 }
 
 export function Estatisticas() {
-  const [period, setPeriod] = useState<AnalyticsPeriod>('30d')
+  const [period, setPeriod] = useState<AnalyticsPeriod>('month')
   const { data, isLoading } = useSiteAnalytics(period)
 
   const agg = data?.aggregate

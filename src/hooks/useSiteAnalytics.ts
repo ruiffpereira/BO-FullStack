@@ -10,7 +10,9 @@ import { useAuth } from "../context/AuthContext";
  */
 
 // Períodos suportados (alinhados com a Stats API do Plausible).
-export type AnalyticsPeriod = "7d" | "30d" | "month" | "6mo";
+// Nota: no Plausible, "7d"/"30d" vão até ONTEM (não incluem hoje); "day" (Hoje)
+// e "month" (Este mês) incluem o dia corrente — daí o default ser "month".
+export type AnalyticsPeriod = "day" | "7d" | "30d" | "month" | "6mo";
 
 export interface PlausibleAggregate {
   visitors?: { value: number };

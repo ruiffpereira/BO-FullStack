@@ -65,7 +65,7 @@ src/
 | Página | Rota | Permissão | Descrição |
 |--------|------|-----------|-----------|
 | `Admin.tsx` | `/admin` | `VIEW_ADMIN` | Utilizadores, permissões, componentes RBAC, site tokens, línguas, **Atividade** (audit log unificado — ações + erros 5xx, com filtro "Só erros"), **Sistema** (health) e **Integrações** (Google Calendar sync + Reviews — `useGoogleIntegration.ts`; OAuth env-gated) |
-| `Agenda.tsx` | `/agenda` | `VIEW_SCHEDULE` | Calendário de agendamentos, serviços, horários, bloqueios + card **Subscrever calendário** (feed .ics da agenda, `CalendarSubscribeCard`) |
+| `Agenda.tsx` | `/agenda` | `VIEW_SCHEDULE` | Calendário de agendamentos, serviços, horários, bloqueios + card **Subscrever calendário** (feed .ics da agenda, `CalendarSubscribeCard`). Grelha horária com **ticks de 15 min** (linha de hora forte + 15/30/45 min ténues; `AG_ROW_H=80px`, drag já faz snap a 15 min) |
 | `Clientes.tsx` | `/clientes` | **core** (todos) | Lista de clientes; ficha com **tabs por permissão** (cabeçalho fixo + tab **Agenda** se `VIEW_SCHEDULE` = stats/histórico, tab **Ginásio** se `VIEW_GYM` = mensalidade do cliente via `ClienteMensalidade`) |
 | `Conteudos.tsx` | `/conteudos` | **core** (todos) | CMS multi-língua: secções, entradas, textos, imagens |
 | `Dashboard.tsx` | `/` | qualquer | Resumo operacional centrado no **dia**: header com data/hora viva, faixa de KPIs (sparkline 14 dias + delta 7d/7d e receita de hoje — só dados reais), **timeline "Hoje"** (`DayRail` — rail vertical das marcações com marcador "agora" e banner do próximo cliente) e, à direita, estado das marcações do mês + últimas encomendas. Fallback sem `VIEW_SCHEDULE`: encomendas/empty states |

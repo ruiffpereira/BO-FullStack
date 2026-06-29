@@ -1510,13 +1510,17 @@ function CalendarioView() {
                       }
                     }}
                   >
-                    {/* Hour grid lines */}
+                    {/* Grelha: linha de hora (forte) + ticks de 15/30/45 min */}
                     {hours.map((h) => (
                       <div
                         key={h}
-                        className="border-b border-zinc-50 dark:border-zinc-800/40"
+                        className="relative border-b border-zinc-100 dark:border-zinc-800/50"
                         style={{ height: AG_ROW_H }}
-                      />
+                      >
+                        <div className="pointer-events-none absolute inset-x-0 top-1/4 border-t border-dashed border-zinc-100/60 dark:border-zinc-800/25" />
+                        <div className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-zinc-100/80 dark:border-zinc-800/35" />
+                        <div className="pointer-events-none absolute inset-x-0 top-3/4 border-t border-dashed border-zinc-100/60 dark:border-zinc-800/25" />
+                      </div>
                     ))}
 
                     {/* Blocked slots overlay */}

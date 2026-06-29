@@ -1495,7 +1495,7 @@ function CalendarioView() {
                         dayColRefs.current.set(format(day, "yyyy-MM-dd"), el);
                       else dayColRefs.current.delete(format(day, "yyyy-MM-dd"));
                     }}
-                    className={`relative border-l border-zinc-50 dark:border-zinc-800/50 cursor-crosshair select-none ${isToday ? "bg-accent/[0.04] dark:bg-accent/[0.07]" : ""}`}
+                    className={`relative border-l border-zinc-50 dark:border-zinc-800/50 ${dragSel ? "cursor-copy" : "cursor-pointer"} select-none ${isToday ? "bg-accent/[0.04] dark:bg-accent/[0.07]" : ""}`}
                     style={{ touchAction: "none" }}
                     onPointerDown={(e) => {
                       if (e.button !== 0) return;

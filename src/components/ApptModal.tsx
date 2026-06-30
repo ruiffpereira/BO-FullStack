@@ -77,6 +77,7 @@ export function ApptModal({
   initialDate,
   initialTime,
   onOpenCustomer,
+  priorDebt = 0,
 }: {
   appt: Appointment;
   services: Service[];
@@ -89,6 +90,8 @@ export function ApptModal({
   initialDate?: string;
   initialTime?: string;
   onOpenCustomer?: () => void;
+  /** Dívida acumulada deste cliente noutras marcações (avisa no topo do pagamento). */
+  priorDebt?: number;
 }) {
   const [editServiceId, setEditServiceId] = useState(appt.serviceId);
   const svc = services.find((s) => s.serviceId === editServiceId);
@@ -605,6 +608,12 @@ export function ApptModal({
           {/* ── Payment tab ── */}
           {tab === "payment" && (
             <div className="space-y-4">
+              {priorDebt > 0 && (
+                <div className="flex items-center gap-2 p-3 rounded-lg text-sm font-semibold bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 text-red-700 dark:text-red-400">
+                  <Icon name="alertCircle" className="w-4 h-4 shrink-0" />
+                  <span>Este cliente tem {priorDebt.toFixed(2)} € em dívida de marcações anteriores.</span>
+                </div>
+              )}
               <div className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg text-sm">
                 <span className="text-zinc-500">{svc?.name || appt.serviceName || "Serviço"}</span>
                 <span className="font-semibold text-zinc-900 dark:text-white">

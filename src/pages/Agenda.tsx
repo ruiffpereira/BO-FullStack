@@ -188,6 +188,22 @@ function minToHHMM(total: number) {
   const m = total % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
+/** Dívida de UMA marcação concluída (preço − recebido). */
+function apptDebtOf(a: Appointment) {
+  if (a.status !== "completed") return 0;
+  const paid = Number(a.paymentCash || 0) + Number(a.paymentMbway || 0) + Number(a.paymentCard || 0);
+  return Math.max(0, Number(a.servicePrice ?? 0) - paid);
+}
+/** Dívida acumulada do MESMO cliente noutras marcações (exclui a atual). */
+function priorDebtFor(appt: Appointment, list: Appointment[]) {
+  const key = (x: Appointment) => x.clientEmail || x.clientPhone || x.clientName;
+  const k = key(appt);
+  if (!k) return 0;
+  return list.reduce(
+    (s, a) => (a.appointmentId !== appt.appointmentId && key(a) === k ? s + apptDebtOf(a) : s),
+    0,
+  );
+}
 function apptVisualEnd(appt: Appointment, services: Service[]) {
   const svc = services.find((s) => s.serviceId === appt.serviceId);
   return (
@@ -1991,6 +2007,10 @@ function CalendarioView() {
           initialTime={pendingReschedule?.newTime}
           isSaving={updateAppt.isPending}
           isSettingStatus={setStatusAppt.isPending}
+          priorDebt={priorDebtFor(
+            appointments.find((a) => a.appointmentId === selAppt.appointmentId) ?? selAppt,
+            appointments as Appointment[],
+          )}
           onOpenCustomer={(() => {
             const currentAppt = rescheduledFrom
               ? selAppt
@@ -2656,6 +2676,10 @@ function MarcacoesPanel() {
           }}
           isSaving={updateAppt.isPending}
           isSettingStatus={setStatusAppt.isPending}
+          priorDebt={priorDebtFor(
+            allAppts.find((a) => a.appointmentId === selAppt.appointmentId) ?? selAppt,
+            allAppts as Appointment[],
+          )}
           onOpenCustomer={(() => {
             const currentAppt =
               allAppts.find((a) => a.appointmentId === selAppt.appointmentId) ??

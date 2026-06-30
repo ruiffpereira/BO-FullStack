@@ -1077,6 +1077,16 @@ function CalendarioView() {
       },
     },
   });
+  // "Editar marcação": reverte para confirmada SEM fechar a modal (ao contrário do updateAppt).
+  const reopenAppt = usePutScheduleAppointmentsId({
+    mutation: {
+      onSuccess: () => {
+        invalidateAppts();
+        toast.success("Marcação reaberta para edição");
+      },
+      onError: (error) => toast.error(getApiError(error)),
+    },
+  });
   const lastStatusRef = useRef<string | null>(null);
   const setStatusAppt = usePutScheduleAppointmentsId({
     mutation: {
@@ -2028,6 +2038,7 @@ function CalendarioView() {
           onSaveCustomer={(id, data) => {
             patchCustomersId(id, data as any).then(() => qc.invalidateQueries({ queryKey: getCustomersQueryKey() }));
           }}
+          onReopen={(id) => reopenAppt.mutate({ id, data: { status: "confirmed" } as any })}
           onOpenCustomer={(() => {
             const currentAppt = rescheduledFrom
               ? selAppt
@@ -2706,6 +2717,7 @@ function MarcacoesPanel() {
           onSaveCustomer={(id, data) => {
             patchCustomersId(id, data as any).then(() => qc.invalidateQueries({ queryKey: getCustomersQueryKey() }));
           }}
+          onReopen={(id) => updateAppt.mutate({ id, data: { status: "confirmed" } as any })}
           onOpenCustomer={(() => {
             const currentAppt =
               allAppts.find((a) => a.appointmentId === selAppt.appointmentId) ??

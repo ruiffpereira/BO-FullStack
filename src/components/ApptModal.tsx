@@ -80,6 +80,7 @@ export function ApptModal({
   priorDebt = 0,
   customer,
   onSaveCustomer,
+  onReopen,
 }: {
   appt: Appointment;
   services: Service[];
@@ -98,6 +99,8 @@ export function ApptModal({
   customer?: { customerId: string; nif?: string | null; wantsInvoice?: boolean } | null;
   /** Persiste a preferência de contribuinte/NIF no cliente. */
   onSaveCustomer?: (customerId: string, data: { wantsInvoice: boolean; nif: string | null }) => void;
+  /** "Editar marcação": reverte Concluída → Confirmada SEM fechar a modal. */
+  onReopen?: (id: string) => void;
 }) {
   const [editServiceId, setEditServiceId] = useState(appt.serviceId);
   const svc = services.find((s) => s.serviceId === editServiceId);
@@ -251,15 +254,17 @@ export function ApptModal({
   };
 
   // "Editar marcação": volta de Concluída → Confirmada para mudar serviço/hora.
-  // O que já foi pago mantém-se (a dívida recalcula contra o novo preço).
+  // NÃO mexe no pagamento (quem mexe é "Pagar dívida"). NÃO fecha a modal.
   const handleEditAppointment = async () => {
     const ok = await confirmDialog({
       title: "Editar esta marcação?",
       message:
-        "Volta a Confirmada para poderes mudar o serviço ou a hora. O que já foi pago mantém-se e a dívida é recalculada.",
+        "Volta a Confirmada para poderes mudar o serviço ou a hora. Não mexe no pagamento.",
       confirmLabel: "Editar",
     });
-    if (ok) onSetStatus(appt.appointmentId, "confirmed");
+    if (!ok) return;
+    onReopen?.(appt.appointmentId);
+    setTab("details");
   };
 
   const handleSave = async () => {

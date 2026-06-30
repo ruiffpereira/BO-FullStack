@@ -529,6 +529,7 @@ export function Clientes() {
           onClose={() => setSelAppt(null)}
           onSave={(id, data) => updateApptMut.mutate({ id, data })}
           onSetStatus={(id, status, data) => setStatusApptMut.mutate({ id, status, data })}
+          onReopen={(id) => updateApptMut.mutate({ id, data: { status: "confirmed" } })}
           isSaving={updateApptMut.isPending}
           isSettingStatus={setStatusApptMut.isPending}
         />

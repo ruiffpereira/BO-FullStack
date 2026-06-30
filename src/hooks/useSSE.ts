@@ -1,4 +1,6 @@
 import { useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { getNotificationsQueryKey } from "./useNotifications";
@@ -8,6 +10,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api
 export function useSSE() {
   const { accessToken, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -92,6 +95,23 @@ export function useSSE() {
       if (event.type === "message" || event.type === "chat_read") {
         queryClient.invalidateQueries({ queryKey: ["chat"] });
       }
+
+      // Aviso (toast) de nova mensagem — exceto se já estiveres nas Mensagens.
+      // Coalescido por conversa (mesmo id → substitui o toast anterior).
+      if (event.type === "message" && !window.location.pathname.startsWith("/mensagens")) {
+        const d = (event.data ?? {}) as {
+          senderRole?: string;
+          senderName?: string;
+          preview?: string;
+          conversationId?: string;
+        };
+        const who = d.senderRole === "admin" ? "Suporte" : d.senderName || "Nova mensagem";
+        toast(`💬 ${who}`, {
+          id: `chat-${d.conversationId ?? "x"}`,
+          description: d.preview || "Tens uma nova mensagem.",
+          action: { label: "Abrir", onClick: () => navigate("/mensagens") },
+        });
+      }
     }
 
     function scheduleRetry() {
@@ -106,5 +126,5 @@ export function useSSE() {
       active = false;
       abortRef.current?.abort();
     };
-  }, [accessToken, isAuthenticated, queryClient]);
+  }, [accessToken, isAuthenticated, queryClient, navigate]);
 }

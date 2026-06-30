@@ -81,4 +81,35 @@ test.describe("Chat de suporte", () => {
     // Dentro do widget: o composer do tenant.
     await expect(page.getByRole("textbox", { name: "Mensagem" })).toBeVisible();
   });
+
+  test("aviso (toast) de nova mensagem quando o tenant NÃO está nas Mensagens", async ({ browser }) => {
+    const mark = `toast-${Date.now()}`;
+    const reply = `aviso ${mark}`;
+
+    // Tenant abre uma conversa e depois sai das Mensagens.
+    const tenantCtx = await browser.newContext();
+    await loginAs(tenantCtx, "limited@e2e");
+    const tenant = await tenantCtx.newPage();
+    await tenant.goto("/mensagens");
+    await expect(tenant.getByText("Fala com o suporte")).toBeVisible({ timeout: 15_000 });
+    await tenant.getByRole("textbox", { name: "Mensagem" }).fill(`abre ${mark}`);
+    await tenant.getByRole("button", { name: "Enviar" }).click();
+    await expect(tenant.getByText(`abre ${mark}`)).toBeVisible({ timeout: 10_000 });
+    await tenant.goto("/dashboard");
+
+    // Admin responde.
+    const adminCtx = await browser.newContext();
+    await loginAs(adminCtx, "admin@e2e");
+    const admin = await adminCtx.newPage();
+    await admin.goto("/mensagens");
+    await admin.locator("button", { hasText: `abre ${mark}` }).first().click();
+    await admin.getByRole("textbox", { name: "Mensagem" }).fill(reply);
+    await admin.getByRole("button", { name: "Enviar" }).click();
+
+    // O tenant (no /dashboard) recebe o toast com a pré-visualização da mensagem.
+    await expect(tenant.getByText(reply)).toBeVisible({ timeout: 20_000 });
+
+    await tenantCtx.close();
+    await adminCtx.close();
+  });
 });

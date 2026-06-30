@@ -151,7 +151,8 @@ export function ApptModal({
   const snapshotPrice = Number(appt.servicePrice ?? 0);
   const totalPaid = Number(appt.paymentCash ?? 0) + Number(appt.paymentMbway ?? 0) + Number(appt.paymentCard ?? 0);
   const debtAmount = Math.max(0, snapshotPrice - totalPaid);
-  const hasDebt = status === "completed" && debtAmount > 0;
+  // "Tem dívida" = já há pagamento registado mas falta valor (independente do estado).
+  const hasDebt = isPaid && debtAmount > 0;
   const paymentHistory = (appt as any).paymentHistory as Array<{ at: string; cash: number; mbway: number; card: number }> | null | undefined;
 
   // Preço de referência do serviço → preenche o pagamento num clique (por método).
@@ -398,7 +399,17 @@ export function ApptModal({
             {/* Ações — dependem da aba. Fechar é pelo X / clicar fora. */}
             {tab === "details" ? (
               <>
-                {status !== "cancelled" && (
+                {status === "completed" ? (
+                  /* Concluída: destrancar para editar (volta a Confirmada). */
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={busy}
+                    onClick={handleEditAppointment}
+                  >
+                    Editar marcação
+                  </Button>
+                ) : status !== "cancelled" ? (
                   <Button
                     className="w-full"
                     disabled={!hasChanges || busy}
@@ -406,7 +417,7 @@ export function ApptModal({
                   >
                     {isSaving ? "A guardar…" : "Guardar"}
                   </Button>
-                )}
+                ) : null}
                 {/* Cancelar marcação / Reativar / Confirmar — só na aba Detalhes */}
                 {status === "cancelled" ? (
                   <Button
@@ -727,7 +738,7 @@ export function ApptModal({
                 </div>
               )}
 
-              {status === "completed" ? (
+              {isPaid ? (
                 <div className="space-y-3">
                   <div className="space-y-2 text-sm">
                     {appt.paymentCash != null &&
@@ -835,23 +846,16 @@ export function ApptModal({
                         </Button>
                       </div>
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {hasDebt && (
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => setPayingDebt(true)}
-                          className="w-full rounded-lg py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition disabled:opacity-50"
-                        >
-                          Pagar dívida · {debtAmount.toFixed(2)} €
-                        </button>
-                      )}
-                      <Button variant="outline" className="w-full" disabled={busy} onClick={handleEditAppointment}>
-                        Editar marcação
-                      </Button>
-                    </div>
-                  )}
+                  ) : hasDebt ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setPayingDebt(true)}
+                      className="w-full rounded-lg py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition disabled:opacity-50"
+                    >
+                      Pagar dívida · {debtAmount.toFixed(2)} €
+                    </button>
+                  ) : null}
                 </div>
               ) : (
                 <div className="space-y-3">

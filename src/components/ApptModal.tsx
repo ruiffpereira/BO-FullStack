@@ -359,55 +359,59 @@ export function ApptModal({
                 </div>
               </div>
             )}
-            {/* Action buttons */}
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                disabled={busy}
-                onClick={hasChanges ? handleDiscard : onClose}
-              >
-                {hasChanges ? "Cancelar" : "Fechar"}
-              </Button>
-              {status !== "cancelled" && (
-                <>
-                  <div className="flex-1" />
+            {/* Ações — dependem da aba. Fechar é pelo X / clicar fora. */}
+            {tab === "details" ? (
+              <>
+                {status !== "cancelled" && (
                   <Button
+                    className="w-full"
                     disabled={!hasChanges || busy}
                     onClick={handleSave}
                   >
                     {isSaving ? "A guardar…" : "Guardar"}
                   </Button>
-                </>
-              )}
-            </div>
-            {/* Cancelar / Reativar — último de todos */}
-            {status === "cancelled" ? (
-              <Button
-                variant="outline"
-                className="w-full"
-                disabled={isSettingStatus}
-                onClick={() => onSetStatus(appt.appointmentId, "confirmed", buildSaveData())}
-              >
-                {isSettingStatus ? "A reativar…" : "Reativar"}
-              </Button>
-            ) : status === "completed" ? null : confirmCancel ? (
-              <Button
-                variant="outline"
-                className="w-full border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-300 dark:hover:border-red-700"
-                disabled={isSettingStatus}
-                onClick={() => onSetStatus(appt.appointmentId, "cancelled")}
-              >
-                {isSettingStatus ? "A cancelar…" : "Confirmar cancelamento"}
-              </Button>
+                )}
+                {/* Cancelar marcação / Reativar / Confirmar — só na aba Detalhes */}
+                {status === "cancelled" ? (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={isSettingStatus}
+                    onClick={() => onSetStatus(appt.appointmentId, "confirmed", buildSaveData())}
+                  >
+                    {isSettingStatus ? "A reativar…" : "Reativar"}
+                  </Button>
+                ) : status === "completed" ? null : confirmCancel ? (
+                  <Button
+                    variant="outline"
+                    className="w-full border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-300 dark:hover:border-red-700"
+                    disabled={isSettingStatus}
+                    onClick={() => onSetStatus(appt.appointmentId, "cancelled")}
+                  >
+                    {isSettingStatus ? "A cancelar…" : "Confirmar cancelamento"}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="w-full border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-300 dark:hover:border-red-700"
+                    disabled={isSettingStatus}
+                    onClick={() => setConfirmCancel(true)}
+                  >
+                    Cancelar marcação
+                  </Button>
+                )}
+              </>
             ) : (
-              <Button
-                variant="outline"
-                className="w-full border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-300 dark:hover:border-red-700"
-                disabled={isSettingStatus}
-                onClick={() => setConfirmCancel(true)}
-              >
-                Cancelar marcação
-              </Button>
+              /* Aba Pagamento: "Pagar" vive no conteúdo. Já pago → permite guardar edições. */
+              isPaid && (
+                <Button
+                  className="w-full"
+                  disabled={!hasChanges || busy}
+                  onClick={handleSave}
+                >
+                  {isSaving ? "A guardar…" : "Guardar alterações"}
+                </Button>
+              )
             )}
           </div>
         }

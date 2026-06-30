@@ -188,6 +188,16 @@ function minToHHMM(total: number) {
   const m = total % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
+/** Cor de texto legível (escuro/branco) para um fundo hex sólido. */
+function readableOn(hex: string) {
+  const c = (hex || "").replace("#", "");
+  if (c.length < 6) return "#ffffff";
+  const r = parseInt(c.slice(0, 2), 16);
+  const g = parseInt(c.slice(2, 4), 16);
+  const b = parseInt(c.slice(4, 6), 16);
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.6 ? "#1f2937" : "#ffffff";
+}
 /** Dívida de UMA marcação concluída (preço − recebido). */
 function apptDebtOf(a: Appointment) {
   if (a.status !== "completed") return 0;
@@ -1776,27 +1786,25 @@ function CalendarioView() {
                               height: Math.max(height, 24),
                               left: `calc(${leftPct}% + 2px)`,
                               width: `calc(${widthPct}% - 4px)`,
-                              background: `${color}18`,
-                              borderLeft: `3px solid ${color}`,
-                              border: `1px solid ${color}30`,
+                              background: color,
                               touchAction: "none",
                             }}
                           >
-                            <p className="text-[10px] font-semibold leading-tight truncate text-zinc-800 dark:text-zinc-100 pr-4">
+                            <p className="text-[10px] font-semibold leading-tight truncate pr-4" style={{ color: readableOn(color) }}>
                               {appt.time}–{minToHHMM(apptMinutes(appt) + (appt.duration ?? svcItem?.duration ?? 30))} {appt.clientName}
                               {(() => {
                                 const calTotalPaid = Number(appt.paymentCash ?? 0) + Number(appt.paymentMbway ?? 0) + Number(appt.paymentCard ?? 0);
                                 const calDebt = Math.max(0, Number(appt.servicePrice ?? 0) - calTotalPaid);
                                 const calHasDebt = appt.status === "completed" && calDebt > 0;
                                 return calHasDebt ? (
-                                  <span className="ml-1 text-red-500">€!</span>
+                                  <span className="ml-1 px-1 rounded bg-white/90 text-red-600 font-bold">€!</span>
                                 ) : appt.paidAt ? (
-                                  <span className="ml-1 text-emerald-600 dark:text-emerald-400">€</span>
+                                  <span className="ml-1 px-1 rounded bg-white/90 text-emerald-600 font-bold">€</span>
                                 ) : null;
                               })()}
                             </p>
                             {(appt.serviceName || svcItem) && (
-                              <p className="text-[9px] text-zinc-500 truncate">
+                              <p className="text-[9px] truncate" style={{ color: readableOn(color), opacity: 0.85 }}>
                                 {svcItem?.name || appt.serviceName}
                               </p>
                             )}

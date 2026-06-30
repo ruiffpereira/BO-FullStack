@@ -73,11 +73,12 @@ src/
 | `FinanceiroPage.tsx` | `/financeiro` | **core** (todos) | Página "Financeiro" com tabs **O Negócio** (`Financeiro.tsx` — dashboard que agrega agenda/loja/**ginásio**+despesas), **Despesas** (`Despesas.tsx`) e **Ginásio** (`MensalidadesTab` de `GymMensalidade.tsx` — mensalidades+subscrições; só `VIEW_GYM`). `/despesas` é deep-link que abre a tab Despesas (não está na sidebar). **KPIs condicionais por negócio (tab O Negócio):** Receita/Despesas/Lucro aparecem sempre; **Clientes novos** só com Loja (`ecommerce`); **Vendas / Marcações** e **Ticket médio** só com Loja ou Agenda (pressupõem transações avulsas). Um tenant só de ginásio (mensalidades recorrentes) vê apenas Receita/Despesas/Lucro — flags `hasEcom`/`hasSales` em `Financeiro.tsx` |
 | `Ginasio.tsx` | `/ginasio` | `VIEW_GYM` | Ginásio: exercícios, treinos, planos, programas/progresso por cliente (`/api/gym`). **Mensalidades vivem no Financeiro** (tab Ginásio), não aqui |
 | `Loja.tsx` | `/loja` | `VIEW_PRODUCTS` | Produtos, categorias, subcategorias, encomendas, cupões |
+| `Mensagens.tsx` | `/mensagens` | **core** (todos) | **Chat de suporte** (Admin↔tenant). Admin (`VIEW_ADMIN`) → inbox de todos os tenants (`MensagensTab`); tenant → a sua conversa com o suporte. 3 pontos de acesso: item na sidebar + ícone no topbar (`ChatLauncher`) + botão flutuante (`ChatFab`, some na própria página). Ver secção **Chat de Suporte** |
 
 A navegação em `Shell.tsx` decide **o que** aparece por duas famílias e **a ordem** por um array fixo:
-- **Core (todos os tenants, sem permissão):** Dashboard · **Estatísticas** · **Clientes** · **Financeiro** (Negócio + Despesas) · **Conteúdos**. No backend, `/customers`, `/expenses`, `/cms`, `/dashboard` e `/analytics` só exigem `authenticateToken` (dados scoped por `userId`).
+- **Core (todos os tenants, sem permissão):** Dashboard · **Estatísticas** · **Clientes** · **Mensagens** · **Financeiro** (Negócio + Despesas) · **Conteúdos**. No backend, `/customers`, `/expenses`, `/cms`, `/dashboard`, `/analytics` e `/chat/support` só exigem `authenticateToken` (dados scoped por `userId`).
 - **Módulos (por permissão, em `MODULE_PERM_TO_PATH`):** Agenda (`VIEW_SCHEDULE`) · Loja (`VIEW_PRODUCTS`) · Ginásio (`VIEW_GYM`). **Admin** (`VIEW_ADMIN`) à parte.
-- **Ordem da sidebar** (`MENU_ORDER`): Dashboard · Estatísticas · Admin · Clientes · Conteúdos · Loja · Agenda · Ginásio · Financeiro. As rotas acessíveis (conjunto core+módulos+admin) são apresentadas por esta ordem fixa; itens não listados vão para o fim. O redirect inicial continua a usar `accessiblePaths[0]` (= Dashboard, que todos têm).
+- **Ordem da sidebar** (`MENU_ORDER`): Dashboard · Estatísticas · Admin · Clientes · Mensagens · Conteúdos · Loja · Agenda · Ginásio · Financeiro. As rotas acessíveis (conjunto core+módulos+admin) são apresentadas por esta ordem fixa; itens não listados vão para o fim. O redirect inicial continua a usar `accessiblePaths[0]` (= Dashboard, que todos têm).
 - `/despesas` continua a funcionar como **deep-link** (abre o Financeiro na tab Despesas) mas **não** aparece na sidebar; o guard de rotas usa `allowedPaths = accessiblePaths + /despesas`.
 
 ---
@@ -98,6 +99,7 @@ A navegação em `Shell.tsx` decide **o que** aparece por duas famílias e **a o
 | `DateRangePicker.tsx` | Selector de intervalo de datas (`react-day-picker`, modo range, locale PT). Usado ao atribuir um programa |
 | `TranslationInputs.tsx` | Campos de tradução por língua com bandeiras reais |
 | `PriceFillChip.tsx` | Pílula que preenche um campo de valor com um preço de referência (preço do serviço na Agenda / da subscrição no ginásio) num clique. Usada no `ApptModal` (pagamento) e no `PagamentoModal` do gym (`GymMensalidade.tsx`). Props: `amount`, `label`, `onClick`, `active?` |
+| `chat/*` | **Chat de suporte** (Admin↔tenant). Entradas (para todos): `ChatLauncher` (ícone no topbar) + `ChatFab` (botão flutuante, some em /mensagens) — ambos navegam para `/mensagens` com badge de não-lidas (`useChatUnread`). A página `Mensagens.tsx` mostra `MensagensTab` (inbox do Admin) ou a conversa do tenant. Partilhados: `ChatConversationView` (liga hooks + envio otimista + marca lida + paginação), `MessageThread`/`MessageBubble`/`DayDivider` (bolhas + "visto"), `Composer` (textarea auto-grow + anexos de imagem com upload diferido). Ver secção **Chat de Suporte** |
 
 ---
 
@@ -114,6 +116,7 @@ A navegação em `Shell.tsx` decide **o que** aparece por duas famílias e **a o
 | `useAuditLogs.ts` | `useAuditLogs` (registo unificado; `errors:"true"` filtra 5xx) / `useHealth` — tabs Atividade e Sistema do Admin (só `VIEW_ADMIN`) |
 | `useSiteAnalytics.ts` | `useSiteAnalytics(period)` (GET `/api/analytics/site`) + `useSiteDomain`/`useSetSiteDomain` (GET/PUT do domínio). Alimenta a página **Estatísticas**; fala só com a nossa API (a key do Plausible fica no servidor) |
 | `useScheduleCalendar.ts` | `useScheduleCalendarFeed` (GET `/api/schedule/calendar` → URL .ics da agenda, gera token na 1.ª vez) + `useRotateScheduleCalendarToken` (POST `/rotate`). Alimenta o `CalendarSubscribeCard` da Agenda |
+| `useChat.ts` | **Chat de suporte** (tipos locais; sem Kubb). Tenant: `useSupportThread`/`useSendSupportMessage`/`useMarkSupportRead`. Admin: `useAdminConversations`/`useAdminThread`/`useSendAdminMessage`/`useMarkAdminRead`. + `fetchOlderMessages` (paginação) e `mergeMessages` (merge por id). O `useSSE.ts` invalida `["chat"]` no evento `message` |
 
 > Despesas usa hooks gerados pelo Kubb (`useGetExpenses`, `useGetExpensesSummary`, `usePostExpenses`, …) para as despesas, e o hook manual `useExpenseCategories.ts` (list/create/update/delete) para as **categorias criadas pelo tenant**. As categorias têm cor própria; `src/utils/expenseCategories.ts` só guarda a paleta de cores sugeridas.
 
@@ -239,7 +242,21 @@ Configuradas em Admin → tab "Línguas":
 - **SSE** (`useSSE.ts`): ligação persistente a `/api/events/stream`, recebe eventos `notification`
 - **Web Push** (`usePushSubscription.ts`): subscrição via VAPID, funciona com o browser fechado
 - **NotificationBell**: badge com contagem não lida + dropdown com lista + acções (marcar lida, eliminar). Renderiza por **taxonomia unificada** (`NOTIF_META`: label + cor por tipo) — fallback `system` para tipos desconhecidos.
-- Criadas pela API via o helper único **`notifyUser()`** (`src/utils/notifyUser.ts` → DB + SSE + Web Push). **Taxonomia (a mesma em todo o lado):** `booking · order · customer · gym · payment · stock · reminder · system` (coluna `Notifications.type` = VARCHAR, migração `20260626120000`). Eventos ligados: novo booking/cancelamento público, nova encomenda, **novo cliente registado**. **A ligar (consistência em curso):** stock baixo, mensalidade/pagamento, e **lembretes** (marcações + mensalidades em atraso) — estes precisam de um agendador (cron; ainda não existe na API)
+- Criadas pela API via o helper único **`notifyUser()`** (`src/utils/notifyUser.ts` → DB + SSE + Web Push). **Taxonomia (a mesma em todo o lado):** `booking · order · customer · gym · payment · stock · reminder · message · system` (coluna `Notifications.type` = VARCHAR, migração `20260626120000`). Eventos ligados: novo booking/cancelamento público, nova encomenda, **novo cliente registado**, **nova mensagem de chat** (`message`, ver secção **Chat de Suporte**). **A ligar (consistência em curso):** stock baixo, mensalidade/pagamento, e **lembretes** (marcações + mensalidades em atraso) — estes precisam de um agendador (cron; ainda não existe na API)
+
+---
+
+## Chat de Suporte (Admin ↔ tenant)
+
+Canal de mensagens **1:1** entre o **Admin da plataforma** (o dono, `VIEW_ADMIN`) e cada **tenant** (`User` do backoffice). **Não** envolve clientes finais nem sites públicos. Brief/tarefas em `.design/support-chat/`.
+
+- **Onde se acede (para todos):** **3 entradas** — página própria **`/mensagens`** na sidebar (`Mensagens.tsx`, core) + **ícone no topbar** (`ChatLauncher`, navega p/ /mensagens) + **botão flutuante** no canto inferior direito (`ChatFab`) que **abre um mini-chat sobreposto** (`ChatPopup`, widget — não navega; some na página /mensagens). Todas mostram badge de não-lidas (`useChatUnread`: admin = nº conversas por ler; tenant = a sua). A vista decide pelo papel: **Admin** → inbox de todos os tenants (`MensagensTab` na página; lista→conversa no popup); **tenant** → a sua conversa única. Tudo partilha `ChatConversationView` (**nunca forkar a lógica**).
+- **Decisões (brief):** ambos iniciam · texto **+ anexos de imagem** (`/api/uploads`, upload diferido) · **bolhas estilo messenger** · **"visto"** (derivado dos `*LastReadAt`). **Sem typing indicator** (cortado, v2).
+- **Tempo real:** SSE evento `message` + evento **`chat_read`** (atualiza o "visto" sem refresh) — ambos invalidam `["chat"]` no `useSSE.ts`. **NÃO há notificação no sino** (decisão do user — o chat tem badges próprios); só **Web Push quando o destinatário está offline**.
+- **API:** modelos `Conversation` (1 por tenant: `tenantUserId` único, `adminUnread`/`tenantUnread`, `*LastReadAt`) + `Message` (`senderRole` admin|tenant, `attachments` JSON). Rotas `/api/chat/support/*` (tenant — resolve sempre por `req.user`) e `/api/admin/chat/*` (`VIEW_ADMIN`). Helper `src/utils/chatNotify.ts` (`notifyNewMessage`/`getAdminUserIds`/`broadcastRead`). Schemas OpenAPI `Chat*` em `swaggerBackoffice.ts`.
+- **Isolamento + segurança (auditado — veredicto HELD):** exceção **deliberada** (o Admin cruza tenants) — assimétrica: `/admin/chat/*` gated `VIEW_ADMIN`; `/chat/support/*` resolve pela `userId` autenticada → um tenant nunca vê a conversa de outro. `senderRole`/`senderUserId`/`conversationId` são **sempre server-side** (sem mass-assignment). **Anexos só `http(s)`** (allowlist na API `parseMessageInput` + no `MessageThread`, anti `javascript:`/`data:`). **Rate-limit por utilizador** no POST (`chatRateLimit`, isento em testes). Coberto em `tests/backoffice/chat_isolation.test.ts` (isolamento + 403/401 + mass-assignment + fuzzing `before` + anexos perigosos + truncagem). *(Nota: um admin pode abrir conversa com qualquer `User` existente — aceite como in-scope do papel Admin.)*
+- **Permissões:** **nenhuma nova** — admin = `VIEW_ADMIN` (já existe), tenant = core (qualquer autenticado). "Quem é o admin a notificar" = **todos os utilizadores com acesso de Admin/VIEW_ADMIN** (`getAdminUserIds`).
+- **Hooks/UI:** `src/hooks/useChat.ts` (tipos locais; sem Kubb), componentes em `src/components/chat/`. Testes unitários: `MessageThread.test.tsx`, `Composer.test.tsx`.
 
 ---
 

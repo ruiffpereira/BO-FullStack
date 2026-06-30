@@ -18,6 +18,7 @@ const NOTIF_META: Record<string, { label: string; dot: string; chip: string }> =
   payment: { label: "Pagamento", dot: "bg-amber-500", chip: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400" },
   stock: { label: "Stock", dot: "bg-orange-500", chip: "bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400" },
   reminder: { label: "Lembrete", dot: "bg-rose-500", chip: "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400" },
+  message: { label: "Mensagem", dot: "bg-cyan-500", chip: "bg-cyan-50 text-cyan-600 dark:bg-cyan-500/10 dark:text-cyan-400" },
   system: { label: "Sistema", dot: "bg-zinc-400", chip: "bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300" },
 };
 

@@ -5,10 +5,12 @@ import { Icon } from '../ui/icons.jsx'
 import { IconButton, Avatar } from '../ui/ui.jsx'
 import { useAuth } from '../context/AuthContext'
 import { NotificationBell } from './NotificationBell'
+import { ChatLauncher } from './chat/ChatLauncher'
+import { ChatFab } from './chat/ChatFab'
 import { useSSE } from '../hooks/useSSE'
 
 // Core: todos os tenants têm (sem permissão). Módulos: por permissão.
-const CORE_PATHS = ['/clientes', '/financeiro', '/conteudos', '/estatisticas']
+const CORE_PATHS = ['/clientes', '/mensagens', '/financeiro', '/conteudos', '/estatisticas']
 const MODULE_PERM_TO_PATH: Record<string, string> = {
   VIEW_SCHEDULE:  '/agenda',
   VIEW_PRODUCTS:  '/loja',
@@ -17,7 +19,7 @@ const MODULE_PERM_TO_PATH: Record<string, string> = {
 
 // Ordem fixa de apresentação na sidebar (independente de core/módulos/admin).
 // Cada item só aparece se for acessível ao tenant (permissões + admin).
-const MENU_ORDER = ['/dashboard', '/estatisticas', '/admin', '/clientes', '/conteudos', '/loja', '/agenda', '/ginasio', '/financeiro']
+const MENU_ORDER = ['/dashboard', '/estatisticas', '/admin', '/clientes', '/mensagens', '/conteudos', '/loja', '/agenda', '/ginasio', '/financeiro']
 
 const ROUTE_META: Record<string, { nome: string; icon: string }> = {
   '/dashboard':         { nome: 'Dashboard',  icon: 'dashboard' },
@@ -25,6 +27,7 @@ const ROUTE_META: Record<string, { nome: string; icon: string }> = {
   '/financeiro':        { nome: 'Financeiro', icon: 'euro' },
   '/despesas':          { nome: 'Despesas',   icon: 'card' },
   '/clientes':          { nome: 'Clientes',   icon: 'users' },
+  '/mensagens':         { nome: 'Mensagens',  icon: 'message' },
   '/loja':              { nome: 'Loja',       icon: 'store' },
   '/agenda':            { nome: 'Agenda',     icon: 'calendar' },
   '/ginasio':           { nome: 'Ginásio',    icon: 'trend' },
@@ -133,6 +136,7 @@ function Topbar({ theme, onToggleTheme, onMenu, onCollapse }: {
 
       <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
         <NotificationBell />
+        <ChatLauncher />
         <IconButton icon={theme === 'dark' ? 'sun' : 'moon'} onClick={onToggleTheme} label="Tema" />
         <div className="w-px h-6 bg-zinc-200 dark:bg-zinc-800 mx-0.5 hidden sm:block" />
         <Avatar name={username ?? '?'} color="#2A6FDB" size={34} />
@@ -234,6 +238,9 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
           </div>
         </main>
       </div>
+
+      {/* Botão flutuante de mensagens (some na própria página /mensagens) */}
+      <ChatFab />
     </div>
   )
 }

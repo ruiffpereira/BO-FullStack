@@ -86,6 +86,12 @@ export function useSSE() {
       if (event.type === "appointments_refresh") {
         queryClient.invalidateQueries({ queryKey: [{ url: "/schedule/appointments" }] });
       }
+
+      // Chat de suporte — nova mensagem OU leitura do outro lado ("visto" em
+      // tempo real): refresca thread + lista de conversas + badges.
+      if (event.type === "message" || event.type === "chat_read") {
+        queryClient.invalidateQueries({ queryKey: ["chat"] });
+      }
     }
 
     function scheduleRetry() {

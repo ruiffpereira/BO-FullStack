@@ -417,6 +417,21 @@ export function Clientes() {
                   <p className="text-xs text-zinc-400 text-center -mt-1">Última visita: {new Date(history.stats.lastVisit + 'T00:00:00').toLocaleDateString('pt-PT', { dateStyle: 'long' })}</p>
                 )}
 
+                {/* Aviso de dívida — soma das marcações concluídas com saldo em falta */}
+                {(() => {
+                  const totalDebt = history.appointments.reduce((s, a) => {
+                    if (a.status !== 'completed') return s
+                    const paid = Number(a.paymentCash || 0) + Number(a.paymentMbway || 0) + Number(a.paymentCard || 0)
+                    return s + Math.max(0, Number(a.servicePrice ?? a.service?.price ?? 0) - paid)
+                  }, 0)
+                  return totalDebt > 0 ? (
+                    <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700/60 px-3 py-2.5 text-sm font-medium text-amber-800 dark:text-amber-300 flex items-center gap-2">
+                      <Icon name="alertCircle" className="w-4 h-4 shrink-0" />
+                      <span>Este cliente tem {totalDebt.toFixed(2)} € em dívida.</span>
+                    </div>
+                  ) : null
+                })()}
+
                 {/* Appointment history */}
                 {history.appointments.length > 0 && (
                   <div>

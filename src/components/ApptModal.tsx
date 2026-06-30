@@ -723,8 +723,8 @@ export function ApptModal({
                 </span>
               </div>
 
-              {/* Contribuinte na fatura — só antes de pagar e só se o cliente tem NIF. */}
-              {!isPaid && customer && customer.nif && (
+              {/* Contribuinte na fatura — toggle na zona de pagamento (com cliente associado). */}
+              {(!isPaid || editMode === "payment") && customer && (
                 <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-2.5">
                   <div className="flex items-center justify-between gap-3">
                     <div>

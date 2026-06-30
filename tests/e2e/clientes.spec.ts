@@ -36,3 +36,26 @@ test.describe("Clientes — CRUD", () => {
     await expect(page.locator('[role="dialog"]')).toBeVisible({ timeout: 3_000 });
   });
 });
+
+test.describe("Clientes — contribuinte na fatura (wantsInvoice)", () => {
+  test("criar com toggle ligado + NIF → persiste (ficha mostra NIF; editar mostra toggle ligado)", async ({ page }) => {
+    const p = new ClientesPage(page);
+    await p.goto();
+
+    const name = `Cliente Fatura ${Date.now()}`;
+    const nif = "501234567";
+    await p.createClientWithInvoice(name, nif);
+
+    // Reabre o cliente: a ficha mostra o NIF preenchido.
+    await p.searchInput().fill(name);
+    await page.waitForTimeout(500);
+    await p.openClient(name);
+    await expect(page.getByText(`NIF ${nif}`)).toBeVisible({ timeout: 8_000 });
+
+    // No modal de edição, o toggle de contribuinte está LIGADO e o NIF persistiu.
+    await p.openEditFromProfile();
+    await expect(p.invoiceToggle()).toHaveAttribute("aria-checked", "true");
+    // No modal de edição o campo NIF é identificado pelo label "NIF".
+    await expect(page.getByLabel("NIF", { exact: true })).toHaveValue(nif);
+  });
+});

@@ -723,8 +723,8 @@ export function ApptModal({
                 </span>
               </div>
 
-              {/* Contribuinte na fatura — toggle operacional só no momento do pagamento. */}
-              {!isPaid && customer && (
+              {/* Contribuinte na fatura — editável ao pagar e ao "Editar pagamento". */}
+              {(!isPaid || editMode === "payment") && customer && (
                 <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-2.5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -814,8 +814,8 @@ export function ApptModal({
                       dateStyle: "medium",
                     })}
                   </p>
-                  {/* Indicação (read-only) de contribuinte — decidido no momento do pagamento. */}
-                  {customer && (
+                  {/* Indicação (read-only) de contribuinte — só na vista; ao editar usa-se o toggle. */}
+                  {customer && editMode !== "payment" && (
                     <p className="text-xs text-zinc-400">
                       Fatura {customer.wantsInvoice
                         ? `com contribuinte${customer.nif ? ` (NIF ${customer.nif})` : ""}`

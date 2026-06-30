@@ -32,6 +32,9 @@ function App() {
       "--accent",
       theme === "dark" ? "76 134 240" : "42 111 219",
     );
+    // Barra superior da PWA = cor do header (branco no claro, zinc-950 no escuro).
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", theme === "dark" ? "#09090b" : "#ffffff");
   }, [theme]);
 
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));

@@ -47,7 +47,7 @@ export function SetupPassword({ theme, onToggleTheme }: { theme: string; onToggl
   }
 
   return (
-    <div className={`min-h-screen flex flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-950 px-4 ${theme === 'dark' ? 'dark' : ''}`}>
+    <div className={`min-h-[100dvh] flex flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-950 px-4 ${theme === 'dark' ? 'dark' : ''}`}>
       <div className="absolute top-4 right-4">
         <button onClick={onToggleTheme}
           className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">

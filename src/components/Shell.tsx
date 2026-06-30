@@ -204,7 +204,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   }, [location.pathname, permissions]) // eslint-disable-line
 
   return (
-    <div className="flex h-screen bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
+    <div className="flex h-[100dvh] bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
       <SwRegistrar />
       <aside className={`hidden lg:flex flex-col shrink-0 border-r border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-[width] duration-200 ${collapsed ? 'w-[72px]' : 'w-64'}`}>
         <SidebarContent accessiblePaths={accessiblePaths} collapsed={collapsed} onLogout={handleLogout} />

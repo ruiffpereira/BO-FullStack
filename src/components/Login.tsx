@@ -29,7 +29,7 @@ export function Login({ theme, onToggleTheme }: Props) {
   const displayErr = localErr || error || ''
 
   return (
-    <div className="min-h-screen flex bg-zinc-50 dark:bg-zinc-950">
+    <div className="min-h-[100dvh] flex bg-zinc-50 dark:bg-zinc-950">
       {/* Left brand panel (desktop) */}
       <div className="hidden lg:flex flex-col justify-between w-[46%] xl:w-1/2 p-12 relative overflow-hidden"
         style={{ background: 'linear-gradient(155deg, #0b0b0c 0%, #18181b 60%, #1c2540 100%)' }}>

@@ -112,3 +112,8 @@ export async function gymRemind(authHeader: () => Record<string, string>, body: 
   const res = await axiosInstance.post('/gym/mensalidade/remind', body, { headers: authHeader(), withCredentials: true })
   return res.data as { period: string; sent: number }
 }
+/** Marca/desmarca o cliente como "só paga" (fora das estatísticas de assiduidade). */
+export async function gymSetPayOnly(authHeader: () => Record<string, string>, customerId: string, payOnly: boolean) {
+  const res = await axiosInstance.patch(`/gym/mensalidade/customers/${customerId}/pay-only`, { payOnly }, { headers: authHeader(), withCredentials: true })
+  return res.data as { payOnly: boolean }
+}

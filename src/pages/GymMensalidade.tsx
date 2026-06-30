@@ -10,7 +10,7 @@ import { PriceFillChip } from '../components/PriceFillChip'
 import { LineChart, Waterfall } from '../ui/charts.jsx'
 import { useGymAnalytics } from '../hooks/useGymAnalytics'
 import { useAuth } from '../context/AuthContext'
-import { gymBulkMarkPaid, gymRemind } from '../hooks/useFinanceiro'
+import { gymBulkMarkPaid, gymRemind, gymSetPayOnly } from '../hooks/useFinanceiro'
 import { InfoDot } from '../components/financeiro/kit'
 import { INFO } from '../components/financeiro/info'
 import { usePagination, Pagination } from '../components/Pagination'
@@ -29,7 +29,7 @@ import { deleteGymMensalidadePaymentsPaymentid } from '../gen/backoffice/hooks/u
 type Status = 'paid' | 'debt' | 'unpaid'
 export type Sub = { subscriptionId: string; name: string; price: number; dueDay: number; active: boolean; clientCount?: number }
 export type Payment = { paymentId: string; period: string; amount: number; dueDate: string; status: Status; paidAt: string | null; method: string | null; notes: string | null; paidAmount: number | null; debtSince: string | null; overdue: boolean; updatedAt?: string | null; createdAt?: string | null }
-export type Membership = { customerId: string; name: string; blocked: boolean; subscription: Sub | null; payments: Payment[]; currentPeriod: string; today: string }
+export type Membership = { customerId: string; name: string; blocked: boolean; payOnly?: boolean; subscription: Sub | null; payments: Payment[]; currentPeriod: string; today: string }
 type FinanceRow = { customerId: string; name: string; blocked: boolean; subscription: Sub | null; payment: Payment | null; status: Status; overdue: boolean }
 type Finance = { period: string; today: string; kpis: { recebido: number; emDivida: number; emAtraso: number; mrr: number; blocked: number }; rows: FinanceRow[] }
 
@@ -236,6 +236,7 @@ function PagamentoModal({ customerId, period, amount, onClose, onSaved }: { cust
 // coluna. Sem `dense` (página Mensalidades, larga) usa 2 colunas + tabela.
 export function ClienteMensalidade({ customerId, dense = false }: { customerId: string; dense?: boolean }) {
   const qc = useQueryClient()
+  const { authHeader } = useAuth()
   const { data, isLoading } = useGetGymMensalidadeCustomersCustomerid(customerId, { query: { enabled: !!customerId } })
   const mem = data as Membership | undefined
   const [atribuir, setAtribuir] = useState(false)
@@ -249,6 +250,10 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
   })
   const block = useMutation({
     mutationFn: (v: boolean) => patchGymMensalidadeCustomersCustomeridBlock(customerId, { blocked: v } as any),
+    onSuccess: onSaved, onError: (e) => toast.error(getApiError(e)),
+  })
+  const payOnlyMut = useMutation({
+    mutationFn: (v: boolean) => gymSetPayOnly(authHeader, customerId, v),
     onSuccess: onSaved, onError: (e) => toast.error(getApiError(e)),
   })
 
@@ -277,9 +282,15 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
 
   // Linha "Bloqueado" reutilizada (com e sem subscrição).
   const blockRow = (
-    <div className="flex items-center justify-between gap-3">
-      <div><p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">Bloqueado</p><p className="text-xs text-zinc-400">Suspende o acesso à app do ginásio.</p></div>
-      <Toggle checked={mem.blocked} onChange={(v: boolean) => block.mutate(v)} />
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div><p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">Bloqueado</p><p className="text-xs text-zinc-400">Suspende o acesso à app do ginásio.</p></div>
+        <Toggle checked={mem.blocked} onChange={(v: boolean) => block.mutate(v)} />
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <div><p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">Só paga (sem app)</p><p className="text-xs text-zinc-400">Cliente presencial que não usa a app — fora das estatísticas de assiduidade.</p></div>
+        <Toggle checked={!!mem.payOnly} onChange={(v: boolean) => payOnlyMut.mutate(v)} />
+      </div>
     </div>
   )
 

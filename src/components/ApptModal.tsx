@@ -128,6 +128,8 @@ export function ApptModal({
   );
   const [tip, setTip] = useState("");
   const [cancelPayment, setCancelPayment] = useState(false);
+  // "Pagar dívida" numa vaga concluída → reabre os campos de valor para corrigir.
+  const [payingDebt, setPayingDebt] = useState(false);
   // Preferência de contribuinte na fatura (persiste no cliente).
   const [wantsInvoice, setWantsInvoice] = useState(!!customer?.wantsInvoice);
   const [nifInput, setNifInput] = useState(customer?.nif ?? "");
@@ -221,18 +223,43 @@ export function ApptModal({
     if (changed) onSaveCustomer(customer.customerId, { wantsInvoice, nif: nifClean });
   };
 
-  // Aviso do sistema ao alterar uma marcação já paga/concluída (pode mexer nas estatísticas).
+  // Aviso do sistema ao alterar os detalhes de uma marcação concluída.
   const confirmEditIfPaid = async () => {
-    if (cancelPayment) return true; // anular já tem a sua própria confirmação
-    if (isPaid || status === "completed") {
+    if (status === "completed") {
       return confirmDialog({
-        title: "Alterar uma marcação já paga?",
-        message:
-          "Podes alterar o que precisares (incluindo saldar uma dívida). Isto pode afetar as estatísticas/receita do período.",
+        title: "Alterar uma marcação concluída?",
+        message: "Isto pode afetar as estatísticas/receita do período.",
         confirmLabel: "Alterar",
       });
     }
     return true;
+  };
+
+  // Repõe os campos de valor a partir do que está guardado na marcação.
+  const resetPaymentInputs = () => {
+    setCash(appt.paymentCash != null ? String(appt.paymentCash) : "");
+    setMbway(appt.paymentMbway != null ? String(appt.paymentMbway) : "");
+    setCard(appt.paymentCard != null ? String(appt.paymentCard) : "");
+    setTip("");
+  };
+
+  // "Pagar dívida": guarda a correção do valor; a vaga continua Concluída.
+  const handleConfirmDebtPayment = () => {
+    const data = buildSaveData();
+    if (Object.keys(data).length) onSave(appt.appointmentId, data);
+    setPayingDebt(false);
+  };
+
+  // "Editar marcação": volta de Concluída → Confirmada para mudar serviço/hora.
+  // O que já foi pago mantém-se (a dívida recalcula contra o novo preço).
+  const handleEditAppointment = async () => {
+    const ok = await confirmDialog({
+      title: "Editar esta marcação?",
+      message:
+        "Volta a Confirmada para poderes mudar o serviço ou a hora. O que já foi pago mantém-se e a dívida é recalculada.",
+      confirmLabel: "Editar",
+    });
+    if (ok) onSetStatus(appt.appointmentId, "confirmed");
   };
 
   const handleSave = async () => {
@@ -247,7 +274,11 @@ export function ApptModal({
   const handlePay = () => {
     persistCustomerPrefs();
     if (payNoTip > 0) {
+      // Envia sempre os valores (mesmo sem mudança) para o backend concluir a vaga.
       const data = buildSaveData();
+      data.paymentCash = (parseFloat(cash) || 0) + tipVal;
+      data.paymentMbway = parseFloat(mbway) || 0;
+      data.paymentCard = parseFloat(card) || 0;
       onSave(appt.appointmentId, data);
     } else {
       onSetStatus(appt.appointmentId, "completed");
@@ -401,18 +432,7 @@ export function ApptModal({
                   </Button>
                 )}
               </>
-            ) : (
-              /* Aba Pagamento: "Pagar" vive no conteúdo. Já pago → permite guardar edições. */
-              isPaid && (
-                <Button
-                  className="w-full"
-                  disabled={!hasChanges || busy}
-                  onClick={handleSave}
-                >
-                  {isSaving ? "A guardar…" : "Guardar alterações"}
-                </Button>
-              )
-            )}
+            ) : null /* Aba Pagamento: ações no conteúdo (Pagar / Pagar dívida / Editar) */}
           </div>
         }
       >
@@ -702,7 +722,7 @@ export function ApptModal({
                 </div>
               )}
 
-              {isPaid ? (
+              {status === "completed" ? (
                 <div className="space-y-3">
                   <div className="space-y-2 text-sm">
                     {appt.paymentCash != null &&
@@ -767,49 +787,66 @@ export function ApptModal({
                     })}
                   </p>
 
-                  {/* Editar pagamento */}
-                  <div className="grid grid-cols-3 gap-2">
-                    {(
-                      [
-                        ["Dinheiro", cash, setCash],
-                        ["MBway", mbway, setMbway],
-                        ["Cartão", card, setCard],
-                      ] as [string, string, (v: string) => void][]
-                    ).map(([label, val, setter]) => (
-                      <div key={label}>
-                        <p className="text-xs text-zinc-500 mb-1">{label}</p>
-                        <div className="flex items-center border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden">
-                          <input
-                            type="number"
-                            min={0}
-                            step={0.01}
-                            value={val}
-                            onChange={(e) => setter(e.target.value)}
-                            placeholder="0.00"
-                            className="flex-1 px-2 py-1.5 text-sm bg-white dark:bg-zinc-900 focus:outline-none w-0"
-                          />
-                          <span className="px-2 text-xs text-zinc-400 bg-zinc-50 dark:bg-zinc-800 self-stretch flex items-center">
-                            €
-                          </span>
-                        </div>
+                  {/* Ações: Pagar dívida (reabre os valores) · Editar marcação */}
+                  {payingDebt ? (
+                    <div className="space-y-3">
+                      <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-lg px-2.5 py-2">
+                        Em dívida {debtAmount.toFixed(2)} €. Ajusta o valor recebido e confirma.
                       </div>
-                    ))}
-                  </div>
-
-                  {cancelPayment && (
-                    <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 rounded-lg px-2.5 py-2">
-                      O pagamento será anulado quando guardares.
+                      <div className="grid grid-cols-3 gap-2">
+                        {(
+                          [
+                            ["Dinheiro", cash, setCash],
+                            ["MBway", mbway, setMbway],
+                            ["Cartão", card, setCard],
+                          ] as [string, string, (v: string) => void][]
+                        ).map(([label, val, setter]) => (
+                          <div key={label}>
+                            <p className="text-xs text-zinc-500 mb-1">{label}</p>
+                            <div className="flex items-center border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden">
+                              <input
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                value={val}
+                                onChange={(e) => setter(e.target.value)}
+                                placeholder="0.00"
+                                className="flex-1 px-2 py-1.5 text-sm bg-white dark:bg-zinc-900 focus:outline-none w-0"
+                              />
+                              <span className="px-2 text-xs text-zinc-400 bg-zinc-50 dark:bg-zinc-800 self-stretch flex items-center">
+                                €
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="sm" disabled={busy} onClick={() => { setPayingDebt(false); resetPaymentInputs(); }}>
+                          Cancelar
+                        </Button>
+                        <div className="flex-1" />
+                        <Button disabled={!paymentChanged || busy} onClick={handleConfirmDebtPayment}>
+                          {isSaving ? "A guardar…" : "Confirmar"}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {hasDebt && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => setPayingDebt(true)}
+                          className="w-full rounded-lg py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition disabled:opacity-50"
+                        >
+                          Pagar dívida · {debtAmount.toFixed(2)} €
+                        </button>
+                      )}
+                      <Button variant="outline" className="w-full" disabled={busy} onClick={handleEditAppointment}>
+                        Editar marcação
+                      </Button>
                     </div>
                   )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy}
-                    onClick={handleCancelPayment}
-                    className="text-red-500 border-red-200 hover:bg-red-50"
-                  >
-                    Anular pagamento
-                  </Button>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -934,7 +971,7 @@ export function ApptModal({
                     </div>
                   )}
 
-                  {status !== "completed" && status !== "cancelled" && (
+                  {status !== "cancelled" && (
                     <button
                       type="button"
                       disabled={busy}

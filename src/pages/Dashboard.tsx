@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { format, subDays, eachDayOfInterval } from 'date-fns'
 import { pt } from 'date-fns/locale'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Badge, EmptyState, SectionTitle, BADGE_TONES } from '../ui/ui.jsx'
@@ -9,6 +10,8 @@ import { useGetCustomers } from '../gen/backoffice/hooks/useGetCustomers.js'
 import { useGetOrders } from '../gen/backoffice/hooks/useGetOrders.js'
 import { useGetScheduleAppointments } from '../gen/backoffice/hooks/useGetScheduleAppointments.js'
 import { useGetScheduleServices } from '../gen/backoffice/hooks/useGetScheduleServices.js'
+import { useGetGymMensalidadeFinance } from '../gen/backoffice/hooks/useGetGymMensalidadeFinance.js'
+import { useDashboard } from '../hooks/useDashboard'
 
 const fmtEur = (n: number) =>
   '€' + n.toLocaleString('pt-PT', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })
@@ -20,6 +23,9 @@ const STATUS_TONE: Record<string, string> = {
   pending: 'amber', confirmed: 'blue', completed: 'green', cancelled: 'red',
 }
 const DONE = new Set(['completed', 'cancelled'])
+
+// Encomendas ainda por despachar (não enviadas / não canceladas).
+const OPEN_ORDER = new Set(['pending', 'processing'])
 
 // HH:mm[:ss] → minutes since midnight
 const toMin = (t: string) => {
@@ -38,13 +44,16 @@ function useNow(intervalMs = 60_000) {
 }
 
 // ── KPI ───────────────────────────────────────────────────────────────────
-function KpiCard({ label, value, sub, icon, tone, loading, delta, spark, accent }: {
+type Kpi = {
   label: string; value: string | number; sub?: string
   icon: string; tone: keyof typeof BADGE_TONES; loading?: boolean
-  delta?: number; spark?: number[]; accent?: string
-}) {
-  return (
-    <Card className="p-4 flex flex-col">
+  delta?: number; spark?: number[]; href?: string
+}
+
+function KpiCard({ label, value, sub, icon, tone, loading, delta, spark, href }: Kpi) {
+  const navigate = useNavigate()
+  const body = (
+    <Card className={`p-4 flex flex-col h-full ${href ? 'group-hover/kpi:border-accent/40 transition-colors' : ''}`}>
       <div className="flex items-start justify-between">
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${BADGE_TONES[tone]}`}>
           <Icon name={icon} className="w-4 h-4" />
@@ -67,14 +76,40 @@ function KpiCard({ label, value, sub, icon, tone, loading, delta, spark, accent 
           {sub && <p className="text-xs text-zinc-400 mt-0.5 truncate">{sub}</p>}
         </div>
         {spark && spark.some((v) => v > 0) && (
-          <Sparkline data={spark} color={accent} width={64} height={26} up={delta === undefined || delta >= 0} />
+          <Sparkline data={spark} color="#2A6FDB" width={64} height={26} up={delta === undefined || delta >= 0} />
         )}
       </div>
     </Card>
   )
+  if (!href) return body
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(href)}
+      aria-label={`${label}: ${value}`}
+      className="group/kpi text-left w-full rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+    >
+      {body}
+    </button>
+  )
 }
 
-// ── Signature: the day as a spine ───────────────────────────────────────────
+// ── Clickable row helper (em atraso / encomendas) ─────────────────────────────
+function RowLink({ to, children, ariaLabel }: { to: string; children: ReactNode; ariaLabel: string }) {
+  const navigate = useNavigate()
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(to)}
+      aria-label={ariaLabel}
+      className="group/row w-full text-left flex items-center gap-3 py-2.5 first:pt-0 last:pb-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"
+    >
+      {children}
+    </button>
+  )
+}
+
+// ── Agenda spine: the day as a spine ─────────────────────────────────────────
 type Appt = { appointmentId: string; date: string; time: string; serviceId?: string | null; serviceName: string; clientName: string; status?: string }
 
 function DayRail({ appts, colorOf, now }: {
@@ -194,24 +229,241 @@ function NowMarker({ time, trailing = false }: { time: Date; trailing?: boolean 
   )
 }
 
+// ── Gym: mensalidades (recebido vs previsto + quem está em atraso) ────────────
+type GymRow = { customerId: string; name: string; overdue: boolean; subscription: unknown | null; status: string }
+type GymFinance = { kpis: { recebido: number; emDivida: number; emAtraso: number; mrr: number; blocked: number }; rows: GymRow[] }
+
+function gymDerive(fin?: GymFinance) {
+  const k = fin?.kpis
+  const previsto = k?.mrr ?? 0
+  const recebido = k?.recebido ?? 0
+  const pct = previsto > 0 ? Math.min(100, Math.round((recebido / previsto) * 100)) : 0
+  const porCobrar = Math.max(0, previsto - recebido)
+  const overdue = (fin?.rows ?? []).filter((r) => r.overdue)
+  return { previsto, recebido, pct, porCobrar, emAtraso: k?.emAtraso ?? 0, mrr: previsto, overdue }
+}
+
+function GymProgress({ recebido, previsto, pct }: { recebido: number; previsto: number; pct: number }) {
+  return (
+    <div>
+      <div className="flex items-end justify-between gap-2">
+        <p className="text-[26px] leading-none font-semibold text-zinc-900 dark:text-white tabular-nums tracking-tight">
+          {fmtEur(recebido)}
+          <span className="text-base font-normal text-zinc-400"> / {fmtEur(previsto)}</span>
+        </p>
+        <span className="text-sm font-semibold text-zinc-500 tabular-nums">{pct}%</span>
+      </div>
+      <div className="mt-2 h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+        <div className="h-full rounded-full bg-emerald-500 transition-[width] duration-500" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
+}
+
+function GymCobrancasSpine({ fin, monthLabel, loading }: { fin?: GymFinance; monthLabel: string; loading?: boolean }) {
+  const { recebido, previsto, pct, porCobrar, emAtraso, mrr, overdue } = gymDerive(fin)
+  if (loading) return <div className="space-y-3 py-2">{[0, 1, 2].map((i) => <div key={i} className="h-10 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />)}</div>
+  return (
+    <div>
+      <SectionTitle right={<span className="text-xs text-zinc-400">Mensalidades</span>}>Cobranças · {monthLabel}</SectionTitle>
+      <GymProgress recebido={recebido} previsto={previsto} pct={pct} />
+
+      <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+        <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800/50 py-2.5">
+          <p className="text-xs text-zinc-400">Por cobrar</p>
+          <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 tabular-nums">{fmtEur(porCobrar)}</p>
+        </div>
+        <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800/50 py-2.5">
+          <p className="text-xs text-zinc-400">Em atraso</p>
+          <p className={`text-sm font-semibold tabular-nums ${emAtraso ? 'text-red-600 dark:text-red-400' : 'text-zinc-800 dark:text-zinc-100'}`}>{emAtraso}</p>
+        </div>
+        <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800/50 py-2.5">
+          <p className="text-xs text-zinc-400">MRR</p>
+          <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 tabular-nums">{fmtEur(mrr)}</p>
+        </div>
+      </div>
+
+      <div className="mt-5">
+        <SectionTitle right={overdue.length > 6 ? <span className="text-xs text-zinc-400">+{overdue.length - 6}</span> : undefined}>
+          Em atraso
+        </SectionTitle>
+        {overdue.length === 0 ? (
+          <p className="text-sm text-zinc-400 py-2">Tudo em dia — ninguém em atraso este mês. ✓</p>
+        ) : (
+          <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {overdue.slice(0, 6).map((r) => (
+              <RowLink key={r.customerId} to={`/clientes?cliente=${encodeURIComponent(r.customerId)}`} ariaLabel={`Abrir ficha de ${r.name}`}>
+                <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                <span className="flex-1 min-w-0 text-sm font-medium text-zinc-900 dark:text-white truncate group-hover/row:text-accent">{r.name}</span>
+                <Badge tone="red">Em atraso</Badge>
+              </RowLink>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function GymMiniCard({ fin, monthLabel }: { fin?: GymFinance; monthLabel: string }) {
+  const navigate = useNavigate()
+  const { recebido, previsto, pct, emAtraso } = gymDerive(fin)
+  return (
+    <Card className="p-5">
+      <SectionTitle right={
+        <button type="button" onClick={() => navigate('/financeiro?vista=ginasio')} className="text-xs text-accent hover:underline px-2 py-1 -mr-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">Ver cobranças</button>
+      }>
+        Ginásio · {monthLabel}
+      </SectionTitle>
+      <GymProgress recebido={recebido} previsto={previsto} pct={pct} />
+      {emAtraso > 0 && (
+        <button
+          type="button"
+          onClick={() => navigate('/financeiro?vista=ginasio')}
+          className="mt-3 w-full flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-500/10 px-3 py-2 text-left"
+        >
+          <Icon name="alertTriangle" className="w-4 h-4 text-red-500 shrink-0" />
+          <span className="text-sm text-red-700 dark:text-red-300 font-medium">{emAtraso} cliente{emAtraso === 1 ? '' : 's'} em atraso</span>
+        </button>
+      )}
+    </Card>
+  )
+}
+
+// ── Loja: encomendas por despachar + últimas ─────────────────────────────────
+type OrderLike = { orderId?: string; status?: string; price?: number | string; createdAt?: string; customerName?: string; clientName?: string }
+
+function OrdersList({ orders }: { orders: OrderLike[] }) {
+  return (
+    <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+      {orders.map((o, i) => (
+        <RowLink key={o.orderId ?? i} to="/loja?tab=encomendas" ariaLabel={`Abrir encomendas`}>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-zinc-900 dark:text-white truncate group-hover/row:text-accent">
+              {o.customerName ?? o.clientName ?? `Encomenda #${String(o.orderId ?? i).slice(0, 8)}`}
+            </p>
+            <p className="text-xs text-zinc-400">
+              {o.createdAt ? format(new Date(o.createdAt), 'd MMM yyyy', { locale: pt }) : '—'}
+              {o.status && OPEN_ORDER.has(o.status) ? <span className="text-amber-600 dark:text-amber-400"> · por despachar</span> : null}
+            </p>
+          </div>
+          <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">{fmtEur(Number(o.price) || 0)}</span>
+        </RowLink>
+      ))}
+    </div>
+  )
+}
+
+function FulfillmentSpine({ orders, openCount, salesToday, alerts, loading }: {
+  orders: OrderLike[]; openCount: number; salesToday: number; alerts: { name: string; reference: string; stock: number }[]; loading?: boolean
+}) {
+  const navigate = useNavigate()
+  if (loading) return <div className="space-y-3 py-2">{[0, 1, 2].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />)}</div>
+  const recent = [...orders]
+    .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
+    .slice(0, 6)
+  return (
+    <div className="space-y-5">
+      {/* Por despachar — the one thing to act on */}
+      <button
+        type="button"
+        onClick={() => navigate('/loja?tab=encomendas')}
+        className={`w-full flex items-center gap-3 rounded-xl px-4 py-3 text-left border transition-colors ${
+          openCount > 0
+            ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-200/70 dark:border-amber-500/20'
+            : 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200/70 dark:border-emerald-500/20'
+        }`}
+      >
+        <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${openCount > 0 ? 'bg-amber-500/15 text-amber-600' : 'bg-emerald-500/15 text-emerald-600'}`}>
+          <Icon name="package" className="w-[18px] h-[18px]" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-zinc-900 dark:text-white">
+            {openCount > 0 ? `${openCount} encomenda${openCount === 1 ? '' : 's'} por despachar` : 'Tudo despachado'}
+          </p>
+          <p className="text-[13px] text-zinc-500">Vendas de hoje · <span className="font-medium text-zinc-700 dark:text-zinc-300">{fmtEur(salesToday)}</span></p>
+        </div>
+      </button>
+
+      <div>
+        <SectionTitle>Últimas encomendas</SectionTitle>
+        {recent.length === 0
+          ? <EmptyState icon="cart" title="Sem encomendas" desc="As encomendas mais recentes aparecem aqui." />
+          : <OrdersList orders={recent} />}
+      </div>
+
+      {alerts.length > 0 && <StockAlerts alerts={alerts} bare />}
+    </div>
+  )
+}
+
+function StockAlerts({ alerts, bare = false }: { alerts: { name: string; reference: string; stock: number }[]; bare?: boolean }) {
+  const navigate = useNavigate()
+  const inner = (
+    <>
+      <SectionTitle right={<span className="text-xs text-zinc-400">{alerts.length}</span>}>Stock baixo</SectionTitle>
+      <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+        {alerts.slice(0, 6).map((s) => (
+          <button
+            key={s.reference || s.name}
+            type="button"
+            onClick={() => navigate('/loja?tab=produtos')}
+            className="group/row w-full text-left flex items-center gap-3 py-2.5 first:pt-0 last:pb-0"
+          >
+            <Icon name="alertTriangle" className="w-4 h-4 text-amber-500 shrink-0" />
+            <span className="flex-1 min-w-0 text-sm font-medium text-zinc-900 dark:text-white truncate group-hover/row:text-accent">{s.name}</span>
+            <Badge tone={s.stock <= 0 ? 'red' : 'amber'}>{s.stock <= 0 ? 'esgotado' : `${s.stock} un`}</Badge>
+          </button>
+        ))}
+      </div>
+    </>
+  )
+  return bare ? <div>{inner}</div> : <Card className="p-5">{inner}</Card>
+}
+
+// ── Core fallback (tenant só com clientes/conteúdos) ─────────────────────────
+function CustomersWelcome({ total, newCount, loading }: { total: number; newCount: number; loading?: boolean }) {
+  const navigate = useNavigate()
+  return (
+    <div>
+      <SectionTitle>Os teus clientes</SectionTitle>
+      {loading ? (
+        <div className="h-7 w-24 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+      ) : (
+        <p className="text-[32px] leading-none font-semibold text-zinc-900 dark:text-white tabular-nums tracking-tight">{total}</p>
+      )}
+      <p className="text-[13px] text-zinc-500 mt-1.5">{newCount > 0 ? `${newCount} novo${newCount === 1 ? '' : 's'} esta semana` : 'no total'}</p>
+      <div className="mt-5 flex flex-wrap gap-2">
+        <button type="button" onClick={() => navigate('/clientes')} className="inline-flex items-center gap-2 rounded-lg bg-accent/10 text-accent px-3 py-2 text-sm font-medium hover:bg-accent/15 transition-colors">
+          <Icon name="users" className="w-4 h-4" /> Ver clientes
+        </button>
+        <button type="button" onClick={() => navigate('/conteudos')} className="inline-flex items-center gap-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 px-3 py-2 text-sm font-medium hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
+          <Icon name="edit" className="w-4 h-4" /> Conteúdos
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function Dashboard() {
   const { authHeader, hasPermission, username } = useAuth()
   const headers = authHeader()
   const now = useNow()
   const thisMonth = format(now, 'yyyy-MM')
   const today = format(now, 'yyyy-MM-dd')
+  const monthLabel = format(now, 'MMMM', { locale: pt })
 
-  const canCustomers = hasPermission('VIEW_CUSTOMERS')
-  const canProducts  = hasPermission('VIEW_PRODUCTS')
-  const canSchedule  = hasPermission('VIEW_SCHEDULE')
+  const canProducts = hasPermission('VIEW_PRODUCTS')
+  const canSchedule = hasPermission('VIEW_SCHEDULE')
+  const canGym = hasPermission('VIEW_GYM')
+  // Clientes é core (todos os tenants) — não gatear no Dashboard.
 
-  const { data: customersData, isLoading: loadingCustomers } = useGetCustomers({
-    query: { enabled: canCustomers },
-    client: { headers },
-  })
+  // Agregados cross-vertical (receita de hoje por módulo, sócios, alertas, etc.)
+  const { data: dash, isLoading: loadingDash } = useDashboard('today')
+
+  const { data: customersData, isLoading: loadingCustomers } = useGetCustomers({ client: { headers } })
   const { data: ordersData, isLoading: loadingOrders } = useGetOrders(undefined, {
-    query: { enabled: canProducts },
-    client: { headers },
+    query: { enabled: canProducts }, client: { headers },
   })
   const { data: appointmentsData, isLoading: loadingAppts } = useGetScheduleAppointments(
     { month: thisMonth },
@@ -220,10 +472,15 @@ export function Dashboard() {
   const { data: servicesData } = useGetScheduleServices({
     query: { enabled: canSchedule }, client: { headers },
   })
+  const { data: gymFinanceData, isLoading: loadingGym } = useGetGymMensalidadeFinance(
+    { period: thisMonth },
+    { query: { enabled: canGym }, client: { headers } },
+  )
 
-  const appts    = useMemo(() => (appointmentsData ?? []) as Appt[], [appointmentsData])
-  const orders   = useMemo(() => ordersData?.rows ?? [], [ordersData])
+  const appts = useMemo(() => (appointmentsData ?? []) as Appt[], [appointmentsData])
+  const orders = useMemo(() => (ordersData?.rows ?? []) as OrderLike[], [ordersData])
   const services = useMemo(() => servicesData ?? [], [servicesData])
+  const gymFin = gymFinanceData as GymFinance | undefined
 
   const colorOf = useMemo(() => {
     const m = new Map(services.map((s) => [s.serviceId, s.color || '#2A6FDB']))
@@ -232,13 +489,27 @@ export function Dashboard() {
 
   // ── Today ──────────────────────────────────────────────────────────────
   const apptsToday = useMemo(() => appts.filter((a) => a.date === today), [appts, today])
-  const revenueToday = useMemo(
-    () => apptsToday.reduce((s, a: any) => s + (Number(a.paymentCash) || 0) + (Number(a.paymentMbway) || 0) + (Number(a.paymentCard) || 0), 0),
-    [apptsToday],
-  )
   const pendingToday = apptsToday.filter((a) => a.status === 'pending').length
 
-  // ── Real 14-day series + 7d-over-7d delta (from this month's data) ────────
+  // Receita de hoje agregada (agenda + loja + ginásio), dos dados reais do /dashboard.
+  const revToday = (dash?.schedule?.period.revenue ?? 0) + (dash?.ecommerce?.period.revenue ?? 0) + (dash?.gym?.period.revenue ?? 0)
+  const salesToday = dash?.ecommerce?.period.revenue ?? 0
+  const stockAlerts = dash?.ecommerce?.stockAlerts ?? []
+  const openOrders = useMemo(() => orders.filter((o) => o.status && OPEN_ORDER.has(o.status)).length, [orders])
+  const recentOrders = useMemo(
+    () => [...orders].sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()).slice(0, 6),
+    [orders],
+  )
+
+  // Clientes (core): total + novos nos últimos 7 dias (quando há createdAt).
+  const customers = (customersData?.rows ?? []) as { createdAt?: string }[]
+  const totalCustomers = customersData?.count ?? customers.length
+  const newCustomers = useMemo(() => {
+    const since = subDays(now, 7)
+    return customers.filter((c) => c.createdAt && new Date(c.createdAt) >= since).length
+  }, [customers, now])
+
+  // ── 14-day appointment series + 7d-over-7d delta ──────────────────────────
   const { spark14, weekDelta, weekCount } = useMemo(() => {
     const days = eachDayOfInterval({ start: subDays(now, 13), end: now })
     const counts: Record<string, number> = {}
@@ -249,7 +520,7 @@ export function Dashboard() {
     return { spark14: series, weekDelta: last7 - prev7, weekCount: last7 }
   }, [appts, now])
 
-  // ── Status breakdown ──────────────────────────────────────────────────────
+  // ── Status breakdown (mês, agenda) ────────────────────────────────────────
   const breakdown = useMemo(() => {
     const c = (st: string) => appts.filter((a) => a.status === st).length
     return [
@@ -260,27 +531,74 @@ export function Dashboard() {
     ]
   }, [appts])
 
-  const recentOrders = useMemo(
-    () => [...orders]
-      .sort((a, b) => new Date((b as any).createdAt ?? 0).getTime() - new Date((a as any).createdAt ?? 0).getTime())
-      .slice(0, 6),
-    [orders],
-  )
+  const gym = gymDerive(gymFin)
 
-  // ── KPI specs (only real metrics, gated by permission) ────────────────────
+  // ── KPI band: âncora por vertical ativa + "Receita de hoje" agregada ───────
   const kpis = useMemo(() => {
-    const list: any[] = []
-    if (canSchedule) {
-      list.push({ label: 'Marcações hoje', value: apptsToday.length, sub: pendingToday ? `${pendingToday} por confirmar` : apptsToday.length ? 'tudo confirmado' : 'dia livre', icon: 'calendar', tone: 'blue', loading: loadingAppts })
-      list.push({ label: 'Receita de hoje', value: fmtEur(revenueToday), sub: 'marcações pagas', icon: 'euro', tone: 'green', loading: loadingAppts })
-      list.push({ label: 'Marcações · 14 dias', value: weekCount, sub: 'últimos 7 dias', icon: 'trend', tone: 'violet', loading: loadingAppts, delta: weekDelta, spark: spark14 })
+    const list: Kpi[] = []
+    const hasRevenue = canSchedule || canProducts || canGym
+    if (hasRevenue) list.push({ label: 'Receita de hoje', value: fmtEur(revToday), sub: 'agenda + loja + ginásio', icon: 'euro', tone: 'green', loading: loadingDash, href: '/financeiro' })
+    if (canSchedule) list.push({ label: 'Marcações hoje', value: apptsToday.length, sub: pendingToday ? `${pendingToday} por confirmar` : apptsToday.length ? 'tudo confirmado' : 'dia livre', icon: 'calendar', tone: 'blue', loading: loadingAppts, href: `/agenda?data=${today}` })
+    if (canGym) {
+      list.push(gym.emAtraso > 0
+        ? { label: 'Em atraso', value: gym.emAtraso, sub: 'mensalidades', icon: 'alertTriangle', tone: 'red', loading: loadingGym, href: '/financeiro?vista=ginasio' }
+        : { label: 'Por cobrar', value: fmtEur(gym.porCobrar), sub: `de ${fmtEur(gym.previsto)} previstos`, icon: 'card', tone: 'amber', loading: loadingGym, href: '/financeiro?vista=ginasio' })
     }
-    if (canCustomers) list.push({ label: 'Clientes', value: customersData?.count ?? customersData?.rows?.length ?? 0, icon: 'users', tone: 'violet', loading: loadingCustomers })
-    if (canProducts) list.push({ label: 'Encomendas', value: ordersData?.count ?? orders.length, icon: 'cart', tone: 'blue', loading: loadingOrders })
+    if (canProducts) {
+      list.push(openOrders > 0
+        ? { label: 'Por despachar', value: openOrders, sub: 'encomendas', icon: 'package', tone: 'amber', loading: loadingOrders, href: '/loja?tab=encomendas' }
+        : { label: 'Vendas de hoje', value: fmtEur(salesToday), sub: 'loja', icon: 'cart', tone: 'blue', loading: loadingDash, href: '/loja?tab=encomendas' })
+    }
+    // Core + fillers (só para encher a faixa em tenants de uma só vertical).
+    list.push({ label: 'Clientes', value: totalCustomers, sub: newCustomers ? `${newCustomers} novos esta semana` : 'no total', icon: 'users', tone: 'violet', loading: loadingCustomers, href: '/clientes' })
+    if (canSchedule) list.push({ label: 'Marcações · 14 dias', value: weekCount, sub: 'últimos 7 dias', icon: 'trend', tone: 'violet', loading: loadingAppts, delta: weekDelta, spark: spark14, href: '/agenda' })
+    if (canGym) list.push({ label: 'Sócios ativos', value: dash?.gym?.activeMembers ?? '—', sub: 'ginásio', icon: 'users', tone: 'violet', loading: loadingDash, href: '/financeiro?vista=ginasio' })
+    if (canProducts) list.push({ label: 'Ticket médio', value: fmtEur(dash?.ecommerce?.period.avgOrderValue ?? 0), sub: 'por encomenda', icon: 'cart', tone: 'blue', loading: loadingDash, href: '/loja?tab=encomendas' })
     return list.slice(0, 4)
-  }, [canSchedule, canCustomers, canProducts, apptsToday.length, pendingToday, revenueToday, weekCount, weekDelta, spark14, customersData, ordersData, orders.length, loadingAppts, loadingCustomers, loadingOrders])
+  }, [canSchedule, canProducts, canGym, revToday, apptsToday.length, pendingToday, today, gym.emAtraso, gym.porCobrar, gym.previsto, openOrders, salesToday, totalCustomers, newCustomers, weekCount, weekDelta, spark14, dash, loadingDash, loadingAppts, loadingGym, loadingOrders, loadingCustomers])
 
-  const noAccess = !canCustomers && !canProducts && !canSchedule
+  // ── Espinha (peça central) por prioridade operacional ─────────────────────
+  const spine: 'agenda' | 'gym' | 'loja' | 'core' =
+    canSchedule ? 'agenda' : canGym ? 'gym' : canProducts ? 'loja' : 'core'
+
+  // ── Carris de apoio (as outras verticais ativas) ──────────────────────────
+  const rail: ReactNode[] = []
+  if (canSchedule && appts.length > 0) {
+    rail.push(
+      <Card key="status" className="p-5">
+        <SectionTitle>Estado das marcações · {monthLabel}</SectionTitle>
+        <div className="space-y-3">
+          {breakdown.map(({ key, label, count, color }) => (
+            <div key={key} className="flex items-center gap-3">
+              <span className={`w-2.5 h-2.5 rounded-full ${color} shrink-0`} />
+              <span className="text-sm text-zinc-600 dark:text-zinc-300 flex-1">{label}</span>
+              <span className="text-sm font-semibold text-zinc-900 dark:text-white tabular-nums w-6 text-right">{count}</span>
+              <div className="w-16 h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                <div className={`h-full rounded-full ${color}`} style={{ width: appts.length ? `${Math.round((count / appts.length) * 100)}%` : '0%' }} />
+              </div>
+            </div>
+          ))}
+          <p className="text-xs text-zinc-400 pt-2 border-t border-zinc-100 dark:border-zinc-800">{appts.length} marcações no total</p>
+        </div>
+      </Card>,
+    )
+  }
+  if (canGym && spine !== 'gym') rail.push(<GymMiniCard key="gym" fin={gymFin} monthLabel={monthLabel} />)
+  if (canProducts && spine !== 'loja') {
+    if (recentOrders.length > 0 || openOrders > 0) {
+      rail.push(
+        <Card key="orders" className="p-5">
+          <SectionTitle right={openOrders > 0 ? <Badge tone="amber">{openOrders} por despachar</Badge> : undefined}>Últimas encomendas</SectionTitle>
+          {recentOrders.length === 0
+            ? <EmptyState icon="cart" title="Sem encomendas" desc="As encomendas mais recentes aparecem aqui." />
+            : <OrdersList orders={recentOrders} />}
+        </Card>,
+      )
+    }
+    if (stockAlerts.length > 0) rail.push(<StockAlerts key="stock" alerts={stockAlerts} />)
+  }
+
+  const hasRail = rail.length > 0
 
   return (
     <div className="space-y-6">
@@ -299,78 +617,30 @@ export function Dashboard() {
         <p className="sm:ml-auto text-sm text-zinc-400">Olá, {username ?? '—'}</p>
       </div>
 
-      {noAccess && (
-        <Card className="p-2">
-          <EmptyState icon="dashboard" title="Sem permissões activas" desc="Contacta o administrador para teres acesso aos módulos." />
-        </Card>
-      )}
-
       {/* KPI band */}
       {kpis.length > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {kpis.map((k) => <KpiCard key={k.label} {...k} accent="#2A6FDB" />)}
+          {kpis.map((k) => <KpiCard key={k.label} {...k} />)}
         </div>
       )}
 
-      {/* Main — the day is the spine */}
+      {/* Main — spine adapts to the tenant's business */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {canSchedule && (
-          <Card className="p-5 lg:col-span-7">
-            <SectionTitle right={<span className="text-xs text-zinc-400 tabular-nums">{apptsToday.length} hoje</span>}>
-              Hoje
-            </SectionTitle>
-            {loadingAppts
-              ? <div className="space-y-3 py-2">{[0, 1, 2].map((i) => <div key={i} className="h-10 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />)}</div>
-              : <DayRail appts={apptsToday} colorOf={colorOf} now={now} />}
-          </Card>
-        )}
-
-        {/* Right rail: status breakdown + recent orders */}
-        <div className={`space-y-4 ${canSchedule ? 'lg:col-span-5' : 'lg:col-span-12'}`}>
-          {canSchedule && appts.length > 0 && (
-            <Card className="p-5">
-              <SectionTitle>Estado das marcações · {format(now, 'MMMM', { locale: pt })}</SectionTitle>
-              <div className="space-y-3">
-                {breakdown.map(({ key, label, count, color }) => (
-                  <div key={key} className="flex items-center gap-3">
-                    <span className={`w-2.5 h-2.5 rounded-full ${color} shrink-0`} />
-                    <span className="text-sm text-zinc-600 dark:text-zinc-300 flex-1">{label}</span>
-                    <span className="text-sm font-semibold text-zinc-900 dark:text-white tabular-nums w-6 text-right">{count}</span>
-                    <div className="w-16 h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-                      <div className={`h-full rounded-full ${color}`} style={{ width: appts.length ? `${Math.round((count / appts.length) * 100)}%` : '0%' }} />
-                    </div>
-                  </div>
-                ))}
-                <p className="text-xs text-zinc-400 pt-2 border-t border-zinc-100 dark:border-zinc-800">{appts.length} marcações no total</p>
-              </div>
-            </Card>
+        <Card className={`p-5 ${hasRail ? 'lg:col-span-7' : 'lg:col-span-12'}`}>
+          {spine === 'agenda' && (
+            <>
+              <SectionTitle right={<span className="text-xs text-zinc-400 tabular-nums">{apptsToday.length} hoje</span>}>Hoje</SectionTitle>
+              {loadingAppts
+                ? <div className="space-y-3 py-2">{[0, 1, 2].map((i) => <div key={i} className="h-10 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />)}</div>
+                : <DayRail appts={apptsToday} colorOf={colorOf} now={now} />}
+            </>
           )}
+          {spine === 'gym' && <GymCobrancasSpine fin={gymFin} monthLabel={monthLabel} loading={loadingGym} />}
+          {spine === 'loja' && <FulfillmentSpine orders={orders} openCount={openOrders} salesToday={salesToday} alerts={stockAlerts} loading={loadingOrders} />}
+          {spine === 'core' && <CustomersWelcome total={totalCustomers} newCount={newCustomers} loading={loadingCustomers} />}
+        </Card>
 
-          {canProducts && !loadingOrders && recentOrders.length > 0 && (
-            <Card className="p-5">
-              <SectionTitle>Últimas encomendas</SectionTitle>
-              <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {recentOrders.map((o, i) => (
-                  <div key={(o as any).orderId ?? i} className="flex items-center gap-4 py-2.5 first:pt-0 last:pb-0">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-zinc-900 dark:text-white truncate">
-                        {(o as any).customerName ?? (o as any).clientName ?? `Encomenda #${String((o as any).orderId ?? i).slice(0, 8)}`}
-                      </p>
-                      <p className="text-xs text-zinc-400">
-                        {(o as any).createdAt ? format(new Date((o as any).createdAt), 'd MMM yyyy', { locale: pt }) : '—'}
-                      </p>
-                    </div>
-                    <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">{fmtEur(Number(o.price) || 0)}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-
-          {canProducts && !canSchedule && !loadingOrders && recentOrders.length === 0 && (
-            <Card className="p-2"><EmptyState icon="cart" title="Sem encomendas" desc="As encomendas mais recentes aparecem aqui." /></Card>
-          )}
-        </div>
+        {hasRail && <div className="lg:col-span-5 space-y-4">{rail}</div>}
       </div>
     </div>
   )

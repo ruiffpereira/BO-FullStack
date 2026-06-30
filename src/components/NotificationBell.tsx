@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   useNotifications,
   useMarkRead,
@@ -6,6 +7,7 @@ import {
   useDeleteNotification,
   type Notification,
 } from "../hooks/useNotifications";
+import { notificationHref } from "../lib/notificationTarget";
 import { usePushSubscription } from "../hooks/usePushSubscription";
 
 // Taxonomia unificada (espelha src/utils/notifyUser.ts na API): label + cores
@@ -70,10 +72,12 @@ function XIcon({ className }: { className?: string }) {
 
 function NotificationItem({
   n,
+  onOpen,
   onRead,
   onDelete,
 }: {
   n: Notification;
+  onOpen: (n: Notification) => void;
   onRead: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
@@ -84,6 +88,7 @@ function NotificationItem({
     minute: "2-digit",
   });
   const meta = NOTIF_META[n.type] ?? NOTIF_META.system;
+  const navigable = notificationHref(n) !== null;
 
   return (
     <div
@@ -91,47 +96,55 @@ function NotificationItem({
         n.read ? "opacity-60" : ""
       }`}
     >
-      <span
-        className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${meta.dot} ${n.read ? "opacity-0" : ""}`}
-      />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 leading-snug truncate">
-              {n.title}
+      {/* Área clicável: marca como lida e — se houver destino — navega para lá. */}
+      <button
+        type="button"
+        onClick={() => onOpen(n)}
+        aria-label={`${navigable ? "Abrir" : "Marcar como lida"}: ${n.title}`}
+        className="group/nav flex items-start gap-3 flex-1 min-w-0 text-left"
+      >
+        <span
+          className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${meta.dot} ${n.read ? "opacity-0" : ""}`}
+        />
+        <div className="flex-1 min-w-0">
+          <p
+            className={`text-sm font-semibold text-zinc-800 dark:text-zinc-100 leading-snug truncate ${
+              navigable ? "group-hover/nav:text-accent" : ""
+            }`}
+          >
+            {n.title}
+          </p>
+          {n.body && (
+            <p className="text-[13px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-snug line-clamp-2">
+              {n.body}
             </p>
-            {n.body && (
-              <p className="text-[13px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-snug line-clamp-2">
-                {n.body}
-              </p>
-            )}
-            <p className="text-[12px] text-zinc-400 mt-1.5">
-              <span className={`inline-block px-1.5 py-0.5 rounded-full text-[11px] font-medium mr-1.5 ${meta.chip}`}>
-                {meta.label}
-              </span>
-              {when}
-            </p>
-          </div>
-          {/* Touch-friendly action buttons */}
-          <div className="flex items-center gap-1 shrink-0 -mr-1">
-            {!n.read && (
-              <button
-                onClick={() => onRead(n.notificationId)}
-                aria-label="Marcar como lida"
-                className="p-2 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-              >
-                <CheckAllIcon className="w-4 h-4" />
-              </button>
-            )}
-            <button
-              onClick={() => onDelete(n.notificationId)}
-              aria-label="Eliminar"
-              className="p-2 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-            >
-              <TrashIcon className="w-4 h-4" />
-            </button>
-          </div>
+          )}
+          <p className="text-[12px] text-zinc-400 mt-1.5">
+            <span className={`inline-block px-1.5 py-0.5 rounded-full text-[11px] font-medium mr-1.5 ${meta.chip}`}>
+              {meta.label}
+            </span>
+            {when}
+          </p>
         </div>
+      </button>
+      {/* Touch-friendly action buttons */}
+      <div className="flex items-center gap-1 shrink-0 -mr-1">
+        {!n.read && (
+          <button
+            onClick={() => onRead(n.notificationId)}
+            aria-label="Marcar como lida"
+            className="p-2 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <CheckAllIcon className="w-4 h-4" />
+          </button>
+        )}
+        <button
+          onClick={() => onDelete(n.notificationId)}
+          aria-label="Eliminar"
+          className="p-2 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+        >
+          <TrashIcon className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );
@@ -141,6 +154,7 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const navigate = useNavigate();
 
   const { data, isLoading } = useNotifications();
   const markRead = useMarkRead();
@@ -160,6 +174,15 @@ export function NotificationBell() {
   const unread = data?.unread ?? 0;
   const notifications = (data?.notifications as Notification[] | undefined) ?? [];
   const showPushHelp = requiresInstall || pushError || (isIOS && isStandalone && !isSupported);
+
+  // Clicar numa notificação: marca lida (se não lida), fecha o painel e — se a
+  // notificação tiver um destino — navega para a página/recurso em questão.
+  const openNotification = (n: Notification) => {
+    if (!n.read) markRead.mutate({ id: n.notificationId });
+    setOpen(false);
+    const href = notificationHref(n);
+    if (href) navigate(href);
+  };
 
   // Close on outside click
   useEffect(() => {
@@ -345,6 +368,7 @@ export function NotificationBell() {
                   <NotificationItem
                     key={n.notificationId}
                     n={n}
+                    onOpen={openNotification}
                     onRead={(id) => markRead.mutate({ id })}
                     onDelete={(id) => deleteN.mutate({ id })}
                   />

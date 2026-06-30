@@ -405,9 +405,18 @@ export function Loja() {
   const qc = useQueryClient();
   const headers = authHeader();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [tab, setTab] = useState<"produtos" | "encomendas" | "categorias">(
-    "produtos",
-  );
+  const validTab = (t: string | null): t is "produtos" | "encomendas" | "categorias" =>
+    t === "produtos" || t === "encomendas" || t === "categorias";
+  const [tab, setTab] = useState<"produtos" | "encomendas" | "categorias">(() => {
+    const t = searchParams.get("tab");
+    return validTab(t) ? t : "produtos";
+  });
+  // Deep-link `?tab=` (ex.: notificação de encomenda → separador Encomendas)
+  // também quando a página já está montada.
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (validTab(t)) setTab(t);
+  }, [searchParams]);
   const [q, setQ] = useState("");
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);

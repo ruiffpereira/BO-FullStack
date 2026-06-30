@@ -66,11 +66,10 @@ export function notificationHref(
       return "/agenda";
     }
 
-    case "message":
-      return "/mensagens";
-
     case "system":
     default:
+      // Inclui o chat (que avisa por toast/badge, não pelo sino) e qualquer
+      // tipo sem destino: a notificação é clicável só para marcar como lida.
       return null;
   }
 }

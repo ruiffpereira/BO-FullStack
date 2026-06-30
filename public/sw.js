@@ -19,7 +19,21 @@ self.addEventListener("push", (event) => {
     data: { url: payload.url ?? "/" },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    (async () => {
+      // suppressWhenFocused (ex.: chat): se a app estiver VISÍVEL numa janela,
+      // não mostra a notificação do sistema — já há toast/badge in-app.
+      if (payload.suppressWhenFocused) {
+        const clients = await self.clients.matchAll({
+          type: "window",
+          includeUncontrolled: true,
+        });
+        const appVisible = clients.some((c) => c.visibilityState === "visible");
+        if (appVisible) return;
+      }
+      await self.registration.showNotification(title, options);
+    })(),
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {

@@ -13,7 +13,7 @@ export type { GetNotificationsQueryKey } from "../gen/backoffice/hooks/useGetNot
 
 // Taxonomia unificada (espelha src/utils/notifyUser.ts na API).
 export type NotificationType =
-  | "booking" | "order" | "customer" | "gym" | "payment" | "stock" | "reminder" | "system";
+  | "booking" | "order" | "customer" | "gym" | "payment" | "stock" | "reminder" | "message" | "system";
 
 export interface Notification {
   notificationId: string;

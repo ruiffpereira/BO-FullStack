@@ -123,7 +123,7 @@ export function Composer({ onSend, disabled = false, placeholder = "Escreve uma 
           onClick={() => fileRef.current?.click()}
           disabled={busy || disabled}
           aria-label="Anexar imagem"
-          className="shrink-0 w-9 h-9 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex items-center justify-center disabled:opacity-50"
+          className="shrink-0 w-10 h-10 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex items-center justify-center disabled:opacity-50"
         >
           <Icon name="paperclip" className="w-[18px] h-[18px]" />
         </button>
@@ -147,7 +147,7 @@ export function Composer({ onSend, disabled = false, placeholder = "Escreve uma 
           onClick={() => void handleSend()}
           disabled={!canSend}
           aria-label="Enviar"
-          className="shrink-0 w-9 h-9 rounded-full bg-accent text-white flex items-center justify-center shadow-sm shadow-accent/20 hover:brightness-110 transition disabled:opacity-40 disabled:pointer-events-none"
+          className="shrink-0 w-10 h-10 rounded-full bg-accent text-white flex items-center justify-center shadow-sm shadow-accent/20 hover:brightness-110 transition disabled:opacity-40 disabled:pointer-events-none"
         >
           <Icon name={busy ? "loader" : "send"} className={`w-[18px] h-[18px] ${busy ? "animate-spin" : ""}`} />
         </button>

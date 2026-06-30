@@ -148,7 +148,7 @@ export function MensagensTab() {
   const conversations = data?.conversations ?? [];
 
   return (
-    <div className="flex h-[calc(100vh-15rem)] min-h-[480px] rounded-xl border border-zinc-200/80 dark:border-zinc-800 overflow-hidden bg-white dark:bg-zinc-900">
+    <div className="flex h-[calc(100dvh-15rem)] min-h-[480px] rounded-xl border border-zinc-200/80 dark:border-zinc-800 overflow-hidden bg-white dark:bg-zinc-900">
       {/* Lista */}
       <aside
         className={`${selected ? "hidden lg:flex" : "flex"} flex-col w-full lg:w-80 shrink-0 border-r border-zinc-100 dark:border-zinc-800`}

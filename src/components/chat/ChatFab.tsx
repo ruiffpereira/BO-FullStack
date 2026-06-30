@@ -37,7 +37,7 @@ export function ChatFab() {
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label={open ? "Fechar mensagens" : `Mensagens${unread ? ` (${unread} não lidas)` : ""}`}
-        className="fixed bottom-5 right-4 sm:right-5 z-40 w-14 h-14 rounded-full bg-accent text-white shadow-lg shadow-accent/30 flex items-center justify-center hover:brightness-110 active:scale-95 transition"
+        className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 sm:right-5 z-40 w-14 h-14 rounded-full bg-accent text-white shadow-lg shadow-accent/30 flex items-center justify-center hover:brightness-110 active:scale-95 transition"
       >
         <Icon name={open ? "x" : "message"} className="w-6 h-6" />
         {!open && unread > 0 && (

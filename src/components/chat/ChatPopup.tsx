@@ -151,7 +151,7 @@ export function ChatPopup({ onClose }: { onClose: () => void }) {
     <div
       role="dialog"
       aria-label="Mensagens"
-      className="fixed z-40 bottom-[5.5rem] right-4 sm:right-5 w-[calc(100vw-2rem)] sm:w-[380px] h-[min(560px,calc(100vh-7.5rem))] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-[pop_.16s_cubic-bezier(.2,.8,.2,1)]"
+      className="fixed z-40 bottom-[5.5rem] right-4 sm:right-5 w-[calc(100vw-2rem)] sm:w-[380px] h-[min(560px,calc(100dvh-7.5rem))] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-[pop_.16s_cubic-bezier(.2,.8,.2,1)]"
     >
       {isAdmin ? <AdminPopup onClose={onClose} /> : <TenantPopup onClose={onClose} />}
     </div>

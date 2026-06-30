@@ -6,16 +6,20 @@ Scope: `src/pages/Dashboard.tsx` (reescrita completa)
 
 ## Screenshots Captured
 
-> ⚠️ **Não foi possível capturar screenshots da app a correr.** Não há browser MCP (Playwright/Cursor) disponível neste ambiente, e a infra e2e não arrancou: o MySQL de teste (`:3307`) está de pé, mas o utilizador `testuser` não tem acesso à BD `api_e2e` (`ER_DBACCESS_DENIED_ERROR` — grant em falta na BD de teste, fora do âmbito desta mudança). A review abaixo é **ao nível do código** contra o brief + checklist. Recomenda-se uma passagem visual manual (ver "Verificação pendente").
+Capturados via **Playwright MCP** contra o dev (`localhost:5173`), tenant `Admin` (agenda+ginásio+loja). As espinhas de **ginásio** e **loja** foram capturadas forçando temporariamente `spine` (revertido logo a seguir via `git checkout` — o Admin tem todas as permissões, por isso a agenda ganharia sempre a espinha).
 
-| Screenshot | Breakpoint | Estado |
+| Screenshot | Breakpoint | Mostra |
 | --- | --- | --- |
-| — | Desktop 1280 | não capturado (sem browser tool / e2e DB) |
-| — | Mobile 375 | não capturado |
+| `screenshots/review-mixed-admin-desktop-1280.png` | Desktop 1280 | **Misto** (agenda+gym+loja): KPIs equilibrados (Receita hoje · Marcações hoje · **Por cobrar €75** · Vendas hoje), espinha "Hoje", carril com estado do mês + **GymMiniCard** |
+| `screenshots/review-mixed-admin-mobile-375.png` | Mobile 375 | Mesma vista, coluna única, KPIs 2×N, sem overflow |
+| `screenshots/review-gym-spine-desktop-1280.png` | Desktop 1280 | **Espinha de ginásio**: "Cobranças · julho", progresso €0/€75, Por cobrar/Em atraso/MRR, estado positivo "Tudo em dia ✓" |
+| `screenshots/review-loja-spine-desktop-1280.png` | Desktop 1280 | **Espinha de loja**: banner "Tudo despachado" + Vendas de hoje, "Últimas encomendas" (estado vazio) |
+
+> Verificado: render limpo (os 2 erros de consola são `csrf-token`/`users/refresh` 401, **pré-login**, não do dashboard). As 3 espinhas renderizam com dados reais; KPIs equilibrados sem o corte `slice(0,4)`; estados vazios positivos; dark mode coerente; mobile sem overflow.
 
 ## Summary
 
-A reescrita cumpre o objetivo central do brief: o Dashboard deixa de assumir "negócio de marcações" e **compõe-se a partir das permissões do tenant** — espinha operacional escolhida por prioridade (agenda → ginásio → loja → core), KPIs com âncora por vertical + "Receita de hoje" agregada (corrige o bug do `slice(0,4)` que cortava a loja), e carris de apoio para as outras verticais. Tudo reutiliza as primitivas existentes (`Card`/`Badge`/`EmptyState`/`SectionTitle`/`Icon`/`Sparkline`/`BADGE_TONES`/`accent`) e os endpoints que já existem (`/api/dashboard?period=today`, `/gym/mensalidade/finance`). `tsc --noEmit` passa. Maior risco residual: ausência de validação visual (sem screenshots) — sobretudo das espinhas de **ginásio** e **loja**, que o seed e2e atual pode não exercitar.
+A reescrita cumpre o objetivo central do brief: o Dashboard deixa de assumir "negócio de marcações" e **compõe-se a partir das permissões do tenant** — espinha operacional escolhida por prioridade (agenda → ginásio → loja → core), KPIs com âncora por vertical + "Receita de hoje" agregada (corrige o bug do `slice(0,4)` que cortava a loja), e carris de apoio para as outras verticais. Tudo reutiliza as primitivas existentes (`Card`/`Badge`/`EmptyState`/`SectionTitle`/`Icon`/`Sparkline`/`BADGE_TONES`/`accent`) e os endpoints que já existem (`/api/dashboard?period=today`, `/gym/mensalidade/finance`). `tsc --noEmit` passa e a vista foi **validada visualmente** (Playwright MCP) nas 3 espinhas (agenda/ginásio/loja) + mobile — render limpo, sem must-fix.
 
 ## Must Fix
 
@@ -23,7 +27,7 @@ _Nenhum._ Sem erros de tipo, sem botões aninhados (os cartões/linhas clicávei
 
 ## Should Fix
 
-1. **Validação visual pendente** (ver secção própria). As composições de **gym-only** e **loja-only** nunca foram vistas a renderizar. _Fix: correr `pnpm dev` e abrir `/` com tenants de cada vertical (ou repor o grant de `api_e2e` e correr a captura e2e)._
+1. ~~**Validação visual pendente**~~ — **Feito** (Playwright MCP, ver "Screenshots Captured"): as 3 espinhas + mobile renderizam corretamente com dados reais.
 2. **Deep-link por item em falta na Loja**: `OrdersList` e `StockAlerts` levam ao **separador** (`/loja?tab=encomendas` / `?tab=produtos`), não à encomenda/produto específico — a Loja não expõe `?openOrder=` e o `stockAlerts` da API não traz `productId`. Aceitável como v1, mas é meio-caminho face ao princípio "cada número é uma porta". _Fix (futuro): `?openOrder=<id>` na Loja + `productId` em `ecommerce.stockAlerts`._
 
 ## Could Improve
@@ -39,11 +43,13 @@ _Nenhum._ Sem erros de tipo, sem botões aninhados (os cartões/linhas clicávei
 - **Acionável, não vaidade**: "Por despachar", "Em atraso", "Por cobrar", "Stock baixo" — métricas que pedem ação, cada uma com a sua porta. Estados vazios positivos ("Tudo em dia ✓", "Tudo despachado").
 - **A11y cuidada**: cartões/linhas são `<button>` reais com `aria-label`, foco visível (`focus-visible:ring`), `motion-reduce` no marcador "agora", cor nunca é o único sinal (rótulo + número no "em atraso").
 
-## Verificação pendente (passagem visual manual)
+## Verificação visual (feita)
 
-Para fechar a review com confiança, ver `/` a renderizar com, no mínimo:
-- **Agenda** (tenant com `VIEW_SCHEDULE`): espinha = "Hoje" (timeline), carril = estado do mês.
-- **Ginásio** (tenant com `VIEW_GYM`, sem agenda): espinha = "Cobranças · {mês}" (progresso + em atraso).
-- **Loja** (tenant com `VIEW_PRODUCTS`, sem agenda/gym, ex.: `limited@e2e`): espinha = "Por despachar + últimas + stock".
-- **Misto** (agenda+loja+gym): KPIs equilibrados, carris com mini-gym + encomendas + stock.
-- **Mobile 375**: coluna única, KPIs 2×N, sem overflow horizontal.
+Confirmado em `localhost:5173` (tenant `Admin`, agenda+gym+loja):
+- **Agenda** (espinha real): "Hoje" timeline + próximo + marcador "agora"; carril com estado do mês + GymMiniCard. ✓
+- **Ginásio** (espinha forçada p/ preview): "Cobranças · julho", progresso €0/€75, Por cobrar/Em atraso/MRR, "Tudo em dia ✓". ✓
+- **Loja** (espinha forçada p/ preview): "Tudo despachado" + Vendas de hoje + "Sem encomendas". ✓
+- **Misto** (KPIs): Receita hoje agregada · Marcações hoje · Por cobrar (gym) · Vendas hoje — **sem corte arbitrário**. ✓
+- **Mobile 375**: coluna única, KPIs 2×N, sem overflow. ✓
+
+_Não capturado (sem tenant dedicado): gym-only/loja-only com a sidebar reduzida e dados densos (em atraso/encomendas reais)._

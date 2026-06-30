@@ -13,7 +13,7 @@ import {
 } from "date-fns";
 import { pt } from "date-fns/locale";
 import { Icon } from "../ui/icons.jsx";
-import { Modal, Avatar, Badge, Button } from "../ui/ui.jsx";
+import { Modal, Avatar, Badge, Button, Toggle } from "../ui/ui.jsx";
 import { Combobox } from "./Combobox";
 import { PriceFillChip } from "./PriceFillChip";
 import { confirmDialog } from "./confirm";
@@ -78,6 +78,8 @@ export function ApptModal({
   initialTime,
   onOpenCustomer,
   priorDebt = 0,
+  customer,
+  onSaveCustomer,
 }: {
   appt: Appointment;
   services: Service[];
@@ -92,6 +94,10 @@ export function ApptModal({
   onOpenCustomer?: () => void;
   /** Dívida acumulada deste cliente noutras marcações (avisa no topo do pagamento). */
   priorDebt?: number;
+  /** Cliente associado (para a preferência de contribuinte na fatura). */
+  customer?: { customerId: string; nif?: string | null; wantsInvoice?: boolean } | null;
+  /** Persiste a preferência de contribuinte/NIF no cliente. */
+  onSaveCustomer?: (customerId: string, data: { wantsInvoice: boolean; nif: string | null }) => void;
 }) {
   const [editServiceId, setEditServiceId] = useState(appt.serviceId);
   const svc = services.find((s) => s.serviceId === editServiceId);
@@ -122,6 +128,9 @@ export function ApptModal({
   );
   const [tip, setTip] = useState("");
   const [cancelPayment, setCancelPayment] = useState(false);
+  // Preferência de contribuinte na fatura (persiste no cliente).
+  const [wantsInvoice, setWantsInvoice] = useState(!!customer?.wantsInvoice);
+  const [nifInput, setNifInput] = useState(customer?.nif ?? "");
 
   const isPaid = !!appt.paidAt;
   const tipVal = parseFloat(tip) || 0;
@@ -149,6 +158,10 @@ export function ApptModal({
   };
   const payNoTip =
     (parseFloat(cash) || 0) + (parseFloat(mbway) || 0) + (parseFloat(card) || 0);
+  // Botão "Pagar" vs "Pagar com dívida": o valor introduzido cobre o preço?
+  const targetPrice = price || snapshotPrice;
+  const willHaveDebt = payNoTip < targetPrice - 0.01;
+  const shortfall = Math.max(0, targetPrice - payNoTip);
   const activeMethod =
     fillPrice > 0 && Math.abs(payNoTip - fillPrice) < 0.01
       ? (parseFloat(cash) || 0) === payNoTip
@@ -199,9 +212,45 @@ export function ApptModal({
     return data;
   };
 
-  const handleSave = () => {
+  // Persiste a preferência de contribuinte/NIF no cliente, se mudou.
+  const persistCustomerPrefs = () => {
+    if (!customer || !onSaveCustomer) return;
+    const nifClean = nifInput.trim() || null;
+    const changed =
+      wantsInvoice !== !!customer.wantsInvoice || (nifClean ?? "") !== (customer.nif ?? "");
+    if (changed) onSaveCustomer(customer.customerId, { wantsInvoice, nif: nifClean });
+  };
+
+  // Aviso do sistema ao alterar uma marcação já paga/concluída (pode mexer nas estatísticas).
+  const confirmEditIfPaid = async () => {
+    if (isPaid || status === "completed") {
+      return confirmDialog({
+        title: "Alterar uma marcação já paga?",
+        message:
+          "Podes alterar o que precisares (incluindo saldar uma dívida). Isto pode afetar as estatísticas/receita do período.",
+        confirmLabel: "Alterar",
+      });
+    }
+    return true;
+  };
+
+  const handleSave = async () => {
+    if (!(await confirmEditIfPaid())) return;
+    persistCustomerPrefs();
     const data = buildSaveData();
     if (Object.keys(data).length) onSave(appt.appointmentId, data);
+  };
+
+  // "Pagar": guarda o valor introduzido e conclui. Se nada foi introduzido,
+  // conclui com dívida total. (Só aparece em marcações ainda não concluídas.)
+  const handlePay = () => {
+    persistCustomerPrefs();
+    if (payNoTip > 0) {
+      const data = buildSaveData();
+      onSave(appt.appointmentId, data);
+    } else {
+      onSetStatus(appt.appointmentId, "completed");
+    }
   };
 
   const handleCancelPayment = async () => {
@@ -621,6 +670,33 @@ export function ApptModal({
                 </span>
               </div>
 
+              {/* Contribuinte na fatura (preferência do cliente) */}
+              {customer && (
+                <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-2.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Contribuinte na fatura</p>
+                      <p className="text-xs text-zinc-400">Emitir com o NIF do cliente.</p>
+                    </div>
+                    <Toggle checked={wantsInvoice} onChange={setWantsInvoice} />
+                  </div>
+                  {wantsInvoice && (
+                    <div className="flex items-center border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden">
+                      <input
+                        value={nifInput}
+                        onChange={(e) => setNifInput(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                        placeholder="NIF (9 dígitos)"
+                        inputMode="numeric"
+                        className="flex-1 px-2.5 py-1.5 text-sm bg-white dark:bg-zinc-900 focus:outline-none w-0"
+                      />
+                      <span className={`px-2 text-sm self-stretch flex items-center ${nifInput.length === 9 ? "text-emerald-500" : "text-amber-500 text-xs"}`}>
+                        {nifInput.length === 9 ? "✓" : `${nifInput.length}/9`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {isPaid ? (
                 <div className="space-y-3">
                   <div className="space-y-2 text-sm">
@@ -853,16 +929,23 @@ export function ApptModal({
                     </div>
                   )}
 
-                  {status !== "completed" && status !== "cancelled" && !hasDebt && (
-                    <Button
-                      variant="outline"
-                      size="sm"
+                  {status !== "completed" && status !== "cancelled" && (
+                    <button
+                      type="button"
                       disabled={busy}
-                      onClick={() => onSetStatus(appt.appointmentId, "completed")}
-                      className="w-full text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-700/60 hover:bg-amber-50 dark:hover:bg-amber-500/10"
+                      onClick={handlePay}
+                      className={`w-full rounded-lg py-2.5 text-sm font-bold text-white transition disabled:opacity-50 ${
+                        willHaveDebt
+                          ? "bg-amber-500 hover:bg-amber-600"
+                          : "bg-emerald-600 hover:bg-emerald-700"
+                      }`}
                     >
-                      Concluir com Dívida
-                    </Button>
+                      {busy
+                        ? "A guardar…"
+                        : willHaveDebt
+                          ? `Pagar com dívida${shortfall > 0 ? ` · faltam ${shortfall.toFixed(2)} €` : ""}`
+                          : "Pagar"}
+                    </button>
                   )}
                 </div>
               )}

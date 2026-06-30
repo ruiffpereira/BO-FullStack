@@ -2011,6 +2011,15 @@ function CalendarioView() {
             appointments.find((a) => a.appointmentId === selAppt.appointmentId) ?? selAppt,
             appointments as Appointment[],
           )}
+          customer={(() => {
+            const ca = appointments.find((a) => a.appointmentId === selAppt.appointmentId) ?? selAppt;
+            const cid = customerIdForAppointment(ca, customers);
+            const c = cid ? customers.find((x) => x.customerId === cid) : null;
+            return c ? { customerId: c.customerId, nif: (c as any).nif ?? null, wantsInvoice: (c as any).wantsInvoice ?? false } : null;
+          })()}
+          onSaveCustomer={(id, data) => {
+            patchCustomersId(id, data as any).then(() => qc.invalidateQueries({ queryKey: getCustomersQueryKey() }));
+          }}
           onOpenCustomer={(() => {
             const currentAppt = rescheduledFrom
               ? selAppt
@@ -2680,6 +2689,15 @@ function MarcacoesPanel() {
             allAppts.find((a) => a.appointmentId === selAppt.appointmentId) ?? selAppt,
             allAppts as Appointment[],
           )}
+          customer={(() => {
+            const ca = allAppts.find((a) => a.appointmentId === selAppt.appointmentId) ?? selAppt;
+            const cid = customerIdForAppointment(ca, customers);
+            const c = cid ? customers.find((x) => x.customerId === cid) : null;
+            return c ? { customerId: c.customerId, nif: (c as any).nif ?? null, wantsInvoice: (c as any).wantsInvoice ?? false } : null;
+          })()}
+          onSaveCustomer={(id, data) => {
+            patchCustomersId(id, data as any).then(() => qc.invalidateQueries({ queryKey: getCustomersQueryKey() }));
+          }}
           onOpenCustomer={(() => {
             const currentAppt =
               allAppts.find((a) => a.appointmentId === selAppt.appointmentId) ??

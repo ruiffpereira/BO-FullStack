@@ -723,8 +723,8 @@ export function ApptModal({
                 </span>
               </div>
 
-              {/* Contribuinte na fatura — toggle na zona de pagamento (com cliente associado). */}
-              {(!isPaid || editMode === "payment") && customer && (
+              {/* Contribuinte na fatura — toggle operacional só no momento do pagamento. */}
+              {!isPaid && customer && (
                 <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-2.5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -814,6 +814,14 @@ export function ApptModal({
                       dateStyle: "medium",
                     })}
                   </p>
+                  {/* Indicação (read-only) de contribuinte — decidido no momento do pagamento. */}
+                  {customer && (
+                    <p className="text-xs text-zinc-400">
+                      Fatura {customer.wantsInvoice
+                        ? `com contribuinte${customer.nif ? ` (NIF ${customer.nif})` : ""}`
+                        : "sem contribuinte"}
+                    </p>
+                  )}
 
                   {/* Editor de pagamento (modo edição) OU ações (ver) */}
                   {editMode === "payment" ? (
@@ -872,21 +880,10 @@ export function ApptModal({
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {hasDebt && (
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={handleEditPayment}
-                          className="w-full rounded-lg py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition disabled:opacity-50"
-                        >
-                          Pagar dívida · {debtAmount.toFixed(2)} €
-                        </button>
-                      )}
-                      <Button variant="outline" className="w-full" disabled={busy} onClick={handleEditPayment}>
-                        Editar pagamento
-                      </Button>
-                    </div>
+                    /* Esteja paga ou com dívida → um só botão. A dívida vê-se no recibo. */
+                    <Button variant="outline" className="w-full" disabled={busy} onClick={handleEditPayment}>
+                      Editar pagamento
+                    </Button>
                   )}
                 </div>
               ) : (

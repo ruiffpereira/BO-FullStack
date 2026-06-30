@@ -48,6 +48,7 @@ type HistoryAppt = {
   appointmentId: string; serviceId: string; date: string; time: string; status: string
   clientName: string; clientEmail: string; clientPhone: string; notes?: string | null
   paymentCash?: number | null; paymentMbway?: number | null; paymentCard?: number | null; paidAt?: string | null
+  servicePrice?: number | null
   service?: { name: string; price: number }
 }
 type CustomerHistory = {
@@ -422,7 +423,9 @@ export function Clientes() {
                     <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">Histórico de marcações</p>
                     <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
                       {history.appointments.map((a) => {
-                        const paid = a.paidAt ? (Number(a.paymentCash || 0) + Number(a.paymentMbway || 0) + Number(a.paymentCard || 0)) : null
+                        const totalPaid = Number(a.paymentCash || 0) + Number(a.paymentMbway || 0) + Number(a.paymentCard || 0)
+                        const paid = a.paidAt ? totalPaid : null
+                        const debt = a.status === 'completed' ? Math.max(0, Number(a.servicePrice ?? a.service?.price ?? 0) - totalPaid) : 0
                         return (
                           <button
                             key={a.appointmentId}
@@ -434,8 +437,8 @@ export function Clientes() {
                               <p className="text-xs text-zinc-400 truncate">{a.service?.name ?? '—'}</p>
                             </div>
                             <div className="text-right shrink-0">
-                              <Badge tone={STATUS_TONE[a.status] as any ?? 'zinc'}>{STATUS_PT[a.status] ?? a.status}</Badge>
-                              {paid != null && <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">{paid.toFixed(2)} €</p>}
+                              <Badge tone={debt > 0 ? 'red' : STATUS_TONE[a.status] as any ?? 'zinc'}>{debt > 0 ? `Dívida ${debt.toFixed(2)} €` : STATUS_PT[a.status] ?? a.status}</Badge>
+                              {paid != null && paid > 0 && <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">{paid.toFixed(2)} €</p>}
                             </div>
                           </button>
                         )

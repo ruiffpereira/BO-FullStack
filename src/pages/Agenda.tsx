@@ -182,6 +182,12 @@ function apptMinutes(appt: Appointment) {
   const [h, m] = appt.time.split(":").map(Number);
   return h * 60 + m;
 }
+/** Minutos do dia → "HH:MM". */
+function minToHHMM(total: number) {
+  const h = Math.floor(total / 60) % 24;
+  const m = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
 function apptVisualEnd(appt: Appointment, services: Service[]) {
   const svc = services.find((s) => s.serviceId === appt.serviceId);
   return (
@@ -1761,7 +1767,7 @@ function CalendarioView() {
                             }}
                           >
                             <p className="text-[10px] font-semibold leading-tight truncate text-zinc-800 dark:text-zinc-100 pr-4">
-                              {appt.time} {appt.clientName}
+                              {appt.time}–{minToHHMM(apptMinutes(appt) + (appt.duration ?? svcItem?.duration ?? 30))} {appt.clientName}
                               {(() => {
                                 const calTotalPaid = Number(appt.paymentCash ?? 0) + Number(appt.paymentMbway ?? 0) + Number(appt.paymentCard ?? 0);
                                 const calDebt = Math.max(0, Number(appt.servicePrice ?? 0) - calTotalPaid);

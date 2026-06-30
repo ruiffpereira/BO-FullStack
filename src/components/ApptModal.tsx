@@ -223,6 +223,7 @@ export function ApptModal({
 
   // Aviso do sistema ao alterar uma marcação já paga/concluída (pode mexer nas estatísticas).
   const confirmEditIfPaid = async () => {
+    if (cancelPayment) return true; // anular já tem a sua própria confirmação
     if (isPaid || status === "completed") {
       return confirmDialog({
         title: "Alterar uma marcação já paga?",
@@ -670,8 +671,8 @@ export function ApptModal({
                 </span>
               </div>
 
-              {/* Contribuinte na fatura (preferência do cliente) */}
-              {customer && (
+              {/* Contribuinte na fatura — só antes de pagar e só se o cliente tem NIF. */}
+              {!isPaid && customer && customer.nif && (
                 <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-2.5">
                   <div className="flex items-center justify-between gap-3">
                     <div>

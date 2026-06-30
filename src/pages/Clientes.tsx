@@ -5,7 +5,7 @@ import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
-import { Card, Badge, Avatar, Modal, Input, Button, IconButton, PageHeader, EmptyState, Tabs } from '../ui/ui.jsx'
+import { Card, Badge, Avatar, Modal, Input, Button, IconButton, PageHeader, EmptyState, Tabs, Toggle } from '../ui/ui.jsx'
 import { usePagination, Pagination } from '../components/Pagination'
 import { DatePicker } from '../components/DatePicker'
 import { useGetCustomers, getCustomersQueryKey } from '../gen/backoffice/hooks/useGetCustomers.js'
@@ -41,8 +41,8 @@ function SkeletonRow() {
   )
 }
 
-type CustomerForm = { name: string; email: string; contact: string; nif: string; birthday: string; notes: string }
-const emptyForm: CustomerForm = { name: '', email: '', contact: '', nif: '', birthday: '', notes: '' }
+type CustomerForm = { name: string; email: string; contact: string; nif: string; wantsInvoice: boolean; birthday: string; notes: string }
+const emptyForm: CustomerForm = { name: '', email: '', contact: '', nif: '', wantsInvoice: false, birthday: '', notes: '' }
 
 type HistoryAppt = {
   appointmentId: string; serviceId: string; date: string; time: string; status: string
@@ -114,6 +114,7 @@ export function Clientes() {
       email: data.email || undefined,
       contact: data.contact || undefined,
       nif: data.nif || undefined,
+      wantsInvoice: data.wantsInvoice,
       birthday: data.birthday || undefined,
       notes: data.notes || undefined,
     } as any),
@@ -220,7 +221,7 @@ export function Clientes() {
 
   const openEdit = (c: Customer) => {
     setEditCustomer(c)
-    setForm({ name: c.name, email: c.email ?? '', contact: c.contact ?? '', nif: c.nif ?? '', birthday: c.birthday ?? '', notes: c.notes ?? '' })
+    setForm({ name: c.name, email: c.email ?? '', contact: c.contact ?? '', nif: c.nif ?? '', wantsInvoice: (c as any).wantsInvoice ?? false, birthday: c.birthday ?? '', notes: c.notes ?? '' })
   }
 
   const set = (k: keyof CustomerForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -492,6 +493,13 @@ export function Clientes() {
             <Input label="Email (opcional)" type="email" value={form.email} onChange={set('email')} placeholder="joao@email.com" />
             <Input label="Telefone (opcional)" value={form.contact} onChange={set('contact')} placeholder="912 345 678" />
             <Input label="NIF (opcional)" value={form.nif} onChange={set('nif')} placeholder="123456789" />
+            <div className="flex items-center justify-between gap-3 pt-0.5">
+              <div>
+                <div className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Quer contribuinte na fatura</div>
+                <div className="text-xs text-zinc-400">Emite a fatura com o NIF do cliente.</div>
+              </div>
+              <Toggle checked={form.wantsInvoice} onChange={(v) => setForm((f) => ({ ...f, wantsInvoice: v }))} />
+            </div>
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Data de nascimento (opcional)</label>
               <DatePicker value={form.birthday} onChange={(v) => setForm((f) => ({ ...f, birthday: v }))} max={new Date().toISOString().slice(0, 10)} yearNav clearable />
@@ -544,6 +552,13 @@ export function Clientes() {
             <Input label="Email" type="email" value={form.email} onChange={set('email')} />
             <Input label="Telefone" value={form.contact} onChange={set('contact')} />
             <Input label="NIF" value={form.nif} onChange={set('nif')} />
+            <div className="flex items-center justify-between gap-3 pt-0.5">
+              <div>
+                <div className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Quer contribuinte na fatura</div>
+                <div className="text-xs text-zinc-400">Emite a fatura com o NIF do cliente.</div>
+              </div>
+              <Toggle checked={form.wantsInvoice} onChange={(v) => setForm((f) => ({ ...f, wantsInvoice: v }))} />
+            </div>
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Data de nascimento</label>
               <DatePicker value={form.birthday} onChange={(v) => setForm((f) => ({ ...f, birthday: v }))} max={new Date().toISOString().slice(0, 10)} yearNav clearable />

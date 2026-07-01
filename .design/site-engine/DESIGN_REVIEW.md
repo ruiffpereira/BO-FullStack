@@ -13,6 +13,14 @@ Data: 2026-07-01 · App: `localhost:3002` (demo Barbearia, tema ink/editorial)
 ## Summary
 A biblioteca de blocos (17 blocos + funcionais) é **coerente, editorial e 100% token-driven** — o brief está cumprido no visual. As duas questões que interessam são de **produção/robustez**, não de estética: (1) o **hydration mismatch** persistente, e (2) os blocos funcionais fazem fetch à API **no cliente** → **CORS bloqueia cross-origin** (renderer ≠ API), por isso não funcionam em produção sem proxy. A composição do demo também ficou **sobrecarregada** (3 formulários de captura na mesma página).
 
+## Estado das correções (2026-07-01 — pós-review)
+- ✅ **Must #1 Hydration** — RESOLVIDO: `<style>` inline → `app/blocks.css` global (19 componentes). Verificado: zero "did not match", overlay sumiu.
+- ✅ **Must #2 CORS/funcionais** — RESOLVIDO: proxy same-origin no renderer (`app/api/site/*`) + `RENDERER_API_KEY` env-gated na API. Verificado: zero CORS na consola (dev sem chave → 401 → fallback demo).
+- ✅ **Should #3 Demo sobrecarregado** — RESOLVIDO: bloco Lead retirado do demo home (fica Booking + Contact).
+- ⏳ **Should #4 Mapa vazio** — o `Contact` já só renderiza o mapa com `mapEmbedUrl`; a caixa vazia era do bloco Lead (removido). Sem ação adicional.
+
+---
+
 ## Must Fix
 1. **Hydration mismatch** (`Text content did not match. Server vs Client`, fora de Suspense → o root inteiro cai para client-render). Mata o benefício do SSR e mostra o overlay de erro. `screenshots/review-full-desktop-1280.png` (overlay "1 error"). _Fix: isolar o nó de texto que difere (candidatos: `<html lang>`/data-attrs no `layout.tsx` derivados de headers; algo num client component). Investigar e eliminar._
 2. **Blocos funcionais fazem fetch à API no CLIENTE → CORS.** `Booking`/`Lead` (client) chamam `http://…:3001/api/…` a partir da origem do renderer → `No 'Access-Control-Allow-Origin'` (visto na consola: `booking/services`). Em produção `barbearia.dominio → api.dominio` é cross-origin → **falha** (cai sempre no fallback demo). _Fix: **proxy via route handlers do Next** (`app/api/…` no renderer faz o fetch server-side à API — sem CORS, e permite injetar o `SITE_TOKEN` no servidor sem o expor ao cliente). Alternativa pior: abrir o CORS da API aos domínios dos tenants._

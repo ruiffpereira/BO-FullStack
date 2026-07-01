@@ -32,6 +32,10 @@ jobs:
           cache: pnpm
       - name: Instalar dependências
         run: pnpm install --frozen-lockfile
+      - name: Gerar cliente da API (Kubb, offline a partir do spec.json)
+        run: pnpm kubb
+        env:
+          KUBB_OFFLINE: '1'
       - name: Correr unit tests
         run: pnpm test:unit
 
@@ -72,6 +76,12 @@ jobs:
       - name: Instalar dependências (Backoffice)
         working-directory: Backoffice
         run: pnpm install --frozen-lockfile
+
+      - name: Gerar cliente da API (Kubb, offline a partir do spec.json)
+        working-directory: Backoffice
+        run: pnpm kubb
+        env:
+          KUBB_OFFLINE: '1'
 
       - name: Criar Backoffice/.env.test (gitignored — valores de teste)
         working-directory: Backoffice

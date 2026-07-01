@@ -43,12 +43,13 @@ Gerado de: `.design/site-engine/` (DESIGN_BRIEF + INFORMATION_ARCHITECTURE + tok
 - [ ] **T19 · 4 templates por vertical** `[API/seed]`: barbeiro, ginásio (wedge), loja, genérico → Site JSON seed + conteúdo CMS seed (estilo `content-import.csv`). Alimenta o "escolhe o teu site". _Novo._
 
 ## Backoffice — área "Website" (v1, sem editor inline)
-- [ ] **T20 · Área Website (shell + estado)** `[BO]`: item na sidebar (`MENU_ORDER`) + rota `/website`; "O meu site" (rascunho/publicado, URL, Ver site, setup pendente). Reusa `ui/ui.jsx` (`Tabs`, `Card`). _Novo._
-- [ ] **T21 · Escolher template** `[BO]`: galeria por vertical com preview → semeia o Site JSON. _Novo; depende de T19._
-- [ ] **T22 · Marca (preset+accent+fontes+logo)** `[BO]`: escreve `theme` no Site JSON; **preview live em iframe** (aponta ao renderer com o rascunho). _Novo; depende de T3._
+> **2026-07-01:** T20/T21/T22/T25 **feitos** (página `/website` com 4 tabs, hook `useWebsite.ts`, 4 templates, 4 testes verdes). **Escondida dos tenants** (gated a `VIEW_ADMIN` no `Shell.tsx`, fora de `CORE_PATHS`) até estar pronta — falta T23 (gestor de páginas) + T24 (gestor de blocos) + preview iframe real. **Passar a core** quando completo.
+- [x] **T20 · Área Website (shell + estado)** `[BO]`: item na sidebar (`MENU_ORDER`) + rota `/website`; "O meu site" (rascunho/publicado, URL, Ver site, setup pendente). Reusa `ui/ui.jsx` (`Tabs`, `Card`). _Novo._
+- [x] **T21 · Escolher template** `[BO]`: galeria por vertical com preview → semeia o Site JSON. _Novo; depende de T19._
+- [x] **T22 · Marca (preset+accent+fontes+logo)** `[BO]`: escreve `theme` no Site JSON; **preview live em iframe** (aponta ao renderer com o rascunho). _Novo; depende de T3._
 - [ ] **T23 · Gestor de páginas** `[BO]`: add/remover/reordenar páginas, slug (gerado/editável, valida rotas reservadas), toggle "na nav", flag coleção → nav dinâmica. _Novo._
 - [ ] **T24 · Gestor de blocos por página** `[BO]`: add/remover/reordenar blocos + escolher variante + ligar conteúdo CMS (formulário), com preview iframe. _Novo; **v1** (o WYSIWYG inline é fase 2)._
-- [ ] **T25 · Subdomínio + Publicar** `[BO+API]`: escolher subdomínio (verifica disponibilidade + provisiona) + Publicar → chama `POST /revalidate`. _Novo; depende de T4._
+- [x] **T25 · Subdomínio + Publicar** `[BO+API]`: escolher subdomínio (verifica disponibilidade + provisiona) + Publicar → chama `POST /revalidate`. _Novo; depende de T4._
 
 ## Polish & Review
 - [ ] **T26 · Responsivo + acessibilidade** `[REND]`: mobile-first em todos os blocos (não só encolher), alvos ≥44px, foco visível, contraste AA por preset (validar claro/escuro), `prefers-reduced-motion`. _Transversal._

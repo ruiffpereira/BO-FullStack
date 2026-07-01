@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { loginAs } from "./fixtures/login";
+import { loginAs, nextClientIp } from "./fixtures/login";
 
 // Cada teste autentica o seu próprio tenant — começa sem sessão.
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -55,7 +55,7 @@ test.describe("Isolamento multi-tenant — cada tenant só vê os seus dados", (
   test("Deep-link: A não consegue abrir a ficha de um cliente de B por URL", async ({ page, context, request }) => {
     const API = process.env.VITE_API_BASE_URL ?? "http://localhost:3002/api";
     // Obter, via API, o id de um cliente do tenant B.
-    const loginB = await request.post(`${API}/users/login`, { data: { username: "tenantB@e2e", password: "E2ePass123!" } });
+    const loginB = await request.post(`${API}/users/login`, { data: { username: "tenantB@e2e", password: "E2ePass123!" }, headers: { "CF-Connecting-IP": nextClientIp() } });
     const tokenB = (await loginB.json()).accessToken as string;
     const custB = await request.get(`${API}/customers`, { headers: { Authorization: `Bearer ${tokenB}` } });
     const bId = (await custB.json()).rows[0].customerId as string;

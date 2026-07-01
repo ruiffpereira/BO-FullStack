@@ -1,4 +1,5 @@
 import { test as base, expect } from "@playwright/test";
+import { nextClientIp } from "./login";
 
 const USER = process.env.TEST_USER ?? "admin";
 const PASS = process.env.TEST_PASSWORD ?? "";
@@ -23,6 +24,7 @@ export const test = base.extend({
     // do login fica disponível e a app autentica no arranque (faz o refresh/CSRF).
     const res = await context.request.post(`${API}/users/login`, {
       data: { username: USER, password: PASS },
+      headers: { "CF-Connecting-IP": nextClientIp() },
     });
     if (!res.ok()) {
       throw new Error(

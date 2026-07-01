@@ -106,27 +106,36 @@ export function MessageThread({
   const prevLen = useRef(0);
   const [showJump, setShowJump] = useState(false);
 
+  function scrollToBottom() {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }
+
   function onScroll() {
     const el = scrollRef.current;
     if (!el) return;
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     stick.current = atBottom;
-    if (atBottom) setShowJump(false);
+    setShowJump(!atBottom); // seta de "descer" visível sempre que não está no fim
   }
 
-  // useLayoutEffect + rAF: garante o scroll ao fundo ANTES do paint e de novo
-  // após o layout/animação assentar (ex.: o popup que abre com transform/scale,
-  // ou dados em cache que já vêm no 1.º render).
+  // Ao ENTRAR na conversa: começar sempre no fim (mesmo com mensagens em cache ou
+  // imagens que só assentam o layout um pouco depois).
+  useEffect(() => {
+    stick.current = true;
+    setShowJump(false);
+    scrollToBottom();
+    requestAnimationFrame(scrollToBottom);
+    const t = setTimeout(scrollToBottom, 150);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Mensagens novas: se estava no fim, acompanha; senão, mantém a posição e mostra a seta.
   useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
     if (stick.current) {
-      const toBottom = () => {
-        const node = scrollRef.current;
-        if (node && stick.current) node.scrollTop = node.scrollHeight;
-      };
-      toBottom();
-      requestAnimationFrame(toBottom);
+      scrollToBottom();
+      requestAnimationFrame(scrollToBottom);
     } else if (messages.length > prevLen.current) {
       setShowJump(true);
     }
@@ -134,8 +143,7 @@ export function MessageThread({
   }, [messages]);
 
   function jumpToBottom() {
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    scrollToBottom();
     stick.current = true;
     setShowJump(false);
   }
@@ -212,9 +220,10 @@ export function MessageThread({
       {showJump && (
         <button
           onClick={jumpToBottom}
-          className="absolute bottom-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent text-white text-[12px] font-medium shadow-lg"
+          aria-label="Descer para o fim"
+          className="absolute bottom-3 right-3 z-10 w-10 h-10 rounded-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-200 shadow-lg flex items-center justify-center hover:bg-zinc-50 dark:hover:bg-zinc-700 active:scale-95 transition"
         >
-          <Icon name="arrowDown" className="w-3.5 h-3.5" /> Novas mensagens
+          <Icon name="arrowDown" className="w-5 h-5" />
         </button>
       )}
     </div>

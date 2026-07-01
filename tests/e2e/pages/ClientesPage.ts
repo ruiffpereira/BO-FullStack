@@ -77,6 +77,29 @@ export class ClientesPage {
       .toBeVisible({ timeout: 8_000 });
   }
 
+  /** Na ficha aberta, alterna Bloquear/Desbloquear e espera o toast. */
+  async toggleBlockFromProfile() {
+    await this.page
+      .locator('[role="dialog"] button')
+      .filter({ hasText: /^(Bloquear|Desbloquear)$/ })
+      .first()
+      .click();
+    await expect(this.toastLocator().first()).toBeVisible({ timeout: 8_000 });
+  }
+
+  /** Fecha o modal aberto (ficha/edição) — botão "Fechar" ou Escape. */
+  async closeModal() {
+    const fechar = this.page.locator('[role="dialog"] button').filter({ hasText: /^Fechar$/ }).first();
+    if (await fechar.count()) await fechar.click();
+    else await this.page.keyboard.press("Escape");
+    await expect(this.page.locator('[role="dialog"]')).toHaveCount(0, { timeout: 5_000 });
+  }
+
+  /** Linha da tabela (tr) de um cliente pelo nome. */
+  row(name: string) {
+    return this.page.locator("table tbody tr").filter({ hasText: name }).first();
+  }
+
   toastLocator() {
     return this.page.locator("[data-sonner-toast]");
   }

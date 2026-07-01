@@ -15,7 +15,8 @@ export class DespesasPage {
   }
 
   async openNewExpenseModal() {
-    await this.openNewExpenseButton().click();
+    // Pode haver mais do que um CTA "Nova despesa" (header + empty-state) — usa o 1.º.
+    await this.openNewExpenseButton().first().click();
     await this.page.waitForSelector('[role="dialog"]', { timeout: 5_000 });
   }
 

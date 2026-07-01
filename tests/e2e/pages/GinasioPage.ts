@@ -21,6 +21,37 @@ export class GinasioPage {
     await this.page.waitForSelector('[role="dialog"]', { timeout: 5_000 });
   }
 
+  /**
+   * Cria um exercício completo. Requer que exista pelo menos um grupo muscular no
+   * tenant (o seed cria "Peito A"/"Peito B"). Passos: Nome (CmsCombo) → grupo →
+   * adicionar 1 preset (força, só precisa de nome) → Guardar.
+   * Usar com o tenantA/tenantB (que têm grupo semeado).
+   */
+  async createExercise(opts: { name: string; group: string; preset?: string }) {
+    await this.openNewExercise();
+    const dialog = this.page.locator('[role="dialog"]');
+    // Nome do exercício (CmsCombo — input com placeholder "Escrever nome…").
+    await dialog.getByPlaceholder(/escrever nome/i).fill(opts.name);
+    // Grupo muscular: Combobox (botão que abre opções num portal).
+    await dialog.getByRole("button", { name: /escolher grupo/i }).click();
+    await this.page.getByRole("option", { name: opts.group }).first().click();
+    // Adicionar um preset de força (basta o nome).
+    await dialog.getByRole("button", { name: /adicionar preset/i }).click();
+    await dialog.getByPlaceholder("Ex: Iniciante").fill(opts.preset ?? "Base");
+    await dialog.getByRole("button", { name: /guardar preset/i }).click();
+    // Guardar o exercício (botão do footer principal).
+    await dialog.getByRole("button", { name: /^guardar$/i }).click();
+    await expect(dialog).toHaveCount(0, { timeout: 12_000 });
+  }
+
+  async expectExerciseVisible(name: string) {
+    await expect(this.page.getByText(name, { exact: false }).first()).toBeVisible({ timeout: 12_000 });
+  }
+
+  toastLocator() {
+    return this.page.locator("[data-sonner-toast]");
+  }
+
   // ── Mensalidades (cobranças do ginásio — vive na página Financeiro) ──
   // O menu "Mensalidades" foi movido para Financeiro → tab Ginásio
   // (/financeiro?vista=ginasio); o cockpit de Cobranças mostra os KPIs e o

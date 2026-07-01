@@ -204,7 +204,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   }, [location.pathname, permissions]) // eslint-disable-line
 
   return (
-    <div className="flex h-[100dvh] bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
+    <div className="flex h-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
       <SwRegistrar />
       <aside className={`hidden lg:flex flex-col shrink-0 border-r border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-[width] duration-200 ${collapsed ? 'w-[72px]' : 'w-64'}`}>
         <SidebarContent accessiblePaths={accessiblePaths} collapsed={collapsed} onLogout={handleLogout} />
@@ -232,7 +232,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
           onMenu={() => setDrawer(true)}
           onCollapse={() => setCollapsed(!collapsed)}
         />
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 min-h-0 overflow-y-auto">
           <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
             {children}
           </div>

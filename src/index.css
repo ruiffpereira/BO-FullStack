@@ -15,12 +15,22 @@ html {
 
 body {
   margin: 0;
-  min-height: 100%;
+  /* Altura fixa à viewport (height, não min-height): prende a cadeia
+     html → body → #root → Shell a height:100% para o h-full resolver. Em PWA
+     standalone o 100% é a viewport real e estável — sem os saltos do 100dvh ao
+     recarregar, que faziam o documento (e o header) fazer scroll no Android. */
+  height: 100%;
   /* Trava o "rubber-band"/scroll para o vazio em mobile e a propagação do scroll
-     interno para o body (a app fixa-se à viewport real via 100dvh). */
+     interno para o body. */
   overscroll-behavior: none;
   /* Sem double-tap-to-zoom nem delay de 300ms; o pinch-zoom é travado no viewport meta. */
   touch-action: manipulation;
+}
+
+/* O elemento de montagem preenche o body — só o <main> do Shell faz scroll; o
+   documento nunca (evita o header a "fazer scroll" e o scroll a falhar no Android). */
+#root {
+  height: 100%;
 }
 
 /* Scrollbars */

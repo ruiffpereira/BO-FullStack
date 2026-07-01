@@ -12,9 +12,9 @@ export class LojaPage {
     return this.page.getByRole("heading", { name: "Loja", level: 1 });
   }
 
-  /** Tabs: Produtos · Encomendas · Categorias. */
+  /** Tabs: Produtos · Encomendas · Categorias. Renderizadas com role="tab" (ui/Tabs). */
   tab(label: string) {
-    return this.page.getByRole("button", { name: label, exact: true });
+    return this.page.getByRole("tab", { name: label, exact: true });
   }
 
   async goToTab(label: string) {

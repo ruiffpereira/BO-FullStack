@@ -32,8 +32,8 @@ test.describe("Financeiro", () => {
   test("Financeiro é core — abre com as tabs O Negócio / Despesas", async ({ page }) => {
     await page.goto("/financeiro");
     await page.waitForURL("**/financeiro", { timeout: 15_000 });
-    await expect(page.getByRole("button", { name: "O Negócio" })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole("button", { name: "Despesas", exact: true })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "O Negócio" })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("tab", { name: "Despesas", exact: true })).toBeVisible();
   });
 
   test("página não crasha com parâmetros inválidos na URL", async ({ page }) => {

@@ -32,7 +32,9 @@ for (const theme of ["light", "dark"] as const) {
       await page.setViewportSize({ width: w, height: h });
       for (const [name, path] of ROUTES) {
         await page.goto(path);
-        await page.waitForLoadState("networkidle").catch(() => {});
+        // A app mantém um stream SSE aberto (/events/stream) → a rede NUNCA fica
+        // idle. Limitar o wait para não pendurar até ao timeout do teste.
+        await page.waitForLoadState("networkidle", { timeout: 2_500 }).catch(() => {});
         // App arranca em dark (estado React, não persistido); para light, toggla.
         if (theme === "light") {
           await page.locator('button[aria-label="Tema"]').first().click().catch(() => {});

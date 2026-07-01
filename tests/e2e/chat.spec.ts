@@ -43,7 +43,8 @@ test.describe("Chat de suporte", () => {
     await expect(tenant.getByText("Fala com o suporte")).toBeVisible({ timeout: 15_000 });
     await tenant.getByRole("textbox", { name: "Mensagem" }).fill(ask);
     await tenant.getByRole("button", { name: "Enviar" }).click();
-    await expect(tenant.getByText(ask)).toBeVisible({ timeout: 10_000 });
+    // Scopar ao histórico (role="log") — o texto também fica na textarea do composer.
+    await expect(tenant.getByRole("log").getByText(ask)).toBeVisible({ timeout: 10_000 });
 
     // --- Admin (admin@e2e) vê a conversa no inbox, abre e responde ---
     const adminCtx = await browser.newContext();
@@ -55,10 +56,10 @@ test.describe("Chat de suporte", () => {
     await convItem.click();
     await admin.getByRole("textbox", { name: "Mensagem" }).fill(reply);
     await admin.getByRole("button", { name: "Enviar" }).click();
-    await expect(admin.getByText(reply).first()).toBeVisible({ timeout: 10_000 });
+    await expect(admin.getByRole("log").getByText(reply).first()).toBeVisible({ timeout: 10_000 });
 
     // --- O tenant (página já aberta) recebe a resposta em tempo real (SSE) ---
-    await expect(tenant.getByText(reply)).toBeVisible({ timeout: 20_000 });
+    await expect(tenant.getByRole("log").getByText(reply)).toBeVisible({ timeout: 20_000 });
 
     await tenantCtx.close();
     await adminCtx.close();
@@ -94,7 +95,7 @@ test.describe("Chat de suporte", () => {
     await expect(tenant.getByText("Fala com o suporte")).toBeVisible({ timeout: 15_000 });
     await tenant.getByRole("textbox", { name: "Mensagem" }).fill(`abre ${mark}`);
     await tenant.getByRole("button", { name: "Enviar" }).click();
-    await expect(tenant.getByText(`abre ${mark}`)).toBeVisible({ timeout: 10_000 });
+    await expect(tenant.getByRole("log").getByText(`abre ${mark}`)).toBeVisible({ timeout: 10_000 });
     await tenant.goto("/dashboard");
 
     // Admin responde.

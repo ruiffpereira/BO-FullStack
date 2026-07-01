@@ -3,7 +3,7 @@ import { test, expect } from "./fixtures/auth"; // login como admin@e2e
 test.describe("Admin — Tokens de site", () => {
   test("gerar um token de site para um utilizador", async ({ page }) => {
     await page.goto("/admin");
-    await page.getByRole("button", { name: "Tokens de site", exact: true }).click();
+    await page.getByRole("tab", { name: "Tokens de site", exact: true }).click();
 
     // Escolher um utilizador no Combobox (o botão "Novo token" está disabled sem user).
     await page.getByRole("button", { name: /todos/i }).first().click();

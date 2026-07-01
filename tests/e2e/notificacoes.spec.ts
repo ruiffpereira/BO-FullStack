@@ -9,8 +9,9 @@ test.describe("Notificações — sino em tempo real", () => {
     await page.goto("/dashboard");
     const bell = page.getByRole("button", { name: /notificações/i }).first();
     await expect(bell).toBeVisible({ timeout: 15_000 });
-    // Badge de não lidas (aria-label inclui "(N não lidas)").
-    await expect(page.getByRole("button", { name: /não lidas/i })).toBeVisible({ timeout: 15_000 });
+    // Badge de não lidas do SINO (aria-label "Notificações (N não lidas)"). Evita
+    // colidir com os botões de Mensagens/chat, que também mostram "(N não lidas)".
+    await expect(page.getByRole("button", { name: /notificações.*não lida/i })).toBeVisible({ timeout: 15_000 });
     await bell.click();
     await expect(page.getByText("Nova marcação E2E")).toBeVisible({ timeout: 10_000 });
   });

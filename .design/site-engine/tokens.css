@@ -1,0 +1,263 @@
+/* =============================================================================
+   Site Engine — Design Tokens (tema POR TENANT)
+   Filosofia: "Editorial + Sistema" (ver DESIGN_BRIEF.md).
+   Reutiliza a convenção do Backoffice: accent como triplo rgb → rgb(var() / a).
+
+   MODELO EM 3 CAMADAS (compostas pelo renderer na raiz do site):
+     <html data-preset="sand" data-theme="light" data-font="editorial"
+           data-accent="emerald">
+     1. SISTEMA  (fixo p/ todos): tipo, espaço, raio, sombra, motion, layout.
+     2. PRESET   [data-preset]:   paleta neutra (bg/superfície/texto/borda), claro+escuro.
+     3. MARCA    [data-accent] + [data-font] + logo: escolhas curadas do tenant.
+   Os BLOCOS só usam os tokens semânticos --site-* (nunca hex à mão).
+   V1 = presets/accents/fontes curados (sem color-picker livre); hex próprio na fase 2.
+   ============================================================================= */
+
+/* ── 1. SISTEMA (constante — a "qualidade" não varia por cliente) ──────────── */
+:root {
+  /* Tipografia — escala fluida (clamp) para heróis responsivos sem media queries */
+  --site-font-display: var(--font-display, 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif);
+  --site-font-body:    var(--font-body, 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif);
+  --site-font-mono:    ui-monospace, 'JetBrains Mono', monospace;
+
+  --site-text-xs:   0.79rem;
+  --site-text-sm:   0.889rem;
+  --site-text-base: 1rem;
+  --site-text-md:   1.125rem;
+  --site-text-lg:   1.266rem;
+  --site-text-xl:   clamp(1.4rem, 1.2rem + 0.9vw, 1.6rem);
+  --site-text-2xl:  clamp(1.75rem, 1.4rem + 1.6vw, 2.1rem);
+  --site-text-3xl:  clamp(2.2rem, 1.6rem + 2.6vw, 3rem);
+  --site-text-4xl:  clamp(2.8rem, 1.9rem + 4vw, 4.5rem);   /* hero/display */
+
+  --site-weight-normal: 400;
+  --site-weight-medium: 500;
+  --site-weight-semibold: 600;
+  --site-weight-bold: 700;
+
+  --site-leading-tight: 1.12;   /* headings */
+  --site-leading-snug: 1.3;
+  --site-leading-normal: 1.6;   /* body */
+  --site-leading-relaxed: 1.75;
+
+  --site-tracking-tight: -0.02em;  /* display */
+  --site-tracking-normal: 0;
+  --site-tracking-wide: 0.08em;    /* eyebrows/all-caps */
+
+  /* Espaçamento — base 8px (filosofia editorial, generosa) */
+  --site-space-0: 0;
+  --site-space-1: 0.25rem;
+  --site-space-2: 0.5rem;
+  --site-space-3: 0.75rem;
+  --site-space-4: 1rem;
+  --site-space-5: 1.5rem;
+  --site-space-6: 2rem;
+  --site-space-7: 3rem;
+  --site-space-8: 4rem;
+  --site-space-9: 6rem;
+  --site-space-10: 8rem;
+  --site-space-section: clamp(3.5rem, 2rem + 7vw, 7rem); /* padding vertical de secção/bloco */
+
+  /* Layout */
+  --site-max-content: 68ch;     /* largura de leitura confortável */
+  --site-max-wide: 1100px;
+  --site-max-page: 1320px;
+  --site-gutter: clamp(1rem, 0.5rem + 3vw, 2.5rem);
+
+  /* Raio — parte do preset pode sobrepor (sharp vs soft) */
+  --site-radius-sm: 6px;
+  --site-radius-md: 12px;
+  --site-radius-lg: 20px;
+  --site-radius-full: 9999px;
+
+  /* Sombra (claro; o dark sobrepõe) */
+  --site-shadow-sm: 0 1px 2px rgb(15 23 42 / .06);
+  --site-shadow-md: 0 6px 20px -6px rgb(15 23 42 / .12);
+  --site-shadow-lg: 0 24px 60px -20px rgb(15 23 42 / .22);
+  --site-shadow-focus: 0 0 0 3px rgb(var(--site-accent) / .35);
+
+  /* Motion */
+  --site-dur-fast: 150ms;
+  --site-dur-normal: 250ms;
+  --site-dur-slow: 450ms;
+  --site-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --site-ease-out: cubic-bezier(0, 0, 0.2, 1);
+
+  /* Breakpoints (referência; o Tailwind/queries usam estes valores) */
+  --site-bp-sm: 375px; --site-bp-md: 768px; --site-bp-lg: 1024px; --site-bp-xl: 1280px;
+
+  /* Derivados do accent — o tenant só injeta o triplo --site-accent + --site-on-accent */
+  --site-accent-strong: color-mix(in srgb, rgb(var(--site-accent)) 88%, black);
+  --site-accent-hover:  color-mix(in srgb, rgb(var(--site-accent)) 92%, black);
+  --site-accent-soft:   rgb(var(--site-accent) / 0.12);
+  --site-accent-line:   rgb(var(--site-accent) / 0.22);
+
+  /* Status (constante) */
+  --site-success: #1f8a5b;
+  --site-warning: #b7791f;
+  --site-error:   #c53030;
+  --site-info:    #2b6cb0;
+}
+
+/* Acessibilidade: respeitar redução de movimento */
+@media (prefers-reduced-motion: reduce) {
+  :root { --site-dur-fast: 0ms; --site-dur-normal: 0ms; --site-dur-slow: 0ms; }
+}
+
+/* ── 2. PRESETS DE PALETA (neutros — a cor vem do accent) ──────────────────── */
+/* Cada preset define claro; o bloco [data-theme="dark"] define o escuro.
+   Default (sem data-preset) = "slate". */
+
+/* SLATE — cinza frio, moderno (default) */
+:root,
+[data-preset="slate"] {
+  --site-bg:          #ffffff;
+  --site-surface:     #f8fafc;
+  --site-surface-2:   #f1f5f9;
+  --site-inverse:     #0f172a;
+  --site-text:        #0f172a;
+  --site-text-muted:  #475569;
+  --site-text-subtle: #94a3b8;
+  --site-text-inverse:#f8fafc;
+  --site-border:      #e2e8f0;
+  --site-border-subtle:#eef2f6;
+  --site-focus:       rgb(var(--site-accent));
+}
+[data-preset="slate"][data-theme="dark"] {
+  --site-bg:          #0b1120;
+  --site-surface:     #111a2e;
+  --site-surface-2:   #172136;
+  --site-inverse:     #f8fafc;
+  --site-text:        #e6edf6;
+  --site-text-muted:  #9fb0c6;
+  --site-text-subtle: #64748b;
+  --site-text-inverse:#0b1120;
+  --site-border:      #1f2b44;
+  --site-border-subtle:#17223a;
+}
+
+/* SAND — neutros quentes, acolhedor (salão/bem-estar) */
+[data-preset="sand"] {
+  --site-bg:          #fdfbf7;
+  --site-surface:     #f6f1e9;
+  --site-surface-2:   #efe7db;
+  --site-inverse:     #2a2420;
+  --site-text:        #2a2420;
+  --site-text-muted:  #6b5f54;
+  --site-text-subtle: #a99d8f;
+  --site-text-inverse:#fdfbf7;
+  --site-border:      #e7ddcf;
+  --site-border-subtle:#f0e9de;
+  --site-focus:       rgb(var(--site-accent));
+  --site-radius-sm: 8px; --site-radius-md: 16px; --site-radius-lg: 26px; /* mais macio */
+}
+[data-preset="sand"][data-theme="dark"] {
+  --site-bg:          #1c1815;
+  --site-surface:     #262019;
+  --site-surface-2:   #2f2820;
+  --site-inverse:     #fdfbf7;
+  --site-text:        #f0e9de;
+  --site-text-muted:  #c2b4a3;
+  --site-text-subtle: #8a7d6d;
+  --site-text-inverse:#1c1815;
+  --site-border:      #392f25;
+  --site-border-subtle:#2c251d;
+}
+
+/* INK — preto/branco alto contraste, editorial ousado (barbeiro/moda) */
+[data-preset="ink"] {
+  --site-bg:          #ffffff;
+  --site-surface:     #f4f4f5;
+  --site-surface-2:   #e9e9eb;
+  --site-inverse:     #09090b;
+  --site-text:        #09090b;
+  --site-text-muted:  #3f3f46;
+  --site-text-subtle: #a1a1aa;
+  --site-text-inverse:#fafafa;
+  --site-border:      #e4e4e7;
+  --site-border-subtle:#f0f0f1;
+  --site-focus:       #09090b;
+  --site-radius-sm: 2px; --site-radius-md: 4px; --site-radius-lg: 6px; /* mais afiado */
+}
+[data-preset="ink"][data-theme="dark"] {
+  --site-bg:          #09090b;
+  --site-surface:     #141416;
+  --site-surface-2:   #1c1c1f;
+  --site-inverse:     #fafafa;
+  --site-text:        #fafafa;
+  --site-text-muted:  #a1a1aa;
+  --site-text-subtle: #52525b;
+  --site-text-inverse:#09090b;
+  --site-border:      #27272a;
+  --site-border-subtle:#1c1c1f;
+}
+
+/* MIST — suave, baixo contraste, arejado (bem-estar/serviços premium) */
+[data-preset="mist"] {
+  --site-bg:          #fbfcfd;
+  --site-surface:     #f2f6f8;
+  --site-surface-2:   #e9f0f3;
+  --site-inverse:     #1b2a2e;
+  --site-text:        #1b2a2e;
+  --site-text-muted:  #55686d;
+  --site-text-subtle: #9db3b8;
+  --site-text-inverse:#fbfcfd;
+  --site-border:      #dde8ea;
+  --site-border-subtle:#eaf1f3;
+  --site-focus:       rgb(var(--site-accent));
+}
+[data-preset="mist"][data-theme="dark"] {
+  --site-bg:          #101a1c;
+  --site-surface:     #162427;
+  --site-surface-2:   #1c2d31;
+  --site-inverse:     #fbfcfd;
+  --site-text:        #e8f1f2;
+  --site-text-muted:  #a3babf;
+  --site-text-subtle: #5f767b;
+  --site-text-inverse:#101a1c;
+  --site-border:      #24373b;
+  --site-border-subtle:#1a2b2e;
+}
+
+/* Sombras no escuro (mais profundas/transparentes) */
+[data-theme="dark"] {
+  --site-shadow-sm: 0 1px 2px rgb(0 0 0 / .4);
+  --site-shadow-md: 0 6px 20px -6px rgb(0 0 0 / .55);
+  --site-shadow-lg: 0 24px 60px -20px rgb(0 0 0 / .7);
+}
+
+/* ── 3. MARCA — ACCENT curado (triplo rgb + cor do texto sobre o accent) ───── */
+/* Cada accent foi escolhido p/ manter contraste AA do texto sobre ele.
+   Fase 2: o tenant pode injetar --site-accent próprio (hex→triplo) + --site-on-accent. */
+:root,            [data-accent="blue"]    { --site-accent: 42 111 219;  --site-on-accent: #ffffff; }
+[data-accent="emerald"] { --site-accent: 16 128 96;   --site-on-accent: #ffffff; }
+[data-accent="violet"]  { --site-accent: 109 74 200;  --site-on-accent: #ffffff; }
+[data-accent="amber"]   { --site-accent: 176 106 16;  --site-on-accent: #ffffff; }
+[data-accent="rose"]    { --site-accent: 200 52 92;   --site-on-accent: #ffffff; }
+[data-accent="teal"]    { --site-accent: 13 138 138;  --site-on-accent: #ffffff; }
+[data-accent="ink"]     { --site-accent: 24 24 27;    --site-on-accent: #ffffff; } /* accent neutro p/ preset ink */
+
+/* ── 3b. MARCA — pares de FONTES (display + corpo) curados ─────────────────── */
+/* Carregar as fontes no renderer (Google Fonts / next/font) conforme o par escolhido. */
+[data-font="grotesk"]   { --font-display: 'Hanken Grotesk'; --font-body: 'Hanken Grotesk'; }
+[data-font="editorial"] { --font-display: 'Fraunces';       --font-body: 'Inter'; }
+[data-font="modern"]    { --font-display: 'Space Grotesk';  --font-body: 'Inter'; }
+[data-font="warm"]      { --font-display: 'Poppins';        --font-body: 'Nunito Sans'; }
+[data-font="serifbody"] { --font-display: 'Instrument Serif';--font-body: 'Source Sans 3'; }
+
+/* =============================================================================
+   USO NOS BLOCOS (exemplos)
+   -----------------------------------------------------------------------------
+   background: var(--site-bg); color: var(--site-text);
+   .card { background: var(--site-surface); border:1px solid var(--site-border);
+           border-radius: var(--site-radius-md); box-shadow: var(--site-shadow-md); }
+   .eyebrow { font-size: var(--site-text-sm); letter-spacing: var(--site-tracking-wide);
+              text-transform: uppercase; color: var(--site-text-muted); }
+   h1 { font-family: var(--site-font-display); font-size: var(--site-text-4xl);
+        line-height: var(--site-leading-tight); letter-spacing: var(--site-tracking-tight); }
+   .btn-primary { background: rgb(var(--site-accent)); color: var(--site-on-accent);
+                  border-radius: var(--site-radius-md); }
+   .btn-primary:hover { background: var(--site-accent-hover); }
+   .pill-accent { background: var(--site-accent-soft); color: rgb(var(--site-accent)); }
+   :focus-visible { box-shadow: var(--site-shadow-focus); outline: none; }
+   ============================================================================= */

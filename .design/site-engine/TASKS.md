@@ -21,10 +21,10 @@ Gerado de: `.design/site-engine/` (DESIGN_BRIEF + INFORMATION_ARCHITECTURE + tok
 
 ## Biblioteca de blocos (fan-out — cada um é uma fatia independente, com variantes)
 - [ ] **T5 · Nav** `[REND]`: dinâmica das páginas `inNav` (ordenadas) + CTA principal por vertical + seletor de língua; mobile = drawer; header fixo (lição do scroll: 100dvh/overflow). _Novo._
-- [ ] **T6 · About/Statement + Stats** `[REND]`: texto+imagem / editorial; Stats com contadores. _Novo (base: winter `About/Statement/Stats`)._
-- [ ] **T7 · Services/Features grid** `[REND]`: grelha/lista; fonte = CMS **ou** serviços da agenda. _Novo._
-- [ ] **T8 · Gallery** `[REND]`: grelha/masonry/carrossel (swipe mobile). _Novo (base: winter `Obras`, tifas `Gallery`)._
-- [ ] **T9 · Testimonials + CTA band + FAQ** `[REND]`: carrossel/grelha (+ opcional Google Reviews); CTA band; FAQ acordeão. _Novo._
+- [x] **T6 · About/Statement + Stats** `[REND]`: texto+imagem / editorial; Stats com contadores. _Novo (base: winter `About/Statement/Stats`)._
+- [x] **T7 · Services/Features grid** `[REND]`: grelha/lista; fonte = CMS **ou** serviços da agenda. _Novo._
+- [x] **T8 · Gallery** `[REND]`: grelha/masonry/carrossel (swipe mobile). _Novo (base: winter `Obras`, tifas `Gallery`)._
+- [x] **T9 · Testimonials + CTA band + FAQ** `[REND]`: carrossel/grelha (+ opcional Google Reviews); CTA band; FAQ acordeão. _Novo._
 - [ ] **T10 · Pricing/Planos** `[REND]`: cartões/tabela; fonte = CMS **ou** subscrições do ginásio. _Novo._
 - [ ] **T11 · Contact + Mapa** `[REND]`: form + mapa + horários; ligado ao lead (T16). _Novo._
 - [ ] **T12 · Collection (portfolio/obras)** `[REND]`: bloco-lista + página `/{slug}` + detalhe `/{slug}/{item}` (paginação/filtro). _Novo (base: winter `Projetos/Projeto`)._

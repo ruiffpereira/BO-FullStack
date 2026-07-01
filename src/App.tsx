@@ -14,6 +14,7 @@ import { Ginasio } from "./pages/Ginasio";
 import { FinanceiroPage } from "./pages/FinanceiroPage";
 import { Estatisticas } from "./pages/Estatisticas";
 import { Mensagens } from "./pages/Mensagens";
+import { Website } from "./pages/Website";
 
 function App() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
@@ -72,6 +73,7 @@ function App() {
         <Route path="/agenda" element={<Agenda />} />
         <Route path="/ginasio" element={<Ginasio />} />
         <Route path="/conteudos" element={<Conteudos />} />
+        <Route path="/website" element={<Website />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

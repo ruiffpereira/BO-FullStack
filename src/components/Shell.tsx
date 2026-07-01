@@ -10,7 +10,7 @@ import { ChatFab } from './chat/ChatFab'
 import { useSSE } from '../hooks/useSSE'
 
 // Core: todos os tenants têm (sem permissão). Módulos: por permissão.
-const CORE_PATHS = ['/clientes', '/mensagens', '/financeiro', '/conteudos', '/estatisticas']
+const CORE_PATHS = ['/clientes', '/mensagens', '/financeiro', '/conteudos', '/website', '/estatisticas']
 const MODULE_PERM_TO_PATH: Record<string, string> = {
   VIEW_SCHEDULE:  '/agenda',
   VIEW_PRODUCTS:  '/loja',
@@ -19,7 +19,7 @@ const MODULE_PERM_TO_PATH: Record<string, string> = {
 
 // Ordem fixa de apresentação na sidebar (independente de core/módulos/admin).
 // Cada item só aparece se for acessível ao tenant (permissões + admin).
-const MENU_ORDER = ['/dashboard', '/estatisticas', '/admin', '/clientes', '/mensagens', '/conteudos', '/loja', '/agenda', '/ginasio', '/financeiro']
+const MENU_ORDER = ['/dashboard', '/estatisticas', '/admin', '/clientes', '/mensagens', '/conteudos', '/website', '/loja', '/agenda', '/ginasio', '/financeiro']
 
 const ROUTE_META: Record<string, { nome: string; icon: string }> = {
   '/dashboard':         { nome: 'Dashboard',  icon: 'dashboard' },
@@ -32,6 +32,7 @@ const ROUTE_META: Record<string, { nome: string; icon: string }> = {
   '/agenda':            { nome: 'Agenda',     icon: 'calendar' },
   '/ginasio':           { nome: 'Ginásio',    icon: 'trend' },
   '/conteudos':         { nome: 'Conteúdos',  icon: 'layers' },
+  '/website':           { nome: 'Website',    icon: 'globe' },
   '/admin':             { nome: 'Admin',      icon: 'shield' },
 }
 

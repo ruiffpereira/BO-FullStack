@@ -131,6 +131,19 @@ export function MessageThread({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Se o container encolher (ex.: o teclado abre → a área visível encolhe) e
+  // estávamos colados ao fundo, voltar a colar — senão a última mensagem "sobe"
+  // e obriga a usar a seta.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      if (stick.current) scrollToBottom();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Mensagens novas: se estava no fim, acompanha; senão, mantém a posição e mostra a seta.
   useLayoutEffect(() => {
     if (stick.current) {

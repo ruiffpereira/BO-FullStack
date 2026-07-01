@@ -25,8 +25,8 @@ Gerado de: `.design/site-engine/` (DESIGN_BRIEF + INFORMATION_ARCHITECTURE + tok
 - [x] **T7 · Services/Features grid** `[REND]`: grelha/lista; fonte = CMS **ou** serviços da agenda. _Novo._
 - [x] **T8 · Gallery** `[REND]`: grelha/masonry/carrossel (swipe mobile). _Novo (base: winter `Obras`, tifas `Gallery`)._
 - [x] **T9 · Testimonials + CTA band + FAQ** `[REND]`: carrossel/grelha (+ opcional Google Reviews); CTA band; FAQ acordeão. _Novo._
-- [ ] **T10 · Pricing/Planos** `[REND]`: cartões/tabela; fonte = CMS **ou** subscrições do ginásio. _Novo._
-- [ ] **T11 · Contact + Mapa** `[REND]`: form + mapa + horários; ligado ao lead (T16). _Novo._
+- [x] **T10 · Pricing/Planos** `[REND]`: cartões/tabela; fonte = CMS **ou** subscrições do ginásio. _Novo._
+- [x] **T11 · Contact + Mapa** `[REND]`: form + mapa + horários; ligado ao lead (T16). _Novo._
 - [ ] **T12 · Collection (portfolio/obras)** `[REND]`: bloco-lista + página `/{slug}` + detalhe `/{slug}/{item}` (paginação/filtro). _Novo (base: winter `Projetos/Projeto`)._
 
 ## Blocos FUNCIONAIS (ligam às APIs reais — depois da máquina provada)
@@ -36,8 +36,8 @@ Gerado de: `.design/site-engine/` (DESIGN_BRIEF + INFORMATION_ARCHITECTURE + tok
 - [ ] **T16 · Lead/Orçamento + Conta do cliente** `[REND]`: form → cria lead/cliente (`/websites/customers`); `/conta` + `/entrar`. _Novo (base: winter `Orcamento`, tifas dashboard)._
 
 ## SEO & multilíngua
-- [ ] **T17 · SEO por página + locale routing** `[REND]`: `title/meta/OG` do CMS `seo.*`, `canonical`, `hreflang` por locale; routing prefixo-exceto-padrão (`/servicos`, `/en/servicos`). _Novo._
-- [ ] **T18 · sitemap.xml + robots.txt + RGPD** `[REND]`: por tenant; página `/privacidade` + cookie consent como blocos (portar dos sites atuais). _Novo (base: `cookies.*`/`privacy.*` no CMS)._
+- [x] **T17 · SEO por página + locale routing** `[REND]`: `title/meta/OG` do CMS `seo.*`, `canonical`, `hreflang` por locale; routing prefixo-exceto-padrão (`/servicos`, `/en/servicos`). _Novo._
+- [x] **T18 · sitemap.xml + robots.txt + RGPD** `[REND]`: _(feito: `app/sitemap.ts` + `app/robots.ts` per-host, `CookieConsent` + página `/privacidade`. Deploy: `Dockerfile` + `DEPLOY.md` no site-engine — Next standalone p/ Coolify, modelo wildcard.)_ por tenant; página `/privacidade` + cookie consent como blocos (portar dos sites atuais). _Novo (base: `cookies.*`/`privacy.*` no CMS)._
 
 ## Templates (compõem blocos em sites-arranque)
 - [ ] **T19 · 4 templates por vertical** `[API/seed]`: barbeiro, ginásio (wedge), loja, genérico → Site JSON seed + conteúdo CMS seed (estilo `content-import.csv`). Alimenta o "escolhe o teu site". _Novo._

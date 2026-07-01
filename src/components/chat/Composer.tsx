@@ -74,7 +74,10 @@ export function Composer({ onSend, disabled = false, placeholder = "Escreve uma 
       await onSend({ body: body || null, attachments: uploaded.length ? uploaded : null });
       setText("");
       setAtts([]);
-      if (taRef.current) taRef.current.style.height = "auto";
+      if (taRef.current) {
+        taRef.current.style.height = "auto";
+        taRef.current.focus(); // mantém o teclado aberto após enviar
+      }
     } catch {
       // mantém o conteúdo para o utilizador tentar de novo
     } finally {
@@ -120,6 +123,7 @@ export function Composer({ onSend, disabled = false, placeholder = "Escreve uma 
           onChange={(e) => pickFiles(e.target.files)}
         />
         <button
+          onPointerDown={(e) => e.preventDefault()}
           onClick={() => fileRef.current?.click()}
           disabled={busy || disabled}
           aria-label="Anexar imagem"
@@ -144,6 +148,7 @@ export function Composer({ onSend, disabled = false, placeholder = "Escreve uma 
         />
 
         <button
+          onPointerDown={(e) => e.preventDefault()}
           onClick={() => void handleSend()}
           disabled={!canSend}
           aria-label="Enviar"

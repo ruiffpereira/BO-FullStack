@@ -1,0 +1,62 @@
+name: Spec drift
+
+# Avisa se o spec.json versionado ficou ATRÁS da API live — ex.: mudaste a API mas
+# esqueceste-te de correr `pnpm kubb` + commitar o spec.json no Backoffice.
+#
+# Compara o spec.json do repo com o spec ATUAL descarregado da API live (o mesmo
+# que o `pnpm build` usa no deploy). Corre 1x/dia + botão manual.
+#
+# Desligado por defeito: só corre com vars.SPEC_DRIFT_CHECK == 'true'.
+# Precisa de: var LIVE_API_URL (ex.: https://api.dominio.com/api) e, se a tua API
+# exigir, os secrets SWAGGER_ACCESS_TOKEN e CF_BYPASS_TOKEN (os mesmos do build).
+
+on:
+  schedule:
+    - cron: "0 7 * * *" # diário, 07:00 UTC
+  workflow_dispatch: {} # botão "Run workflow"
+
+concurrency:
+  group: spec-drift
+  cancel-in-progress: true
+
+jobs:
+  drift:
+    name: spec.json vs API live
+    if: vars.SPEC_DRIFT_CHECK == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Buscar o spec live e comparar com o versionado
+        env:
+          API_URL: ${{ vars.LIVE_API_URL }}
+          SWAGGER_KEY: ${{ secrets.SWAGGER_ACCESS_TOKEN }}
+          CF_BYPASS: ${{ secrets.CF_BYPASS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${API_URL:-}" ]; then
+            echo "::error::Falta a variable LIVE_API_URL (ex.: https://api.dominio.com/api)."
+            exit 1
+          fi
+          # O spec vive em <API_URL>-docs/backoffice.json (igual ao kubb.config.ts).
+          URL="${API_URL}-docs/backoffice.json"
+          if [ -n "${SWAGGER_KEY:-}" ]; then URL="${URL}?key=${SWAGGER_KEY}"; fi
+
+          echo "A descarregar o spec live…"
+          curl -fsS -H "User-Agent: kubb-codegen" \
+            ${CF_BYPASS:+-H "X-CI-Bypass: ${CF_BYPASS}"} \
+            "$URL" -o spec.live.json
+
+          # Normalizar (ordenar chaves) para evitar falsos positivos de ordenação.
+          jq -S . spec.json      > committed.norm.json
+          jq -S . spec.live.json > live.norm.json
+
+          if diff -q committed.norm.json live.norm.json >/dev/null; then
+            echo "✅ O spec.json está sincronizado com a API live."
+          else
+            echo "::error::O spec.json está DESATUALIZADO face à API live."
+            echo "No Backoffice: corre 'pnpm kubb' e commita o spec.json atualizado."
+            echo "----- diferenças (primeiras linhas) -----"
+            diff committed.norm.json live.norm.json | head -80 || true
+            exit 1
+          fi

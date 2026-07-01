@@ -207,13 +207,35 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
     }
   }, [location.pathname, permissions]) // eslint-disable-line
 
+  // Teclado virtual (mobile): ao abrir, encolhe a altura da app para o espaço
+  // visível (visualViewport) — o composer fica por cima do teclado e nada faz
+  // scroll por trás do topbar. Sem teclado cai para 100% (estável, sem saltos).
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const root = document.documentElement
+    const apply = () => {
+      const keyboardOpen = window.innerHeight - vv.height > 120
+      if (keyboardOpen) root.style.setProperty('--app-h', `${vv.height}px`)
+      else root.style.removeProperty('--app-h')
+    }
+    apply()
+    vv.addEventListener('resize', apply)
+    vv.addEventListener('scroll', apply)
+    return () => {
+      vv.removeEventListener('resize', apply)
+      vv.removeEventListener('scroll', apply)
+      root.style.removeProperty('--app-h')
+    }
+  }, [])
+
   // Rotas "full-bleed" no mobile: o conteúdo ocupa todo o espaço abaixo do topbar,
   // sem padding e sem scroll no <main> (a própria página gere o seu scroll interno).
   // Ex.: /mensagens (chat imersivo tipo app de mensagens).
   const fullBleed = location.pathname === "/mensagens";
 
   return (
-    <div className="flex h-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
+    <div className="flex bg-zinc-50 dark:bg-zinc-950 overflow-hidden" style={{ height: 'var(--app-h, 100%)' }}>
       <SwRegistrar />
       <aside className={`hidden lg:flex flex-col shrink-0 border-r border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-[width] duration-200 ${collapsed ? 'w-[72px]' : 'w-64'}`}>
         <SidebarContent accessiblePaths={accessiblePaths} collapsed={collapsed} onLogout={handleLogout} />

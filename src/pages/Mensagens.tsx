@@ -1,32 +1,24 @@
-import { useNavigate } from "react-router-dom";
 import { PageHeader, Avatar } from "../ui/ui.jsx";
-import { Icon } from "../ui/icons.jsx";
 import { useAuth } from "../context/AuthContext";
 import { MensagensTab } from "../components/chat/MensagensTab";
 import { ChatConversationView } from "../components/chat/ChatConversationView";
 
 /**
  * Conversa única do tenant com o suporte.
- * Mobile: imersiva / full-screen (tipo app de mensagens) — cabeçalho próprio com
- * seta de voltar, lista a ocupar tudo, composer colado por cima do teclado.
- * Desktop (sm+): card em fluxo, como antes.
+ * Mobile: preenche todo o container abaixo do topbar da app — sem título de página
+ * nem header próprio (o topbar já é o header). Só a lista de mensagens faz scroll;
+ * o composer fica colado em baixo (por cima do teclado).
+ * Desktop (sm+): card com cabeçalho, como antes.
  */
 function TenantSupport() {
-  const navigate = useNavigate();
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-white dark:bg-zinc-900 sm:static sm:z-auto sm:h-[calc(100dvh-13rem)] sm:min-h-[480px] sm:rounded-xl sm:border sm:border-zinc-200/80 dark:sm:border-zinc-800 sm:overflow-hidden">
-      <header className="flex items-center gap-2.5 shrink-0 border-b border-zinc-100 dark:border-zinc-800 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md px-2.5 sm:px-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-2.5 sm:py-3">
-        <button
-          onClick={() => navigate(-1)}
-          aria-label="Voltar"
-          className="sm:hidden -ml-0.5 w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 active:scale-90 transition"
-        >
-          <Icon name="chevronLeft" className="w-[22px] h-[22px]" />
-        </button>
-        <Avatar name="Suporte" color="#0EA5A4" size={40} />
-        <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-semibold text-zinc-900 dark:text-white leading-tight truncate">Suporte</p>
-          <p className="text-[12px] text-zinc-400 leading-tight truncate">Falamos contigo por aqui</p>
+    <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-zinc-900 sm:flex-none sm:h-[calc(100dvh-13rem)] sm:min-h-[480px] sm:rounded-xl sm:border sm:border-zinc-200/80 dark:sm:border-zinc-800 sm:overflow-hidden">
+      {/* Cabeçalho só no desktop — no mobile o topbar da app já serve de header. */}
+      <header className="hidden sm:flex items-center gap-3 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
+        <Avatar name="Suporte" color="#0EA5A4" size={36} />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-zinc-900 dark:text-white leading-tight">Suporte</p>
+          <p className="text-xs text-zinc-400">Falamos contigo por aqui</p>
         </div>
       </header>
       <ChatConversationView scope={{ kind: "support" }} active />
@@ -44,11 +36,14 @@ export function Mensagens() {
   const isAdmin = permissions.some((p) => p.name === "VIEW_ADMIN");
 
   return (
-    <div>
-      <PageHeader
-        title="Mensagens"
-        subtitle={isAdmin ? "Conversas com os teus clientes" : "Fala com o suporte"}
-      />
+    <div className="h-full sm:h-auto flex flex-col">
+      {/* Título da página só no desktop — no mobile o chat é imersivo (full-bleed). */}
+      <div className="hidden sm:block">
+        <PageHeader
+          title="Mensagens"
+          subtitle={isAdmin ? "Conversas com os teus clientes" : "Fala com o suporte"}
+        />
+      </div>
       {isAdmin ? <MensagensTab /> : <TenantSupport />}
     </div>
   );

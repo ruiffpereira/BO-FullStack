@@ -203,6 +203,11 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
     }
   }, [location.pathname, permissions]) // eslint-disable-line
 
+  // Rotas "full-bleed" no mobile: o conteúdo ocupa todo o espaço abaixo do topbar,
+  // sem padding e sem scroll no <main> (a própria página gere o seu scroll interno).
+  // Ex.: /mensagens (chat imersivo tipo app de mensagens).
+  const fullBleed = location.pathname === "/mensagens";
+
   return (
     <div className="flex h-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
       <SwRegistrar />
@@ -232,8 +237,14 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
           onMenu={() => setDrawer(true)}
           onCollapse={() => setCollapsed(!collapsed)}
         />
-        <main className="flex-1 min-h-0 overflow-y-auto">
-          <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <main className={`flex-1 min-h-0 ${fullBleed ? "overflow-hidden sm:overflow-y-auto" : "overflow-y-auto"}`}>
+          <div
+            className={
+              fullBleed
+                ? "h-full sm:h-auto sm:max-w-[1400px] sm:mx-auto sm:px-6 lg:px-8 sm:py-8"
+                : "max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8"
+            }
+          >
             {children}
           </div>
         </main>

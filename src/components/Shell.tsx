@@ -10,7 +10,7 @@ import { ChatFab } from './chat/ChatFab'
 import { useSSE } from '../hooks/useSSE'
 
 // Core: todos os tenants têm (sem permissão). Módulos: por permissão.
-const CORE_PATHS = ['/clientes', '/mensagens', '/financeiro', '/conteudos', '/website', '/estatisticas']
+const CORE_PATHS = ['/clientes', '/mensagens', '/financeiro', '/conteudos', '/estatisticas']
 const MODULE_PERM_TO_PATH: Record<string, string> = {
   VIEW_SCHEDULE:  '/agenda',
   VIEW_PRODUCTS:  '/loja',
@@ -182,7 +182,10 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
     '/dashboard',
     ...permissions.map((p) => MODULE_PERM_TO_PATH[p.name ?? '']).filter(Boolean),
     ...CORE_PATHS,
-    ...(isAdmin ? ['/admin'] : []),
+    // /website (site engine) ainda em construção — temporariamente só para o
+    // Admin (dono da plataforma); os tenants não o veem nem lhe chegam (o guard
+    // de rotas redireciona). Passar a CORE_PATHS quando estiver pronto.
+    ...(isAdmin ? ['/admin', '/website'] : []),
   ])
   // …apresentadas pela ordem fixa de MENU_ORDER (extras desconhecidos vão para o fim).
   const accessiblePaths = [

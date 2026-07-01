@@ -987,9 +987,18 @@ function CalendarioView() {
   const setSelApptRef = useRef(setSelAppt);
   const dayColRefs = useRef<Map<string, HTMLElement>>(new Map());
 
+  // Touch: tap-para-prever/agendar (célula vazia), long-press para arrastar marcação,
+  // e auto-scroll do container ao arrastar até às bordas.
+  const touchTapRef = useRef<{ day: Date; min: number; x: number; y: number; id: number } | null>(null);
+  const longPressRef = useRef<number | null>(null);
+  const autoScrollRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+  const autoScrollRafRef = useRef<number | null>(null);
+  const calScrollEl = useRef<HTMLDivElement | null>(null);
+
   // Scroll inicial da grelha (arranca nas 8h, mas dá para subir até às 0h).
   const didInitScroll = useRef(false);
   const calScrollRef = useCallback((node: HTMLDivElement | null) => {
+    calScrollEl.current = node;
     if (node && !didInitScroll.current) {
       node.scrollTop = (AG_SCROLL_START_H - AG_H_START) * AG_ROW_H;
       didInitScroll.current = true;
@@ -1118,6 +1127,28 @@ function CalendarioView() {
 
   // Global drag handlers (stable refs → no stale closure issues)
   useEffect(() => {
+    const startAutoScroll = () => {
+      if (autoScrollRafRef.current != null) return;
+      const step = () => {
+        const c = calScrollEl.current;
+        const { dx, dy } = autoScrollRef.current;
+        if (c && (dx || dy)) {
+          c.scrollLeft += dx;
+          c.scrollTop += dy;
+          autoScrollRafRef.current = requestAnimationFrame(step);
+        } else {
+          autoScrollRafRef.current = null;
+        }
+      };
+      autoScrollRafRef.current = requestAnimationFrame(step);
+    };
+    const stopAutoScroll = () => {
+      if (autoScrollRafRef.current != null) {
+        cancelAnimationFrame(autoScrollRafRef.current);
+        autoScrollRafRef.current = null;
+      }
+      autoScrollRef.current = { dx: 0, dy: 0 };
+    };
     const onMove = (e: PointerEvent) => {
       // ── Drag-to-create ──
       const d = dragRef.current;
@@ -1157,6 +1188,18 @@ function CalendarioView() {
       const dx = e.clientX - ad.startX;
       const dy = e.clientY - ad.startY;
       if (!ad.armed) {
+        if (ad.pointerType === "touch") {
+          // Touch: arma-se por long-press (timer), não por movimento. Mover antes do
+          // timer disparar = o utilizador quer fazer scroll → cancela o "pegar".
+          if (Math.sqrt(dx * dx + dy * dy) > 10) {
+            if (longPressRef.current) {
+              clearTimeout(longPressRef.current);
+              longPressRef.current = null;
+            }
+            apptDragMeta.current = null;
+          }
+          return;
+        }
         if (Math.sqrt(dx * dx + dy * dy) < 8) return;
         ad.armed = true;
         document.body.style.touchAction = "none";
@@ -1178,6 +1221,23 @@ function CalendarioView() {
         return;
       }
       if (!ad.moved) return;
+      // Auto-scroll (touch): ao arrastar até às bordas do container, faz scroll nessa
+      // direção — para alcançar dias/horas fora do ecrã.
+      if (ad.pointerType === "touch") {
+        const c = calScrollEl.current;
+        if (c) {
+          const r = c.getBoundingClientRect();
+          const EDGE = 52;
+          const SPEED = 14;
+          const nx =
+            e.clientX < r.left + EDGE ? -SPEED : e.clientX > r.right - EDGE ? SPEED : 0;
+          const ny =
+            e.clientY < r.top + EDGE ? -SPEED : e.clientY > r.bottom - EDGE ? SPEED : 0;
+          autoScrollRef.current = { dx: nx, dy: ny };
+          if (nx || ny) startAutoScroll();
+          else stopAutoScroll();
+        }
+      }
       let targetDay: Date | null = null;
       let targetMin: number | null = null;
       for (const [dayStr, el] of dayColRefs.current) {
@@ -1212,6 +1272,11 @@ function CalendarioView() {
     };
 
     const onUp = (e: PointerEvent) => {
+      if (longPressRef.current) {
+        clearTimeout(longPressRef.current);
+        longPressRef.current = null;
+      }
+      stopAutoScroll();
       // ── Drag-to-create ──
       const d = dragRef.current;
       if (d && d.pointerId === e.pointerId) {
@@ -1273,7 +1338,8 @@ function CalendarioView() {
           setRescheduledFrom({ date: ad.appt.date, time: ad.appt.time });
           setSelApptRef.current(ad.appt);
         }
-      } else if (!ad.moved) {
+      } else if (!ad.moved && e.type !== "pointercancel") {
+        // Tap (não moveu, e não foi cancelado por scroll) → abre a marcação.
         setSelApptRef.current(ad.appt);
       }
     };
@@ -1285,6 +1351,8 @@ function CalendarioView() {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
+      if (longPressRef.current) clearTimeout(longPressRef.current);
+      stopAutoScroll();
       document.body.style.cursor = "";
       document.body.style.touchAction = "";
     };
@@ -1549,32 +1617,47 @@ function CalendarioView() {
                       else dayColRefs.current.delete(format(day, "yyyy-MM-dd"));
                     }}
                     className={`relative border-l border-zinc-50 dark:border-zinc-800/50 ${dragSel ? "cursor-crosshair" : "cursor-pointer"} select-none ${isToday ? "bg-accent/[0.04] dark:bg-accent/[0.07]" : ""}`}
-                    style={{ touchAction: "none" }}
+                    style={{ touchAction: "pan-x pan-y" }}
                     onPointerDown={(e) => {
-                      if (e.button !== 0) return;
-                      e.preventDefault();
-                      e.currentTarget.setPointerCapture(e.pointerId);
+                      const isTouch = e.pointerType === "touch";
+                      if (e.button !== 0 && !isTouch) return;
                       const rect = e.currentTarget.getBoundingClientRect();
                       const y = Math.max(0, e.clientY - rect.top);
                       const totalMin = (y / AG_ROW_H) * 60 + AG_H_START * 60;
                       const snapped = Math.round(totalMin / 15) * 15;
-                      const isTouch = e.pointerType === "touch";
+                      if (isTouch) {
+                        // Touch: sem drag-to-select. Guarda o ponto para detetar um TAP
+                        // (preview → agendar). O swipe faz scroll (touchAction pan) e
+                        // dispara pointercancel, cancelando o tap.
+                        const min = Math.min(
+                          Math.max(snapped, AG_H_START * 60),
+                          AG_H_END * 60 - 15,
+                        );
+                        touchTapRef.current = {
+                          day,
+                          min,
+                          x: e.clientX,
+                          y: e.clientY,
+                          id: e.pointerId,
+                        };
+                        return;
+                      }
+                      e.preventDefault();
+                      e.currentTarget.setPointerCapture(e.pointerId);
                       dragRef.current = {
                         day,
                         colEl: e.currentTarget,
                         startMin: snapped,
                         endMin: snapped,
-                        active: !isTouch,
-                        armed: !isTouch,
+                        active: true,
+                        armed: true,
                         pointerId: e.pointerId,
                         pointerType: e.pointerType,
                         startX: e.clientX,
                         startY: e.clientY,
                       };
-                      if (!isTouch) {
-                        document.body.style.touchAction = "none";
-                        setDragSel({ day, startMin: snapped, endMin: snapped });
-                      }
+                      document.body.style.touchAction = "none";
+                      setDragSel({ day, startMin: snapped, endMin: snapped });
                     }}
                     onMouseMove={(e) => {
                       if (dragRef.current?.active) return;
@@ -1600,6 +1683,34 @@ function CalendarioView() {
                       );
                     }}
                     onMouseLeave={() => setHoverSlot(null)}
+                    onPointerUp={(e) => {
+                      if (e.pointerType !== "touch") return;
+                      const t = touchTapRef.current;
+                      touchTapRef.current = null;
+                      if (!t || t.id !== e.pointerId) return;
+                      if (
+                        Math.abs(e.clientX - t.x) > 12 ||
+                        Math.abs(e.clientY - t.y) > 12
+                      )
+                        return; // foi swipe, não tap
+                      if (slotHasAppt(t.min)) return; // slot já ocupado
+                      const same =
+                        hoverSlot &&
+                        hoverSlot.min === t.min &&
+                        isSameDay(hoverSlot.day, t.day);
+                      if (same) {
+                        // 2.º toque na mesma célula → agenda.
+                        setNovaDate(t.day);
+                        setNovaTime(minuteToTime(t.min));
+                        setHoverSlot(null);
+                      } else {
+                        // 1.º toque → mostra o preview (o mesmo realce do hover desktop).
+                        setHoverSlot({ day: t.day, min: t.min });
+                      }
+                    }}
+                    onPointerCancel={() => {
+                      touchTapRef.current = null;
+                    }}
                   >
                     {/* Grelha: linha de hora (forte) + ticks de 15/30/45 min */}
                     {hours.map((h) => (
@@ -1763,13 +1874,11 @@ function CalendarioView() {
                             key={appt.appointmentId}
                             onPointerDown={(e) => {
                               e.stopPropagation();
-                              if (e.button !== 0) return;
-                              e.preventDefault();
-                              e.currentTarget.setPointerCapture(e.pointerId);
+                              const isTouch = e.pointerType === "touch";
+                              if (e.button !== 0 && !isTouch) return;
                               const rect =
                                 e.currentTarget.getBoundingClientRect();
                               const yInAppt = Math.max(0, e.clientY - rect.top);
-                              const isTouch = e.pointerType === "touch";
                               apptDragMeta.current = {
                                 appt,
                                 offsetMin: Math.round(
@@ -1787,8 +1896,39 @@ function CalendarioView() {
                                 pointerType: e.pointerType,
                                 el: e.currentTarget,
                               };
-                              if (!isTouch)
+                              if (!isTouch) {
+                                e.preventDefault();
+                                e.currentTarget.setPointerCapture(e.pointerId);
                                 document.body.style.touchAction = "none";
+                              } else {
+                                // Touch: long-press (~380ms) para "pegar" na marcação
+                                // (o swipe normal continua a fazer scroll). Soltar antes
+                                // = abre a marcação (tap).
+                                longPressRef.current = window.setTimeout(() => {
+                                  const m = apptDragMeta.current;
+                                  if (!m || m.armed) return;
+                                  m.armed = true;
+                                  m.moved = true;
+                                  try {
+                                    m.el.setPointerCapture(m.pointerId);
+                                  } catch {
+                                    /* noop */
+                                  }
+                                  document.body.style.touchAction = "none";
+                                  document.body.style.cursor = "grabbing";
+                                  setApptDragState({
+                                    appt: m.appt,
+                                    mouseX: m.startX,
+                                    mouseY: m.startY,
+                                    grabYInGhost: m.grabYInGhost,
+                                    ghostW: m.ghostW,
+                                    ghostH: m.ghostH,
+                                    targetDay: null,
+                                    targetMin: null,
+                                  });
+                                  (navigator as any).vibrate?.(35);
+                                }, 380);
+                              }
                             }}
                             className={`absolute group rounded-lg px-2 py-1 text-left z-10 hover:shadow-md hover:z-20 transition-all cursor-grab active:cursor-grabbing ${isBeingDragged ? "opacity-25" : ""}`}
                             style={{
@@ -1797,7 +1937,7 @@ function CalendarioView() {
                               left: `calc(${leftPct}% + 2px)`,
                               width: `calc(${widthPct}% - 4px)`,
                               background: color,
-                              touchAction: "none",
+                              touchAction: "pan-x pan-y",
                             }}
                           >
                             <p className="text-[10px] font-semibold leading-tight truncate pr-4" style={{ color: readableOn(color) }}>

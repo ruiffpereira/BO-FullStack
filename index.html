@@ -2,7 +2,11 @@
 <html lang="pt">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <!-- interactive-widget=resizes-content: o teclado virtual encolhe o layout
+         (100dvh/vh passam a ser o espaço ACIMA do teclado) → o composer do chat
+         fica colado por cima do teclado e a lista de mensagens encolhe + faz scroll,
+         em vez de empurrar o conteúdo para cima. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
     <!-- Cor da barra superior da PWA = cor do header. Default = tema escuro
          (a app arranca em dark); o App.tsx atualiza dinamicamente ao trocar de tema. -->
     <meta name="theme-color" content="#09090b" />

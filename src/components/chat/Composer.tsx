@@ -92,7 +92,7 @@ export function Composer({ onSend, disabled = false, placeholder = "Escreve uma 
   const canSend = (!!text.trim() || atts.length > 0) && !busy && !disabled;
 
   return (
-    <div className="border-t border-zinc-100 dark:border-zinc-800 p-2.5 bg-white dark:bg-zinc-900">
+    <div className="border-t border-zinc-100 dark:border-zinc-800 px-2.5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] bg-white dark:bg-zinc-900">
       {atts.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-2">
           {atts.map((a, i) => (
@@ -123,7 +123,7 @@ export function Composer({ onSend, disabled = false, placeholder = "Escreve uma 
           onClick={() => fileRef.current?.click()}
           disabled={busy || disabled}
           aria-label="Anexar imagem"
-          className="shrink-0 w-10 h-10 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex items-center justify-center disabled:opacity-50"
+          className="shrink-0 w-11 h-11 sm:w-10 sm:h-10 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex items-center justify-center disabled:opacity-50"
         >
           <Icon name="paperclip" className="w-[18px] h-[18px]" />
         </button>
@@ -140,14 +140,14 @@ export function Composer({ onSend, disabled = false, placeholder = "Escreve uma 
           disabled={disabled}
           placeholder={placeholder}
           aria-label="Mensagem"
-          className="flex-1 resize-none bg-zinc-100 dark:bg-zinc-800 rounded-2xl px-3.5 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-accent/30 max-h-[140px]"
+          className="flex-1 resize-none bg-zinc-100 dark:bg-zinc-800 rounded-2xl px-3.5 py-2.5 sm:py-2 text-base sm:text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-accent/30 max-h-[140px]"
         />
 
         <button
           onClick={() => void handleSend()}
           disabled={!canSend}
           aria-label="Enviar"
-          className="shrink-0 w-10 h-10 rounded-full bg-accent text-white flex items-center justify-center shadow-sm shadow-accent/20 hover:brightness-110 transition disabled:opacity-40 disabled:pointer-events-none"
+          className="shrink-0 w-11 h-11 sm:w-10 sm:h-10 rounded-full bg-accent text-white flex items-center justify-center shadow-sm shadow-accent/20 hover:brightness-110 active:scale-95 transition disabled:opacity-40 disabled:pointer-events-none"
         >
           <Icon name={busy ? "loader" : "send"} className={`w-[18px] h-[18px] ${busy ? "animate-spin" : ""}`} />
         </button>

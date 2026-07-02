@@ -51,6 +51,12 @@ function fromGitBinary() {
   }
 }
 
+// Diagnóstico: mostra o valor CRU da env no build (vazio = não é build-time /
+// não chega; "{{SOURCE_COMMIT}}" = Coolify não expandiu; um SHA = ok).
+console.log(
+  `[write-version] raw SOURCE_COMMIT = ${JSON.stringify(process.env.SOURCE_COMMIT ?? null)}`,
+);
+
 let commit = fromEnv();
 let source = commit ? "SOURCE_COMMIT" : "";
 if (!commit) { commit = fromDotGit(); if (commit) source = ".git/HEAD"; }

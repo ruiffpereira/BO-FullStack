@@ -128,21 +128,33 @@ jobs:
           curl --fail --silent --show-error "$HOOK" ${TOKEN:+-H "Authorization: Bearer $TOKEN"}
 
   smoke:
-    name: Smoke read-only (Backoffice live)
+    name: Smoke — verifica que ESTE commit ficou live (Backoffice)
     needs: deploy
     runs-on: ubuntu-latest
     steps:
-      - name: Esperar o backoffice live responder (após deploy)
+      - name: Poll /version.json até reportar o commit deste deploy
         run: |
-          URL="${{ vars.BO_URL }}"
+          URL="${{ vars.BO_URL }}"; URL="${URL%/}"
+          WANT="${{ github.sha }}"
           if [ -z "$URL" ]; then echo "vars.BO_URL não definido"; exit 1; fi
-          sleep 45
+          sleep 30
+          alive=""; live=""
           for i in $(seq 1 40); do
-            code=$(curl -s -o /tmp/body -w '%{http_code}' "$URL" || echo 000)
-            echo "[$i] HTTP $code"
-            if [ "$code" = "200" ] && grep -q 'id="root"' /tmp/body; then
-              echo "Backoffice live ✔"; exit 0
+            code=$(curl -s -o /tmp/root -w '%{http_code}' "$URL/?_=$i" || echo 000)
+            live=$(curl -fsS "$URL/version.json?_=$i" 2>/dev/null | grep -o '"commit":"[^"]*"' | cut -d'"' -f4)
+            echo "[$i] http=$code  commit_live=${live:-<none>}  quero=$WANT"
+            { [ "$code" = "200" ] && grep -q 'id="root"' /tmp/root; } && alive=1
+            if [ -n "$live" ] && [ "$live" != "unknown" ] && [ "$live" = "$WANT" ]; then
+              echo "✔ Backoffice a servir ESTE commit."; exit 0
             fi
-            sleep 6
+            sleep 8
           done
-          echo "O backoffice não respondeu 200 após o deploy"; exit 1
+          # Timeout — distinguir falha real de carimbo indisponível:
+          if [ -n "$live" ] && [ "$live" != "unknown" ]; then
+            echo "✗ Versão nova NÃO ficou live: /version.json reporta $live, esperado $WANT."; exit 1
+          elif [ -n "$alive" ]; then
+            echo "⚠ /version.json indisponível/sem commit — smoke degradou para liveness."
+            echo "   (revê scripts/write-version.mjs / o build). A passar para não bloquear."; exit 0
+          else
+            echo "✗ O backoffice não respondeu após o deploy."; exit 1
+          fi

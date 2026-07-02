@@ -6,7 +6,7 @@
   "description": "Backoffice multi-negócio — React + Vite + TypeScript + TailwindCSS + React Query (Kubb)",
   "scripts": {
     "dev": "kubb generate && vite",
-    "build": "kubb generate && tsc -b && vite build",
+    "build": "kubb generate && tsc -b && vite build && node scripts/write-version.mjs",
     "preview": "vite preview",
     "kubb": "kubb generate",
     "lint": "tsc --noEmit",

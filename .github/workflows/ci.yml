@@ -135,10 +135,12 @@ jobs:
             echo "COOLIFY_BASE_URL/COOLIFY_APP_UUID_BO em falta — salto o carimbo (smoke degrada p/ liveness)."
             exit 0
           fi
-          echo "PATCH env SOURCE_COMMIT=$SHA (build-time) na app $UUID"
+          # Só atualiza o VALOR — a flag "build-time" já está ligada na env (via UI do
+          # Coolify), e o endpoint rejeita is_build_time no update (422). Body mínimo.
+          echo "PATCH env SOURCE_COMMIT=$SHA na app $UUID"
           curl -sS -X PATCH "${BASE%/}/api/v1/applications/$UUID/envs" \
             -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-            -d "{\"key\":\"SOURCE_COMMIT\",\"value\":\"$SHA\",\"is_build_time\":true,\"is_literal\":true}" \
+            -d "{\"key\":\"SOURCE_COMMIT\",\"value\":\"$SHA\"}" \
             -w '\nHTTP %{http_code}\n' || echo "aviso: PATCH da env falhou (segue o deploy)"
 
       - name: Disparar deploy no Coolify

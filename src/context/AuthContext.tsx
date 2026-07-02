@@ -7,6 +7,7 @@ import React, {
   useState,
 } from "react";
 import { axiosInstance } from "@kubb/plugin-client/clients/axios";
+import { API_BASE } from "../lib/env";
 import { queryClient } from "../lib/queryClient";
 import { getCsrfToken } from "../gen/backoffice/hooks/useGetCsrfToken.js";
 import { postUsersLogin } from "../gen/backoffice/hooks/usePostUsersLogin.js";
@@ -36,8 +37,6 @@ interface AuthCtx extends AuthState {
 
 const AuthContext = createContext<AuthCtx | null>(null);
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
 const SKIP_401 = [
   "/csrf-token",
   "/users/login",

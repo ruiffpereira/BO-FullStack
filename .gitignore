@@ -10,6 +10,10 @@ yarn-debug.log*
 yarn-error.log*
 src/gen/
 tests/e2e/.auth/
+# .env pessoal/local (segredos, ex.: SWAGGER_ACCESS_TOKEN) — NUNCA commitar:
+# um .env commitado é carregado pelo Vite em TODOS os builds (incl. produção)
+# e mascara o fail-fast das envs obrigatórias. Dev usa .env.development.
+.env
 .env.test
 playwright-report/
 test-results/

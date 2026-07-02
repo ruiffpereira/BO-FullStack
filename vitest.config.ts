@@ -15,5 +15,11 @@ export default defineConfig({
     setupFiles: ["./tests/unit/setup.ts"],
     include: ["tests/unit/**/*.test.{ts,tsx}"],
     css: false,
+    // Envs obrigatórias da app (src/lib/env.ts, sem defaults) — valores
+    // explícitos para os testes de componentes (não há servidor).
+    env: {
+      VITE_API_BASE_URL: "http://localhost:3001/api",
+      VITE_SITE_ROOT_URL: "http://localhost:3000",
+    },
   },
 });

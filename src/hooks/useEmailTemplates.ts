@@ -2,7 +2,7 @@ import fetch from "@kubb/plugin-client/clients/axios";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 
-const BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
+import { API_BASE as BASE } from "../lib/env";
 
 export interface EmailTemplate {
   key: string;

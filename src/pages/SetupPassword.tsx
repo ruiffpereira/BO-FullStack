@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { Icon } from '../ui/icons.jsx'
 import { Button, Input } from '../ui/ui.jsx'
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001/api'
+import { API_BASE } from '../lib/env'
 
 export function SetupPassword({ theme, onToggleTheme }: { theme: string; onToggleTheme: () => void }) {
   const params = new URLSearchParams(window.location.search)

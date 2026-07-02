@@ -88,6 +88,7 @@ jobs:
         run: |
           cat > .env.test <<'EOF'
           VITE_API_BASE_URL=http://localhost:3002/api
+          VITE_SITE_ROOT_URL=http://localhost:3000
           TEST_USER=admin@e2e
           TEST_PASSWORD=E2ePass123!
           EOF

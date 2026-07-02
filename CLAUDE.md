@@ -16,7 +16,22 @@ pnpm test:unit    # testes de componentes (Vitest + RTL + jsdom) — isolados, s
 pnpm test:e2e     # testes end-to-end (Playwright) — precisam da app + API a correr
 ```
 
-A API deve estar a correr em `VITE_API_BASE_URL` (default: `http://localhost:3001/api`).
+A API deve estar a correr no URL de `VITE_API_BASE_URL` (dev: `http://localhost:3001/api`, via `.env.development`).
+
+---
+
+## Envs (obrigatórias — SEM defaults)
+
+**Regra do projeto: nenhuma env tem default silencioso.** Se faltar, é ERRO — o build recusa, nunca se embute um valor de fallback.
+
+| Env | Para quê | Dev | Prod |
+|-----|----------|-----|------|
+| `VITE_API_BASE_URL` | Base da API | `http://localhost:3001/api` | URL real da API |
+| `VITE_SITE_ROOT_URL` | Base pública dos sites dos tenants (página Website: `{sub}.{host}`) | `http://localhost:3000` | ex.: `https://rufvision.com` |
+
+- **Onde vivem os valores:** dev → **`.env.development`** (commitado) · e2e → `.env.test` (gitignored; o CI gera-o) · **prod → build-time variables no Coolify** (as `VITE_*` ficam embutidas no bundle no momento do build — mudá-las em runtime não faz nada).
+- **Enforcement em 3 camadas:** `vite.config.ts` (guard com `loadEnv` — build/dev-server falham logo com a lista do que falta) · [`src/lib/env.ts`](src/lib/env.ts) (único ponto de leitura no código: exporta `API_BASE` e `SITE_ROOT_URL`, throw como backstop; **nunca ler `import.meta.env` diretamente nem escrever `?? "http://localhost..."`**) · `kubb.config.ts` (exige `VITE_API_BASE_URL`; lê env real > `.env` > `.env.development`). O vitest injeta os valores via `test.env` no `vitest.config.ts`.
+- **`.env` é local e gitignored** (só segredos/overrides pessoais, ex.: `SWAGGER_ACCESS_TOKEN`). **NUNCA commitar um `.env`:** o Vite carrega-o em TODOS os modos, incluindo o build de produção — um `.env` commitado com valores de dev satisfaz o fail-fast com o valor errado (foi o bug do `teste1.localhost:3000` em produção, 2026-07-02).
 
 ---
 

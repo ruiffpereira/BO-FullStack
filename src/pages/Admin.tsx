@@ -3,8 +3,7 @@ import { toast } from "sonner";
 import { getApiError } from "../lib/apiError";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
+import { API_BASE } from "../lib/env";
 import { Icon } from "../ui/icons.jsx";
 import {
   Card,

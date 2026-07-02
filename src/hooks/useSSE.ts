@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { getNotificationsQueryKey } from "./useNotifications";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
+import { API_BASE } from "../lib/env";
 
 export function useSSE() {
   const { accessToken, isAuthenticated } = useAuth();

@@ -4,10 +4,10 @@ import { pluginTs } from "@kubb/plugin-ts";
 import { pluginReactQuery } from "@kubb/plugin-react-query";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
-function readDotEnv() {
-  if (!existsSync(".env")) return {};
+function readDotEnv(file: string) {
+  if (!existsSync(file)) return {};
   return Object.fromEntries(
-    readFileSync(".env", "utf8")
+    readFileSync(file, "utf8")
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter((line) => line && !line.startsWith("#") && line.includes("="))
@@ -18,11 +18,16 @@ function readDotEnv() {
   );
 }
 
-const dotEnv = readDotEnv();
-const API_BASE =
-  process.env.VITE_API_BASE_URL ??
-  dotEnv.VITE_API_BASE_URL ??
-  "http://localhost:3001/api";
+// Mesma precedência do Vite: env real > .env (local, gitignored) > .env.development.
+const dotEnv = { ...readDotEnv(".env.development"), ...readDotEnv(".env") };
+// Sem default (regra do projeto): a base da API tem de vir do ambiente.
+const API_BASE = process.env.VITE_API_BASE_URL ?? dotEnv.VITE_API_BASE_URL;
+if (!API_BASE) {
+  throw new Error(
+    "[kubb] Env obrigatória em falta: VITE_API_BASE_URL " +
+      "(prod/CI: variável de ambiente; dev: .env.development) — sem default.",
+  );
+}
 const SWAGGER_KEY =
   process.env.SWAGGER_ACCESS_TOKEN ?? dotEnv.SWAGGER_ACCESS_TOKEN ?? "";
 // Build-time only — NUNCA prefixar com VITE_ (senão o Vite inclui-o no bundle).

@@ -11,6 +11,7 @@ import {
 } from "../ui/ui.jsx";
 import { Icon } from "../ui/icons.jsx";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { SITE_ROOT_URL } from "../lib/env";
 import {
   useSite,
   useSaveSite,
@@ -46,23 +47,15 @@ import {
  * Env (OBRIGATÓRIA, sem default — erro se faltar, em qualquer ambiente):
  *   VITE_SITE_ROOT_URL — base pública dos sites dos tenants
  *                        (prod: https://rufvision.com · dev: http://localhost:3000)
+ * Validada no vite.config.ts (falha o build) + em src/lib/env.ts (backstop).
  */
 
 /**
- * Base pública onde vivem os sites dos tenants. OBRIGATÓRIA, sem default: um
- * fallback silencioso mascara má configuração (era o `localhost` que mandava o
- * "Ver site" para o sítio errado em produção). O site de cada tenant é
+ * Base pública onde vivem os sites dos tenants. O site de cada tenant é
  * `{subdomain}.{host desta base}`.
  */
 function siteRoot(): URL {
-  const raw = import.meta.env.VITE_SITE_ROOT_URL as string | undefined;
-  if (!raw) {
-    throw new Error(
-      "[backoffice] Env obrigatória em falta: VITE_SITE_ROOT_URL " +
-        "(ex.: https://rufvision.com). Define-a no ambiente do build — sem default.",
-    );
-  }
-  return new URL(raw);
+  return new URL(SITE_ROOT_URL);
 }
 
 type TabId = "site" | "template" | "brand" | "domain";

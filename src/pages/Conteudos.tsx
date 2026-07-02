@@ -19,6 +19,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 import { getApiError } from "../lib/apiError";
+import { API_BASE } from "../lib/env";
 import { pickImageFile, supportsFilePicker } from "../lib/filePicker";
 import { useAuth } from "../context/AuthContext";
 import { Icon } from "../ui/icons.jsx";
@@ -1105,10 +1106,6 @@ export function Conteudos() {
       toast.error("Erro ao eliminar entradas");
     },
   });
-
-  const API_BASE =
-    (import.meta.env.VITE_API_BASE_URL as string | undefined) ??
-    "http://localhost:3001/api";
 
   function handleSectionDragEnd(event: DragEndEvent) {
     const { active, over } = event;

@@ -2,36 +2,37 @@
 // pós-deploy verificar que ficou live ESTE commit (o SPA é estático, por isso
 // o SHA tem de ser servido num ficheiro).
 //
-// Resolver o SHA de forma robusta, por ordem:
-//   1) SOURCE_COMMIT (se o build o expuser)
-//   2) .git/HEAD lido com Node puro — NÃO precisa do binário `git` (o Nixpacks
-//      não o traz na imagem de build, mas o .git do checkout está presente)
+// Resolve o SHA de forma robusta, por ordem, e VALIDA sempre o formato (só um
+// SHA de git conta — assim um valor inválido, ex.: um "${SOURCE_COMMIT}" não
+// expandido pelo Coolify, é ignorado e o smoke degrada em segurança, nunca
+// falso-vermelho):
+//   1) SOURCE_COMMIT (env de build-time — set no Coolify)
+//   2) .git/HEAD lido com Node puro (não precisa do binário git)
 //   3) `git rev-parse HEAD` (se o binário existir)
 import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 
+const SHA = /^[0-9a-f]{7,40}$/i;
+const valid = (s) => (s && SHA.test(String(s).trim()) ? String(s).trim() : "");
+
 function fromEnv() {
-  return (process.env.SOURCE_COMMIT || "").trim();
+  return valid(process.env.SOURCE_COMMIT);
 }
 
-// Lê o SHA do .git sem invocar o binário git (funciona no Nixpacks).
+// Lê o SHA do .git sem invocar o binário git (funciona no Nixpacks se o .git existir).
 function fromDotGit() {
   try {
     const head = readFileSync(".git/HEAD", "utf8").trim();
-    if (!head.startsWith("ref:")) {
-      // HEAD destacado → é diretamente o SHA (caso típico de um deploy)
-      return /^[0-9a-f]{7,40}$/i.test(head) ? head : "";
-    }
+    if (!head.startsWith("ref:")) return valid(head); // HEAD destacado = SHA
     const ref = head.slice(4).trim(); // ex.: refs/heads/main
     try {
-      return readFileSync(`.git/${ref}`, "utf8").trim();
+      return valid(readFileSync(`.git/${ref}`, "utf8").trim());
     } catch {
-      // ref empacotada
       const packed = readFileSync(".git/packed-refs", "utf8");
       const line = packed
         .split("\n")
         .find((l) => !l.startsWith("#") && l.trim().endsWith(" " + ref));
-      return line ? line.trim().split(" ")[0] : "";
+      return valid(line ? line.trim().split(" ")[0] : "");
     }
   } catch {
     return "";
@@ -40,11 +41,11 @@ function fromDotGit() {
 
 function fromGitBinary() {
   try {
-    return execSync("git rev-parse HEAD", {
-      stdio: ["ignore", "pipe", "ignore"],
-    })
-      .toString()
-      .trim();
+    return valid(
+      execSync("git rev-parse HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+        .toString()
+        .trim(),
+    );
   } catch {
     return "";
   }
@@ -52,14 +53,8 @@ function fromGitBinary() {
 
 let commit = fromEnv();
 let source = commit ? "SOURCE_COMMIT" : "";
-if (!commit) {
-  commit = fromDotGit();
-  if (commit) source = ".git/HEAD";
-}
-if (!commit) {
-  commit = fromGitBinary();
-  if (commit) source = "git rev-parse";
-}
+if (!commit) { commit = fromDotGit(); if (commit) source = ".git/HEAD"; }
+if (!commit) { commit = fromGitBinary(); if (commit) source = "git rev-parse"; }
 
 mkdirSync("dist", { recursive: true });
 writeFileSync("dist/version.json", JSON.stringify({ commit: commit || "unknown" }) + "\n");

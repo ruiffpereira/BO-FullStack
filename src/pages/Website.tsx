@@ -43,13 +43,27 @@ import {
  * Template (galeria de arranque), Marca (preset/accent/fonte/logo) e Domínio
  * (subdomínio com verificação). Gestores de página/bloco ficam fora deste ecrã.
  *
- * Env (opcionais, defaults de dev):
- *   VITE_RENDERER_URL     — base do renderer (default http://localhost:3000)
- *   VITE_SITE_ROOT_DOMAIN — domínio raiz mostrado no URL (default localhost)
+ * Env (OBRIGATÓRIA, sem default — erro se faltar, em qualquer ambiente):
+ *   VITE_SITE_ROOT_URL — base pública dos sites dos tenants
+ *                        (prod: https://rufvision.com · dev: http://localhost:3000)
  */
 
-const RENDERER_URL = import.meta.env.VITE_RENDERER_URL ?? "http://localhost:3000";
-const ROOT_DOMAIN = import.meta.env.VITE_SITE_ROOT_DOMAIN ?? "localhost";
+/**
+ * Base pública onde vivem os sites dos tenants. OBRIGATÓRIA, sem default: um
+ * fallback silencioso mascara má configuração (era o `localhost` que mandava o
+ * "Ver site" para o sítio errado em produção). O site de cada tenant é
+ * `{subdomain}.{host desta base}`.
+ */
+function siteRoot(): URL {
+  const raw = import.meta.env.VITE_SITE_ROOT_URL as string | undefined;
+  if (!raw) {
+    throw new Error(
+      "[backoffice] Env obrigatória em falta: VITE_SITE_ROOT_URL " +
+        "(ex.: https://rufvision.com). Define-a no ambiente do build — sem default.",
+    );
+  }
+  return new URL(raw);
+}
 
 type TabId = "site" | "template" | "brand" | "domain";
 
@@ -60,20 +74,15 @@ const TABS = [
   { id: "domain", label: "Domínio", icon: "link" },
 ];
 
-/** URL público mostrado ao tenant ({subdomain}.{ROOT_DOMAIN}). */
+/** URL público mostrado ao tenant ({subdomain}.{host da base}). */
 function siteUrl(subdomain: string | null): string {
-  return subdomain ? `${subdomain}.${ROOT_DOMAIN}` : "";
+  return subdomain ? `${subdomain}.${siteRoot().host}` : "";
 }
 
-/** Link "Ver site" — no renderer (em dev: http://{subdomain}.localhost:3000). */
+/** Link "Ver site" — {protocol}//{subdomain}.{host} (dev: http://x.localhost:3000). */
 function siteHref(subdomain: string | null): string {
-  if (!subdomain) return RENDERER_URL;
-  try {
-    const u = new URL(RENDERER_URL);
-    return `${u.protocol}//${subdomain}.${u.host}`;
-  } catch {
-    return RENDERER_URL;
-  }
+  const u = siteRoot();
+  return subdomain ? `${u.protocol}//${subdomain}.${u.host}` : u.origin;
 }
 
 // ── Checklist de setup ────────────────────────────────────────────────────────
@@ -682,7 +691,7 @@ function DomainTab({ site }: { site: Site }) {
           <p className="text-[13px] text-zinc-500 mt-3">
             O teu site ficará em{" "}
             <span className="font-mono text-zinc-900 dark:text-zinc-100">
-              {trimmed}.{ROOT_DOMAIN}
+              {siteUrl(trimmed)}
             </span>
           </p>
         )}

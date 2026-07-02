@@ -140,7 +140,9 @@ export function useCheckSubdomain() {
   };
 }
 
-/** PUT /website/subdomain — reclama um subdomínio. Invalida a query. */
+/** PUT /website/subdomain — reclama um subdomínio. Invalida a query.
+ *  A API sincroniza também o domínio das Estatísticas (User.websiteDomain),
+ *  por isso invalida-se a cache do site-analytics. */
 export function useSetSubdomain() {
   const { authHeader } = useAuth();
   const qc = useQueryClient();
@@ -153,7 +155,10 @@ export function useSetSubdomain() {
       );
       return res.data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: websiteKeys.site }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: websiteKeys.site });
+      qc.invalidateQueries({ queryKey: ["site-analytics"] });
+    },
   });
 }
 

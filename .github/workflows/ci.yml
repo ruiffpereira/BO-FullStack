@@ -159,9 +159,10 @@ jobs:
           URL="${{ vars.BO_URL }}"; URL="${URL%/}"
           WANT="${{ github.sha }}"
           if [ -z "$URL" ]; then echo "vars.BO_URL não definido"; exit 1; fi
-          sleep 30
+          # Janela larga (~12 min): os builds Nixpacks --no-cache do Coolify são lentos.
+          sleep 45
           alive=""; live=""
-          for i in $(seq 1 40); do
+          for i in $(seq 1 55); do
             code=$(curl -s -o /tmp/root -w '%{http_code}' "$URL/?_=$i" || echo 000)
             live=$(curl -fsS "$URL/version.json?_=$i" 2>/dev/null | grep -o '"commit":"[^"]*"' | cut -d'"' -f4)
             echo "[$i] http=$code  commit_live=${live:-<none>}  quero=$WANT"
@@ -169,7 +170,7 @@ jobs:
             if [ -n "$live" ] && [ "$live" != "unknown" ] && [ "$live" = "$WANT" ]; then
               echo "✔ Backoffice a servir ESTE commit."; exit 0
             fi
-            sleep 8
+            sleep 12
           done
           # Timeout — distinguir falha real de carimbo indisponível:
           if [ -n "$live" ] && [ "$live" != "unknown" ]; then

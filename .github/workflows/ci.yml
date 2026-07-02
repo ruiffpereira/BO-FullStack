@@ -118,6 +118,28 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
+      # Carimba o SHA real na env build-time SOURCE_COMMIT da app (o Nixpacks passa-a
+      # como --build-arg; o write-version.mjs lê-a). O Coolify não injeta o commit
+      # sozinho, por isso é o CI que o mete. Não-fatal: se falhar, o smoke degrada
+      # para liveness em vez de bloquear o deploy. Requer as Variables do repo
+      # COOLIFY_BASE_URL + COOLIFY_APP_UUID_BO (o secret COOLIFY_TOKEN já existe).
+      - name: Carimbar SOURCE_COMMIT (SHA real) via API do Coolify
+        env:
+          BASE: ${{ vars.COOLIFY_BASE_URL }}
+          UUID: ${{ vars.COOLIFY_APP_UUID_BO }}
+          TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$BASE" ] || [ -z "$UUID" ]; then
+            echo "COOLIFY_BASE_URL/COOLIFY_APP_UUID_BO em falta — salto o carimbo (smoke degrada p/ liveness)."
+            exit 0
+          fi
+          echo "PATCH env SOURCE_COMMIT=$SHA (build-time) na app $UUID"
+          curl -sS -X PATCH "${BASE%/}/api/v1/applications/$UUID/envs" \
+            -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+            -d "{\"key\":\"SOURCE_COMMIT\",\"value\":\"$SHA\",\"is_build_time\":true,\"is_literal\":true}" \
+            -w '\nHTTP %{http_code}\n' || echo "aviso: PATCH da env falhou (segue o deploy)"
+
       - name: Disparar deploy no Coolify
         env:
           HOOK: ${{ secrets.COOLIFY_DEPLOY_HOOK_BO }}

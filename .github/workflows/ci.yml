@@ -22,11 +22,11 @@ jobs:
     name: Unit (vitest + RTL)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: pnpm
@@ -47,22 +47,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Backoffice
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: Backoffice
 
       - name: Checkout API (repo irmão)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ruiffpereira/API-FullStack
           ref: main
           path: API-FullStack
           token: ${{ secrets.GH_PAT }}
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: pnpm
@@ -106,7 +106,7 @@ jobs:
 
       - name: Upload do relatório Playwright (em falha)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-report
           path: Backoffice/playwright-report/

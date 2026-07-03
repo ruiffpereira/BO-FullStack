@@ -40,6 +40,22 @@ export const REASON_BADGE: Record<string, { tone: BillingTone; label: string }> 
 }
 export const reasonBadge = (reason: string) => REASON_BADGE[reason] ?? REASON_BADGE.none
 
+/**
+ * Discrimina o **402 do platform billing** de qualquer outro 402 hipotético.
+ *
+ * O `billingGate` da API responde 402 a escritas de gestão (POST/PUT/PATCH/DELETE)
+ * quando o tenant está read-only, com body `{ error, reason, graceEndsAt }` — a
+ * presença de um `reason` (grace|past_due_locked|canceled) é o que distingue este
+ * 402 de outros. Puro/testável — usado pelo interceptor do AuthContext (feedback
+ * reativo ao tentar editar).
+ */
+export function isBillingReadOnlyError(status: number | undefined, data: unknown): boolean {
+  if (status !== 402) return false
+  if (typeof data !== 'object' || data === null) return false
+  const reason = (data as { reason?: unknown }).reason
+  return typeof reason === 'string' && reason.trim() !== ''
+}
+
 // Badge por `status` do Stripe (painel admin — a lista só traz o status bruto,
 // sem os derivados da política de acesso).
 export const STATUS_BADGE: Record<string, { tone: BillingTone; label: string }> = {

@@ -6,9 +6,11 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import { axiosInstance } from "@kubb/plugin-client/clients/axios";
 import { API_BASE } from "../lib/env";
 import { queryClient } from "../lib/queryClient";
+import { notifyBillingReadOnly } from "../lib/billing402";
 import { getCsrfToken } from "../gen/backoffice/hooks/useGetCsrfToken.js";
 import { postUsersLogin } from "../gen/backoffice/hooks/usePostUsersLogin.js";
 import { getUserpermissions } from "../gen/backoffice/hooks/useGetUserpermissions.js";
@@ -211,10 +213,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const doRefreshRef = useRef<(() => Promise<string | null>) | null>(null);
   const authRef = useRef<AuthState>(emptyAuth);
   const authVersionRef = useRef(0);
+  // Ref estável para navegar a partir do interceptor de resposta (o toast do
+  // gate de billing aponta para /faturacao) sem re-registar o interceptor.
+  const navigate = useNavigate();
+  const navigateRef = useRef(navigate);
 
   useEffect(() => {
     authRef.current = auth;
   }, [auth]);
+
+  useEffect(() => {
+    navigateRef.current = navigate;
+  }, [navigate]);
 
   const clearSession = useCallback(() => {
     authVersionRef.current += 1;
@@ -333,6 +343,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return axiosInstance(err.config);
           }
         }
+
+        // Gate read-only do platform billing: uma escrita bloqueada devolve 402
+        // com `reason`. Mostra um toast (coalescido) a apontar para /faturacao —
+        // só ADICIONA feedback, não engole o erro (a promise segue rejeitada, as
+        // mutations veem o 402). No-op para qualquer outro erro/status.
+        notifyBillingReadOnly(err?.response?.status, err?.response?.data, (to) =>
+          navigateRef.current(to),
+        );
 
         return Promise.reject(err);
       },

@@ -3,8 +3,10 @@ import { toast } from "sonner";
 import {
   Card,
   Button,
+  IconButton,
   Badge,
   Input,
+  Toggle,
   PageHeader,
   Tabs,
   SectionTitle,
@@ -19,6 +21,7 @@ import {
   useSetSubdomain,
   usePublishSite,
   type Site,
+  type SitePage,
   type SiteTheme,
   type ThemePreset,
   type ThemeAccent,
@@ -41,8 +44,10 @@ import {
 /**
  * "Website" — área self-serve onde o tenant configura o site público
  * (renderizado pelo site-engine à parte). Tabs: O meu site (estado + publicar),
- * Template (galeria de arranque), Marca (preset/accent/fonte/logo) e Domínio
- * (subdomínio com verificação). Gestores de página/bloco ficam fora deste ecrã.
+ * Template (galeria de arranque), Páginas (gestor de páginas — título/slug/nav/tipo,
+ * T23), Marca (preset/accent/fonte/logo) e Domínio (subdomínio com verificação).
+ * O editor de blocos dentro de cada página e o preview ao vivo ficam fora deste
+ * ecrã (fase seguinte).
  *
  * Env (OBRIGATÓRIA, sem default — erro se faltar, em qualquer ambiente):
  *   VITE_SITE_ROOT_URL — base pública dos sites dos tenants
@@ -58,11 +63,12 @@ function siteRoot(): URL {
   return new URL(SITE_ROOT_URL);
 }
 
-type TabId = "site" | "template" | "brand" | "domain";
+type TabId = "site" | "template" | "pages" | "brand" | "domain";
 
 const TABS = [
   { id: "site", label: "O meu site", icon: "globe" },
   { id: "template", label: "Template", icon: "layers" },
+  { id: "pages", label: "Páginas", icon: "folder" },
   { id: "brand", label: "Marca", icon: "star" },
   { id: "domain", label: "Domínio", icon: "link" },
 ];
@@ -362,6 +368,375 @@ function TemplateTab({ site }: { site: Site }) {
         confirmLabel="Aplicar"
         pendingLabel="A aplicar…"
         variant="warning"
+        isPending={save.isPending}
+      />
+    </div>
+  );
+}
+
+// ── Tab: Páginas (T23) ────────────────────────────────────────────────────────
+
+/**
+ * Endereços que o renderer do site-engine já usa para rotas próprias — uma
+ * página do tenant NÃO pode reclamar nenhum destes (colidiria com uma rota
+ * real do Next.js, que ganha sempre ao catch-all `app/[[...slug]]`).
+ * Fonte: `site-engine/app/**` (lido em 2026-07-03):
+ *   carrinho    → app/carrinho/page.tsx (carrinho de compras)
+ *   checkout    → app/checkout/page.tsx + app/checkout/sucesso/page.tsx
+ *   loja        → app/loja/[produto]/page.tsx (ficha de produto)
+ *   api         → app/api/**  (todos os endpoints server-side do renderer)
+ *   robots.txt  → app/robots.ts (rota especial do Next.js)
+ *   sitemap.xml → app/sitemap.ts (rota especial do Next.js)
+ * Nota: "conta"/"entrar" (login de clientes) NÃO existem como rotas — o painel
+ * de autenticação (`CustomerAuthPanel`) vive embutido no carrinho/checkout, não
+ * numa rota própria — por isso não entram na lista.
+ */
+const RESERVED_SLUGS = new Set([
+  "carrinho",
+  "checkout",
+  "loja",
+  "api",
+  "robots.txt",
+  "sitemap.xml",
+]);
+
+/** lowercase, sem acentos, só [a-z0-9-] — hífens a separar, sem repetir/rebordar. */
+function slugify(input: string): string {
+  return input
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/** Home = a página cujo slug é vazio (mesma convenção do renderer, `lib/site.ts::findPage`). */
+function isHomePage(p: SitePage): boolean {
+  return (p.slug ?? "").trim() === "";
+}
+
+function sortByOrder(pages: SitePage[]): SitePage[] {
+  return [...pages].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+/** Valida um slug candidato contra os reservados + duplicados (exclui `excludeId`). */
+function slugIssue(candidate: string, pages: SitePage[], excludeId?: string): string | null {
+  if (!candidate) return "Escreve um endereço válido.";
+  if (RESERVED_SLUGS.has(candidate)) return "Esse endereço está reservado.";
+  if (pages.some((p) => p.id !== excludeId && (p.slug ?? "").toLowerCase() === candidate)) {
+    return "Já existe uma página com esse endereço.";
+  }
+  return null;
+}
+
+function KindToggle({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: "content" | "collection";
+  onChange: (k: "content" | "collection") => void;
+  disabled?: boolean;
+}) {
+  const opt = (k: "content" | "collection", label: string, icon: string) => (
+    <button
+      key={k}
+      type="button"
+      aria-pressed={value === k}
+      disabled={disabled}
+      onClick={() => onChange(k)}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-50 ${
+        value === k
+          ? "bg-accent/10 text-accent"
+          : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+      }`}
+    >
+      <Icon name={icon} className="w-3.5 h-3.5" />
+      {label}
+    </button>
+  );
+  return (
+    <div className="inline-flex rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden shrink-0">
+      {opt("content", "Conteúdo", "box")}
+      {opt("collection", "Coleção", "grid")}
+    </div>
+  );
+}
+
+function PageRow({
+  page,
+  index,
+  total,
+  allPages,
+  onPatch,
+  onMove,
+  onRemove,
+  disabled,
+}: {
+  page: SitePage;
+  index: number;
+  total: number;
+  allPages: SitePage[];
+  onPatch: (id: string, patch: Partial<SitePage>) => void;
+  onMove: (id: string, dir: -1 | 1) => void;
+  onRemove: (page: SitePage) => void;
+  disabled: boolean;
+}) {
+  const home = isHomePage(page);
+  const kind: "content" | "collection" = page.kind === "collection" ? "collection" : "content";
+  const [titleDraft, setTitleDraft] = useState(page.title ?? "");
+  const [slugDraft, setSlugDraft] = useState(page.slug ?? "");
+  const [slugErr, setSlugErr] = useState<string | null>(null);
+
+  useEffect(() => setTitleDraft(page.title ?? ""), [page.title]);
+  useEffect(() => setSlugDraft(page.slug ?? ""), [page.slug]);
+
+  const commitTitle = () => {
+    const t = titleDraft.trim();
+    if (t !== (page.title ?? "")) onPatch(page.id, { title: t });
+  };
+
+  const commitSlug = () => {
+    if (home) return;
+    const next = slugify(slugDraft);
+    if (next === (page.slug ?? "")) {
+      setSlugDraft(next);
+      setSlugErr(null);
+      return;
+    }
+    const issue = slugIssue(next, allPages, page.id);
+    if (issue) {
+      setSlugErr(issue);
+      return;
+    }
+    setSlugErr(null);
+    onPatch(page.id, { slug: next });
+  };
+
+  const canRemove = !home && total > 1;
+  const removeReason = home
+    ? "Não é possível remover a página inicial."
+    : total <= 1
+      ? "Tem de haver pelo menos uma página."
+      : undefined;
+
+  return (
+    <Card className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+      <div className="flex sm:flex-col gap-1 shrink-0">
+        <IconButton
+          icon="arrowUp"
+          label="Mover para cima"
+          disabled={disabled || index === 0}
+          onClick={() => onMove(page.id, -1)}
+        />
+        <IconButton
+          icon="arrowDown"
+          label="Mover para baixo"
+          disabled={disabled || index === total - 1}
+          onClick={() => onMove(page.id, 1)}
+        />
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            aria-label="Título da página"
+            value={titleDraft}
+            disabled={disabled}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onBlur={commitTitle}
+            onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
+            placeholder="Página sem título"
+            className="font-medium text-sm text-zinc-900 dark:text-zinc-100 bg-transparent border-b border-transparent hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-accent focus:outline-none px-0.5 min-w-0"
+          />
+          {home && (
+            <Badge tone="blue" className="shrink-0">
+              Início
+            </Badge>
+          )}
+        </div>
+        <div className="mt-1 flex items-center gap-1 text-xs text-zinc-400 font-mono">
+          <span>/</span>
+          {home ? (
+            <span className="text-zinc-400">(início)</span>
+          ) : (
+            <input
+              aria-label="Endereço da página"
+              value={slugDraft}
+              disabled={disabled}
+              onChange={(e) => {
+                setSlugDraft(e.target.value);
+                setSlugErr(null);
+              }}
+              onBlur={commitSlug}
+              onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
+              className="bg-transparent border-b border-dashed border-zinc-300 dark:border-zinc-700 focus:border-accent focus:outline-none px-0.5 w-36"
+            />
+          )}
+        </div>
+        {slugErr && <p className="text-xs text-red-500 mt-1">{slugErr}</p>}
+      </div>
+
+      <div className="flex items-center gap-3 shrink-0">
+        <KindToggle
+          value={kind}
+          disabled={disabled}
+          onChange={(k) => onPatch(page.id, { kind: k })}
+        />
+        <label className="flex items-center gap-1.5 cursor-pointer">
+          <Toggle
+            checked={page.inNav !== false}
+            disabled={disabled}
+            onChange={(next: boolean) => onPatch(page.id, { inNav: next })}
+            size="sm"
+          />
+          <span className="text-xs text-zinc-500">Nav</span>
+        </label>
+        <IconButton
+          icon="trash"
+          label="Remover página"
+          title={removeReason}
+          disabled={!canRemove || disabled}
+          onClick={() => onRemove(page)}
+          className={canRemove ? "hover:text-red-500" : "opacity-40"}
+        />
+      </div>
+    </Card>
+  );
+}
+
+function PagesTab({ site }: { site: Site }) {
+  const save = useSaveSite();
+  const pages = sortByOrder(site.pages ?? []);
+  const [pendingRemove, setPendingRemove] = useState<SitePage | null>(null);
+
+  const [newTitle, setNewTitle] = useState("");
+  const [newSlug, setNewSlug] = useState("");
+  const [slugTouched, setSlugTouched] = useState(false);
+
+  const persist = (next: SitePage[], successMsg?: string) => {
+    const withOrder = next.map((p, i) => ({ ...p, order: i }));
+    save.mutate(
+      { pages: withOrder },
+      {
+        onSuccess: () => {
+          if (successMsg) toast.success(successMsg);
+        },
+        onError: () => toast.error("Não foi possível guardar as páginas."),
+      },
+    );
+  };
+
+  const onPatch = (id: string, patch: Partial<SitePage>) => {
+    persist(pages.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  };
+
+  const onMove = (id: string, dir: -1 | 1) => {
+    const idx = pages.findIndex((p) => p.id === id);
+    const swap = idx + dir;
+    if (idx < 0 || swap < 0 || swap >= pages.length) return;
+    const next = [...pages];
+    [next[idx], next[swap]] = [next[swap], next[idx]];
+    persist(next);
+  };
+
+  const onConfirmRemove = () => {
+    if (!pendingRemove) return;
+    persist(
+      pages.filter((p) => p.id !== pendingRemove.id),
+      "Página removida.",
+    );
+    setPendingRemove(null);
+  };
+
+  const autoSlug = slugify(newTitle);
+  const slugFieldValue = slugTouched ? newSlug : autoSlug;
+  const finalNewSlug = slugify(slugFieldValue);
+  const addTitleMissing = !newTitle.trim();
+  const addSlugIssue = addTitleMissing ? null : slugIssue(finalNewSlug, pages);
+  const canAdd = !addTitleMissing && !addSlugIssue;
+
+  const onAdd = () => {
+    if (!canAdd) return;
+    const next: SitePage[] = [
+      ...pages,
+      {
+        id: crypto.randomUUID(),
+        slug: finalNewSlug,
+        title: newTitle.trim(),
+        inNav: true,
+        order: pages.length,
+        kind: "content",
+        blocks: [],
+      },
+    ];
+    persist(next, "Página criada.");
+    setNewTitle("");
+    setNewSlug("");
+    setSlugTouched(false);
+  };
+
+  return (
+    <div>
+      <Card className="p-5 mb-5">
+        <SectionTitle>Nova página</SectionTitle>
+        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+          <Input
+            label="Título"
+            placeholder="Ex: Sobre nós"
+            value={newTitle}
+            onChange={(e: any) => setNewTitle(e.target.value)}
+          />
+          <Input
+            label="Endereço"
+            icon="link"
+            value={slugFieldValue}
+            onChange={(e: any) => {
+              setSlugTouched(true);
+              setNewSlug(e.target.value);
+            }}
+            hint="Gerado do título — podes editar."
+          />
+          <Button icon="plus" onClick={onAdd} disabled={!canAdd} isLoading={save.isPending}>
+            Adicionar
+          </Button>
+        </div>
+        {!addTitleMissing && addSlugIssue && (
+          <p className="text-xs text-red-500 mt-2">{addSlugIssue}</p>
+        )}
+      </Card>
+
+      <div className="space-y-3">
+        {pages.map((p, i) => (
+          <PageRow
+            key={p.id}
+            page={p}
+            index={i}
+            total={pages.length}
+            allPages={pages}
+            onPatch={onPatch}
+            onMove={onMove}
+            onRemove={setPendingRemove}
+            disabled={save.isPending}
+          />
+        ))}
+      </div>
+
+      <ConfirmDialog
+        open={!!pendingRemove}
+        onClose={() => setPendingRemove(null)}
+        onConfirm={onConfirmRemove}
+        title="Remover página?"
+        description={
+          <>
+            Isto remove definitivamente a página{" "}
+            <strong>{pendingRemove?.title || pendingRemove?.slug || "sem título"}</strong>. Não
+            podes desfazer esta ação.
+          </>
+        }
+        confirmLabel="Remover"
+        pendingLabel="A remover…"
         isPending={save.isPending}
       />
     </div>
@@ -741,6 +1116,7 @@ export function Website() {
         <>
           {tab === "site" && <SiteStatusTab site={site} />}
           {tab === "template" && <TemplateTab site={site} />}
+          {tab === "pages" && <PagesTab site={site} />}
           {tab === "brand" && <BrandTab site={site} />}
           {tab === "domain" && <DomainTab site={site} />}
         </>

@@ -45,10 +45,14 @@ export interface SiteBlock {
 export interface SitePage {
   id: string;
   slug: string;
+  /** Título literal (fallback simples; o renderer aceita `title` OU `titleRef`). */
+  title?: string;
   titleRef?: string;
   inNav?: boolean;
   order?: number;
+  /** "content" (página normal) | "collection" (listagem — roteamento de detalhe é T12). */
   kind?: string;
+  seoRef?: string;
   blocks?: SiteBlock[];
 }
 

@@ -8,7 +8,10 @@ import type { Notification } from "../hooks/useNotifications";
  * chaves convencionais (appointmentId, customerId, productId, period, …). Os
  * destinos usam os parâmetros que cada página já lê:
  *   - Agenda     `?marcacao=<id>` · `?data=YYYY-MM-DD`
- *   - Clientes   `?cliente=<id>`
+ *   - Clientes   `?cliente=<id>` — tab "Clientes" (perfil do cliente)
+ *   - Leads      `?tab=leads&lead=<id>` — tab "Leads" da própria página Clientes
+ *     (um novo lead usa `type:"customer"` com `data.leadId`, sem `customerId` —
+ *     ver `leadController.ts` na API; distingue-se do cliente normal por isso)
  *   - Financeiro `?vista=ginasio`
  *   - Loja       `?tab=encomendas` · `?openProduct=<id>`
  *   - Mensagens  (sem parâmetro)
@@ -38,6 +41,11 @@ export function notificationHref(
       return "/loja?tab=encomendas";
 
     case "customer": {
+      // Um lead novo notifica com `type:"customer"` mas carrega `data.leadId`
+      // (sem `customerId`, ver leadController.ts) — deep-link para a tab Leads
+      // em vez da ficha do cliente, que não existe para um mero prospect.
+      const lid = str("leadId");
+      if (lid) return `/clientes?tab=leads&lead=${encodeURIComponent(lid)}`;
       const cid = str("customerId");
       return cid ? `/clientes?cliente=${encodeURIComponent(cid)}` : "/clientes";
     }

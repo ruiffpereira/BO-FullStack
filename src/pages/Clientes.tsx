@@ -20,6 +20,7 @@ import type { Appointment } from '../gen/backoffice/types/Appointment.js'
 import { ApptModal } from '../components/ApptModal.js'
 import { ClienteMensalidade } from './GymMensalidade'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { LeadsInbox } from './clientes/LeadsInbox'
 import { axiosInstance } from '@kubb/plugin-client/clients/axios'
 
 function colorFromName(name: string) {
@@ -70,6 +71,18 @@ export function Clientes() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const returnToAppointment = (location.state as { returnToAppointment?: { appointmentId: string; date: string } } | null)?.returnToAppointment
+
+  // Tab de topo (Clientes / Leads). Deep-link `?tab=leads` (ex.: notificação de
+  // um novo lead) — mesmo padrão do `?tab=` da Loja: lê da URL ao montar e
+  // sincroniza se o parâmetro mudar depois (não escreve de volta ao clicar).
+  const validTopTab = (t: string | null): t is 'clientes' | 'leads' => t === 'clientes' || t === 'leads'
+  const [topTab, setTopTab] = useState<'clientes' | 'leads'>(() =>
+    validTopTab(searchParams.get('tab')) ? (searchParams.get('tab') as 'clientes' | 'leads') : 'clientes',
+  )
+  useEffect(() => {
+    const t = searchParams.get('tab')
+    if (validTopTab(t)) setTopTab(t)
+  }, [searchParams])
 
   const [q, setQ] = useState('')
   const [profileId, setProfileId] = useState<string | null>(null)
@@ -248,6 +261,19 @@ export function Clientes() {
     <div>
       <PageHeader title="Clientes" subtitle={`${data?.count ?? customers.length} clientes registados.`} />
 
+      <Tabs
+        tabs={[
+          { id: 'clientes', label: 'Clientes', icon: 'users' },
+          { id: 'leads', label: 'Leads', icon: 'mail' },
+        ]}
+        value={topTab}
+        onChange={(v: string) => setTopTab(v as 'clientes' | 'leads')}
+        className="mb-4"
+      />
+
+      {topTab === 'leads' && <LeadsInbox />}
+
+      {topTab === 'clientes' && (
       <Card className="overflow-hidden">
         <div className="flex flex-col sm:flex-row gap-3 p-4 border-b border-zinc-100 dark:border-zinc-800">
           <div className="relative flex-1 max-w-sm">
@@ -314,6 +340,7 @@ export function Clientes() {
           )}
         </div>
       </Card>
+      )}
 
       {/* ── Customer profile modal ── */}
       {profileId && profileCustomer && (

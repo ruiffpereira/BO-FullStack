@@ -2422,6 +2422,63 @@
           "monthlyAmountEur",
           "monthlyAmountCents"
         ]
+      },
+      "Lead": {
+        "type": "object",
+        "properties": {
+          "leadId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "read",
+              "archived"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "leadId",
+          "userId",
+          "name",
+          "email",
+          "message",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ]
       }
     }
   },
@@ -9938,6 +9995,112 @@
         }
       }
     },
+    "/leads": {
+      "get": {
+        "summary": "Listar leads do tenant",
+        "tags": [
+          "Leads"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "new",
+                "read",
+                "archived"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de leads (mais recentes primeiro)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "integer"
+                    },
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Lead"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leads/{id}": {
+      "patch": {
+        "summary": "Actualizar o estado de um lead",
+        "tags": [
+          "Leads"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "new",
+                      "read",
+                      "archived"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Lead actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lead"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "status inválido"
+          },
+          "404": {
+            "description": "Lead não encontrado"
+          }
+        }
+      }
+    },
     "/notifications": {
       "get": {
         "summary": "Listar notificações",
@@ -11535,6 +11698,10 @@
     {
       "name": "GymWorkoutTemplates",
       "description": "Templates de treino reutilizáveis (backoffice)"
+    },
+    {
+      "name": "Leads",
+      "description": "Leads/orçamentos capturados no site público do tenant (backoffice)"
     },
     {
       "name": "Notifications",

@@ -284,15 +284,20 @@ O spec OpenAPI `/api-docs/backoffice.json` é lido pelo Kubb e gera:
 - `src/gen/backoffice/hooks/` — hooks React Query (useGet*, usePost*, etc.)
 - `src/gen/backoffice/types/` — tipos TypeScript dos requests/responses
 
-**Sempre que a API adiciona/modifica endpoints, correr `pnpm kubb`.**
-
 Os ficheiros em `src/gen/` não devem ser editados manualmente.
 
-### Fetch do spec atrás da Cloudflare (Bot Fight Mode)
+### OFFLINE por defeito (o `spec.json` committado é a fonte de verdade)
 
-O `kubb.config.ts` faz **pré-fetch** do spec via `fetch` (em Node, build-time) e escreve `spec.json` (gitignored); o Kubb lê esse ficheiro em vez de ir buscar o URL diretamente (suporte a headers custom no input do Kubb é limitado).
+O `kubb.config.ts` gera **SEMPRE a partir do `spec.json` committado** (versionado no repo, `input.path`) — `pnpm kubb`/`dev`/`build` **não** dependem da API estar de pé nem esperam por um fetch. É determinístico (mesmo spec → mesmo `src/gen/`) e o CI não precisa da API.
 
-Quando a API está atrás da Cloudflare com Bot Fight Mode ativo, o fetch da build é bloqueado como bot. Solução: enviar um header de bypass.
+- **Quando a API muda** (novo/alterado endpoint): `pnpm kubb:refresh` → busca o spec fresco da API, reescreve o `spec.json` e regenera. **Committar o `spec.json`** atualizado. (Alternativa sem API a correr: `pnpm exec ts-node --transpile-only scripts/dumpSpec.ts backoffice > ../Backoffice/spec.json` na API — serializa o spec da fonte, offline.)
+- **`pnpm kubb`** (sem refresh) = offline; falha claro se faltar o `spec.json`.
+- O `VITE_API_BASE_URL` continua **obrigatório** (é o `baseURL` dos hooks gerados) mas só precisa de estar **definido** (`.env.development`), não de a API estar **a correr**.
+- `kubb.config.ts` é tooling Node **fora** do `tsconfig` da app (`include: ["src"]`) → `@ts-nocheck` no topo (o `@types/node` não entra na app de propósito).
+
+### Fetch do spec atrás da Cloudflare (Bot Fight Mode) — só no `kubb:refresh`
+
+Quando o `kubb:refresh` busca o spec e a API está atrás da Cloudflare com Bot Fight Mode ativo, o fetch é bloqueado como bot. Solução: enviar um header de bypass (os tokens `SWAGGER_ACCESS_TOKEN`/`CF_BYPASS_TOKEN` são **opcionais** e lidos SÓ no refresh).
 
 - **Env (build-time):** `CF_BYPASS_TOKEN` — definir no build do Coolify. **NUNCA prefixar com `VITE_`** (senão o Vite inclui-o no bundle do browser). Só é enviado no header `X-CI-Bypass` do pedido ao spec; não fica em `spec.json` nem em `src/gen/`.
 - **Cloudflare → WAF → Custom rule:** `Header X-CI-Bypass equals <segredo>` → action **Skip** Bot Fight Mode / Managed Challenge (opcionalmente restringir a `URI Path equals /api-docs/backoffice.json`).

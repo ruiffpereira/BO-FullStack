@@ -19,6 +19,37 @@ export type BillableModule = (typeof BILLABLE_MODULES)[number]
 
 export const eur = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' })
 
+// ── Fronteira €↔cêntimos ────────────────────────────────────────────────────
+// A API do catálogo/overrides fala SEMPRE em cêntimos inteiros
+// (`monthlyAmountCents`/`amountCents`); a UI edita/mostra em euros. A conversão
+// vive só aqui para não se duplicar (nem divergir) entre o editor do catálogo e
+// o override por-tenant no modal de criação.
+
+/** cêntimos → texto para um input em euros, com vírgula decimal pt-PT (ex.: 1500 → "15,00"). */
+export const centsToEurInput = (cents: number): string =>
+  (Number.isFinite(cents) ? cents / 100 : 0).toFixed(2).replace('.', ',')
+
+/**
+ * Texto de um input em euros → cêntimos inteiros. Aceita vírgula OU ponto decimal
+ * (pt-PT), ignora espaços. Devolve `null` se não for dinheiro simples (o chamador
+ * trata como inválido). Espelha a validação da API (`>= 0`, arredonda).
+ *
+ * Na fronteira do dinheiro **rejeitamos em vez de adivinhar**: só aceitamos
+ * dígitos com, no máximo, 1–2 casas decimais (`^\d+([.,]\d{1,2})?$`). Isto trava
+ * formatos que o `Number()` engoliria silenciosamente — `>2` decimais ("19,999"),
+ * notação científica ("1e3") ou hexadecimal ("0x10") — que dariam um valor de
+ * cobrança errado. `centsToEurInput` emite sempre `toFixed(2)` (≤2 casas), pelo
+ * que o round-trip continua a passar.
+ */
+export function parseEurToCents(input: string): number | null {
+  const norm = input.trim().replace(/\s/g, '').replace(',', '.')
+  if (norm === '') return null
+  if (!/^\d+(\.\d{1,2})?$/.test(norm)) return null
+  const val = Number(norm)
+  if (!Number.isFinite(val) || val < 0) return null
+  return Math.round(val * 100)
+}
+
 /** ISO date-time → "16 de julho de 2026" (pt-PT). */
 export function fmtLongDate(iso?: string | null): string {
   if (!iso) return '—'

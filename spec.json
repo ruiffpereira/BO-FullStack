@@ -2303,6 +2303,44 @@
           "monthlyTotalEur",
           "reused"
         ]
+      },
+      "BillingCatalogModule": {
+        "type": "object",
+        "description": "Linha do catálogo de precos dos modulos da plataforma (editavel pelo dono).",
+        "properties": {
+          "module": {
+            "type": "string",
+            "enum": [
+              "agenda",
+              "gym",
+              "loja"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "monthlyAmountCents": {
+            "type": "integer",
+            "description": "Preco mensal em centimos (ex.: 1500 = 15 EUR)."
+          },
+          "monthlyAmountEur": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "module",
+          "label",
+          "monthlyAmountCents",
+          "monthlyAmountEur",
+          "currency",
+          "active"
+        ]
       }
     }
   },
@@ -2553,15 +2591,41 @@
                 "type": "object",
                 "required": [
                   "userId",
-                  "modules"
+                  "items"
                 ],
+                "description": "`items` é a forma canónica (permite override de preço por módulo).\n`modules` (array de keys) ainda é aceite por compatibilidade (sem override).\n",
                 "properties": {
                   "userId": {
                     "type": "string",
                     "format": "uuid"
                   },
+                  "items": {
+                    "type": "array",
+                    "description": "Módulos a cobrar, com override de preço opcional (cêntimos).",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "module"
+                      ],
+                      "properties": {
+                        "module": {
+                          "type": "string",
+                          "enum": [
+                            "agenda",
+                            "gym",
+                            "loja"
+                          ]
+                        },
+                        "amountCents": {
+                          "type": "integer",
+                          "description": "Override do preço mensal (cêntimos). Ausente → preço-base do catálogo."
+                        }
+                      }
+                    }
+                  },
                   "modules": {
                     "type": "array",
+                    "description": "(Legado) keys de módulo sem override.",
                     "items": {
                       "type": "string",
                       "enum": [
@@ -2588,7 +2652,7 @@
             }
           },
           "400": {
-            "description": "Body inválido (userId em falta / módulos inválidos ou vazios)."
+            "description": "Body inválido (userId em falta / módulos inválidos, vazios ou desativados no catálogo)."
           },
           "402": {
             "description": "Cobrança bloqueada (chave LIVE sem BILLING_LIVE=true — faturação certificada em falta)."
@@ -2598,6 +2662,112 @@
           },
           "404": {
             "description": "Tenant não encontrado."
+          },
+          "409": {
+            "description": "Já existe uma subscrição ativa com módulos/preço diferentes (alterar via Billing Portal)."
+          }
+        }
+      }
+    },
+    "/admin/billing/catalog": {
+      "get": {
+        "summary": "Listar o catálogo de preços dos módulos da plataforma (dono)",
+        "tags": [
+          "BillingAdmin"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Catálogo de módulos (module, label, preço mensal, moeda, ativo).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BillingCatalogModule"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem permissão VIEW_ADMIN."
+          }
+        }
+      }
+    },
+    "/admin/billing/catalog/{module}": {
+      "put": {
+        "summary": "Atualizar o preço/label/estado de um módulo do catálogo (dono)",
+        "description": "Muda o preço-base de um módulo. Afeta apenas subscrições NOVAS — as\nexistentes mantêm o preço já fixado no Stripe (o total guardado não muda).\n",
+        "tags": [
+          "BillingAdmin"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "module",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "agenda",
+                "gym",
+                "loja"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "monthlyAmountCents": {
+                    "type": "integer",
+                    "description": "Novo preço mensal em cêntimos (>= 0)."
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "active": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Linha do catálogo atualizada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingCatalogModule"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body inválido (monthlyAmountCents negativo/não inteiro)."
+          },
+          "403": {
+            "description": "Sem permissão VIEW_ADMIN."
+          },
+          "404": {
+            "description": "Módulo não existe no catálogo."
           }
         }
       }

@@ -30,6 +30,7 @@ import {
   Select,
   PageHeader,
 } from "../ui/ui.jsx";
+import { GuardButton } from "../components/GuardButton";
 import { confirmDialog } from "../components/confirm";
 import { DatePicker } from "../components/DatePicker";
 import { TimeField } from "../components/TimeField";
@@ -689,9 +690,9 @@ function NovaApptModal({
           <Button variant="ghost" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" form="nova-appt-form" disabled={isPending}>
+          <GuardButton type="submit" form="nova-appt-form" disabled={isPending}>
             {isPending ? "A guardar…" : "Criar marcação"}
-          </Button>
+          </GuardButton>
         </>
       }
     >
@@ -1987,8 +1988,9 @@ function CalendarioView() {
 
       <div className="space-y-4 ">
         <Card className="p-4">
-          <Button
+          <GuardButton
             className="w-full"
+            wrapperClassName="block w-full"
             icon="plus"
             onClick={() => {
               setNovaDate(new Date());
@@ -1996,7 +1998,7 @@ function CalendarioView() {
             }}
           >
             Nova marcação
-          </Button>
+          </GuardButton>
         </Card>
         <CalendarSubscribeCard />
         <Card className="p-4">
@@ -2475,12 +2477,12 @@ function ServicosPanel() {
             <Button variant="ghost" onClick={() => setModal(false)}>
               Cancelar
             </Button>
-            <Button
+            <GuardButton
               onClick={handleSave}
               disabled={create.isPending || update.isPending}
             >
               {create.isPending || update.isPending ? "A guardar…" : "Guardar"}
-            </Button>
+            </GuardButton>
           </>
         }
       >

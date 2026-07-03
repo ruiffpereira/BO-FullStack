@@ -25,6 +25,7 @@ import {
   Tabs,
   BADGE_TONES,
 } from "../ui/ui.jsx";
+import { GuardButton } from "../components/GuardButton";
 import { Combobox } from "../components/Combobox";
 import {
   useGetProducts,
@@ -269,7 +270,7 @@ function ProdutoModal({
           <Button variant="ghost" onClick={onClose} disabled={isBusy}>
             Cancelar
           </Button>
-          <Button onClick={() => onSave(form)} disabled={isBusy}>
+          <GuardButton onClick={() => onSave(form)} disabled={isBusy}>
             {isPending ? (
               <>
                 <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2 align-middle" />
@@ -280,7 +281,7 @@ function ProdutoModal({
             ) : (
               "Adicionar"
             )}
-          </Button>
+          </GuardButton>
         </>
       }
     >
@@ -725,9 +726,9 @@ export function Loja() {
   return (
     <div>
       <PageHeader title="Loja" subtitle="Gere produtos, stock e encomendas.">
-        <Button icon="plus" onClick={openNew}>
+        <GuardButton icon="plus" onClick={openNew}>
           Novo produto
-        </Button>
+        </GuardButton>
       </PageHeader>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

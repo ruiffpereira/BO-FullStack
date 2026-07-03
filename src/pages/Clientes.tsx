@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Badge, Avatar, Modal, Input, Button, IconButton, PageHeader, EmptyState, Tabs, Toggle } from '../ui/ui.jsx'
+import { GuardButton } from '../components/GuardButton'
 import { usePagination, Pagination } from '../components/Pagination'
 import { DatePicker } from '../components/DatePicker'
 import { useGetCustomers, getCustomersQueryKey } from '../gen/backoffice/hooks/useGetCustomers.js'
@@ -500,9 +501,9 @@ export function Clientes() {
           footer={
             <>
               <Button variant="ghost" onClick={() => setCreateOpen(false)}>Cancelar</Button>
-              <Button type="submit" form="create-customer-form" disabled={createMut.isPending}>
+              <GuardButton type="submit" form="create-customer-form" disabled={createMut.isPending}>
                 {createMut.isPending ? 'A criar…' : 'Criar cliente'}
-              </Button>
+              </GuardButton>
             </>
           }
         >
@@ -560,9 +561,9 @@ export function Clientes() {
           footer={
             <>
               <Button variant="ghost" onClick={() => setEditCustomer(null)}>Cancelar</Button>
-              <Button type="submit" form="edit-customer-form" disabled={updateMut.isPending}>
+              <GuardButton type="submit" form="edit-customer-form" disabled={updateMut.isPending}>
                 {updateMut.isPending ? 'A guardar…' : 'Guardar'}
-              </Button>
+              </GuardButton>
             </>
           }
         >

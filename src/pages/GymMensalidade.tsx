@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Button, IconButton, Badge, Input, Select, Toggle, Modal, EmptyState, Avatar, BADGE_TONES } from '../ui/ui.jsx'
+import { GuardButton } from '../components/GuardButton'
 import { DatePicker } from '../components/DatePicker'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { PriceFillChip } from '../components/PriceFillChip'
@@ -91,7 +92,7 @@ function SubscricaoModal({ subscricao, onClose, onSaved }: { subscricao: Sub | n
   })
   return (
     <Modal open onClose={onClose} width="max-w-md" title={subscricao ? 'Editar subscrição' : 'Nova subscrição'} subtitle="Mensalidade que podes atribuir aos clientes."
-      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><Button icon="check" isLoading={save.isPending} disabled={!name.trim() || price === ''} onClick={() => save.mutate()}>{subscricao ? 'Guardar' : 'Criar'}</Button></>}>
+      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><GuardButton icon="check" isLoading={save.isPending} disabled={!name.trim() || price === ''} onClick={() => save.mutate()}>{subscricao ? 'Guardar' : 'Criar'}</GuardButton></>}>
       <div className="space-y-4">
         <Input label="Nome" placeholder="Ex: 2x / semana" value={name} onChange={(e: any) => setName(e.target.value)} />
         <div className="grid grid-cols-2 gap-3">
@@ -179,7 +180,7 @@ function AtribuirSubModal({ customerId, current, onClose, onSaved }: { customerI
   })
   return (
     <Modal open onClose={onClose} width="max-w-md" title="Atribuir subscrição"
-      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><Button icon="check" isLoading={save.isPending} onClick={() => save.mutate()}>Guardar</Button></>}>
+      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><GuardButton icon="check" isLoading={save.isPending} onClick={() => save.mutate()}>Guardar</GuardButton></>}>
       <div className="space-y-2">
         {subs.map((s) => (
           <button key={s.subscriptionId} onClick={() => setSel(s.subscriptionId)} className={`w-full flex items-center gap-3 p-3 rounded-lg border text-left transition ${sel === s.subscriptionId ? 'border-accent bg-accent/[0.04]' : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300'}`}>
@@ -211,7 +212,7 @@ function PagamentoModal({ customerId, period, amount, onClose, onSaved }: { cust
   })
   return (
     <Modal open onClose={onClose} width="max-w-sm" title="Registar pagamento" subtitle={fmtPeriodo(period)}
-      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><Button icon="check" isLoading={save.isPending} onClick={() => save.mutate()}>Marcar paga</Button></>}>
+      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><GuardButton icon="check" isLoading={save.isPending} onClick={() => save.mutate()}>Marcar paga</GuardButton></>}>
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -585,7 +586,7 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
                 {isPaid(r) ? (
                   <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums shrink-0">{fmtEur(amount)}</span>
                 ) : (
-                  <Button size="sm" icon="check" onClick={(e?: any) => { e?.stopPropagation(); setPag({ customerId: r.customerId, period, amount }) }}>Marcar pago</Button>
+                  <GuardButton size="sm" icon="check" onClick={(e?: any) => { e?.stopPropagation(); setPag({ customerId: r.customerId, period, amount }) }}>Marcar pago</GuardButton>
                 )}
                 <Icon name="chevronRight" className="w-4 h-4 text-zinc-300 shrink-0" />
               </div>

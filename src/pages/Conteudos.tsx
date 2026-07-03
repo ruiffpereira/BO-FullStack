@@ -32,6 +32,7 @@ import {
   EmptyState,
   Tabs,
 } from "../ui/ui.jsx";
+import { GuardButton } from "../components/GuardButton";
 import {
   useGetSettingsLanguages,
   usePutSettingsLanguages,
@@ -600,9 +601,9 @@ function LinguasPanel({
       )}
 
       <div className="flex justify-end">
-        <Button onClick={onSave} disabled={!hasChanges} isLoading={isSaving}>
+        <GuardButton onClick={onSave} disabled={!hasChanges} isLoading={isSaving}>
           Guardar
-        </Button>
+        </GuardButton>
       </div>
     </div>
   );
@@ -2228,13 +2229,13 @@ export function Conteudos() {
               <Button variant="ghost" onClick={closeEntryModal}>
                 Cancelar
               </Button>
-              <Button
+              <GuardButton
                 type="submit"
                 form="cms-entry-form"
                 isLoading={saveEntryMut.isPending}
               >
                 Guardar
-              </Button>
+              </GuardButton>
             </>
           }
         >
@@ -2431,13 +2432,13 @@ export function Conteudos() {
               <Button variant="ghost" onClick={closeSectionModal}>
                 Cancelar
               </Button>
-              <Button
+              <GuardButton
                 type="submit"
                 form="cms-section-form"
                 isLoading={saveSectionMut.isPending}
               >
                 Guardar
-              </Button>
+              </GuardButton>
             </>
           }
         >

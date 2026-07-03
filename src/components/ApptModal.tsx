@@ -14,6 +14,8 @@ import {
 import { pt } from "date-fns/locale";
 import { Icon } from "../ui/icons.jsx";
 import { Modal, Avatar, Badge, Button, Toggle } from "../ui/ui.jsx";
+import { GuardButton } from "./GuardButton";
+import { useWriteGuard } from "../hooks/useWriteGuard";
 import { Combobox } from "./Combobox";
 import { PriceFillChip } from "./PriceFillChip";
 import { confirmDialog } from "./confirm";
@@ -102,6 +104,10 @@ export function ApptModal({
   /** "Editar marcação": reverte Concluída → Confirmada SEM fechar a modal. */
   onReopen?: (id: string) => void;
 }) {
+  // Write-guard de platform billing: se a subscrição está read-only, os CTAs de
+  // escrita (Guardar/Pagar) ficam desativados com o motivo. O GuardButton trata os
+  // Button partilhados; o botão "Pagar" é cru, por isso lê o guard diretamente.
+  const { readOnly: billingReadOnly, message: billingLockMsg } = useWriteGuard();
   const [editServiceId, setEditServiceId] = useState(appt.serviceId);
   const svc = services.find((s) => s.serviceId === editServiceId);
   const status = appt.status ?? "pending";
@@ -395,9 +401,9 @@ export function ApptModal({
                   Cancelar
                 </Button>
                 <div className="flex-1" />
-                <Button disabled={!hasChanges || busy} onClick={handleSave}>
+                <GuardButton disabled={!hasChanges || busy} onClick={handleSave}>
                   {isSaving ? "A guardar…" : "Guardar"}
-                </Button>
+                </GuardButton>
               </div>
             ) : tab === "details" ? (
               <>
@@ -412,13 +418,14 @@ export function ApptModal({
                     Editar marcação
                   </Button>
                 ) : status !== "cancelled" ? (
-                  <Button
+                  <GuardButton
                     className="w-full"
+                    wrapperClassName="block w-full"
                     disabled={!hasChanges || busy}
                     onClick={handleSave}
                   >
                     {isSaving ? "A guardar…" : "Guardar"}
-                  </Button>
+                  </GuardButton>
                 ) : null}
                 {/* Cancelar marcação / Reativar / Confirmar — só na aba Detalhes */}
                 {status === "cancelled" ? (
@@ -1012,7 +1019,9 @@ export function ApptModal({
                   {status !== "cancelled" && (
                     <button
                       type="button"
-                      disabled={busy}
+                      disabled={busy || billingReadOnly}
+                      aria-disabled={billingReadOnly || undefined}
+                      title={billingReadOnly ? billingLockMsg : undefined}
                       onClick={handlePay}
                       className={`w-full rounded-lg py-2.5 text-sm font-bold text-white transition disabled:opacity-50 ${
                         willHaveDebt

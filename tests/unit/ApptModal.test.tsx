@@ -2,6 +2,15 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+// A ApptModal usa o write-guard de platform billing (useWriteGuard →
+// useGetBillingSubscription). Mockamos a subscrição como NÃO read-only para estes
+// testes: o guard fica no-op e os CTAs comportam-se como antes (sem precisar de um
+// QueryClientProvider). O comportamento read-only tem cobertura própria em
+// writeGuard.test.tsx.
+vi.mock("../../src/gen/backoffice/hooks/useGetBillingSubscription", () => ({
+  useGetBillingSubscription: () => ({ data: { readOnly: false, reason: "active" } }),
+}));
+
 // O Combobox real abre um menu ancorado (useAnchoredMenu) — para tornar a
 // escolha de serviço determinística nos testes, substituímo-lo por um <select>
 // nativo que invoca o mesmo onChange(value).

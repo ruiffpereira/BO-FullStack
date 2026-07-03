@@ -1,4 +1,5 @@
 import { toast } from 'sonner'
+import { useNavigate } from 'react-router-dom'
 import { Card, PageHeader, EmptyState, Button, Badge, SectionTitle } from '../ui/ui.jsx'
 import { Icon } from '../ui/icons.jsx'
 import { getApiError } from '../lib/apiError'
@@ -38,7 +39,7 @@ const NOTICE_ICON: Record<Tone, string> = {
   red: 'text-red-500',
 }
 
-type NoticeAction = { onClick: () => void; pending?: boolean; label?: string }
+type NoticeAction = { onClick: () => void; pending?: boolean; label?: string; icon?: string }
 
 /** Callout colorido com ícone + título + descrição + ação opcional. */
 function Notice({
@@ -66,7 +67,7 @@ function Notice({
           <Button
             size="sm"
             variant="outline"
-            icon="card"
+            icon={action.icon ?? 'card'}
             className="mt-3"
             disabled={action.pending}
             onClick={action.onClick}
@@ -81,6 +82,7 @@ function Notice({
 
 export function Faturacao() {
   const { data, isLoading, isError } = useGetBillingSubscription()
+  const navigate = useNavigate()
 
   // Abre o Stripe Billing Portal e redireciona o tenant. 409 = ainda sem
   // cliente/subscrição Stripe (o dono ainda não criou a subscrição — T6).
@@ -186,6 +188,16 @@ export function Faturacao() {
                 action={portalAction}
               />
             )}
+            {data.reason === 'trial_expired' && (
+              <Notice
+                tone="red"
+                icon="ban"
+                role="alert"
+                title="O teu período experimental terminou."
+                desc="Esta fase ainda não tem cobrança automática — fala com o suporte para continuares a usar a plataforma. Nenhum dado é apagado."
+                action={{ onClick: () => navigate('/mensagens'), label: 'Falar com o suporte', icon: 'message' }}
+              />
+            )}
 
             {/* O teu plano: módulos cobrados + total/mês */}
             <Card className="p-5">
@@ -219,22 +231,28 @@ export function Faturacao() {
               )}
             </Card>
 
-            {/* Método de pagamento → Stripe Customer Portal */}
-            <Card className="p-5">
-              <SectionTitle>Método de pagamento</SectionTitle>
-              <p className="text-sm text-zinc-500">
-                Gere o cartão, descarrega faturas ou cancela no portal seguro do Stripe.
-              </p>
-              <Button
-                variant="outline"
-                icon="card"
-                className="mt-3"
-                disabled={portalM.isPending}
-                onClick={() => portalM.mutate()}
-              >
-                {portalM.isPending ? 'A abrir…' : 'Gerir pagamento'}
-              </Button>
-            </Card>
+            {/* Método de pagamento → Stripe Customer Portal. Não aparece em
+                trial_expired: um tenant self-serve nesse estado nunca teve um
+                cliente Stripe, e o CTA acima (Notice) já cobre a ação (falar com o
+                suporte) — mostrar este cartão só duplicaria o CTA e o clique
+                resultaria sempre num 409 redundante. */}
+            {data.reason !== 'trial_expired' && (
+              <Card className="p-5">
+                <SectionTitle>Método de pagamento</SectionTitle>
+                <p className="text-sm text-zinc-500">
+                  Gere o cartão, descarrega faturas ou cancela no portal seguro do Stripe.
+                </p>
+                <Button
+                  variant="outline"
+                  icon="card"
+                  className="mt-3"
+                  disabled={portalM.isPending}
+                  onClick={() => portalM.mutate()}
+                >
+                  {portalM.isPending ? 'A abrir…' : 'Gerir pagamento'}
+                </Button>
+              </Card>
+            )}
           </>
         )
       )}

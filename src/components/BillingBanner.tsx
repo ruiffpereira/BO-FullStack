@@ -71,6 +71,9 @@ export function BillingBanner() {
   let icon: string
   let text: string
   let dismissKey: string | null = null
+  // Self-serve (T9): trial local acabado, sem cartão associado — link extra
+  // "fala connosco" para o chat de suporte, além do "Ver faturação" habitual.
+  let extraLink: { to: string; label: string } | null = null
 
   if (reason === 'trialing') {
     const days = daysUntil(data.trialEnd)
@@ -92,6 +95,12 @@ export function BillingBanner() {
     role = 'alert'
     icon = 'lock'
     text = 'Acesso limitado a leitura — regulariza o pagamento.'
+  } else if (reason === 'trial_expired') {
+    tone = 'red'
+    role = 'alert'
+    icon = 'ban'
+    text = 'O teu período experimental terminou — fala connosco.'
+    extraLink = { to: '/mensagens', label: 'Falar com o suporte' }
   } else {
     return null // none / active / incomplete → sem banner
   }
@@ -113,6 +122,14 @@ export function BillingBanner() {
     >
       <Icon name={icon} className={`w-[18px] h-[18px] shrink-0 ${BAR_ICON[tone]}`} />
       <p className="flex-1 min-w-0 font-medium">{text}</p>
+      {extraLink && (
+        <Link
+          to={extraLink.to}
+          className="shrink-0 font-semibold underline underline-offset-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-current/40 hover:opacity-80"
+        >
+          {extraLink.label}
+        </Link>
+      )}
       <Link
         to="/faturacao"
         className="shrink-0 font-semibold underline underline-offset-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-current/40 hover:opacity-80"

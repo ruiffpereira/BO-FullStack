@@ -63,6 +63,9 @@ export function fmtLongDate(iso?: string | null): string {
 export const REASON_BADGE: Record<string, { tone: BillingTone; label: string }> = {
   none: { tone: 'neutral', label: 'Sem subscrição' },
   trialing: { tone: 'blue', label: 'Período de teste' },
+  // Self-serve (T9): trial local expirado sem cartão associado — tom vermelho mas
+  // rótulo não-punitivo (nunca "trial" em PT na UI, ver IA do self-serve).
+  trial_expired: { tone: 'red', label: 'Período experimental terminado' },
   active: { tone: 'green', label: 'Ativa' },
   incomplete: { tone: 'amber', label: 'Por concluir' },
   grace: { tone: 'amber', label: 'Pagamento em atraso' },

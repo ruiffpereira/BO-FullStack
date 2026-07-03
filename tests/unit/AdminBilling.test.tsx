@@ -18,6 +18,7 @@ const useAdminListMock = vi.fn();
 const postMutateMock = vi.fn();
 const useCatalogMock = vi.fn();
 const putMutateMock = vi.fn();
+const extendTrialMutateMock = vi.fn();
 
 vi.mock("../../src/gen/backoffice/hooks/useGetAdminBillingSubscriptions", () => ({
   useGetAdminBillingSubscriptions: () => useAdminListMock(),
@@ -32,6 +33,9 @@ vi.mock("../../src/gen/backoffice/hooks/useGetAdminBillingCatalog", () => ({
 }));
 vi.mock("../../src/gen/backoffice/hooks/usePutAdminBillingCatalogModule", () => ({
   usePutAdminBillingCatalogModule: () => ({ mutate: putMutateMock, isPending: false }),
+}));
+vi.mock("../../src/gen/backoffice/hooks/usePatchAdminBillingSubscriptionsUseridTrial", () => ({
+  usePatchAdminBillingSubscriptionsUseridTrial: () => ({ mutate: extendTrialMutateMock, isPending: false }),
 }));
 
 import { AdminBillingTab } from "../../src/components/AdminBilling";
@@ -268,6 +272,76 @@ describe("AdminBillingTab — criar subscrição (com override de preço)", () =
     expect(
       (within(reopened).getByLabelText("Preço personalizado de Agenda") as HTMLInputElement).value,
     ).toBe("");
+  });
+});
+
+describe("AdminBillingTab — estender trial (self-serve, T10)", () => {
+  const TENANTS_TRIAL: Tenant[] = [
+    { userId: "u1", name: "Barbearia Um", email: "um@example.com", subscription: null },
+    {
+      userId: "u2",
+      name: "Ginásio Dois",
+      email: "dois@example.com",
+      subscription: { status: "trialing", modules: ["gym"], monthlyTotalEur: 30 },
+    },
+    {
+      userId: "u3",
+      name: "Loja Três",
+      email: "tres@example.com",
+      subscription: { status: "active", modules: ["loja"], monthlyTotalEur: 20 },
+    },
+  ];
+
+  it('só aparece nas linhas com subscrição "trialing" (sem subscrição / ativa não têm a ação)', () => {
+    mockList(TENANTS_TRIAL);
+    renderTab();
+
+    const rows = screen.getAllByRole("row");
+    const trialRow = rows.find((r) => within(r).queryByText("Ginásio Dois"));
+    const noneRow = rows.find((r) => within(r).queryByText("Barbearia Um"));
+    const activeRow = rows.find((r) => within(r).queryByText("Loja Três"));
+
+    expect(within(trialRow!).getByRole("button", { name: /estender trial/i })).toBeInTheDocument();
+    expect(within(noneRow!).queryByRole("button", { name: /estender trial/i })).not.toBeInTheDocument();
+    expect(within(activeRow!).queryByRole("button", { name: /estender trial/i })).not.toBeInTheDocument();
+  });
+
+  it("envia { days } corretamente ao confirmar", () => {
+    mockList(TENANTS_TRIAL);
+    renderTab();
+
+    fireEvent.click(screen.getByRole("button", { name: /estender trial/i }));
+    const dialog = screen.getByRole("dialog");
+
+    fireEvent.change(within(dialog).getByLabelText("Dias a acrescentar"), { target: { value: "30" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^estender$/i }));
+
+    expect(extendTrialMutateMock).toHaveBeenCalledTimes(1);
+    expect(extendTrialMutateMock).toHaveBeenCalledWith({ userId: "u2", data: { days: 30 } });
+  });
+
+  it("o valor por defeito é 14 dias", () => {
+    mockList(TENANTS_TRIAL);
+    renderTab();
+
+    fireEvent.click(screen.getByRole("button", { name: /estender trial/i }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /^estender$/i }));
+
+    expect(extendTrialMutateMock).toHaveBeenCalledWith({ userId: "u2", data: { days: 14 } });
+  });
+
+  it("não envia com um valor fora de 1..90 (botão desativado + aviso)", () => {
+    mockList(TENANTS_TRIAL);
+    renderTab();
+
+    fireEvent.click(screen.getByRole("button", { name: /estender trial/i }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Dias a acrescentar"), { target: { value: "0" } });
+
+    expect(within(dialog).getByText(/introduz um número entre 1 e 90/i)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: /^estender$/i }));
+    expect(extendTrialMutateMock).not.toHaveBeenCalled();
   });
 });
 

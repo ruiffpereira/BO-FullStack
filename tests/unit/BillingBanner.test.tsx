@@ -103,6 +103,20 @@ describe("BillingBanner — estados que exigem ação (visível)", () => {
     // Info É dispensável
     expect(screen.getByRole("button", { name: /dispensar/i })).toBeInTheDocument();
   });
+
+  it("trial_expired (self-serve, T9): alerta vermelho com link extra para o suporte", () => {
+    mockBilling(sub({ status: "trialing", reason: "trial_expired" }));
+    renderBanner();
+
+    const bar = screen.getByRole("alert");
+    expect(bar).toHaveTextContent(/período experimental terminou/i);
+    expect(bar).toHaveTextContent(/fala connosco/i);
+    // Dois links: falar com o suporte (/mensagens) + ver faturação (/faturacao)
+    expect(screen.getByRole("link", { name: /falar com o suporte/i })).toHaveAttribute("href", "/mensagens");
+    expect(screen.getByRole("link", { name: /ver faturação/i })).toHaveAttribute("href", "/faturacao");
+    // Não é dispensável (como os outros alertas vermelhos)
+    expect(screen.queryByRole("button", { name: /dispensar/i })).not.toBeInTheDocument();
+  });
 });
 
 describe("BillingBanner — estados calmos (invisível)", () => {

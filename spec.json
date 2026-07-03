@@ -2142,6 +2142,7 @@
             "enum": [
               "none",
               "trialing",
+              "trial_expired",
               "active",
               "incomplete",
               "grace",
@@ -2340,6 +2341,86 @@
           "monthlyAmountEur",
           "currency",
           "active"
+        ]
+      },
+      "AdminBillingTrialExtendResult": {
+        "type": "object",
+        "description": "Estado da subscricao apos estender o periodo experimental local de um tenant (T5).",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "trialing",
+              "active",
+              "past_due",
+              "canceled",
+              "incomplete"
+            ]
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "agenda",
+                "gym",
+                "loja"
+              ]
+            }
+          },
+          "trialEnd": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "currentPeriodEnd": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "monthlyTotalEur": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "userId",
+          "status",
+          "modules",
+          "monthlyTotalEur"
+        ]
+      },
+      "PublicBillingCatalogModule": {
+        "type": "object",
+        "description": "Linha PÚBLICA do catálogo de módulos (signup self-serve, T4) — só módulos ativos, sem stripeProductId/dados internos.",
+        "properties": {
+          "module": {
+            "type": "string",
+            "enum": [
+              "agenda",
+              "gym",
+              "loja"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "monthlyAmountEur": {
+            "type": "number"
+          },
+          "monthlyAmountCents": {
+            "type": "integer",
+            "description": "Preco mensal em centimos (ex.: 1500 = 15 EUR)."
+          }
+        },
+        "required": [
+          "module",
+          "label",
+          "monthlyAmountEur",
+          "monthlyAmountCents"
         ]
       }
     }
@@ -2772,6 +2853,75 @@
         }
       }
     },
+    "/admin/billing/subscriptions/{userId}/trial": {
+      "patch": {
+        "summary": "Estender o período experimental LOCAL de um tenant (dono da plataforma)",
+        "description": "Só válido para subscrições LOCAIS (sem `stripeSubscriptionId` — ex.: trial\ndo signup self-serve). `trialEnd` novo = max(agora, trialEnd atual) + `days`;\nrepõe/mantém o estado `trialing`. Subscrições geridas pelo Stripe devolvem 409.\n",
+        "tags": [
+          "BillingAdmin"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "days"
+                ],
+                "properties": {
+                  "days": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 90
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Estado da subscrição atualizado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBillingTrialExtendResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body inválido (`days` fora de 1..90)."
+          },
+          "403": {
+            "description": "Sem permissão VIEW_ADMIN."
+          },
+          "404": {
+            "description": "Tenant não encontrado, ou sem subscrição."
+          },
+          "409": {
+            "description": "Subscrição gerida pelo Stripe — usar o Billing Portal."
+          }
+        }
+      }
+    },
     "/components": {
       "post": {
         "summary": "Create a new component",
@@ -3131,6 +3281,138 @@
           },
           "500": {
             "description": "Error deleting permission"
+          }
+        }
+      }
+    },
+    "/users/signup": {
+      "post": {
+        "summary": "Signup público self-serve (cria tenant em período experimental de 14 dias, sem cartão)",
+        "description": "Endpoint PÚBLICO (sem auth, sem CSRF — como o `/setup-password`), rate-limited\n(`authRateLimit`). Cria um `User` sem password (com `setupToken` de 24h), um\n`Permission` novo por-tenant com os componentes RBAC dos módulos escolhidos\n(+ os componentes \"core\" que o backend já exige), e uma `PlatformSubscription`\nlocal `trialing` (14 dias). Tudo numa única transação.\n\nANTI-ENUMERAÇÃO: a resposta é SEMPRE `{ ok: true }` (200), mesmo que o email já\nexista — nesse caso nada é criado; só o email enviado difere.\n",
+        "tags": [
+          "Users"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "businessName",
+                  "email",
+                  "vertical"
+                ],
+                "properties": {
+                  "businessName": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 80
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "vertical": {
+                    "type": "string",
+                    "enum": [
+                      "barber",
+                      "gym",
+                      "shop",
+                      "other"
+                    ]
+                  },
+                  "modules": {
+                    "type": "array",
+                    "description": "Módulos a ativar no trial (0 a 3, sem duplicados).",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "agenda",
+                        "gym",
+                        "loja"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sucesso genérico — SEMPRE o mesmo shape, exista ou não o email.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido (zod) ou módulo desconhecido/inativo no catálogo."
+          }
+        }
+      }
+    },
+    "/users/signup/resend": {
+      "post": {
+        "summary": "Reenvia o email de verificação/definição de password do signup self-serve",
+        "description": "Público, rate-limited (`authRateLimit`), anti-enumeração (responde sempre 200).\nSó tem efeito para contas que ainda não definiram password (`password IS NULL`)\n— regenera `setupToken`/expiry e reenvia o mesmo email de `/users/signup`.\n\nFIX E — cooldown de 60s (email-bomb): se já existe um token válido emitido\nhá menos de 60s, o pedido é um no-op silencioso (responde 200 na mesma,\nsem regenerar nem reenviar).\n",
+        "tags": [
+          "Users"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sempre sucesso genérico (anti-enumeração).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido (zod)."
           }
         }
       }
@@ -3781,6 +4063,30 @@
           },
           "409": {
             "description": "O tenant ainda não tem subscrição/cliente Stripe para gerir (o dono da\nplataforma ainda não criou a subscrição — T6).\n"
+          }
+        }
+      }
+    },
+    "/billing/catalog": {
+      "get": {
+        "summary": "Catálogo público de módulos + preços (para o ecrã de signup)",
+        "description": "Endpoint PÚBLICO (sem auth), `publicRateLimit`. Devolve só os módulos\nATIVOS do catálogo de billing, sem nenhum dado interno (sem\n`stripeProductId`). Usado pelo passo 2 do `/signup` para mostrar o total\n€/mês antes de criar conta.\n",
+        "tags": [
+          "Billing"
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de módulos ativos com preço mensal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PublicBillingCatalogModule"
+                  }
+                }
+              }
+            }
           }
         }
       }

@@ -4,6 +4,7 @@ import { useAuth } from "./context/AuthContext";
 import { Shell } from "./components/Shell";
 import { Login } from "./components/Login";
 import { SetupPassword } from "./pages/SetupPassword";
+import { Signup } from "./pages/Signup";
 import { Dashboard } from "./pages/Dashboard";
 import { Clientes } from "./pages/Clientes";
 import { Loja } from "./pages/Loja";
@@ -44,6 +45,17 @@ function App() {
   // Public routes — accessible without authentication
   if (location.pathname === "/setup-password") {
     return <SetupPassword theme={theme} onToggleTheme={toggleTheme} />;
+  }
+  if (location.pathname === "/signup") {
+    // Um tenant já autenticado que caia em /signup (ex.: link antigo, aba
+    // reaberta) não deve ver o formulário público — os links "Entrar"/"Voltar
+    // ao login" ficariam mortos (caem sempre no /dashboard). Só redireciona
+    // depois de a sessão estar resolvida (initializing) para não interromper o
+    // fluxo de signup de um visitante não autenticado.
+    if (isAuthenticated && !initializing) {
+      return <Navigate to="/dashboard" replace />;
+    }
+    return <Signup theme={theme} onToggleTheme={toggleTheme} />;
   }
 
   // Restoring session (silent refresh on startup) — avoid flashing the login screen

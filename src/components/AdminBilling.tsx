@@ -15,6 +15,7 @@ import {
   getAdminBillingCatalogQueryKey,
 } from '../gen/backoffice/hooks/useGetAdminBillingCatalog'
 import { usePutAdminBillingCatalogModule } from '../gen/backoffice/hooks/usePutAdminBillingCatalogModule'
+import { usePatchAdminBillingSubscriptionsUseridTrial } from '../gen/backoffice/hooks/usePatchAdminBillingSubscriptionsUseridTrial'
 import type { AdminBillingTenant } from '../gen/backoffice/types/AdminBillingTenant'
 import type { BillingCatalogModule } from '../gen/backoffice/types/BillingCatalogModule'
 import type { PostAdminBillingSubscriptionsMutationRequestModulesEnum } from '../gen/backoffice/types/PostAdminBillingSubscriptions'
@@ -25,6 +26,7 @@ import {
   statusBadge,
   centsToEurInput,
   parseEurToCents,
+  fmtLongDate,
 } from '../lib/billingStatus'
 
 /**
@@ -365,10 +367,98 @@ function CreateSubscriptionModal({
   )
 }
 
+// ── Estender trial (self-serve, T10) ────────────────────────────────────────
+
+/**
+ * Ação "Estender trial" — só faz sentido para subscrições em `trialing` (o
+ * único estado local em que a lista admin ainda não distingue trial self-serve
+ * de trial Stripe-backed; a API resolve a diferença: 409 se for gerida pelo
+ * Stripe, apontando para o Billing Portal). `trial_expired` (T9) partilha o
+ * mesmo `status: "trialing"` na BD — a expiração é só um `reason` derivado no
+ * `GET /billing/subscription` do próprio tenant, não fica na lista admin.
+ */
+function ExtendTrialModal({
+  open,
+  onClose,
+  tenant,
+}: {
+  open: boolean
+  onClose: () => void
+  tenant: AdminBillingTenant | null
+}) {
+  const qc = useQueryClient()
+  const [daysStr, setDaysStr] = useState('14')
+
+  useEffect(() => {
+    if (open) setDaysStr('14')
+  }, [open, tenant?.userId])
+
+  const extendM = usePatchAdminBillingSubscriptionsUseridTrial({
+    mutation: {
+      onSuccess: (res) => {
+        toast.success(`Trial estendido — novo fim a ${fmtLongDate(res?.trialEnd)}.`)
+        qc.invalidateQueries({ queryKey: getAdminBillingSubscriptionsQueryKey() })
+        qc.invalidateQueries({ queryKey: getAdminBillingCatalogQueryKey() })
+        onClose()
+      },
+      onError: (error) => {
+        const status = (error as any)?.response?.status ?? (error as any)?.status
+        if (status === 409) {
+          toast.error('Subscrição gerida pelo Stripe — usa o Billing Portal para alterar o período.')
+        } else if (status === 404) {
+          toast.error('Tenant sem subscrição.')
+        } else {
+          toast.error(getApiError(error, 'Não foi possível estender o período experimental.'))
+        }
+      },
+    },
+  })
+
+  const days = Number(daysStr)
+  const valid = daysStr.trim() !== '' && Number.isInteger(days) && days >= 1 && days <= 90
+
+  const submit = () => {
+    if (!tenant || !valid) return
+    extendM.mutate({ userId: tenant.userId, data: { days } })
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Estender trial"
+      subtitle={tenant ? `${tenant.name} — período experimental local` : undefined}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button disabled={!valid || extendM.isPending} onClick={submit}>
+            {extendM.isPending ? 'A estender…' : 'Estender'}
+          </Button>
+        </>
+      }
+    >
+      <Input
+        label="Dias a acrescentar"
+        aria-label="Dias a acrescentar"
+        type="number"
+        min={1}
+        max={90}
+        value={daysStr}
+        onChange={(e) => setDaysStr(e.target.value)}
+        hint="Soma-se ao fim do trial atual (ou a partir de agora, se já tiver expirado)."
+      />
+      {!valid && <span className="block text-xs text-red-500 mt-1">Introduz um número entre 1 e 90.</span>}
+    </Modal>
+  )
+}
+
 export function AdminBillingTab() {
   const { data: tenants = [], isLoading } = useGetAdminBillingSubscriptions()
   const { data: catalog = [], isLoading: catalogLoading } = useGetAdminBillingCatalog()
   const [createOpen, setCreateOpen] = useState(false)
+  const [extendingTenant, setExtendingTenant] = useState<AdminBillingTenant | null>(null)
 
   return (
     <div className="space-y-6">
@@ -398,15 +488,20 @@ export function AdminBillingTab() {
                 <th className="px-4 py-3">Estado</th>
                 <th className="px-4 py-3 hidden md:table-cell">Módulos</th>
                 <th className="px-4 py-3 text-right">Total/mês</th>
+                <th className="px-4 py-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-50 dark:divide-zinc-800/50">
               {isLoading ? (
-                <SkeletonRows cols={4} />
+                <SkeletonRows cols={5} />
               ) : (
                 tenants.map((t) => {
                   const sub = t.subscription
                   const badge = sub ? statusBadge(sub.status) : null
+                  // Estender trial só faz sentido em trialing (self-serve local OU
+                  // trial_expired — ambos ficam com este `status` na BD; a API
+                  // devolve 409 se afinal for gerido pelo Stripe).
+                  const canExtendTrial = sub?.status === 'trialing'
                   return (
                     <tr key={t.userId} className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 transition">
                       <td className="px-4 py-3.5">
@@ -436,6 +531,13 @@ export function AdminBillingTab() {
                       <td className="px-4 py-3.5 text-right tabular-nums text-zinc-700 dark:text-zinc-200">
                         {sub ? eur.format(sub.monthlyTotalEur) : '—'}
                       </td>
+                      <td className="px-4 py-3.5 text-right">
+                        {canExtendTrial && (
+                          <Button size="sm" variant="outline" onClick={() => setExtendingTenant(t)}>
+                            Estender trial
+                          </Button>
+                        )}
+                      </td>
                     </tr>
                   )
                 })
@@ -450,6 +552,11 @@ export function AdminBillingTab() {
         onClose={() => setCreateOpen(false)}
         tenants={tenants}
         catalog={catalog}
+      />
+      <ExtendTrialModal
+        open={!!extendingTenant}
+        onClose={() => setExtendingTenant(null)}
+        tenant={extendingTenant}
       />
     </div>
   )

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 //
@@ -63,6 +64,16 @@ function mockBilling(
   });
 }
 
+// A página usa useNavigate() (CTA "Falar com o suporte" do estado trial_expired,
+// T9) — precisa de um Router context mesmo nos estados que não o exercitam.
+function renderFaturacao() {
+  return render(
+    <MemoryRouter>
+      <Faturacao />
+    </MemoryRouter>,
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -70,7 +81,7 @@ beforeEach(() => {
 describe("Faturação — sem subscrição (none)", () => {
   it("mostra um empty state neutro, sem plano nem avisos", () => {
     mockBilling(sub({ status: "none", reason: "none", modules: [], monthlyTotalEur: 0 }));
-    render(<Faturacao />);
+    renderFaturacao();
 
     expect(screen.getByText("Sem subscrição ativa")).toBeInTheDocument();
     // Nada de plano nem callouts de urgência
@@ -90,7 +101,7 @@ describe("Faturação — período de teste (trialing)", () => {
         trialEnd: "2026-07-16T12:00:00.000Z",
       }),
     );
-    render(<Faturacao />);
+    renderFaturacao();
 
     // Badge do estado (cabeçalho)
     expect(screen.getByText("Período de teste")).toBeInTheDocument();
@@ -114,7 +125,7 @@ describe("Faturação — ativa (active)", () => {
         currentPeriodEnd: "2026-08-16T12:00:00.000Z",
       }),
     );
-    render(<Faturacao />);
+    renderFaturacao();
 
     expect(screen.getByText("Ativa")).toBeInTheDocument();
     expect(screen.getByText(/Próxima renovação/)).toBeInTheDocument();
@@ -141,7 +152,7 @@ describe("Faturação — pagamento em atraso dentro do grace (past_due/grace)",
         graceEndsAt: "2026-07-20T12:00:00.000Z",
       }),
     );
-    render(<Faturacao />);
+    renderFaturacao();
 
     const notice = screen.getByRole("status");
     expect(notice).toHaveTextContent(/Pagamento em atraso/);
@@ -167,7 +178,7 @@ describe("Faturação — acesso limitado (past_due_locked)", () => {
         readOnly: true,
       }),
     );
-    render(<Faturacao />);
+    renderFaturacao();
 
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent(/Acesso limitado a leitura/);
@@ -175,6 +186,49 @@ describe("Faturação — acesso limitado (past_due_locked)", () => {
     expect(screen.getByRole("button", { name: /regularizar pagamento/i })).toBeInTheDocument();
     // Badge coerente
     expect(screen.getByText("Acesso limitado")).toBeInTheDocument();
+  });
+});
+
+describe("Faturação — período experimental terminado (trial_expired, self-serve T9)", () => {
+  it("mostra um alerta vermelho explicando + CTA para o suporte (não para o portal)", () => {
+    mockBilling(
+      sub({
+        status: "trialing",
+        reason: "trial_expired",
+        modules: ["agenda"],
+        monthlyTotalEur: 15,
+        readOnly: true,
+      }),
+    );
+    renderFaturacao();
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent(/período experimental terminou/i);
+    expect(screen.getByText("Período experimental terminado")).toBeInTheDocument();
+    const cta = screen.getByRole("button", { name: /falar com o suporte/i });
+    expect(cta).toBeInTheDocument();
+    // Não mostra o CTA de regularizar pagamento (esta fase não tem cobrança automática)
+    expect(screen.queryByRole("button", { name: /regularizar pagamento/i })).not.toBeInTheDocument();
+  });
+
+  it("não mostra o cartão 'Método de pagamento' (FIX 3 — tenant self-serve nunca teve cliente Stripe)", () => {
+    mockBilling(
+      sub({
+        status: "trialing",
+        reason: "trial_expired",
+        modules: ["agenda"],
+        monthlyTotalEur: 15,
+        readOnly: true,
+      }),
+    );
+    renderFaturacao();
+
+    // O CTA "Gerir pagamento" (Stripe Billing Portal) some inteiramente — o único
+    // CTA nesta fase é "Falar com o suporte" (já coberto no Notice acima), sem
+    // duplicar num 409 redundante.
+    expect(screen.queryByText("Método de pagamento")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^gerir pagamento$/i })).not.toBeInTheDocument();
+    expect(portalMutateMock).not.toHaveBeenCalled();
   });
 });
 
@@ -189,7 +243,7 @@ describe("Faturação — cancelada (canceled)", () => {
         readOnly: true,
       }),
     );
-    render(<Faturacao />);
+    renderFaturacao();
 
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent(/cancelada/i);
@@ -203,7 +257,7 @@ describe("Faturação — portal de pagamento (des-stub T5)", () => {
     mockBilling(
       sub({ status: "active", reason: "active", modules: ["agenda"], monthlyTotalEur: 15 }),
     );
-    render(<Faturacao />);
+    renderFaturacao();
 
     fireEvent.click(screen.getByRole("button", { name: /gerir pagamento/i }));
     expect(portalMutateMock).toHaveBeenCalledTimes(1);
@@ -219,7 +273,7 @@ describe("Faturação — portal de pagamento (des-stub T5)", () => {
         readOnly: true,
       }),
     );
-    render(<Faturacao />);
+    renderFaturacao();
 
     fireEvent.click(screen.getByRole("button", { name: /regularizar pagamento/i }));
     expect(portalMutateMock).toHaveBeenCalledTimes(1);
@@ -229,14 +283,14 @@ describe("Faturação — portal de pagamento (des-stub T5)", () => {
 describe("Faturação — estados de carregamento e erro", () => {
   it("mostra um skeleton enquanto carrega", () => {
     mockBilling(undefined, { isLoading: true });
-    const { container } = render(<Faturacao />);
+    const { container } = renderFaturacao();
     expect(container.querySelector(".animate-pulse")).toBeTruthy();
     expect(screen.queryByText("O teu plano")).not.toBeInTheDocument();
   });
 
   it("mostra uma mensagem amigável em caso de erro", () => {
     mockBilling(undefined, { isError: true });
-    render(<Faturacao />);
+    renderFaturacao();
     expect(
       screen.getByText("Não foi possível carregar a subscrição"),
     ).toBeInTheDocument();

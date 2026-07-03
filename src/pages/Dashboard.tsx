@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Badge, EmptyState, SectionTitle, BADGE_TONES } from '../ui/ui.jsx'
 import { Sparkline } from '../ui/charts.jsx'
+import { FirstValueChecklist } from '../components/FirstValueChecklist'
 import { useGetCustomers } from '../gen/backoffice/hooks/useGetCustomers.js'
 import { useGetOrders } from '../gen/backoffice/hooks/useGetOrders.js'
 import { useGetScheduleAppointments } from '../gen/backoffice/hooks/useGetScheduleAppointments.js'
@@ -602,6 +603,8 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <FirstValueChecklist />
+
       {/* Header — frames the day, not a vanity greeting */}
       <div className="flex flex-col sm:flex-row sm:items-end gap-2 sm:gap-4">
         <div className="min-w-0">

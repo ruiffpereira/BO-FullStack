@@ -15,6 +15,7 @@ import { FinanceiroPage } from "./pages/FinanceiroPage";
 import { Estatisticas } from "./pages/Estatisticas";
 import { Mensagens } from "./pages/Mensagens";
 import { Website } from "./pages/Website";
+import { Faturacao } from "./pages/Faturacao";
 
 function App() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
@@ -68,6 +69,7 @@ function App() {
         {/* Deep-link antigo: abre o Financeiro já na tab Despesas (não está na sidebar). */}
         <Route path="/despesas" element={<FinanceiroPage initialTab="despesas" />} />
         <Route path="/clientes" element={<Clientes />} />
+        <Route path="/faturacao" element={<Faturacao />} />
         <Route path="/mensagens" element={<Mensagens />} />
         <Route path="/loja" element={<Loja />} />
         <Route path="/agenda" element={<Agenda />} />

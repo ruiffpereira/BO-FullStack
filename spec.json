@@ -2162,6 +2162,147 @@
           "readOnly",
           "reason"
         ]
+      },
+      "BillingPortalSession": {
+        "type": "object",
+        "description": "Sessao do Stripe Billing Portal (platform billing, T6). Redireciona o tenant para `url` para gerir cartao/faturas/cancelamento.",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "AdminBillingTenant": {
+        "type": "object",
+        "description": "Tenant + estado da subscricao da plataforma (painel admin do dono, T6).",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "subscription": {
+            "type": "object",
+            "nullable": true,
+            "description": "Estado da subscricao, ou null se o tenant nao tem nenhuma.",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "trialing",
+                  "active",
+                  "past_due",
+                  "canceled",
+                  "incomplete"
+                ]
+              },
+              "modules": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "agenda",
+                    "gym",
+                    "loja"
+                  ]
+                }
+              },
+              "trialEnd": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              },
+              "currentPeriodEnd": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              },
+              "monthlyTotalEur": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "status",
+              "modules",
+              "monthlyTotalEur"
+            ]
+          }
+        },
+        "required": [
+          "userId",
+          "name",
+          "email",
+          "subscription"
+        ]
+      },
+      "AdminBillingCreateResult": {
+        "type": "object",
+        "description": "Resultado de criar/reutilizar a subscricao da plataforma de um tenant (T6).",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "trialing",
+              "active",
+              "past_due",
+              "canceled",
+              "incomplete"
+            ]
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "agenda",
+                "gym",
+                "loja"
+              ]
+            }
+          },
+          "trialEnd": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "currentPeriodEnd": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "monthlyTotalEur": {
+            "type": "number"
+          },
+          "reused": {
+            "type": "boolean",
+            "description": "true = reutilizou uma subscricao ja existente (nao criou outra)."
+          },
+          "clientSecret": {
+            "type": "string",
+            "nullable": true,
+            "description": "SetupIntent client_secret para o tenant guardar o cartao (Stripe.js). null se o Stripe nao devolveu nenhum; em alternativa o tenant usa o Billing Portal."
+          }
+        },
+        "required": [
+          "userId",
+          "status",
+          "modules",
+          "monthlyTotalEur",
+          "reused"
+        ]
       }
     }
   },
@@ -2360,6 +2501,103 @@
           },
           "503": {
             "description": "Base de dados indisponível"
+          }
+        }
+      }
+    },
+    "/admin/billing/subscriptions": {
+      "get": {
+        "summary": "Listar tenants + estado da subscrição da plataforma (dono da plataforma)",
+        "tags": [
+          "BillingAdmin"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de tenants com o estado da subscrição (ou null se não tem).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminBillingTenant"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem permissão VIEW_ADMIN."
+          }
+        }
+      },
+      "post": {
+        "summary": "Criar/gerir a subscrição da plataforma de um tenant (dono da plataforma)",
+        "tags": [
+          "BillingAdmin"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "userId",
+                  "modules"
+                ],
+                "properties": {
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "modules": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "agenda",
+                        "gym",
+                        "loja"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Subscrição criada (ou reutilizada, se já existia uma ativa).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBillingCreateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body inválido (userId em falta / módulos inválidos ou vazios)."
+          },
+          "402": {
+            "description": "Cobrança bloqueada (chave LIVE sem BILLING_LIVE=true — faturação certificada em falta)."
+          },
+          "403": {
+            "description": "Sem permissão VIEW_ADMIN."
+          },
+          "404": {
+            "description": "Tenant não encontrado."
           }
         }
       }
@@ -3345,6 +3583,34 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/billing/portal": {
+      "post": {
+        "summary": "Abrir uma sessão do Stripe Billing Portal (o tenant gere cartão/faturas/cancelamento)",
+        "tags": [
+          "Billing"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "URL da sessão do portal para redirecionar o tenant.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingPortalSession"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "O tenant ainda não tem subscrição/cliente Stripe para gerir (o dono da\nplataforma ainda não criou a subscrição — T6).\n"
           }
         }
       }
@@ -10677,6 +10943,10 @@
     {
       "name": "AuditLogs",
       "description": "Registo unificado de atividade e erros do backoffice (só Admin)"
+    },
+    {
+      "name": "BillingAdmin",
+      "description": "Painel do dono da plataforma — subscrições dos tenants (VIEW_ADMIN)"
     },
     {
       "name": "Components",

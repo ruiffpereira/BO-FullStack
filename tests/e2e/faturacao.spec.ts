@@ -125,3 +125,85 @@ test("estado: cancelada mostra alerta + acesso a leitura", async ({ page }) => {
   });
   await expect(page.getByText(/Subscrição cancelada/i).first()).toBeVisible();
 });
+
+// ── Portal de pagamento (des-stub T5) ─────────────────────────────────────────
+test("portal: 'Gerir pagamento' faz POST /billing/portal", async ({ page }) => {
+  await openWith(page, {
+    status: "active",
+    reason: "active",
+    modules: ["agenda"],
+    monthlyTotalEur: 15,
+    currentPeriodEnd: iso(20),
+  });
+
+  // Devolve um URL same-origin para o redirect não sair da app (fica intercetado).
+  const origin = new URL(page.url()).origin;
+  await page.route("**/billing/portal", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ url: `${origin}/faturacao?portal=stub` }),
+    }),
+  );
+
+  const main = page.getByRole("main");
+  const [req] = await Promise.all([
+    page.waitForRequest("**/billing/portal"),
+    main.getByRole("button", { name: /gerir pagamento/i }).click(),
+  ]);
+  expect(req.method()).toBe("POST");
+});
+
+// ── Banner de billing no Shell (T5) ───────────────────────────────────────────
+// A faixa vive no Shell (todas as páginas menos /faturacao). Testamos em /dashboard.
+async function routeBilling(page: import("@playwright/test").Page, state: Partial<BillingState>) {
+  // Padrão exato (sem sufixo) para NÃO colidir com /admin/billing/subscriptions.
+  await page.route("**/billing/subscription", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ...base, ...state }),
+    }),
+  );
+}
+
+test("banner: estado grace mostra a faixa fora da faturação", async ({ page }) => {
+  await routeBilling(page, {
+    status: "past_due",
+    reason: "grace",
+    modules: ["gym"],
+    monthlyTotalEur: 30,
+    graceEndsAt: iso(5),
+  });
+  await page.goto("/dashboard");
+  await expect(page.getByText(/Pagamento em atraso.*regulariza até/i)).toBeVisible();
+  await expect(page.getByRole("link", { name: /ver faturação/i })).toBeVisible();
+});
+
+test("banner: estado past_due_locked mostra alerta vermelho", async ({ page }) => {
+  await routeBilling(page, {
+    status: "past_due",
+    reason: "past_due_locked",
+    modules: ["gym"],
+    monthlyTotalEur: 30,
+    readOnly: true,
+  });
+  await page.goto("/dashboard");
+  await expect(page.getByText(/Acesso limitado a leitura/i)).toBeVisible();
+});
+
+test("banner: some quando a subscrição está ativa", async ({ page }) => {
+  await routeBilling(page, {
+    status: "active",
+    reason: "active",
+    modules: ["agenda"],
+    monthlyTotalEur: 15,
+    currentPeriodEnd: iso(20),
+  });
+  const resp = page.waitForResponse("**/billing/subscription");
+  await page.goto("/dashboard");
+  await resp;
+  // Tudo pago → a faixa é invisível (nenhuma das frases do banner presente).
+  await expect(page.getByText(/regulariza até/i)).toHaveCount(0);
+  await expect(page.getByText(/Acesso limitado a leitura/i)).toHaveCount(0);
+});

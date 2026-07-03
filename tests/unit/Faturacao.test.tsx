@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 //
@@ -12,6 +12,15 @@ const useBillingMock = vi.fn();
 
 vi.mock("../../src/gen/backoffice/hooks/useGetBillingSubscription", () => ({
   useGetBillingSubscription: () => useBillingMock(),
+}));
+
+// O CTA de pagamento abre o Stripe Billing Portal via usePostBillingPortal (que
+// usa useMutation → precisaria de um QueryClientProvider). Mockamos o hook e
+// espiamos a `mutate` para provar que o clique dispara a abertura do portal.
+const portalMutateMock = vi.fn();
+
+vi.mock("../../src/gen/backoffice/hooks/usePostBillingPortal", () => ({
+  usePostBillingPortal: () => ({ mutate: portalMutateMock, isPending: false }),
 }));
 
 import { Faturacao } from "../../src/pages/Faturacao";
@@ -186,6 +195,34 @@ describe("Faturação — cancelada (canceled)", () => {
     expect(alert).toHaveTextContent(/cancelada/i);
     expect(alert.className).toContain("border-red");
     expect(screen.getByText("Cancelada")).toBeInTheDocument();
+  });
+});
+
+describe("Faturação — portal de pagamento (des-stub T5)", () => {
+  it("clicar 'Gerir pagamento' abre o portal Stripe (dispara a mutação)", () => {
+    mockBilling(
+      sub({ status: "active", reason: "active", modules: ["agenda"], monthlyTotalEur: 15 }),
+    );
+    render(<Faturacao />);
+
+    fireEvent.click(screen.getByRole("button", { name: /gerir pagamento/i }));
+    expect(portalMutateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("o botão 'Regularizar pagamento' dos avisos também abre o portal", () => {
+    mockBilling(
+      sub({
+        status: "past_due",
+        reason: "past_due_locked",
+        modules: ["gym"],
+        monthlyTotalEur: 30,
+        readOnly: true,
+      }),
+    );
+    render(<Faturacao />);
+
+    fireEvent.click(screen.getByRole("button", { name: /regularizar pagamento/i }));
+    expect(portalMutateMock).toHaveBeenCalledTimes(1);
   });
 });
 

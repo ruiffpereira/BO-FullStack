@@ -60,6 +60,7 @@ import {
   useGoogleDisconnect,
   useSetGooglePlace,
 } from "../hooks/useGoogleIntegration";
+import { AdminBillingTab } from "../components/AdminBilling";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 function TableWrapper({ children }: { children: React.ReactNode }) {
@@ -1558,6 +1559,7 @@ const TABS = [
   { id: "permissoes", label: "Permissões", icon: "shield" },
   { id: "componentes", label: "Componentes", icon: "grid" },
   { id: "tokens", label: "Tokens de site", icon: "key" },
+  { id: "faturacao", label: "Faturação", icon: "card" },
   { id: "integracoes", label: "Integrações", icon: "link" },
   { id: "atividade", label: "Atividade", icon: "clock" },
   { id: "sistema", label: "Sistema", icon: "settings" },
@@ -1565,7 +1567,7 @@ const TABS = [
 
 type AdminTab =
   | "utilizadores" | "permissoes" | "componentes" | "tokens"
-  | "integracoes" | "atividade" | "sistema";
+  | "faturacao" | "integracoes" | "atividade" | "sistema";
 
 export function Admin() {
   const { authHeader } = useAuth();
@@ -1601,6 +1603,7 @@ export function Admin() {
       {tab === "permissoes" && <PermissoesTab headers={headers} />}
       {tab === "componentes" && <ComponentesTab headers={headers} />}
       {tab === "tokens" && <TokensTab headers={headers} />}
+      {tab === "faturacao" && <AdminBillingTab />}
       {tab === "integracoes" && <IntegracoesTab />}
       {tab === "atividade" && <AtividadeTab />}
       {tab === "sistema" && <SistemaTab />}

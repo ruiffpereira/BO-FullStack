@@ -1,51 +1,27 @@
 import { toast } from 'sonner'
 import { Card, PageHeader, EmptyState, Button, Badge, SectionTitle } from '../ui/ui.jsx'
 import { Icon } from '../ui/icons.jsx'
+import { getApiError } from '../lib/apiError'
 import { useGetBillingSubscription } from '../gen/backoffice/hooks/useGetBillingSubscription'
+import { usePostBillingPortal } from '../gen/backoffice/hooks/usePostBillingPortal'
+import {
+  MODULE_LABELS,
+  eur,
+  fmtLongDate as fmtDate,
+  reasonBadge,
+  type BillingTone as Tone,
+} from '../lib/billingStatus'
 
 /**
  * Página "Faturação" (core, todos os tenants). Cada tenant vê a SUA subscrição
- * da plataforma (platform billing, T4). Só leitura do estado — o gate de escrita
- * (banner + read-only guard) é a T5 e o painel de criação do dono é a T6.
- *
- * O endpoint (`GET /api/billing/subscription`, `authenticateToken`) devolve o
- * estado + os derivados da política de acesso. Estados cobertos: sem subscrição
+ * da plataforma (platform billing, T4/T5). Estados cobertos: sem subscrição
  * (`none`) · período de teste (`trialing`) · ativa (`active`) · pagamento em
- * atraso dentro do grace (`past_due`/reason `grace`) · acesso limitado a leitura
- * (`past_due_locked`/`canceled`) · por concluir (`incomplete`).
+ * atraso dentro do grace (`grace`) · acesso limitado a leitura (`past_due_locked`/
+ * `canceled`) · por concluir (`incomplete`).
+ *
+ * O CTA "Gerir/Regularizar pagamento" abre uma sessão do **Stripe Billing Portal**
+ * (`POST /api/billing/portal` → redireciona para gerir cartão/faturas/cancelamento).
  */
-
-// A API só devolve o total mensal (soma) — os preços por módulo vivem no Stripe
-// e não chegam ao browser. Mostramos os nomes dos módulos + o total autoritativo.
-const MODULE_LABELS: Record<string, string> = {
-  agenda: 'Agenda',
-  gym: 'Ginásio',
-  loja: 'Loja',
-}
-
-const eur = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' })
-
-/** ISO date-time → "16 de julho de 2026" (pt-PT). */
-function fmtDate(iso?: string | null): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' })
-}
-
-type Tone = 'neutral' | 'blue' | 'green' | 'amber' | 'red'
-
-// Badge (cabeçalho) por estado. Chaveado pela `reason` (mais rica que `status`:
-// distingue grace de locked). Trial usa a família accent (blue neste tema).
-const BADGE_VIEW: Record<string, { tone: Tone; label: string }> = {
-  none: { tone: 'neutral', label: 'Sem subscrição' },
-  trialing: { tone: 'blue', label: 'Período de teste' },
-  active: { tone: 'green', label: 'Ativa' },
-  incomplete: { tone: 'amber', label: 'Por concluir' },
-  grace: { tone: 'amber', label: 'Pagamento em atraso' },
-  past_due_locked: { tone: 'red', label: 'Acesso limitado' },
-  canceled: { tone: 'red', label: 'Cancelada' },
-}
 
 const NOTICE_BORDER: Record<Tone, string> = {
   neutral: 'border-zinc-200 dark:border-zinc-800',
@@ -62,11 +38,7 @@ const NOTICE_ICON: Record<Tone, string> = {
   red: 'text-red-500',
 }
 
-// TODO(T6): substituir pelo endpoint que cria a sessão do Stripe Customer Portal
-// (`POST /api/billing/portal` → redirect). Enquanto não existir, o CTA é um stub.
-function openBillingPortal() {
-  toast.info('A gestão de pagamento (portal Stripe) fica disponível em breve.')
-}
+type NoticeAction = { onClick: () => void; pending?: boolean; label?: string }
 
 /** Callout colorido com ícone + título + descrição + ação opcional. */
 function Notice({
@@ -82,7 +54,7 @@ function Notice({
   role: 'status' | 'alert'
   title: string
   desc?: string
-  action?: boolean
+  action?: NoticeAction
 }) {
   return (
     <Card role={role} className={`p-4 flex items-start gap-3 ${NOTICE_BORDER[tone]}`}>
@@ -91,8 +63,15 @@ function Notice({
         <p className="font-medium text-zinc-800 dark:text-zinc-100">{title}</p>
         {desc && <p className="text-zinc-500 mt-0.5">{desc}</p>}
         {action && (
-          <Button size="sm" variant="outline" icon="card" className="mt-3" onClick={openBillingPortal}>
-            Regularizar pagamento
+          <Button
+            size="sm"
+            variant="outline"
+            icon="card"
+            className="mt-3"
+            disabled={action.pending}
+            onClick={action.onClick}
+          >
+            {action.pending ? 'A abrir…' : action.label ?? 'Regularizar pagamento'}
           </Button>
         )}
       </div>
@@ -103,10 +82,29 @@ function Notice({
 export function Faturacao() {
   const { data, isLoading, isError } = useGetBillingSubscription()
 
+  // Abre o Stripe Billing Portal e redireciona o tenant. 409 = ainda sem
+  // cliente/subscrição Stripe (o dono ainda não criou a subscrição — T6).
+  const portalM = usePostBillingPortal({
+    mutation: {
+      onSuccess: (session) => {
+        if (session?.url) window.location.href = session.url
+      },
+      onError: (error) => {
+        const status = (error as any)?.response?.status ?? (error as any)?.status
+        if (status === 409) {
+          toast.error('Ainda não tens um método de pagamento associado — fala com o suporte.')
+        } else {
+          toast.error(getApiError(error, 'Não foi possível abrir a gestão de pagamento.'))
+        }
+      },
+    },
+  })
+  const portalAction: NoticeAction = { onClick: () => portalM.mutate(), pending: portalM.isPending }
+
   return (
     <div className="space-y-4 max-w-3xl">
       <PageHeader title="Faturação" subtitle="A tua subscrição da plataforma.">
-        {data && <Badge tone={(BADGE_VIEW[data.reason] ?? BADGE_VIEW.none).tone}>{(BADGE_VIEW[data.reason] ?? BADGE_VIEW.none).label}</Badge>}
+        {data && <Badge tone={reasonBadge(data.reason).tone}>{reasonBadge(data.reason).label}</Badge>}
       </PageHeader>
 
       {isLoading && (
@@ -155,7 +153,7 @@ export function Faturacao() {
                 role="status"
                 title="Subscrição por concluir."
                 desc="Adiciona um método de pagamento para ativares a subscrição."
-                action
+                action={portalAction}
               />
             )}
             {data.reason === 'grace' && (
@@ -165,7 +163,7 @@ export function Faturacao() {
                 role="status"
                 title={`Pagamento em atraso — regulariza até ${fmtDate(data.graceEndsAt)} para manteres o acesso.`}
                 desc="Depois desta data, a gestão fica limitada a leitura até regularizares. Nenhum dado é apagado."
-                action
+                action={portalAction}
               />
             )}
             {data.reason === 'past_due_locked' && (
@@ -175,7 +173,7 @@ export function Faturacao() {
                 role="alert"
                 title="Acesso limitado a leitura — regulariza o pagamento."
                 desc="Os teus dados estão seguros. Assim que o pagamento for regularizado, o acesso completo volta de imediato."
-                action
+                action={portalAction}
               />
             )}
             {data.reason === 'canceled' && (
@@ -185,7 +183,7 @@ export function Faturacao() {
                 role="alert"
                 title="Subscrição cancelada — acesso limitado a leitura."
                 desc="Regulariza o pagamento para reativar a subscrição. Nenhum dado é apagado."
-                action
+                action={portalAction}
               />
             )}
 
@@ -221,14 +219,20 @@ export function Faturacao() {
               )}
             </Card>
 
-            {/* Método de pagamento → Stripe Customer Portal (stub até T6) */}
+            {/* Método de pagamento → Stripe Customer Portal */}
             <Card className="p-5">
               <SectionTitle>Método de pagamento</SectionTitle>
               <p className="text-sm text-zinc-500">
                 Gere o cartão, descarrega faturas ou cancela no portal seguro do Stripe.
               </p>
-              <Button variant="outline" icon="card" className="mt-3" onClick={openBillingPortal}>
-                Gerir pagamento
+              <Button
+                variant="outline"
+                icon="card"
+                className="mt-3"
+                disabled={portalM.isPending}
+                onClick={() => portalM.mutate()}
+              >
+                {portalM.isPending ? 'A abrir…' : 'Gerir pagamento'}
               </Button>
             </Card>
           </>

@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext'
 import { NotificationBell } from './NotificationBell'
 import { ChatLauncher } from './chat/ChatLauncher'
 import { ChatFab } from './chat/ChatFab'
+import { BillingBanner } from './BillingBanner'
 import { useSSE } from '../hooks/useSSE'
 
 // Core: todos os tenants têm (sem permissão). Módulos: por permissão.
@@ -264,6 +265,10 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
           onMenu={() => setDrawer(true)}
           onCollapse={() => setCollapsed(!collapsed)}
         />
+        {/* Faixa de billing (platform subscription): fica acima do <main> e por
+            isso persiste no topo enquanto o conteúdo faz scroll. Silenciosa
+            quando está tudo pago. */}
+        <BillingBanner />
         <main className={`flex-1 min-h-0 ${fullBleed ? "overflow-hidden sm:overflow-y-auto" : "overflow-y-auto"}`}>
           <div
             className={

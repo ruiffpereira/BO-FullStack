@@ -17,6 +17,8 @@ export interface ComboboxProps {
   className?: string
   /** Rótulo opcional acima do controlo (mesmo estilo dos Input/Select). */
   label?: string
+  /** aria-label do botão, para quando não há `label` visível (ex.: dentro de uma linha de tabela). */
+  ariaLabel?: string
   disabled?: boolean
 }
 
@@ -34,6 +36,7 @@ export const Combobox = forwardRef<HTMLButtonElement, ComboboxProps>(function Co
     searchPlaceholder = 'Pesquisar…',
     className = '',
     label,
+    ariaLabel,
     disabled = false,
   },
   ref,
@@ -105,6 +108,7 @@ export const Combobox = forwardRef<HTMLButtonElement, ComboboxProps>(function Co
         onClick={() => !disabled && setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-label={ariaLabel}
         className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-left transition hover:border-zinc-300 dark:hover:border-zinc-600 focus:outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <span className={`flex-1 truncate ${selected ? 'text-zinc-800 dark:text-zinc-100' : 'text-zinc-400'}`}>

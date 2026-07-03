@@ -13,6 +13,7 @@ import {
 } from "../ui/ui.jsx";
 import { Icon } from "../ui/icons.jsx";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { PageBlocksSection } from "../components/website/PageBlocksSection";
 import { SITE_ROOT_URL } from "../lib/env";
 import {
   useSite,
@@ -469,18 +470,22 @@ function PageRow({
   index,
   total,
   allPages,
+  selected,
   onPatch,
   onMove,
   onRemove,
+  onToggleBlocks,
   disabled,
 }: {
   page: SitePage;
   index: number;
   total: number;
   allPages: SitePage[];
+  selected: boolean;
   onPatch: (id: string, patch: Partial<SitePage>) => void;
   onMove: (id: string, dir: -1 | 1) => void;
   onRemove: (page: SitePage) => void;
+  onToggleBlocks: (id: string) => void;
   disabled: boolean;
 }) {
   const home = isHomePage(page);
@@ -522,7 +527,11 @@ function PageRow({
       : undefined;
 
   return (
-    <Card className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+    <Card
+      className={`p-4 flex flex-col sm:flex-row sm:items-center gap-3 transition-colors ${
+        selected ? "border-accent ring-1 ring-accent/40" : ""
+      }`}
+    >
       <div className="flex sm:flex-col gap-1 shrink-0">
         <IconButton
           icon="arrowUp"
@@ -594,6 +603,13 @@ function PageRow({
           <span className="text-xs text-zinc-500">Nav</span>
         </label>
         <IconButton
+          icon="layers"
+          label="Gerir blocos"
+          disabled={disabled}
+          onClick={() => onToggleBlocks(page.id)}
+          className={selected ? "text-accent bg-accent/10" : ""}
+        />
+        <IconButton
           icon="trash"
           label="Remover página"
           title={removeReason}
@@ -610,6 +626,8 @@ function PagesTab({ site }: { site: Site }) {
   const save = useSaveSite();
   const pages = sortByOrder(site.pages ?? []);
   const [pendingRemove, setPendingRemove] = useState<SitePage | null>(null);
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const selectedPage = pages.find((p) => p.id === selectedPageId) ?? null;
 
   const [newTitle, setNewTitle] = useState("");
   const [newSlug, setNewSlug] = useState("");
@@ -647,6 +665,7 @@ function PagesTab({ site }: { site: Site }) {
       pages.filter((p) => p.id !== pendingRemove.id),
       "Página removida.",
     );
+    if (selectedPageId === pendingRemove.id) setSelectedPageId(null);
     setPendingRemove(null);
   };
 
@@ -715,13 +734,26 @@ function PagesTab({ site }: { site: Site }) {
             index={i}
             total={pages.length}
             allPages={pages}
+            selected={p.id === selectedPageId}
             onPatch={onPatch}
             onMove={onMove}
             onRemove={setPendingRemove}
+            onToggleBlocks={(id) => setSelectedPageId((cur) => (cur === id ? null : id))}
             disabled={save.isPending}
           />
         ))}
       </div>
+
+      {selectedPage && (
+        <PageBlocksSection
+          page={selectedPage}
+          pages={pages}
+          activeLocales={site.activeLocales}
+          defaultLocale={site.defaultLocale}
+          disabled={save.isPending}
+          persist={persist}
+        />
+      )}
 
       <ConfirmDialog
         open={!!pendingRemove}

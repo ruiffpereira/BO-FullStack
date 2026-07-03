@@ -37,9 +37,14 @@ export interface SiteNav {
 }
 
 export interface SiteBlock {
-  id?: string;
+  id: string;
   type: string;
-  settings?: Record<string, unknown>;
+  variant?: string;
+  contentRef?: string;
+  settings?: Record<string, unknown> & {
+    content?: Record<string, Record<string, unknown>>;
+  };
+  data?: Record<string, unknown>;
 }
 
 export interface SitePage {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Site } from "../../src/hooks/useWebsite";
 
@@ -284,5 +284,193 @@ describe("Website — Páginas (gestor de páginas)", () => {
     const pages = saveMutate.mock.calls[0][0].pages;
     const sobre = pages.find((p: any) => p.id === "p2");
     expect(sobre.inNav).toBe(false);
+  });
+});
+
+// ── Blocos por página (gestor de blocos, T24) ─────────────────────────────────
+
+describe("Website — Blocos (gestor de blocos por página)", () => {
+  const HOME_EMPTY = {
+    id: "home",
+    slug: "",
+    title: "Início",
+    inNav: true,
+    order: 0,
+    kind: "content",
+    blocks: [],
+  };
+
+  const HOME_TWO_BLOCKS = {
+    id: "home",
+    slug: "",
+    title: "Início",
+    inNav: true,
+    order: 0,
+    kind: "content",
+    blocks: [
+      {
+        id: "b1",
+        type: "hero",
+        variant: "centered",
+        settings: { content: { pt: { title: "Título do hero" } } },
+      },
+      {
+        id: "b2",
+        type: "services",
+        variant: "grid",
+        settings: { content: { pt: { title: "Os nossos serviços" } } },
+      },
+    ],
+  };
+
+  const HOME_MULTI_LOCALE = {
+    id: "home",
+    slug: "",
+    title: "Início",
+    inNav: true,
+    order: 0,
+    kind: "content",
+    blocks: [
+      {
+        id: "b1",
+        type: "hero",
+        variant: "centered",
+        settings: {
+          content: {
+            pt: { title: "Título PT" },
+            en: { title: "Title EN" },
+          },
+        },
+      },
+    ],
+  };
+
+  function siteWithBlocks(pages: Site["pages"], overrides: Partial<Site> = {}): Site {
+    return makeSite({ pages, activeLocales: ["pt"], defaultLocale: "pt", ...overrides });
+  }
+
+  async function goToPages(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("tab", { name: /Páginas/i }));
+  }
+
+  async function openBlocksFor(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
+  }
+
+  it("adiciona um bloco a uma página e persiste-o no payload", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_EMPTY]), isLoading: false });
+    render(<Website />);
+    await goToPages(user);
+    await openBlocksFor(user);
+
+    await user.click(screen.getByRole("button", { name: /Adicionar bloco/i }));
+    await user.click(screen.getByRole("button", { name: /^Hero/ }));
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    const pages = saveMutate.mock.calls[0][0].pages;
+    const home = pages.find((p: any) => p.id === "home");
+    expect(home.blocks).toHaveLength(1);
+    expect(home.blocks[0]).toEqual(
+      expect.objectContaining({ type: "hero", variant: "centered" }),
+    );
+  });
+
+  it("reordena blocos (mover para baixo) e persiste a nova ordem", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_TWO_BLOCKS]), isLoading: false });
+    render(<Website />);
+    await goToPages(user);
+    await openBlocksFor(user);
+
+    const downButtons = screen.getAllByRole("button", { name: "Mover bloco para baixo" });
+    await user.click(downButtons[0]); // move o bloco "hero" (b1) para baixo
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    const pages = saveMutate.mock.calls[0][0].pages;
+    const home = pages.find((p: any) => p.id === "home");
+    expect(home.blocks[0].id).toBe("b2");
+    expect(home.blocks[1].id).toBe("b1");
+  });
+
+  it("remove um bloco após confirmação e persiste sem ele", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_TWO_BLOCKS]), isLoading: false });
+    render(<Website />);
+    await goToPages(user);
+    await openBlocksFor(user);
+
+    const removeButtons = screen.getAllByRole("button", { name: "Remover bloco" });
+    await user.click(removeButtons[0]); // o bloco "hero" (b1)
+    await user.click(screen.getByRole("button", { name: "Remover" }));
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    const pages = saveMutate.mock.calls[0][0].pages;
+    const home = pages.find((p: any) => p.id === "home");
+    expect(home.blocks).toHaveLength(1);
+    expect(home.blocks[0].id).toBe("b2");
+  });
+
+  it("muda a variante de um bloco via Combobox e persiste-a", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_TWO_BLOCKS]), isLoading: false });
+    render(<Website />);
+    await goToPages(user);
+    await openBlocksFor(user);
+
+    const variantButtons = screen.getAllByRole("button", { name: "Variante" });
+    await user.click(variantButtons[1]); // bloco "services" (b2)
+    await user.click(screen.getByRole("button", { name: "Lista" }));
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    const pages = saveMutate.mock.calls[0][0].pages;
+    const home = pages.find((p: any) => p.id === "home");
+    const services = home.blocks.find((b: any) => b.id === "b2");
+    expect(services.variant).toBe("list");
+  });
+
+  it("edita o título (formulário rico) na língua padrão e guarda em settings.content.pt.title", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_TWO_BLOCKS]), isLoading: false });
+    render(<Website />);
+    await goToPages(user);
+    await openBlocksFor(user);
+
+    const editButtons = screen.getAllByRole("button", { name: "Editar conteúdo" });
+    await user.click(editButtons[0]); // bloco "hero" (b1)
+
+    const dialog = within(screen.getByRole("dialog"));
+    const titleInput = dialog.getByLabelText("Título");
+    await user.clear(titleInput);
+    await user.type(titleInput, "Novo título");
+    await user.click(dialog.getByRole("button", { name: "Guardar" }));
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    const pages = saveMutate.mock.calls[0][0].pages;
+    const home = pages.find((p: any) => p.id === "home");
+    const hero = home.blocks.find((b: any) => b.id === "b1");
+    expect(hero.settings.content.pt.title).toBe("Novo título");
+  });
+
+  it("muda de separador de língua no modal de conteúdo e mostra os campos dessa língua", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({
+      data: siteWithBlocks([HOME_MULTI_LOCALE], { activeLocales: ["pt", "en"] }),
+      isLoading: false,
+    });
+    render(<Website />);
+    await goToPages(user);
+    await openBlocksFor(user);
+
+    await user.click(screen.getByRole("button", { name: "Editar conteúdo" }));
+
+    const dialog = within(screen.getByRole("dialog"));
+    const titleInputPt = dialog.getByLabelText("Título") as HTMLInputElement;
+    expect(titleInputPt.value).toBe("Título PT");
+
+    await user.click(dialog.getByRole("tab", { name: "EN" }));
+
+    const titleInputEn = dialog.getByLabelText("Título") as HTMLInputElement;
+    expect(titleInputEn.value).toBe("Title EN");
   });
 });

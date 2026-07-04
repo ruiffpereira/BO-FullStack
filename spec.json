@@ -2152,6 +2152,75 @@
           "unread"
         ]
       },
+      "SiteTemplate": {
+        "type": "object",
+        "description": "Template de arranque do site público (fonte única na API, T19). O picker do Backoffice grava `site` diretamente via PUT /website; o signup semeia o `Site` do tenant a partir do template da vertical.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Chave estável (= Site.template)",
+            "example": "barber"
+          },
+          "label": {
+            "type": "string",
+            "description": "Nome apresentado no cartão",
+            "example": "Barbearia"
+          },
+          "vertical": {
+            "type": "string",
+            "description": "Rótulo da vertical",
+            "example": "Barbearia · marcações"
+          },
+          "description": {
+            "type": "string",
+            "description": "Descrição curta para o cartão"
+          },
+          "site": {
+            "type": "object",
+            "description": "Subconjunto do Site aceite por PUT /website (theme/nav/pages/footer/defaultLocale/activeLocales/template).",
+            "properties": {
+              "template": {
+                "type": "string",
+                "nullable": true
+              },
+              "theme": {
+                "type": "object",
+                "nullable": true
+              },
+              "defaultLocale": {
+                "type": "string"
+              },
+              "activeLocales": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "nav": {
+                "type": "object",
+                "nullable": true
+              },
+              "pages": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "footer": {
+                "type": "object",
+                "nullable": true
+              }
+            }
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "vertical",
+          "description",
+          "site"
+        ]
+      },
       "BillingSubscription": {
         "type": "object",
         "description": "Estado da subscrição da plataforma do tenant + derivados da política de acesso (platform billing, T3).",
@@ -11577,6 +11646,37 @@
           },
           "400": {
             "description": "Sem site (no_site), sem subdomínio (no_subdomain) ou sem páginas (no_pages)"
+          },
+          "401": {
+            "description": "Não autenticado"
+          }
+        }
+      }
+    },
+    "/website/templates": {
+      "get": {
+        "summary": "Lista os templates de arranque do site (fonte única, T19) — id/label/vertical/descrição + o payload Site de cada",
+        "tags": [
+          "Website"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista dos templates disponíveis (barber/gym/loja/generic)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SiteTemplate"
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "Não autenticado"

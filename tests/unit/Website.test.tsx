@@ -26,6 +26,58 @@ vi.mock("../../src/hooks/useWebsite", async () => {
   };
 });
 
+// Templates de arranque (T19) — fonte única na API, consumidos via o hook
+// gerado pelo Kubb. Mockamos o módulo para controlar loading/erro/dados sem
+// servidor nem React Query (mesmo padrão do Faturacao.test.tsx).
+const useWebsiteTemplatesMock = vi.fn();
+vi.mock("../../src/gen/backoffice/hooks/useGetWebsiteTemplates", () => ({
+  useGetWebsiteTemplates: () => useWebsiteTemplatesMock(),
+}));
+
+const TEMPLATES = [
+  {
+    id: "barber",
+    label: "Barbearia",
+    vertical: "Barbearia · marcações",
+    description: "Página focada em serviços e reservas, com estilo escuro e moderno.",
+    site: {
+      template: "barber",
+      theme: { preset: "ink", accent: "amber", font: "grotesk", logo: null },
+      defaultLocale: "pt",
+      activeLocales: ["pt"],
+      nav: { items: [], cta: null },
+      pages: [{ id: "home", slug: "", inNav: true, order: 0, kind: "content", blocks: [] }],
+      footer: {},
+    },
+  },
+  {
+    id: "gym",
+    label: "Ginásio",
+    vertical: "Ginásio · mensalidades",
+    description: "Energia e prova social, com destaque para planos e resultados.",
+    site: {
+      template: "gym",
+      theme: { preset: "slate", accent: "emerald", font: "grotesk", logo: null },
+      defaultLocale: "pt",
+      activeLocales: ["pt"],
+      nav: { items: [], cta: null },
+      pages: [{ id: "home", slug: "", inNav: true, order: 0, kind: "content", blocks: [] }],
+      footer: {},
+    },
+  },
+];
+
+function mockWebsiteTemplates(
+  data: typeof TEMPLATES | undefined,
+  opts: { isLoading?: boolean; isError?: boolean } = {},
+) {
+  useWebsiteTemplatesMock.mockReturnValue({
+    data,
+    isLoading: opts.isLoading ?? false,
+    isError: opts.isError ?? false,
+  });
+}
+
 // AuthContext — não é usado diretamente pela página (os hooks estão mockados),
 // mas é importado transitivamente; stub simples.
 vi.mock("../../src/context/AuthContext", () => ({
@@ -65,6 +117,7 @@ function makeSite(overrides: Partial<Site> = {}): Site {
 beforeEach(() => {
   vi.clearAllMocks();
   useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
+  mockWebsiteTemplates(TEMPLATES);
 });
 
 describe("Website", () => {
@@ -98,6 +151,48 @@ describe("Website", () => {
     );
     expect(Array.isArray(arg.pages)).toBe(true);
     expect(arg.pages.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("(b2) Template: renderiza a galeria a partir do endpoint (GET /website/templates)", async () => {
+    const user = userEvent.setup();
+    render(<Website />);
+    await user.click(screen.getByRole("tab", { name: /Template/i }));
+
+    expect(useWebsiteTemplatesMock).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /Barbearia/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Ginásio/i })).toBeInTheDocument();
+    expect(screen.getByText("Ginásio · mensalidades")).toBeInTheDocument();
+  });
+
+  it("(b3) Template: aplicar chama useSaveSite com o payload `site` exato do template escolhido", async () => {
+    const user = userEvent.setup();
+    render(<Website />);
+    await user.click(screen.getByRole("tab", { name: /Template/i }));
+
+    await user.click(screen.getByRole("button", { name: /Ginásio/i }));
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    expect(saveMutate.mock.calls[0][0]).toEqual(TEMPLATES[1].site);
+  });
+
+  it("(b4) Template: mostra um estado de carregamento enquanto o endpoint não responde", async () => {
+    const user = userEvent.setup();
+    mockWebsiteTemplates(undefined, { isLoading: true });
+    render(<Website />);
+    await user.click(screen.getByRole("tab", { name: /Template/i }));
+
+    expect(screen.queryByRole("button", { name: /Barbearia/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Não foi possível carregar/i)).not.toBeInTheDocument();
+  });
+
+  it("(b5) Template: mostra uma mensagem de erro em PT quando o endpoint falha", async () => {
+    const user = userEvent.setup();
+    mockWebsiteTemplates(undefined, { isError: true });
+    render(<Website />);
+    await user.click(screen.getByRole("tab", { name: /Template/i }));
+
+    expect(await screen.findByText(/Não foi possível carregar os templates/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Barbearia/i })).not.toBeInTheDocument();
   });
 
   it("(c) domínio: mostra a razão de indisponibilidade devolvida pela verificação", async () => {

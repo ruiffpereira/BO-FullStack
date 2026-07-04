@@ -24,13 +24,13 @@ import {
   type Site,
   type SitePage,
   type SiteTheme,
+  type SiteUpsert,
   type ThemePreset,
   type ThemeAccent,
   type ThemeFont,
   type SubdomainCheck,
 } from "../hooks/useWebsite";
 import {
-  SITE_TEMPLATES,
   ACCENT_HEX,
   ACCENT_LABEL,
   PRESET_LABEL,
@@ -39,8 +39,11 @@ import {
   THEME_PRESETS,
   THEME_ACCENTS,
   THEME_FONTS,
-  type SiteTemplate,
-} from "../lib/siteTemplates";
+  PRESET_BG,
+  PRESET_FG,
+} from "../lib/themeOptions";
+import { useGetWebsiteTemplates } from "../gen/backoffice/hooks/useGetWebsiteTemplates";
+import type { SiteTemplate } from "../gen/backoffice/types/SiteTemplate";
 
 /**
  * "Website" — área self-serve onde o tenant configura o site público
@@ -254,8 +257,18 @@ function SiteStatusTab({ site }: { site: Site }) {
 
 // ── Tab: Template ─────────────────────────────────────────────────────────────
 
+/** Aproximação de cor (fundo/texto/destaque) a partir do preset+accent do
+ *  template — a API não devolve uma miniatura própria, só o `site.theme`. */
 function ThumbPreview({ template }: { template: SiteTemplate }) {
-  const { bg, fg, accent } = template.thumb;
+  const theme = (template.site?.theme ?? null) as {
+    preset?: string | null;
+    accent?: string | null;
+  } | null;
+  const preset = (theme?.preset as keyof typeof PRESET_BG) ?? "slate";
+  const accentKey = (theme?.accent as keyof typeof ACCENT_HEX) ?? "blue";
+  const bg = PRESET_BG[preset] ?? PRESET_BG.slate;
+  const fg = PRESET_FG[preset] ?? PRESET_FG.slate;
+  const accent = ACCENT_HEX[accentKey] ?? ACCENT_HEX.blue;
   return (
     <div
       className="h-28 rounded-lg overflow-hidden flex flex-col justify-between p-3"
@@ -284,15 +297,33 @@ function ThumbPreview({ template }: { template: SiteTemplate }) {
   );
 }
 
+/** Cartões-esqueleto enquanto `GET /website/templates` carrega. */
+function TemplateGallerySkeleton() {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {[0, 1, 2, 3].map((i) => (
+        <Card key={i} className="p-3">
+          <div className="h-28 rounded-lg bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
+          <div className="mt-3 h-4 w-2/3 rounded bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
+          <div className="mt-2 h-3 w-1/2 rounded bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 function TemplateTab({ site }: { site: Site }) {
+  const { data: templates, isLoading, isError } = useGetWebsiteTemplates();
   const save = useSaveSite();
   const [pending, setPending] = useState<SiteTemplate | null>(null);
   const current = site.template;
   const hasSite = !!site.siteId || (site.pages?.length ?? 0) > 0 || !!current;
 
   const applyTemplate = (t: SiteTemplate) => {
-    save.mutate(t.site, {
-      onSuccess: () => toast.success(`Template "${t.name}" aplicado.`),
+    // `t.site` vem do endpoint (tipagem genérica, gerada pelo Kubb a partir do
+    // schema OpenAPI); é o mesmo subconjunto que `PUT /website` aceita.
+    save.mutate(t.site as SiteUpsert, {
+      onSuccess: () => toast.success(`Template "${t.label}" aplicado.`),
       onError: () => toast.error("Não foi possível aplicar o template."),
     });
   };
@@ -310,46 +341,65 @@ function TemplateTab({ site }: { site: Site }) {
         Escolhe um ponto de partida. Podes afinar tudo depois — cores, páginas e
         conteúdos.
       </p>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {SITE_TEMPLATES.map((t) => {
-          const active = t.id === current;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onChoose(t)}
-              aria-pressed={active}
-              className="text-left rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 group"
-            >
-              <Card
-                className={`p-3 h-full transition-colors ${
-                  active
-                    ? "border-accent ring-1 ring-accent/40"
-                    : "group-hover:border-accent/40"
-                }`}
+
+      {isLoading && <TemplateGallerySkeleton />}
+
+      {!isLoading && isError && (
+        <Card className="p-4 flex items-start gap-3 border-red-200 dark:border-red-900/50">
+          <Icon name="alertTriangle" className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
+          <div className="text-sm">
+            <p className="font-medium text-zinc-800 dark:text-zinc-100">
+              Não foi possível carregar os templates
+            </p>
+            <p className="text-zinc-500 mt-0.5">
+              Tenta recarregar a página. Se o problema persistir, fala com o suporte.
+            </p>
+          </div>
+        </Card>
+      )}
+
+      {!isLoading && !isError && templates && (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {templates.map((t) => {
+            const active = t.id === current;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => onChoose(t)}
+                aria-pressed={active}
+                className="text-left rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 group"
               >
-                <ThumbPreview template={t} />
-                <div className="mt-3 flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-zinc-900 dark:text-white truncate">
-                      {t.name}
-                    </p>
-                    <p className="text-xs text-zinc-500 mt-0.5">{t.vertical}</p>
+                <Card
+                  className={`p-3 h-full transition-colors ${
+                    active
+                      ? "border-accent ring-1 ring-accent/40"
+                      : "group-hover:border-accent/40"
+                  }`}
+                >
+                  <ThumbPreview template={t} />
+                  <div className="mt-3 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-zinc-900 dark:text-white truncate">
+                        {t.label}
+                      </p>
+                      <p className="text-xs text-zinc-500 mt-0.5">{t.vertical}</p>
+                    </div>
+                    {active && (
+                      <Badge tone="blue" className="shrink-0">
+                        Atual
+                      </Badge>
+                    )}
                   </div>
-                  {active && (
-                    <Badge tone="blue" className="shrink-0">
-                      Atual
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-[13px] text-zinc-500 mt-2 leading-snug">
-                  {t.description}
-                </p>
-              </Card>
-            </button>
-          );
-        })}
-      </div>
+                  <p className="text-[13px] text-zinc-500 mt-2 leading-snug">
+                    {t.description}
+                  </p>
+                </Card>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <ConfirmDialog
         open={!!pending}
@@ -362,7 +412,7 @@ function TemplateTab({ site }: { site: Site }) {
         description={
           <>
             Isto substitui a estrutura atual do site (páginas e blocos) pela do
-            template <strong>{pending?.name}</strong>. A ação não afeta o
+            template <strong>{pending?.label}</strong>. A ação não afeta o
             subdomínio nem o estado de publicação.
           </>
         }

@@ -46,6 +46,7 @@ import {
 } from "../lib/themeOptions";
 import { useGetWebsiteTemplates } from "../gen/backoffice/hooks/useGetWebsiteTemplates";
 import type { SiteTemplate } from "../gen/backoffice/types/SiteTemplate";
+import { usePostWebsitePreviewToken } from "../gen/backoffice/hooks/usePostWebsitePreviewToken";
 
 /**
  * "Website" — área self-serve onde o tenant configura o site público
@@ -117,7 +118,7 @@ function setupSteps(site: Site | undefined): SetupStep[] {
 
 // ── Tab: O meu site ───────────────────────────────────────────────────────────
 
-function SiteStatusTab({ site }: { site: Site }) {
+function SiteStatusTab({ site, siteUpdatedAt }: { site: Site; siteUpdatedAt: number }) {
   const publish = usePublishSite();
   const steps = setupSteps(site);
   const pending = steps.filter((s) => !s.done);
@@ -153,6 +154,7 @@ function SiteStatusTab({ site }: { site: Site }) {
   };
 
   return (
+    <div className="space-y-5">
     <div className="grid gap-5 lg:grid-cols-3">
       {/* Estado + URL */}
       <Card className="p-5 lg:col-span-2">
@@ -254,6 +256,141 @@ function SiteStatusTab({ site }: { site: Site }) {
         </ul>
       </Card>
     </div>
+
+    <PreviewPanel refreshKey={siteUpdatedAt} />
+    </div>
+  );
+}
+
+/**
+ * Pré-visualização ao vivo do rascunho — <iframe> do renderer alimentado por
+ * um token de preview de curta duração (30 min, mintado sob pedido). Remint
+ * automaticamente ao montar e sempre que `refreshKey` muda (= qualquer save
+ * bem sucedido nesta página, ver `Website()`/`useSite().dataUpdatedAt`) para
+ * o tenant ver as alterações sem sair da tab. O botão "Abrir em nova aba" é
+ * o fallback garantido — funciona mesmo que a framing seja bloqueada (CSP
+ * `frame-ancestors` no renderer só permite origens explicitamente
+ * configuradas; ver `site-engine/middleware.ts`).
+ */
+function PreviewPanel({ refreshKey }: { refreshKey: number }) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [iframeNonce, setIframeNonce] = useState(0);
+  const [mintError, setMintError] = useState(false);
+  const firstRefreshKey = useRef(refreshKey);
+
+  const mint = usePostWebsitePreviewToken({
+    mutation: {
+      onSuccess: (data) => {
+        // A API devolve `url` já pronto quando o RENDERER_URL está
+        // configurado no servidor. Sem isso, construímos a partir do
+        // SITE_ROOT_URL do próprio Backoffice — o renderer serve /preview
+        // no MESMO host/porta que serve os sites publicados por subdomínio
+        // (é uma rota, não depende do Host), por isso a origem do
+        // SITE_ROOT_URL é sempre um fallback válido, sem precisar de env
+        // nova aqui.
+        const token = data?.token;
+        const url = data?.url ?? (token ? `${siteRoot().origin}/preview?token=${encodeURIComponent(token)}` : null);
+        if (!url) {
+          setMintError(true);
+          setPreviewUrl(null);
+          return;
+        }
+        setMintError(false);
+        setPreviewUrl(url);
+        setIframeNonce((n) => n + 1);
+      },
+      onError: () => {
+        setMintError(true);
+        setPreviewUrl(null);
+      },
+    },
+  });
+
+  // Mint on mount.
+  useEffect(() => {
+    mint.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Re-mint whenever the site changes elsewhere on the page (any save).
+  useEffect(() => {
+    if (refreshKey === firstRefreshKey.current) return;
+    firstRefreshKey.current = refreshKey;
+    mint.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
+
+  const retry = () => mint.mutate();
+
+  return (
+    <Card className="p-5">
+      <SectionTitle
+        right={
+          <div className="flex items-center gap-2">
+            <IconButton
+              icon="loader"
+              label="Atualizar pré-visualização"
+              onClick={retry}
+              className={mint.isPending ? "animate-spin" : ""}
+            />
+            {previewUrl ? (
+              <a
+                href={previewUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+              >
+                <Icon name="eye" className="w-4 h-4" />
+                Abrir em nova aba
+              </a>
+            ) : (
+              <span
+                aria-disabled="true"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 text-sm font-medium text-zinc-400 opacity-50 pointer-events-none"
+              >
+                <Icon name="eye" className="w-4 h-4" />
+                Abrir em nova aba
+              </span>
+            )}
+          </div>
+        }
+      >
+        Pré-visualização
+      </SectionTitle>
+
+      {mintError && (
+        <div className="rounded-lg border border-amber-200 dark:border-amber-900/50 p-4 text-sm flex items-start gap-3">
+          <Icon name="alertTriangle" className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
+          <div>
+            <p className="font-medium text-zinc-800 dark:text-zinc-100">Não foi possível gerar a pré-visualização.</p>
+            <p className="text-zinc-500 mt-0.5">Tenta novamente daqui a pouco.</p>
+            <Button size="sm" variant="outline" className="mt-2" onClick={retry} isLoading={mint.isPending}>
+              Tentar novamente
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!mintError && (
+        <>
+          {previewUrl ? (
+            <iframe
+              key={iframeNonce}
+              src={previewUrl}
+              title="Pré-visualização do site"
+              className="w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white"
+              style={{ height: 560 }}
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+            />
+          ) : (
+            <div className="h-[560px] rounded-lg bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
+          )}
+          <p className="text-xs text-zinc-400 mt-2">
+            Se a pré-visualização não aparecer aqui, usa "Abrir em nova aba".
+          </p>
+        </>
+      )}
+    </Card>
   );
 }
 
@@ -1064,8 +1201,9 @@ function BrandTab({ site }: { site: Site }) {
         <SectionTitle>Pré-visualização</SectionTitle>
         <BrandPreview preset={preset} accent={accent} font={font} logo={logo.trim()} />
         <p className="text-xs text-zinc-400">
-          Amostra aproximada. A pré-visualização real do site chega numa próxima
-          fase.
+          Amostra aproximada das escolhas ainda não guardadas. Para veres o
+          site real, usa a Pré-visualização em "O meu site" (depois de
+          guardar).
         </p>
       </div>
     </div>
@@ -1213,7 +1351,7 @@ function DomainTab({ site }: { site: Site }) {
 
 export function Website() {
   const [tab, setTab] = useState<TabId>("site");
-  const { data: site, isLoading } = useSite();
+  const { data: site, isLoading, dataUpdatedAt } = useSite();
 
   return (
     <div>
@@ -1244,7 +1382,7 @@ export function Website() {
         </Card>
       ) : (
         <>
-          {tab === "site" && <SiteStatusTab site={site} />}
+          {tab === "site" && <SiteStatusTab site={site} siteUpdatedAt={dataUpdatedAt} />}
           {tab === "template" && <TemplateTab site={site} />}
           {tab === "pages" && <PagesTab site={site} />}
           {tab === "brand" && <BrandTab site={site} />}

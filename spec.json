@@ -11684,6 +11684,46 @@
         }
       }
     },
+    "/website/preview-token": {
+      "post": {
+        "summary": "Emite um token de pré-visualização curto (30 min) do PRÓPRIO rascunho do tenant",
+        "description": "O renderer consome o token em `GET /websites/site/preview?token=` (público) e devolve o Site do tenant independentemente de `published` — para o tenant ver o rascunho antes de publicar. O token é assinado com um segredo dedicado (nunca o JWT_SECRET de autenticação normal) e leva `purpose: \"site-preview\"` — não serve como Bearer token de nenhum outro endpoint autenticado.\n",
+        "tags": [
+          "Website"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Token emitido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string",
+                      "description": "JWT curto (30 min), âmbito só de leitura do rascunho do próprio tenant"
+                    },
+                    "url": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "URL completo do preview no renderer (null se `RENDERER_URL` não estiver configurado — o backoffice constrói o URL)"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          }
+        }
+      }
+    },
     "/uploads": {
       "post": {
         "operationId": "uploadImage",

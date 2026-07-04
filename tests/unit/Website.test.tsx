@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, within, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Site } from "../../src/hooks/useWebsite";
 
@@ -37,6 +37,19 @@ vi.mock("../../src/hooks/useWebsite", async () => {
 const useWebsiteTemplatesMock = vi.fn();
 vi.mock("../../src/gen/backoffice/hooks/useGetWebsiteTemplates", () => ({
   useGetWebsiteTemplates: () => useWebsiteTemplatesMock(),
+}));
+
+// Preview ao vivo (mint de token) — mockado como os outros hooks Kubb (mesmo
+// padrão do Faturacao.test.tsx para usePostBillingPortal/usePostBillingSubscribe).
+// Capturamos as `options.mutation` passadas pelo componente para conseguirmos
+// simular onSuccess/onError diretamente nos testes.
+const previewMintMutate = vi.fn();
+let previewMintOptions: any;
+vi.mock("../../src/gen/backoffice/hooks/usePostWebsitePreviewToken", () => ({
+  usePostWebsitePreviewToken: (options: any) => {
+    previewMintOptions = options;
+    return { mutate: previewMintMutate, isPending: false };
+  },
 }));
 
 const TEMPLATES = [
@@ -121,7 +134,7 @@ function makeSite(overrides: Partial<Site> = {}): Site {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
+  useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false, dataUpdatedAt: 0 });
   mockWebsiteTemplates(TEMPLATES);
 });
 
@@ -232,6 +245,86 @@ describe("Website", () => {
     expect(publicar).toBeEnabled();
     await user.click(publicar);
     expect(publishMutate).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── Tab: O meu site — Pré-visualização ao vivo ────────────────────────────────
+
+describe("Website — Pré-visualização", () => {
+  it("minta um token ao montar e renderiza o iframe + link 'Abrir em nova aba' com o URL devolvido", async () => {
+    render(<Website />);
+
+    // Mint-on-mount (tab "site" é a default).
+    expect(previewMintMutate).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      previewMintOptions.mutation.onSuccess({
+        token: "tok-1",
+        url: "http://renderer.test/preview?token=tok-1",
+      });
+    });
+
+    const iframe = screen.getByTitle("Pré-visualização do site") as HTMLIFrameElement;
+    expect(iframe).toHaveAttribute("src", "http://renderer.test/preview?token=tok-1");
+
+    const link = screen.getByRole("link", { name: /Abrir em nova aba/i });
+    expect(link).toHaveAttribute("href", "http://renderer.test/preview?token=tok-1");
+  });
+
+  it("quando a API não devolve `url` mas devolve `token`, constrói o URL a partir de VITE_SITE_ROOT_URL", async () => {
+    render(<Website />);
+    expect(previewMintMutate).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      previewMintOptions.mutation.onSuccess({ token: "tok-2", url: null });
+    });
+
+    const iframe = screen.getByTitle("Pré-visualização do site") as HTMLIFrameElement;
+    expect(iframe).toHaveAttribute("src", "http://localhost:3000/preview?token=tok-2");
+
+    const link = screen.getByRole("link", { name: /Abrir em nova aba/i });
+    expect(link).toHaveAttribute("href", "http://localhost:3000/preview?token=tok-2");
+  });
+
+  it("falha ao mintar (onError, ou onSuccess sem url nem token) → sem iframe, mostra erro e sem link clicável", async () => {
+    render(<Website />);
+    expect(previewMintMutate).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      previewMintOptions.mutation.onError();
+    });
+
+    expect(screen.queryByTitle("Pré-visualização do site")).not.toBeInTheDocument();
+    expect(screen.getByText(/não foi possível gerar a pré-visualização/i)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Abrir em nova aba/i })).not.toBeInTheDocument();
+
+    // Também cobre onSuccess sem url nem token.
+    act(() => {
+      previewMintOptions.mutation.onSuccess({});
+    });
+    expect(screen.queryByTitle("Pré-visualização do site")).not.toBeInTheDocument();
+    expect(screen.getByText(/não foi possível gerar a pré-visualização/i)).toBeInTheDocument();
+  });
+
+  it("refresh-on-save: um save noutra parte da página (dataUpdatedAt muda) remint o token da pré-visualização", async () => {
+    useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false, dataUpdatedAt: 1 });
+    const { rerender } = render(<Website />);
+    expect(previewMintMutate).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      previewMintOptions.mutation.onSuccess({
+        token: "tok-1",
+        url: "http://renderer.test/preview?token=tok-1",
+      });
+    });
+    expect(screen.getByTitle("Pré-visualização do site")).toBeInTheDocument();
+
+    // Simula um save bem sucedido noutra tab (ex.: Marca/Template/Páginas) —
+    // qualquer save invalida a query `website.site`, o que muda `dataUpdatedAt`.
+    useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false, dataUpdatedAt: 2 });
+    rerender(<Website />);
+
+    expect(previewMintMutate).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -55,8 +55,14 @@ export interface BlockTypeSchema {
   group: "content" | "functional";
   variants: BlockVariantOption[];
   defaultVariant: string;
-  /** Ausente = editor genérico chave/valor (os 4 tipos funcionais + qualquer tipo desconhecido). */
+  /** Ausente = editor genérico chave/valor (fallback só para tipos desconhecidos). */
   fields?: FieldSchema[];
+  /**
+   * Nota PT curta mostrada no topo do formulário — só os 4 tipos funcionais a
+   * usam, para explicar que o bloco puxa/produz dados reais do negócio (Agenda/
+   * Loja/Ginásio/Clientes) e não é conteúdo de marketing normal.
+   */
+  dataHint?: string;
 }
 
 // ── Helpers de construção ──────────────────────────────────────────────────────
@@ -92,8 +98,9 @@ function items(
 // ── Catálogo ────────────────────────────────────────────────────────────────
 
 /**
- * Ordem: 10 tipos de conteúdo/marketing (formulário rico) seguidos dos 4
- * funcionais (editor genérico chave/valor — ligam a dados reais do negócio).
+ * Ordem: 11 tipos de conteúdo/marketing (formulário rico) seguidos dos 4
+ * funcionais (também formulário rico — ligam a dados reais do negócio, por
+ * isso trazem `dataHint` a explicar a fonte dos dados).
  */
 export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
   {
@@ -303,7 +310,42 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       url("mapEmbedUrl", "Mapa (embed)", { hint: "Tem de começar por http(s)://" }),
     ],
   },
-  // ── Funcionais (editor genérico chave/valor — ligam a dados reais) ──────────
+  {
+    type: "collection",
+    label: "Coleção",
+    description: "Listagem tipo portfólio/blog — cada item abre uma ficha própria",
+    group: "content",
+    variants: [
+      { id: "grid", label: "Grelha" },
+      { id: "list", label: "Lista" },
+    ],
+    defaultVariant: "grid",
+    fields: [
+      text("eyebrow", "Eyebrow"),
+      text("title", "Título"),
+      text("subtitle", "Subtítulo"),
+      text("emptyMsg", "Mensagem sem itens", {
+        hint: 'Mostrada enquanto não há itens (ou o filtro por tag não encontra nenhum). Por omissão: "Ainda não há itens para mostrar."',
+      }),
+      items(
+        "items",
+        "Itens",
+        [
+          text("slug", "Slug", {
+            required: true,
+            hint: "Identifica o item no URL da ficha (ex.: projeto-a) — só letras, números e hífens",
+          }),
+          text("title", "Título"),
+          text("summary", "Resumo"),
+          image("image", "Imagem"),
+          textareaLines("tags", "Tags (uma por linha)"),
+          textareaLines("body", "Texto da ficha (um parágrafo por linha)"),
+        ],
+        "item",
+      ),
+    ],
+  },
+  // ── Funcionais (formulário rico + `dataHint` — ligam a dados reais) ─────────
   {
     type: "booking",
     label: "Marcações",
@@ -314,6 +356,26 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       { id: "card", label: "Cartão" },
     ],
     defaultVariant: "inline",
+    dataHint:
+      "Os serviços e os horários disponíveis vêm da tua Agenda — este bloco só edita os textos à volta do formulário de marcação.",
+    fields: [
+      text("eyebrow", "Eyebrow"),
+      text("title", "Título"),
+      text("subtitle", "Subtítulo"),
+      text("successTitle", "Título de confirmação", {
+        hint: "Mostrado depois de a marcação ficar confirmada",
+      }),
+      text("notesLabel", "Etiqueta do campo de notas"),
+      text("authTitle", "Título do painel de identificação", {
+        hint: "Mostrado ao cliente antes de entrar/criar conta para confirmar a marcação",
+      }),
+      text("loggedInAs", 'Texto "sessão iniciada como"'),
+      text("logoutLabel", "Texto do link para sair da sessão"),
+      text("servicesUnavailableMsg", "Mensagem quando não há serviços disponíveis"),
+      text("bookingErrorMsg", "Mensagem de erro ao confirmar a marcação"),
+      text("successEmailNote", "Nota sobre o email de confirmação"),
+      text("newBookingLabel", 'Texto do botão "fazer nova marcação"'),
+    ],
   },
   {
     type: "products",
@@ -325,6 +387,13 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       { id: "featured", label: "Destaque" },
     ],
     defaultVariant: "grid",
+    dataHint: "Os produtos vêm da tua Loja — este bloco mostra o catálogo real, não uma lista editável aqui.",
+    fields: [
+      text("eyebrow", "Eyebrow"),
+      text("title", "Título"),
+      text("ctaLabel", "Texto do botão de cada produto"),
+      text("unavailableMsg", "Mensagem sem produtos disponíveis"),
+    ],
   },
   {
     type: "gym",
@@ -336,6 +405,31 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       { id: "plans", label: "Planos" },
     ],
     defaultVariant: "cta",
+    dataHint:
+      "Este bloco é só marketing — os planos aqui são texto livre, não vêm das mensalidades reais (essas ficam em Financeiro → Ginásio). Aponta o botão para a tua página de inscrição/PWA.",
+    fields: [
+      text("eyebrow", "Eyebrow"),
+      text("title", "Título"),
+      text("subtitle", "Subtítulo"),
+      text("ctaLabel", "Texto do botão"),
+      url("ctaHref", "Destino do botão", { hint: "Por omissão aponta para #contacto (o bloco de Captação de leads da página)" }),
+      image("imageUrl", "Imagem", { hint: 'Só aparece na variante "Chamada à ação"' }),
+      stringList("benefits", "Benefícios", "benefício"),
+      items(
+        "plans",
+        'Planos (variante "Planos")',
+        [
+          text("name", "Nome", { required: true }),
+          text("price", "Preço", { required: true }),
+          text("period", "Período", { hint: "ex.: /mês" }),
+          textareaLines("features", "Vantagens (uma por linha)"),
+          boolean("highlighted", "Destacado"),
+          text("ctaLabel", "Texto do botão"),
+          url("ctaHref", "Destino do botão"),
+        ],
+        "plano",
+      ),
+    ],
   },
   {
     type: "lead",
@@ -347,6 +441,23 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       { id: "stack", label: "Empilhado" },
     ],
     defaultVariant: "split",
+    dataHint: "Os envios criam clientes novos na tua base (visíveis em Clientes) — não é só texto de marketing.",
+    fields: [
+      text("eyebrow", "Eyebrow"),
+      text("title", "Título"),
+      text("subtitle", "Subtítulo"),
+      stringList("benefits", "Benefícios", "benefício"),
+      boolean("withMessage", "Mostrar campo de mensagem (ligado por omissão)"),
+      text("labelName", "Etiqueta do campo Nome"),
+      text("labelEmail", "Etiqueta do campo Email"),
+      text("labelPhone", "Etiqueta do campo Telefone"),
+      text("labelMessage", "Etiqueta do campo Mensagem"),
+      text("submitLabel", "Texto do botão de enviar"),
+      text("thanks", "Mensagem de agradecimento", { hint: "Mostrada depois de enviar o formulário" }),
+      text("anchorId", "Identificador da âncora", {
+        hint: "Só precisas de mudar se tiveres mais do que um formulário de contacto nesta página",
+      }),
+    ],
   },
 ];
 
@@ -360,7 +471,7 @@ const BLOCK_SCHEMA_MAP: Record<string, BlockTypeSchema> = Object.fromEntries(
 );
 
 /**
- * Schema para um tipo desconhecido (fora dos 14 suportados pelo renderer):
+ * Schema para um tipo desconhecido (fora dos 15 suportados pelo renderer):
  * sem campos ricos → cai no editor genérico chave/valor, e sem variantes.
  */
 function fallbackSchema(type: string): BlockTypeSchema {

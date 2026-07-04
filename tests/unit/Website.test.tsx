@@ -729,3 +729,205 @@ describe("Website — Marca (upload do logótipo)", () => {
     expect(saveMutate.mock.calls[0][0].theme.logo).toBe("https://x/manual-logo.png");
   });
 });
+
+// ── Blocos: palete completa (site-editor-complete D3+D4) ─────────────────────
+
+describe("Website — Blocos (palete completa: Coleção + funcionais)", () => {
+  const HOME_EMPTY = {
+    id: "home",
+    slug: "",
+    title: "Início",
+    inNav: true,
+    order: 0,
+    kind: "content",
+    blocks: [],
+  };
+
+  function siteWithBlocks(pages: Site["pages"]): Site {
+    return makeSite({ pages, activeLocales: ["pt"], defaultLocale: "pt" });
+  }
+
+  async function openPalette(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("tab", { name: /Páginas/i }));
+    await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
+    await user.click(screen.getByRole("button", { name: /Adicionar bloco/i }));
+  }
+
+  it("(D3) a palete inclui o bloco Coleção — a page-kind \"Coleção\" deixa de ser beco sem saída", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_EMPTY]), isLoading: false });
+    render(<Website />);
+    await openPalette(user);
+
+    // Escopado ao diálogo da palete — a tab "Páginas" tem o seu próprio botão
+    // "Coleção" (o seletor de page-kind), que colidiria com o nome do bloco.
+    const palette = within(screen.getByRole("dialog"));
+    expect(palette.getByRole("button", { name: /^Coleção/ })).toBeInTheDocument();
+  });
+
+  it("(D3) adicionar o bloco Coleção persiste type:collection e a variante default 'grid'", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_EMPTY]), isLoading: false });
+    render(<Website />);
+    await openPalette(user);
+
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^Coleção/ }));
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    const pages = saveMutate.mock.calls[0][0].pages;
+    const home = pages.find((p: any) => p.id === "home");
+    expect(home.blocks[0]).toEqual(expect.objectContaining({ type: "collection", variant: "grid" }));
+  });
+
+  it.each([
+    ["booking", "Marcações"],
+    ["products", "Produtos"],
+    ["gym", "Ginásio"],
+    ["lead", "Captação de leads"],
+  ])(
+    "(D4) o bloco funcional '%s' mostra um formulário com etiquetas PT, não o editor genérico chave/valor",
+    async (type, label) => {
+      const user = userEvent.setup();
+      useSiteMock.mockReturnValue({
+        data: siteWithBlocks([
+          { ...HOME_EMPTY, blocks: [{ id: "b1", type, settings: { content: { pt: {} } } }] },
+        ]),
+        isLoading: false,
+      });
+      render(<Website />);
+      await user.click(screen.getByRole("tab", { name: /Páginas/i }));
+      await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
+
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+      await user.click(screen.getByRole("button", { name: "Editar conteúdo" }));
+
+      const dialog = within(screen.getByRole("dialog"));
+      // O rótulo "Eyebrow" é comum a todos os 4 tipos funcionais e só existe
+      // no formulário rico (o editor genérico não tem rótulos, só "chave"/"valor").
+      expect(dialog.getByLabelText("Eyebrow")).toBeInTheDocument();
+      expect(dialog.queryByPlaceholderText("chave")).not.toBeInTheDocument();
+      expect(dialog.queryByText(/Editor genérico/i)).not.toBeInTheDocument();
+    },
+  );
+
+  it("(D4) mostra o aviso de dados reais nos blocos funcionais e não o mostra num bloco de marketing", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({
+      data: siteWithBlocks([
+        {
+          ...HOME_EMPTY,
+          blocks: [
+            { id: "b1", type: "products", settings: { content: { pt: {} } } },
+            { id: "b2", type: "hero", variant: "centered", settings: { content: { pt: {} } } },
+          ],
+        },
+      ]),
+      isLoading: false,
+    });
+    render(<Website />);
+    await user.click(screen.getByRole("tab", { name: /Páginas/i }));
+    await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
+
+    const editButtons = screen.getAllByRole("button", { name: "Editar conteúdo" });
+
+    await user.click(editButtons[0]); // bloco "products"
+    expect(
+      within(screen.getByRole("dialog")).getByText(/Os produtos vêm da tua Loja/i),
+    ).toBeInTheDocument();
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancelar" }));
+
+    await user.click(editButtons[1]); // bloco "hero" — conteúdo/marketing, sem aviso
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+  });
+
+  it("(D4) editar um campo do formulário rico do bloco 'lead' persiste-o em settings.content", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({
+      data: siteWithBlocks([
+        { ...HOME_EMPTY, blocks: [{ id: "b1", type: "lead", variant: "split", settings: { content: { pt: {} } } }] },
+      ]),
+      isLoading: false,
+    });
+    render(<Website />);
+    await user.click(screen.getByRole("tab", { name: /Páginas/i }));
+    await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
+    await user.click(screen.getByRole("button", { name: "Editar conteúdo" }));
+
+    const dialog = within(screen.getByRole("dialog"));
+    await user.type(dialog.getByLabelText("Etiqueta do campo Nome"), "O teu nome");
+    await user.type(dialog.getByLabelText("Texto do botão de enviar"), "Quero saber mais");
+    await user.click(dialog.getByRole("button", { name: "Guardar" }));
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    const pages = saveMutate.mock.calls[0][0].pages;
+    const home = pages.find((p: any) => p.id === "home");
+    const content = home.blocks[0].settings.content.pt;
+    expect(content.labelName).toBe("O teu nome");
+    expect(content.submitLabel).toBe("Quero saber mais");
+  });
+});
+
+// ── Blocos: bloco Coleção — editor de itens (site-editor-complete D3) ────────
+
+describe("Website — Blocos (Coleção — editor de itens)", () => {
+  const HOME_WITH_COLLECTION = {
+    id: "home",
+    slug: "",
+    title: "Início",
+    inNav: true,
+    order: 0,
+    kind: "collection",
+    blocks: [{ id: "b1", type: "collection", variant: "grid", settings: { content: { pt: {} } } }],
+  };
+
+  function siteWithBlocks(pages: Site["pages"]): Site {
+    return makeSite({ pages, activeLocales: ["pt"], defaultLocale: "pt" });
+  }
+
+  async function openCollectionContentModal(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("tab", { name: /Páginas/i }));
+    await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
+    await user.click(screen.getByRole("button", { name: "Editar conteúdo" }));
+    return screen.getByRole("dialog");
+  }
+
+  it("adicionar um item preenche o formulário e persiste o CollectionItem (slug/summary/tags)", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_WITH_COLLECTION]), isLoading: false });
+    render(<Website />);
+    const dialog = within(await openCollectionContentModal(user));
+
+    await user.click(dialog.getByRole("button", { name: /Adicionar item/i }));
+
+    // "Slug" tem um hint concatenado ao texto do <label> (sem separador), por
+    // isso a correspondência exata falha — usa um regex de prefixo.
+    await user.type(dialog.getByLabelText(/^Slug/), "projeto-a");
+    await user.type(dialog.getByLabelText("Resumo"), "Um resumo curto do projeto.");
+    await user.type(dialog.getByLabelText("Tags (uma por linha)"), "design\nweb");
+
+    await user.click(dialog.getByRole("button", { name: "Guardar" }));
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    const pages = saveMutate.mock.calls[0][0].pages;
+    const home = pages.find((p: any) => p.id === "home");
+    const items = home.blocks[0].settings.content.pt.items;
+    expect(items).toEqual([
+      expect.objectContaining({
+        slug: "projeto-a",
+        summary: "Um resumo curto do projeto.",
+        tags: ["design", "web"],
+      }),
+    ]);
+  });
+
+  it("o campo Imagem do item usa o uploader (não um input de URL simples)", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_WITH_COLLECTION]), isLoading: false });
+    render(<Website />);
+    const dialog = within(await openCollectionContentModal(user));
+
+    await user.click(dialog.getByRole("button", { name: /Adicionar item/i }));
+
+    expect(dialog.getByText("Carregar imagem")).toBeInTheDocument();
+  });
+});

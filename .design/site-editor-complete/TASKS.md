@@ -27,11 +27,16 @@ Execução: agentes Sonnet + review adversarial por fatia; commits locais → pu
 - [ ] **D1 — Editor de Footer** [BO] — tab/secção que escreve `SiteFooter` (name/tagline/colunas de links/small print)
   via `PUT /website {footer}` (já editável na API).
 - [ ] **D2 — Editor do Nav CTA** [BO] — form pequeno que escreve `SiteNav.cta` (label/href) via `PUT /website {nav}`.
-- [ ] **D3 — Schema do bloco `collection`** [BO] — entrada em `BLOCK_SCHEMAS` (`blockCatalog.ts`) com editor de itens
+- [x] **D3 — Schema do bloco `collection`** [BO] — entrada em `BLOCK_SCHEMAS` (`blockCatalog.ts`) com editor de itens
     (`slug/title/summary/image/tags/body`, a bater com `CollectionItem` do renderer), senão a page-kind "Coleção" é
-    beco sem saída.
-- [ ] **D4 — Dicas/labels dos blocos funcionais** [BO] (booking/products/gym/lead) — promover os poucos campos de
+    beco sem saída. Feito: `eyebrow/title/subtitle/emptyMsg` + `items[]` (slug obrigatório, title, summary, image via
+    uploader, tags/body como `textareaLines`). Testado em `tests/unit/Website.test.tsx`.
+- [x] **D4 — Dicas/labels dos blocos funcionais** [BO] (booking/products/gym/lead) — promover os poucos campos de
     string a form (ou pré-semear o editor KV com os nomes/labels PT), para serem descobríveis sem ler código.
+    Feito: os 4 tipos ganharam `fields` (formulário rico, já não caem no editor genérico KV) com os campos exatos
+    lidos por `Booking.tsx`/`Products.tsx`/`GymSignup.tsx`/`Lead.tsx` + um `dataHint` PT por tipo (explica que
+    puxam/produzem dados reais de Agenda/Loja/Clientes, ou que o `gym` é só marketing). Testado em
+    `tests/unit/Website.test.tsx`.
 
 ## Polish (não bloqueante)
 - [ ] Empty-state nos blocos funcionais (explicar que puxam dados reais de Agenda/Loja/Ginásio).

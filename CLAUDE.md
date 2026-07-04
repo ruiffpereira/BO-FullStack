@@ -24,6 +24,10 @@ A API deve estar a correr no URL de `VITE_API_BASE_URL` (dev: `http://localhost:
 
 **Regra do projeto: nenhuma env tem default silencioso.** Se faltar, é ERRO — o build recusa, nunca se embute um valor de fallback.
 
+> **REGRA (validação de envs — obrigatória):** toda env OBRIGATÓRIA tem de ter **fail-fast** (erro claro no arranque/build se faltar), numa **superfície de validação ÚNICA** por repo. Ao **adicionar ou mudar** qualquer env, ligá-la a essa validação — NUNCA `import.meta.env.X` solto com fallback (`?? "..."` / `|| "..."`). Envs opcionais ficam explicitamente opcionais e documentadas.
+>
+> **Superfície de validação (Backoffice) — DUAS camadas que têm de listar o MESMO conjunto:** o guard `REQUIRED_ENVS` em **`vite.config.ts`** (falha o `build`/`dev` logo, antes de qualquer código correr) + **[`src/lib/env.ts`](src/lib/env.ts)** (único ponto de leitura no código em runtime — `required()`, throw como backstop; exporta `API_BASE`/`SITE_ROOT_URL`). Ao adicionar uma env obrigatória nova: acrescentar a `REQUIRED_ENVS` **e** a `src/lib/env.ts` (com `required("VITE_...")`) — nunca só numa das duas.
+
 | Env | Para quê | Dev | Prod |
 |-----|----------|-----|------|
 | `VITE_API_BASE_URL` | Base da API | `http://localhost:3001/api` | URL real da API |

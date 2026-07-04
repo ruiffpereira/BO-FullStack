@@ -26,14 +26,27 @@ export interface SiteTheme {
   logo?: string | null;
 }
 
+/**
+ * Link do menu (legado): só usado como fallback quando NENHUMA página tem
+ * `inNav: true` (ver `site-engine/lib/nav.ts::buildNavLinks`) — hoje a nav é
+ * sobretudo derivada de `pages[].inNav` (editada na tab Páginas), por isso
+ * este app não tem um editor de `nav.items` próprio. Os nomes de campo
+ * espelham o que o renderer lê: `to`, não `href`.
+ */
 export interface NavItem {
-  label: string;
-  href: string;
+  label?: string;
+  to?: string;
+  anchor?: string;
 }
 
 export interface SiteNav {
   items?: NavItem[];
-  cta?: { label: string; href: string } | null;
+  /**
+   * Botão de destaque do cabeçalho (CTA). `to` (não `href`) — alinhado ao que
+   * `resolveNavCta` lê em `site-engine/lib/nav.ts`. `null`/ausente = sem CTA
+   * próprio (o renderer cai no default da vertical do template, ou nenhum).
+   */
+  cta?: { label: string; to: string } | null;
 }
 
 export interface SiteBlock {
@@ -61,7 +74,24 @@ export interface SitePage {
   blocks?: SiteBlock[];
 }
 
+/** Link de uma coluna do rodapé — nomes de campo alinhados ao renderer
+ *  (`site-engine/components/blocks/Footer.tsx`): `to`, não `href`. */
+export interface FooterLink {
+  label?: string;
+  to?: string;
+}
+
+/** Coluna do rodapé: título + lista de links. */
+export interface FooterColumn {
+  title?: string;
+  links?: FooterLink[];
+}
+
 export interface SiteFooter {
+  name?: string;
+  tagline?: string;
+  smallPrint?: string;
+  columns?: FooterColumn[];
   [key: string]: unknown;
 }
 

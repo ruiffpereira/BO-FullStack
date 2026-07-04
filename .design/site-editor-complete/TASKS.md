@@ -24,9 +24,18 @@ Execução: agentes Sonnet + review adversarial por fatia; commits locais → pu
 
 ## Para ficar "completo" (conteúdo que o tenant não consegue produzir de outra forma)
 
-- [ ] **D1 — Editor de Footer** [BO] — tab/secção que escreve `SiteFooter` (name/tagline/colunas de links/small print)
-  via `PUT /website {footer}` (já editável na API).
-- [ ] **D2 — Editor do Nav CTA** [BO] — form pequeno que escreve `SiteNav.cta` (label/href) via `PUT /website {nav}`.
+- [x] **D1 — Editor de Footer** [BO] — tab/secção que escreve `SiteFooter` (name/tagline/colunas de links/small print)
+  via `PUT /website {footer}` (já editável na API). Feito: nova tab "Rodapé & Nav" (`FooterNavTab` em
+  `Website.tsx`) com `name`/`tagline`/`smallPrint` + editor aninhado de colunas (`FooterColumnsEditor`/
+  `FooterLinksEditor` — cada coluna com a sua própria lista de links, add/remover/reordenar em ambos os
+  níveis); guarda com `useSaveSite({ footer })` preservando chaves não editadas. **Campo do link é `to`, não
+  `href`** (a bater com `site-engine/components/blocks/Footer.tsx`). Testado em `tests/unit/Website.test.tsx`.
+- [x] **D2 — Editor do Nav CTA** [BO] — form pequeno que escreve `SiteNav.cta` (label/to) via `PUT /website {nav}`.
+  Feito: mesma tab "Rodapé & Nav" — toggle + `label`/`to`; guarda com `useSaveSite({ nav })` sempre a partir do
+  spread do `nav` atual (preserva `nav.items` e outros campos), só substituindo `cta` (desligar → `cta: null`,
+  o renderer cai no default da vertical via `resolveNavCta`). **`SiteNav.cta`/`NavItem` em `useWebsite.ts`
+  corrigidos de `href` para `to`** (drift pré-existente nunca consumido — esta app não tinha editor de
+  `nav.items`). Testado em `tests/unit/Website.test.tsx`.
 - [x] **D3 — Schema do bloco `collection`** [BO] — entrada em `BLOCK_SCHEMAS` (`blockCatalog.ts`) com editor de itens
     (`slug/title/summary/image/tags/body`, a bater com `CollectionItem` do renderer), senão a page-kind "Coleção" é
     beco sem saída. Feito: `eyebrow/title/subtitle/emptyMsg` + `items[]` (slug obrigatório, title, summary, image via

@@ -1024,3 +1024,112 @@ describe("Website — Blocos (Coleção — editor de itens)", () => {
     expect(dialog.getByText("Carregar imagem")).toBeInTheDocument();
   });
 });
+
+// ── Rodapé & Nav (D1 footer + D2 nav CTA — site-editor-complete) ─────────────
+
+describe("Website — Rodapé & Nav (D1 footer + D2 nav CTA)", () => {
+  async function goToFooterNav(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("tab", { name: /Rodapé/i }));
+  }
+
+  it("(D1) mostra os valores atuais do rodapé (nome, tagline, nota legal, colunas+links)", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({
+      data: makeSite({
+        footer: {
+          name: "Acme",
+          tagline: "A tua barbearia de bairro",
+          smallPrint: "© 2026 Acme.",
+          columns: [{ title: "Empresa", links: [{ label: "Sobre nós", to: "/sobre" }] }],
+        },
+      }),
+      isLoading: false,
+    });
+    render(<Website />);
+    await goToFooterNav(user);
+
+    // Os campos `name`/`smallPrint` têm hint (texto extra dentro do próprio
+    // <label>), por isso o nome acessível não é exatamente a etiqueta — regex
+    // de prefixo em vez de string exata (mesmo padrão usado no resto do ficheiro,
+    // ex.: `getAllByLabelText(/Endereço/)` na tab Páginas).
+    expect(screen.getByLabelText(/^Nome \/ marca/)).toHaveValue("Acme");
+    expect(screen.getByLabelText("Tagline")).toHaveValue("A tua barbearia de bairro");
+    expect(screen.getByLabelText(/^Nota legal/)).toHaveValue("© 2026 Acme.");
+    expect(screen.getByLabelText("Título da coluna 1")).toHaveValue("Empresa");
+    expect(screen.getByLabelText("Texto do link 1")).toHaveValue("Sobre nós");
+    expect(screen.getByLabelText("Endereço do link 1")).toHaveValue("/sobre");
+  });
+
+  it("(D1) adicionar uma coluna + um link persiste o footer completo (campo `to`, não `href`)", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({
+      data: makeSite({ footer: { name: "Acme" } }),
+      isLoading: false,
+    });
+    render(<Website />);
+    await goToFooterNav(user);
+
+    await user.click(screen.getByRole("button", { name: /Adicionar coluna/i }));
+    await user.type(screen.getByLabelText("Título da coluna 1"), "Empresa");
+    await user.click(screen.getByRole("button", { name: /Adicionar link/i }));
+    await user.type(screen.getByLabelText("Texto do link 1"), "Contactos");
+    await user.type(screen.getByLabelText("Endereço do link 1"), "#contacto");
+
+    await user.click(screen.getByRole("button", { name: /Guardar rodapé/i }));
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    const arg = saveMutate.mock.calls[0][0];
+    expect(arg.footer).toEqual(
+      expect.objectContaining({
+        name: "Acme",
+        columns: [{ title: "Empresa", links: [{ label: "Contactos", to: "#contacto" }] }],
+      }),
+    );
+  });
+
+  it("(D2) define nav.cta e preserva nav.items ao guardar", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({
+      data: makeSite({ nav: { items: [{ label: "Início", to: "/" }], cta: null } }),
+      isLoading: false,
+    });
+    render(<Website />);
+    await goToFooterNav(user);
+
+    await user.click(screen.getByRole("switch"));
+    await user.type(screen.getByLabelText("Texto do botão"), "Marcar");
+    // Tem hint (texto extra dentro do <label>) — regex de prefixo, como acima.
+    await user.type(screen.getByLabelText(/^Endereço/), "#marcar");
+    await user.click(screen.getByRole("button", { name: /Guardar botão do menu/i }));
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    const arg = saveMutate.mock.calls[0][0];
+    expect(arg.nav).toEqual({
+      items: [{ label: "Início", to: "/" }],
+      cta: { label: "Marcar", to: "#marcar" },
+    });
+  });
+
+  it("(D2) desligar o CTA existente grava cta:null e continua a preservar nav.items", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({
+      data: makeSite({
+        nav: { items: [{ label: "Início", to: "/" }], cta: { label: "Marcar", to: "#marcar" } },
+      }),
+      isLoading: false,
+    });
+    render(<Website />);
+    await goToFooterNav(user);
+
+    // O toggle começa ligado (já há CTA guardado) — desligar limpa o CTA.
+    await user.click(screen.getByRole("switch"));
+    await user.click(screen.getByRole("button", { name: /Guardar botão do menu/i }));
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    const arg = saveMutate.mock.calls[0][0];
+    expect(arg.nav).toEqual({
+      items: [{ label: "Início", to: "/" }],
+      cta: null,
+    });
+  });
+});

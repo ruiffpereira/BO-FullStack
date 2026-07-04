@@ -26,6 +26,9 @@ import {
   type Site,
   type SitePage,
   type SiteTheme,
+  type SiteNav,
+  type SiteFooter,
+  type FooterColumn,
   type SiteUpsert,
   type ThemePreset,
   type ThemeAccent,
@@ -70,13 +73,14 @@ function siteRoot(): URL {
   return new URL(SITE_ROOT_URL);
 }
 
-type TabId = "site" | "template" | "pages" | "brand" | "domain";
+type TabId = "site" | "template" | "pages" | "brand" | "footer" | "domain";
 
 const TABS = [
   { id: "site", label: "O meu site", icon: "globe" },
   { id: "template", label: "Template", icon: "layers" },
   { id: "pages", label: "Páginas", icon: "folder" },
   { id: "brand", label: "Marca", icon: "star" },
+  { id: "footer", label: "Rodapé & Nav", icon: "grid" },
   { id: "domain", label: "Domínio", icon: "link" },
 ];
 
@@ -1210,6 +1214,341 @@ function BrandTab({ site }: { site: Site }) {
   );
 }
 
+// ── Tab: Rodapé & Nav (D1 + D2, site-editor-complete) ─────────────────────────
+
+/**
+ * Estado local de um link do rodapé. Nomes de campo alinhados ao renderer
+ * (`site-engine/components/blocks/Footer.tsx` lê `label`/`to`, NÃO `href`) —
+ * ver também `FooterLink`/`FooterColumn` em `useWebsite.ts`.
+ */
+interface FooterLinkDraft {
+  label: string;
+  to: string;
+}
+interface FooterColumnDraft {
+  title: string;
+  links: FooterLinkDraft[];
+}
+
+const footerInputCls =
+  "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 px-3 py-2 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition";
+
+/** `site.footer.columns` (formato solto vindo da API) → estado editável, tudo string. */
+function toColumnDrafts(columns: unknown): FooterColumnDraft[] {
+  if (!Array.isArray(columns)) return [];
+  return (columns as FooterColumn[]).map((c) => {
+    const links = Array.isArray(c?.links) ? c.links : [];
+    return {
+      title: typeof c?.title === "string" ? c.title : "",
+      links: links.map((l) => ({
+        label: typeof l?.label === "string" ? l.label : "",
+        to: typeof l?.to === "string" ? l.to : "",
+      })),
+    };
+  });
+}
+
+/** Lista de links (texto + endereço) de UMA coluna do rodapé. */
+function FooterLinksEditor({
+  links,
+  onChange,
+  disabled,
+}: {
+  links: FooterLinkDraft[];
+  onChange: (next: FooterLinkDraft[]) => void;
+  disabled?: boolean;
+}) {
+  const setAt = (i: number, patch: Partial<FooterLinkDraft>) => {
+    onChange(links.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+  };
+  const removeAt = (i: number) => onChange(links.filter((_, idx) => idx !== i));
+  const moveAt = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= links.length) return;
+    const next = [...links];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+  const add = () => onChange([...links, { label: "", to: "" }]);
+
+  return (
+    <div className="space-y-2 mt-2">
+      {links.map((l, i) => (
+        <div key={i} className="flex items-center gap-1.5">
+          <input
+            aria-label={`Texto do link ${i + 1}`}
+            value={l.label}
+            disabled={disabled}
+            onChange={(e) => setAt(i, { label: e.target.value })}
+            placeholder="Texto (ex: Contactos)"
+            className={`flex-1 min-w-0 ${footerInputCls}`}
+          />
+          <input
+            aria-label={`Endereço do link ${i + 1}`}
+            value={l.to}
+            disabled={disabled}
+            onChange={(e) => setAt(i, { to: e.target.value })}
+            placeholder="#ancora, /pagina ou https://…"
+            className={`flex-1 min-w-0 ${footerInputCls}`}
+          />
+          <IconButton
+            icon="arrowUp"
+            label="Mover link para cima"
+            disabled={disabled || i === 0}
+            onClick={() => moveAt(i, -1)}
+          />
+          <IconButton
+            icon="arrowDown"
+            label="Mover link para baixo"
+            disabled={disabled || i === links.length - 1}
+            onClick={() => moveAt(i, 1)}
+          />
+          <IconButton
+            icon="trash"
+            label="Remover link"
+            disabled={disabled}
+            onClick={() => removeAt(i)}
+            className="hover:text-red-500"
+          />
+        </div>
+      ))}
+      <Button variant="outline" size="sm" icon="plus" disabled={disabled} onClick={add}>
+        Adicionar link
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Colunas do rodapé (título + links). Cada coluna tem a sua própria lista de
+ * links — por isso não reaproveita o `ItemsArrayEditor` genérico de
+ * `blockFields.tsx` (só suporta campos primitivos por item, não um array
+ * aninhado).
+ */
+function FooterColumnsEditor({
+  columns,
+  onChange,
+  disabled,
+}: {
+  columns: FooterColumnDraft[];
+  onChange: (next: FooterColumnDraft[]) => void;
+  disabled?: boolean;
+}) {
+  const setTitle = (i: number, title: string) => {
+    onChange(columns.map((c, idx) => (idx === i ? { ...c, title } : c)));
+  };
+  const setLinks = (i: number, links: FooterLinkDraft[]) => {
+    onChange(columns.map((c, idx) => (idx === i ? { ...c, links } : c)));
+  };
+  const removeAt = (i: number) => onChange(columns.filter((_, idx) => idx !== i));
+  const moveAt = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= columns.length) return;
+    const next = [...columns];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+  const add = () => onChange([...columns, { title: "", links: [] }]);
+
+  return (
+    <div>
+      <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+        Colunas de links
+      </span>
+      <div className="space-y-3">
+        {columns.map((col, i) => (
+          <div key={i} className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
+                Coluna {i + 1}
+              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                <IconButton
+                  icon="arrowUp"
+                  label="Mover coluna para cima"
+                  disabled={disabled || i === 0}
+                  onClick={() => moveAt(i, -1)}
+                />
+                <IconButton
+                  icon="arrowDown"
+                  label="Mover coluna para baixo"
+                  disabled={disabled || i === columns.length - 1}
+                  onClick={() => moveAt(i, 1)}
+                />
+                <IconButton
+                  icon="trash"
+                  label="Remover coluna"
+                  disabled={disabled}
+                  onClick={() => removeAt(i)}
+                  className="hover:text-red-500"
+                />
+              </div>
+            </div>
+            <input
+              aria-label={`Título da coluna ${i + 1}`}
+              value={col.title}
+              disabled={disabled}
+              onChange={(e) => setTitle(i, e.target.value)}
+              placeholder="Título da coluna (ex: Empresa)"
+              className={`w-full ${footerInputCls}`}
+            />
+            <FooterLinksEditor
+              links={col.links}
+              onChange={(next) => setLinks(i, next)}
+              disabled={disabled}
+            />
+          </div>
+        ))}
+      </div>
+      <Button variant="outline" size="sm" icon="plus" className="mt-2" disabled={disabled} onClick={add}>
+        Adicionar coluna
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * D1 (Footer) + D2 (Nav CTA) — os dois últimos pedaços de conteúdo do site que
+ * o tenant não conseguia editar self-serve (chrome global, fora do array
+ * `blocks` de qualquer página — por isso não vive no gestor de blocos/T24).
+ *
+ * Cada secção grava o SEU campo inteiro via `useSaveSite` (whole-field PUT):
+ * o Rodapé grava `{ footer }` preservando quaisquer chaves não editadas aqui
+ * (spread de `footerSrc`); o CTA grava `{ nav }` preservando SEMPRE
+ * `nav.items` (+ outros campos futuros) — só substitui `nav.cta`. Desligar o
+ * toggle grava `cta: null`, o que faz o renderer cair no default da vertical
+ * (`resolveNavCta` em `site-engine/lib/nav.ts`).
+ */
+function FooterNavTab({ site }: { site: Site }) {
+  const saveFooter = useSaveSite();
+  const saveNav = useSaveSite();
+
+  const footerSrc = (site.footer ?? {}) as SiteFooter;
+  const [name, setName] = useState(typeof footerSrc.name === "string" ? footerSrc.name : "");
+  const [tagline, setTagline] = useState(typeof footerSrc.tagline === "string" ? footerSrc.tagline : "");
+  const [smallPrint, setSmallPrint] = useState(
+    typeof footerSrc.smallPrint === "string" ? footerSrc.smallPrint : "",
+  );
+  const [columns, setColumns] = useState<FooterColumnDraft[]>(() => toColumnDrafts(footerSrc.columns));
+
+  const onSaveFooter = () => {
+    const nextFooter: SiteFooter = {
+      ...footerSrc,
+      name: name.trim(),
+      tagline: tagline.trim(),
+      smallPrint: smallPrint.trim(),
+      columns: columns.map((c) => ({
+        title: c.title.trim(),
+        links: c.links
+          .map((l) => ({ label: l.label.trim(), to: l.to.trim() }))
+          .filter((l) => l.label || l.to),
+      })),
+    };
+    saveFooter.mutate(
+      { footer: nextFooter },
+      {
+        onSuccess: () => toast.success("Rodapé guardado."),
+        onError: () => toast.error("Não foi possível guardar o rodapé."),
+      },
+    );
+  };
+
+  const navSrc = site.nav;
+  const existingCta = navSrc?.cta ?? null;
+  const [ctaEnabled, setCtaEnabled] = useState(!!existingCta);
+  const [ctaLabel, setCtaLabel] = useState(existingCta?.label ?? "");
+  const [ctaTo, setCtaTo] = useState(existingCta?.to ?? "");
+
+  const onSaveNav = () => {
+    const nextNav: SiteNav = {
+      ...(navSrc ?? {}),
+      cta:
+        ctaEnabled && (ctaLabel.trim() || ctaTo.trim())
+          ? { label: ctaLabel.trim(), to: ctaTo.trim() }
+          : null,
+    };
+    saveNav.mutate(
+      { nav: nextNav },
+      {
+        onSuccess: () => toast.success("Botão do menu guardado."),
+        onError: () => toast.error("Não foi possível guardar o botão do menu."),
+      },
+    );
+  };
+
+  return (
+    <div className="grid gap-5 lg:grid-cols-3">
+      <Card className="p-5 lg:col-span-2">
+        <SectionTitle>Rodapé</SectionTitle>
+        <div className="space-y-3">
+          <Input
+            label="Nome / marca"
+            placeholder="Nome mostrado no rodapé"
+            value={name}
+            onChange={(e: any) => setName(e.target.value)}
+            hint="Vazio = usa o nome da tua conta."
+          />
+          <Input
+            label="Tagline"
+            placeholder="Uma frase curta sobre o negócio"
+            value={tagline}
+            onChange={(e: any) => setTagline(e.target.value)}
+          />
+          <FooterColumnsEditor columns={columns} onChange={setColumns} disabled={saveFooter.isPending} />
+          <Input
+            label="Nota legal"
+            placeholder="© 2026 A Tua Marca."
+            value={smallPrint}
+            onChange={(e: any) => setSmallPrint(e.target.value)}
+            hint='Vazio = usa "© {ano} {nome}." automaticamente.'
+          />
+        </div>
+        <div className="mt-4">
+          <Button onClick={onSaveFooter} isLoading={saveFooter.isPending} icon="check">
+            Guardar rodapé
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="p-5">
+        <SectionTitle>Botão do menu (CTA)</SectionTitle>
+        <p className="text-[13px] text-zinc-500 mb-3">
+          O botão de destaque no cabeçalho do site (ex: "Marcar", "Inscrever").
+          Se desligares, o site usa o botão automático da tua vertical (ou
+          nenhum).
+        </p>
+        <label className="flex items-center gap-2.5 cursor-pointer mb-3">
+          <Toggle checked={ctaEnabled} onChange={setCtaEnabled} size="sm" />
+          <span className="text-sm text-zinc-700 dark:text-zinc-200">Mostrar botão personalizado</span>
+        </label>
+        {ctaEnabled && (
+          <div className="space-y-3">
+            <Input
+              label="Texto do botão"
+              placeholder="Ex: Marcar"
+              value={ctaLabel}
+              onChange={(e: any) => setCtaLabel(e.target.value)}
+            />
+            <Input
+              label="Endereço"
+              icon="link"
+              placeholder="#marcar, /contactos ou https://…"
+              value={ctaTo}
+              onChange={(e: any) => setCtaTo(e.target.value)}
+              hint="Normalmente uma âncora da página (ex: #marcar) ou o endereço de uma página do site."
+            />
+          </div>
+        )}
+        <div className="mt-4">
+          <Button onClick={onSaveNav} isLoading={saveNav.isPending} icon="check">
+            Guardar botão do menu
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // ── Tab: Domínio ──────────────────────────────────────────────────────────────
 
 const REASON_LABEL: Record<NonNullable<SubdomainCheck["reason"]>, string> = {
@@ -1386,6 +1725,7 @@ export function Website() {
           {tab === "template" && <TemplateTab site={site} />}
           {tab === "pages" && <PagesTab site={site} />}
           {tab === "brand" && <BrandTab site={site} />}
+          {tab === "footer" && <FooterNavTab site={site} />}
           {tab === "domain" && <DomainTab site={site} />}
         </>
       )}

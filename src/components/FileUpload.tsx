@@ -12,10 +12,21 @@ interface FileUploadProps {
   module: string
   accept?: 'image' | 'document' | 'any'
   currentUrl?: string | null
-  onUploaded: (fileUrl: string, key: string) => void
+  /** Não usado em modo `deferred` (nada é enviado ao escolher o ficheiro). */
+  onUploaded?: (fileUrl: string, key: string) => void
   onDeleted?: () => void
   label?: string
   className?: string
+  disabled?: boolean
+  /**
+   * Modo diferido: NÃO envia já para o storage — só mostra a pré-visualização
+   * local (`blob:`) e devolve o `File` via `onFileSelected`. Quem usa fica
+   * responsável por chamar `uploadImage` mais tarde (ex.: ao Guardar o
+   * formulário) — evita ficheiros órfãos se o formulário for cancelado.
+   */
+  deferred?: boolean
+  /** Só em modo `deferred`. `null` = cancelar a escolha pendente (volta ao `currentUrl`). */
+  onFileSelected?: (file: File | null) => void
 }
 
 export function FileUpload({
@@ -26,27 +37,41 @@ export function FileUpload({
   onDeleted,
   label = 'Carregar ficheiro',
   className = '',
+  disabled = false,
+  deferred = false,
+  onFileSelected,
 }: FileUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<string | null>(currentUrl ?? null)
+  const [pendingLocal, setPendingLocal] = useState(false)
 
   const handleFile = async (file: File) => {
     setError(null)
+
+    if (!file.type.startsWith('image/')) {
+      setError('O upload optimizado suporta apenas imagens')
+      return
+    }
+
+    if (deferred) {
+      const blobUrl = URL.createObjectURL(file)
+      setPreview(blobUrl)
+      setPendingLocal(true)
+      onFileSelected?.(file)
+      return
+    }
+
     setUploading(true)
     try {
-      if (!file.type.startsWith('image/')) {
-        throw new Error('O upload optimizado suporta apenas imagens')
-      }
-
       const { fileUrl, key } = await uploadImage({
         image: file,
         module,
       })
 
       setPreview(fileUrl)
-      onUploaded(fileUrl, key)
+      onUploaded?.(fileUrl, key)
     } catch (err: any) {
       setError(err.message ?? 'Erro desconhecido')
     } finally {
@@ -62,11 +87,20 @@ export function FileUpload({
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
+    if (disabled || uploading) return
     const file = e.dataTransfer.files[0]
     if (file) handleFile(file)
   }
 
   const handleDelete = async () => {
+    if (deferred && pendingLocal) {
+      // Cancela a escolha pendente (ainda não enviada) — volta ao valor persistido.
+      if (preview?.startsWith('blob:')) URL.revokeObjectURL(preview)
+      setPreview(currentUrl ?? null)
+      setPendingLocal(false)
+      onFileSelected?.(null)
+      return
+    }
     setPreview(null)
     onDeleted?.()
   }
@@ -99,7 +133,7 @@ export function FileUpload({
           <button
             type="button"
             onClick={handleDelete}
-            disabled={uploading}
+            disabled={uploading || disabled}
             className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition"
           >
             <Icon name="x" className="w-3 h-3" />
@@ -109,8 +143,9 @@ export function FileUpload({
         <div
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
-          onClick={() => inputRef.current?.click()}
-          className="flex flex-col items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed border-zinc-200 dark:border-zinc-700 cursor-pointer hover:border-accent hover:bg-accent/5 transition"
+          onClick={() => !disabled && inputRef.current?.click()}
+          aria-disabled={disabled}
+          className={`flex flex-col items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed border-zinc-200 dark:border-zinc-700 transition ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-accent hover:bg-accent/5'}`}
         >
           {uploading ? (
             <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
@@ -128,7 +163,7 @@ export function FileUpload({
         ref={inputRef}
         type="file"
         accept={ACCEPT[accept]}
-        disabled={uploading}
+        disabled={uploading || disabled}
         onChange={handleInputChange}
         className="hidden"
       />

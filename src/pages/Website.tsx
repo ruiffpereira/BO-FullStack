@@ -13,7 +13,9 @@ import {
 } from "../ui/ui.jsx";
 import { Icon } from "../ui/icons.jsx";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { FileUpload } from "../components/FileUpload";
 import { PageBlocksSection } from "../components/website/PageBlocksSection";
+import { uploadImage } from "../gen/backoffice/hooks/useUploadImage.js";
 import { SITE_ROOT_URL } from "../lib/env";
 import {
   useSite,
@@ -930,19 +932,40 @@ function BrandTab({ site }: { site: Site }) {
   );
   const [font, setFont] = useState<ThemeFont>((theme.font as ThemeFont) ?? "grotesk");
   const [logo, setLogo] = useState<string>(theme.logo ?? "");
+  const [logoPasteMode, setLogoPasteMode] = useState(false);
+  // Upload diferido (como o resto do editor de blocos): o ficheiro escolhido
+  // só é enviado ao clicar "Guardar marca" — nunca no momento de escolher.
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
-  const onSave = () => {
+  const onSave = async () => {
+    let logoUrl = logo.trim() || null;
+    if (logoFile) {
+      setUploadingLogo(true);
+      try {
+        const { fileUrl } = await uploadImage({ image: logoFile, module: "website" });
+        logoUrl = fileUrl;
+      } catch (err: any) {
+        toast.error(err?.message ?? "Erro ao carregar o logótipo");
+        setUploadingLogo(false);
+        return;
+      }
+      setUploadingLogo(false);
+    }
     const nextTheme: SiteTheme = {
       ...theme,
       preset,
       accent,
       font,
-      logo: logo.trim() || null,
+      logo: logoUrl,
     };
     save.mutate(
       { theme: nextTheme },
       {
-        onSuccess: () => toast.success("Marca guardada."),
+        onSuccess: () => {
+          setLogoFile(null);
+          toast.success("Marca guardada.");
+        },
         onError: () => toast.error("Não foi possível guardar a marca."),
       },
     );
@@ -996,17 +1019,42 @@ function BrandTab({ site }: { site: Site }) {
 
         <Card className="p-5">
           <SectionTitle>Logótipo</SectionTitle>
-          <Input
-            label="URL do logótipo"
-            placeholder="https://…/logo.svg"
-            value={logo}
-            onChange={(e: any) => setLogo(e.target.value)}
-            hint="Cola o endereço de uma imagem. O upload direto chega mais tarde."
+          <FileUpload
+            module="website"
+            currentUrl={logo.trim() || null}
+            deferred
+            disabled={uploadingLogo || save.isPending}
+            onFileSelected={(file) => setLogoFile(file)}
+            onDeleted={() => {
+              setLogo("");
+              setLogoFile(null);
+            }}
+            label="Carregar logótipo"
           />
+          {logoPasteMode ? (
+            <Input
+              className="mt-2"
+              placeholder="https://…/logo.svg"
+              icon="link"
+              value={logo}
+              onChange={(e: any) => {
+                setLogo(e.target.value);
+                setLogoFile(null);
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setLogoPasteMode(true)}
+              className="mt-1.5 text-xs text-zinc-400 hover:text-accent underline underline-offset-2"
+            >
+              ou cola um URL
+            </button>
+          )}
         </Card>
 
         <div>
-          <Button onClick={onSave} isLoading={save.isPending} icon="check">
+          <Button onClick={onSave} isLoading={save.isPending || uploadingLogo} icon="check">
             Guardar marca
           </Button>
         </div>

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Site } from "../../src/hooks/useWebsite";
 
@@ -11,6 +11,11 @@ const saveMutate = vi.fn();
 const publishMutate = vi.fn();
 const setSubdomainMutate = vi.fn();
 const checkFn = vi.fn();
+
+// Upload de imagem (hook gerado pelo Kubb) — usado pelo uploader dos campos
+// `image` do editor de blocos (T-imagem) e pelo logótipo da Marca.
+const { uploadImage } = vi.hoisted(() => ({ uploadImage: vi.fn() }));
+vi.mock("../../src/gen/backoffice/hooks/useUploadImage.js", () => ({ uploadImage }));
 
 vi.mock("../../src/hooks/useWebsite", async () => {
   const actual = await vi.importActual<typeof import("../../src/hooks/useWebsite")>(
@@ -567,5 +572,160 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
 
     const titleInputEn = dialog.getByLabelText("Título") as HTMLInputElement;
     expect(titleInputEn.value).toBe("Title EN");
+  });
+});
+
+// ── Blocos: upload de imagem (T-imagem) ───────────────────────────────────────
+
+describe("Website — Blocos (upload de imagem)", () => {
+  const HOME_HERO = {
+    id: "home",
+    slug: "",
+    title: "Início",
+    inNav: true,
+    order: 0,
+    kind: "content",
+    blocks: [
+      {
+        id: "b1",
+        type: "hero",
+        variant: "centered",
+        settings: { content: { pt: { title: "Título do hero" } } },
+      },
+    ],
+  };
+
+  function siteWithBlocks(pages: Site["pages"]): Site {
+    return makeSite({ pages, activeLocales: ["pt"], defaultLocale: "pt" });
+  }
+
+  async function openHeroContentModal(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("tab", { name: /Páginas/i }));
+    await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
+    await user.click(screen.getByRole("button", { name: "Editar conteúdo" }));
+    return screen.getByRole("dialog");
+  }
+
+  it("o campo Imagem do hero mostra o uploader (não um input de URL simples)", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_HERO]), isLoading: false });
+    render(<Website />);
+    const dialog = await openHeroContentModal(user);
+
+    expect(within(dialog).getByText("Carregar imagem")).toBeInTheDocument();
+    expect(within(dialog).getByText(/ou cola um URL/i)).toBeInTheDocument();
+    // Já não existe um <label> "Imagem" ligado a um <input type="text"> simples.
+    expect(within(dialog).queryByLabelText("Imagem")).not.toBeInTheDocument();
+  });
+
+  it("faz upload de uma imagem no bloco (diferido até Guardar) e persiste o URL devolvido", async () => {
+    const user = userEvent.setup();
+    uploadImage.mockResolvedValue({ fileUrl: "https://x/hero.webp", key: "k1" });
+    useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_HERO]), isLoading: false });
+    render(<Website />);
+    const dialog = await openHeroContentModal(user);
+
+    const fileInput = dialog.querySelector('input[type="file"]') as HTMLInputElement;
+    const img = new File(["x"], "hero.png", { type: "image/png" });
+    fireEvent.change(fileInput, { target: { files: [img] } });
+
+    // Upload diferido: nada é enviado ao escolher o ficheiro.
+    expect(uploadImage).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
+
+    await waitFor(() =>
+      expect(uploadImage).toHaveBeenCalledWith({ image: img, module: "website" }),
+    );
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    const pages = saveMutate.mock.calls[0][0].pages;
+    const home = pages.find((p: any) => p.id === "home");
+    const hero = home.blocks.find((b: any) => b.id === "b1");
+    expect(hero.settings.content.pt.imageUrl).toBe("https://x/hero.webp");
+    // O título editado noutro campo não é afetado pelo upload.
+    expect(hero.settings.content.pt.title).toBe("Título do hero");
+  });
+
+  it("cancelar a escolha pendente (botão remover) não envia nada e mantém o campo vazio ao guardar", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_HERO]), isLoading: false });
+    render(<Website />);
+    const dialog = await openHeroContentModal(user);
+
+    const fileInput = dialog.querySelector('input[type="file"]') as HTMLInputElement;
+    const img = new File(["x"], "hero.png", { type: "image/png" });
+    fireEvent.change(fileInput, { target: { files: [img] } });
+
+    // Remove a escolha pendente antes de Guardar (botão "x" sobre a pré-visualização).
+    const previewImg = within(dialog).getByAltText("Preview");
+    const removeBtn = previewImg.parentElement!.querySelector("button") as HTMLButtonElement;
+    fireEvent.click(removeBtn);
+
+    await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
+
+    expect(uploadImage).not.toHaveBeenCalled();
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    const pages = saveMutate.mock.calls[0][0].pages;
+    const home = pages.find((p: any) => p.id === "home");
+    const hero = home.blocks.find((b: any) => b.id === "b1");
+    expect(hero.settings.content.pt.imageUrl ?? "").toBe("");
+  });
+});
+
+// ── Marca: upload do logótipo ──────────────────────────────────────────────────
+
+describe("Website — Marca (upload do logótipo)", () => {
+  async function goToBrand(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("tab", { name: /Marca/i }));
+  }
+
+  it("mostra o uploader do logótipo (sem o antigo aviso de upload direto)", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
+    render(<Website />);
+    await goToBrand(user);
+
+    expect(screen.getByText("Carregar logótipo")).toBeInTheDocument();
+    expect(screen.getByText(/ou cola um URL/i)).toBeInTheDocument();
+    expect(screen.queryByText(/upload direto chega mais tarde/i)).not.toBeInTheDocument();
+  });
+
+  it("faz upload do logótipo (diferido até Guardar marca) e guarda o URL devolvido", async () => {
+    const user = userEvent.setup();
+    uploadImage.mockResolvedValue({ fileUrl: "https://x/logo.webp", key: "k2" });
+    useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
+    render(<Website />);
+    await goToBrand(user);
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const img = new File(["x"], "logo.png", { type: "image/png" });
+    fireEvent.change(fileInput, { target: { files: [img] } });
+
+    expect(uploadImage).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /Guardar marca/i }));
+
+    await waitFor(() =>
+      expect(uploadImage).toHaveBeenCalledWith({ image: img, module: "website" }),
+    );
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    expect(saveMutate.mock.calls[0][0].theme.logo).toBe("https://x/logo.webp");
+  });
+
+  it("cola um URL manualmente quando não há upload", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
+    render(<Website />);
+    await goToBrand(user);
+
+    await user.click(screen.getByRole("button", { name: /ou cola um URL/i }));
+    const input = screen.getByPlaceholderText("https://…/logo.svg");
+    await user.type(input, "https://x/manual-logo.png");
+
+    await user.click(screen.getByRole("button", { name: /Guardar marca/i }));
+
+    expect(uploadImage).not.toHaveBeenCalled();
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    expect(saveMutate.mock.calls[0][0].theme.logo).toBe("https://x/manual-logo.png");
   });
 });

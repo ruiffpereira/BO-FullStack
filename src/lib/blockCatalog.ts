@@ -14,7 +14,7 @@ import type { SiteBlock } from "../hooks/useWebsite";
 
 // ── DSL de campos ─────────────────────────────────────────────────────────────
 
-export type PrimitiveFieldType = "text" | "url" | "boolean" | "textareaLines";
+export type PrimitiveFieldType = "text" | "url" | "image" | "boolean" | "textareaLines";
 
 export interface PrimitiveField {
   key: string;
@@ -67,6 +67,10 @@ function text(key: string, label: string, opts: { required?: boolean; hint?: str
 function url(key: string, label: string, opts: { required?: boolean; hint?: string } = {}): PrimitiveField {
   return { key, label, type: "url", ...opts };
 }
+/** Campo de imagem — uploader (com opção de colar URL) em vez de texto simples; o valor persistido continua a ser uma URL string. */
+function image(key: string, label: string, opts: { required?: boolean; hint?: string } = {}): PrimitiveField {
+  return { key, label, type: "image", ...opts };
+}
 function boolean(key: string, label: string): PrimitiveField {
   return { key, label, type: "boolean" };
 }
@@ -109,7 +113,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       text("subtitle", "Subtítulo"),
       text("ctaLabel", "Texto do botão"),
       url("ctaHref", "Destino do botão", { hint: "Link ou #âncora" }),
-      url("imageUrl", "Imagem", { hint: "URL da imagem" }),
+      image("imageUrl", "Imagem"),
     ],
   },
   {
@@ -126,7 +130,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       text("eyebrow", "Eyebrow"),
       text("title", "Título"),
       stringList("body", "Parágrafos", "parágrafo"),
-      url("imageUrl", "Imagem"),
+      image("imageUrl", "Imagem"),
     ],
   },
   {
@@ -183,7 +187,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       items(
         "images",
         "Imagens",
-        [url("url", "URL da imagem", { required: true }), text("alt", "Texto alternativo")],
+        [image("url", "Imagem", { required: true }), text("alt", "Texto alternativo")],
         "imagem",
       ),
     ],
@@ -228,7 +232,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       text("subtitle", "Subtítulo"),
       text("ctaLabel", "Texto do botão"),
       url("ctaHref", "Destino do botão"),
-      url("imageUrl", "Imagem"),
+      image("imageUrl", "Imagem"),
     ],
   },
   {

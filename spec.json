@@ -1345,6 +1345,59 @@
           }
         }
       },
+      "GymInviteResult": {
+        "type": "object",
+        "description": "Resultado do convite de sócio (criado ou reutilizado — 200 e 201 têm a mesma forma).",
+        "properties": {
+          "customer": {
+            "type": "object",
+            "properties": {
+              "customerId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string",
+                "format": "email"
+              }
+            }
+          },
+          "membership": {
+            "type": "object",
+            "properties": {
+              "membershipId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "active"
+                ]
+              },
+              "subscriptionId": {
+                "type": "string",
+                "format": "uuid",
+                "nullable": true
+              },
+              "blocked": {
+                "type": "boolean"
+              }
+            }
+          },
+          "alreadyInvited": {
+            "type": "boolean",
+            "description": "true = convite repetido (customer/membership já existiam)"
+          },
+          "emailSent": {
+            "type": "boolean"
+          }
+        }
+      },
       "GymExercise": {
         "type": "object",
         "description": "Exercício do catálogo do tenant.",
@@ -7896,64 +7949,27 @@
         },
         "responses": {
           "200": {
-            "description": "Convite repetido (já existia customer + membership) — mesma forma da resposta 201"
+            "description": "Convite repetido (já existia customer + membership) — mesma forma da resposta 201",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymInviteResult"
+                }
+              }
+            }
           },
           "201": {
             "description": "Sócio (e/ou membership) criado",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "customer": {
-                      "type": "object",
-                      "properties": {
-                        "customerId": {
-                          "type": "string"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "email": {
-                          "type": "string"
-                        }
-                      }
-                    },
-                    "membership": {
-                      "type": "object",
-                      "properties": {
-                        "membershipId": {
-                          "type": "string"
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "pending",
-                            "active"
-                          ]
-                        },
-                        "subscriptionId": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "blocked": {
-                          "type": "boolean"
-                        }
-                      }
-                    },
-                    "alreadyInvited": {
-                      "type": "boolean"
-                    },
-                    "emailSent": {
-                      "type": "boolean"
-                    }
-                  }
+                  "$ref": "#/components/schemas/GymInviteResult"
                 }
               }
             }
           },
           "400": {
-            "description": "Dados inválidos, subscrição inválida (não pertence ao tenant) ou sem plano de mensalidade disponível"
+            "description": "Dados inválidos, subscrição inválida (não pertence ao tenant, ou inativa) ou sem plano de mensalidade disponível"
           }
         }
       }

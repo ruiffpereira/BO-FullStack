@@ -127,9 +127,7 @@ export function SubscricoesModal({ onClose }: { onClose: () => void }) {
     onError: (e) => toast.error(getApiError(e)),
   })
   const setDefault = useMutation({
-    // `as any`: cast até o swagger do PUT /gym/subscriptions/:id incluir `isDefault`
-    // no body (gap do swagger — follow-up na API; não mexer aqui).
-    mutationFn: (id: string) => putGymSubscriptionsId(id, { isDefault: true } as any),
+    mutationFn: (id: string) => putGymSubscriptionsId(id, { isDefault: true }),
     onSuccess: () => { invalidateMens(qc); toast.success('Plano predefinido atualizado') },
     onError: (e) => toast.error(getApiError(e)),
   })
@@ -203,9 +201,7 @@ export function ConvidarSocioModal({ onClose, onInvited }: { onClose: () => void
       if (subscriptionId) body.subscriptionId = subscriptionId
       return postGymMembersInvite(body)
     },
-    // `res: any`/`res?.alreadyInvited`: a resposta do invite ainda não tipa
-    // `alreadyInvited` no swagger (gap do swagger — follow-up na API; não mexer aqui).
-    onSuccess: (res: any) => {
+    onSuccess: (res) => {
       onInvited()
       toast.success(res?.alreadyInvited ? 'Sócio já tinha sido convidado' : 'Convite enviado por email')
       onClose()

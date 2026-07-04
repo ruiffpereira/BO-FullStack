@@ -10,8 +10,9 @@ import { loginAs } from "./fixtures/login";
  *
  * O gating de UI é feito 100% pelo `Shell` (`src/components/Shell.tsx`):
  *  - a sidebar mostra `accessiblePaths` = /dashboard + módulos por permissão +
- *    CORE_PATHS (Clientes, Mensagens, Financeiro, Conteúdos, Estatísticas) +
- *    (/admin, /website só para VIEW_ADMIN);
+ *    CORE_PATHS (Clientes, Mensagens, Financeiro, Conteúdos, Estatísticas,
+ *    Website, Faturação — acessíveis a QUALQUER tenant, sem permissão) +
+ *    (/admin só para VIEW_ADMIN);
  *  - o guard (useEffect) redireciona qualquer rota NÃO acessível para
  *    accessiblePaths[0] — que é sempre /dashboard (sempre acessível).
  *
@@ -63,7 +64,9 @@ async function expectBlockedRedirect(
 }
 
 // Itens CORE que TODOS os tenants (mesmo sem módulos) devem ver na sidebar.
-const CORE_ITEMS = ["Clientes", "Mensagens", "Financeiro", "Conteúdos", "Estatísticas"];
+// Website é core desde 5e5d8d0 (deixou de ser VIEW_ADMIN) — qualquer tenant
+// configura o seu próprio site público.
+const CORE_ITEMS = ["Clientes", "Mensagens", "Financeiro", "Conteúdos", "Estatísticas", "Website"];
 // Todos os itens de módulo (não-core, não-admin) — usados para verificar ocultação.
 const ALL_MODULE_ITEMS = ["Loja", "Agenda", "Ginásio"];
 // Rotas de módulo protegidas por permissão (o guard redireciona sem a permissão).
@@ -148,8 +151,9 @@ test.describe("RBAC matriz — sidebar por permissão (core + módulo próprio)"
     test(`${m.user}: as páginas CORE são acessíveis (não redirecionam)`, async ({ page, context }) => {
       await loginAs(context, m.user);
       // Core é acessível a todos os tenants — nenhuma destas rotas deve redirecionar
-      // para /dashboard. (/despesas é deep-link do Financeiro, também permitido.)
-      for (const route of ["/clientes", "/financeiro", "/conteudos", "/estatisticas", "/despesas"]) {
+      // para /dashboard. (/despesas é deep-link do Financeiro, também permitido.
+      // /website é core desde 5e5d8d0.)
+      for (const route of ["/clientes", "/financeiro", "/conteudos", "/estatisticas", "/despesas", "/website"]) {
         await page.goto(route);
         await expect(page, `${m.user} devia poder ficar em ${route}`).toHaveURL(
           new RegExp(route.replace("/", "\\/")),
@@ -170,8 +174,8 @@ test.describe("RBAC matriz — noaccess@e2e (sem componentes)", () => {
     for (const item of CORE_ITEMS) {
       await expect(nav(page).getByRole("button", { name: item, exact: true })).toBeVisible({ timeout: 10_000 });
     }
-    // Nenhum módulo, nenhum Admin.
-    for (const item of [...ALL_MODULE_ITEMS, "Admin", "Website"]) {
+    // Nenhum módulo, nenhum Admin. (Website NÃO entra aqui — é core, ver acima.)
+    for (const item of [...ALL_MODULE_ITEMS, "Admin"]) {
       await expect(
         nav(page).getByRole("button", { name: item, exact: true }),
         `noaccess NÃO devia ver "${item}"`,
@@ -179,9 +183,9 @@ test.describe("RBAC matriz — noaccess@e2e (sem componentes)", () => {
     }
   });
 
-  test("guard: /admin, /loja, /agenda, /ginasio, /website → redirecionam para /dashboard", async ({ page, context }) => {
+  test("guard: /admin, /loja, /agenda, /ginasio → redirecionam para /dashboard", async ({ page, context }) => {
     await loginAs(context, "noaccess@e2e");
-    for (const route of ["/admin", "/loja", "/agenda", "/ginasio", "/website"]) {
+    for (const route of ["/admin", "/loja", "/agenda", "/ginasio"]) {
       await expectBlockedRedirect(page, context, "noaccess@e2e", route);
     }
   });
@@ -192,13 +196,20 @@ test.describe("RBAC matriz — noaccess@e2e (sem componentes)", () => {
     await expect(page).toHaveURL(/\/clientes/, { timeout: 15_000 });
     await expect(page.getByRole("heading", { name: "Clientes", level: 1 })).toBeVisible({ timeout: 10_000 });
   });
+
+  test("/website é core: acessível sem redirect mesmo sem qualquer permissão", async ({ page, context }) => {
+    await loginAs(context, "noaccess@e2e");
+    await page.goto("/website");
+    await expect(page, "noaccess devia poder ficar em /website").toHaveURL(/\/website/, { timeout: 15_000 });
+    await expect(nav(page).getByRole("button", { name: "Website", exact: true })).toBeVisible({ timeout: 10_000 });
+  });
 });
 
 test.describe("RBAC matriz — admin@e2e (acesso total)", () => {
-  test("sidebar mostra TODOS os módulos + Admin + Website", async ({ page, context }) => {
+  test("sidebar mostra TODOS os módulos + Admin (Website já vem via CORE_ITEMS)", async ({ page, context }) => {
     await loginAs(context, "admin@e2e");
     await page.goto("/dashboard");
-    for (const name of [...CORE_ITEMS, ...ALL_MODULE_ITEMS, "Admin", "Website"]) {
+    for (const name of [...CORE_ITEMS, ...ALL_MODULE_ITEMS, "Admin"]) {
       await expect(
         nav(page).getByRole("button", { name, exact: true }),
         `admin devia ver "${name}"`,

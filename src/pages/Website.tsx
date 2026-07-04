@@ -103,6 +103,20 @@ interface SetupStep {
   done: boolean;
 }
 
+/**
+ * A página inicial (home = slug vazio, `isHomePage`) tem de ter pelo menos um
+ * bloco antes de publicar — senão o site fica no ar com a home em branco.
+ * Se por alguma razão não houver uma home identificável (ex.: nenhuma página
+ * com slug vazio), cai para a regra mais permissiva: pelo menos UMA página
+ * qualquer com blocos.
+ */
+function homeHasContent(site: Site | undefined): boolean {
+  const pages = site?.pages ?? [];
+  const home = pages.find(isHomePage);
+  if (home) return (home.blocks?.length ?? 0) >= 1;
+  return pages.some((p) => (p.blocks?.length ?? 0) >= 1);
+}
+
 function setupSteps(site: Site | undefined): SetupStep[] {
   return [
     { key: "template", label: "Escolher um template", done: !!site?.template },
@@ -116,6 +130,11 @@ function setupSteps(site: Site | undefined): SetupStep[] {
       key: "pages",
       label: "Ter pelo menos uma página",
       done: (site?.pages?.length ?? 0) >= 1,
+    },
+    {
+      key: "home-content",
+      label: "Adiciona conteúdo à página inicial",
+      done: homeHasContent(site),
     },
   ];
 }
@@ -135,9 +154,11 @@ function SiteStatusTab({ site, siteUpdatedAt }: { site: Site; siteUpdatedAt: num
       ? "Reclama um subdomínio primeiro."
       : (site.pages?.length ?? 0) < 1
         ? "O site precisa de pelo menos uma página."
-        : !site.theme?.accent
-          ? "Define a cor de destaque da marca."
-          : "";
+        : !homeHasContent(site)
+          ? "Adiciona pelo menos um bloco à página inicial."
+          : !site.theme?.accent
+            ? "Define a cor de destaque da marca."
+            : "";
 
   const onPublish = () => {
     publish.mutate(undefined, {

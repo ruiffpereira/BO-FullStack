@@ -235,7 +235,55 @@ describe("Website", () => {
         template: "barber",
         subdomain: "acme",
         theme: { accent: "amber" },
-        pages: [{ id: "home", slug: "" }],
+        // A home (slug vazio) precisa de ≥1 bloco para o gate de publicação
+        // (ver describe "Publicar bloqueado sem conteúdo na página inicial").
+        pages: [{ id: "home", slug: "", blocks: [{ id: "b1", type: "hero" }] }],
+      }),
+      isLoading: false,
+    });
+    render(<Website />);
+
+    const publicar = screen.getByRole("button", { name: /Publicar/i });
+    expect(publicar).toBeEnabled();
+    await user.click(publicar);
+    expect(publishMutate).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── Publicar: gate de conteúdo na página inicial ──────────────────────────────
+
+describe("Website — Publicar bloqueado sem conteúdo na página inicial", () => {
+  const baseSite = {
+    siteId: "s1",
+    template: "barber" as const,
+    subdomain: "acme",
+    theme: { accent: "amber" },
+  };
+
+  it("bloqueia Publicar e mostra o passo pendente quando a home (slug vazio) não tem blocos", () => {
+    useSiteMock.mockReturnValue({
+      data: makeSite({
+        ...baseSite,
+        pages: [{ id: "home", slug: "", blocks: [] }],
+      }),
+      isLoading: false,
+    });
+    render(<Website />);
+
+    const publicar = screen.getByRole("button", { name: /Publicar/i });
+    expect(publicar).toBeDisabled();
+    expect(
+      screen.getByText(/Adiciona pelo menos um bloco à página inicial/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Adiciona conteúdo à página inicial")).toBeInTheDocument();
+  });
+
+  it("permite Publicar quando a home tem pelo menos um bloco", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({
+      data: makeSite({
+        ...baseSite,
+        pages: [{ id: "home", slug: "", blocks: [{ id: "b1", type: "hero" }] }],
       }),
       isLoading: false,
     });

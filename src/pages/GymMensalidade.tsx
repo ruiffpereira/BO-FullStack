@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQueryClient, useMutation, type QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Button, IconButton, Badge, Input, Select, Toggle, Modal, EmptyState, Avatar, BADGE_TONES } from '../ui/ui.jsx'
 import { GuardButton } from '../components/GuardButton'
+import { Combobox } from '../components/Combobox'
 import { DatePicker } from '../components/DatePicker'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { PriceFillChip } from '../components/PriceFillChip'
@@ -19,6 +20,7 @@ import { useGetGymSubscriptions } from '../gen/backoffice/hooks/useGetGymSubscri
 import { postGymSubscriptions } from '../gen/backoffice/hooks/usePostGymSubscriptions.js'
 import { putGymSubscriptionsId } from '../gen/backoffice/hooks/usePutGymSubscriptionsId.js'
 import { deleteGymSubscriptionsId } from '../gen/backoffice/hooks/useDeleteGymSubscriptionsId.js'
+import { postGymMembersInvite } from '../gen/backoffice/hooks/usePostGymMembersInvite.js'
 import { useGetGymMensalidadeFinance } from '../gen/backoffice/hooks/useGetGymMensalidadeFinance.js'
 import { useGetGymMensalidadeCustomersCustomerid } from '../gen/backoffice/hooks/useGetGymMensalidadeCustomersCustomerid.js'
 import { putGymMensalidadeCustomersCustomeridSubscription } from '../gen/backoffice/hooks/usePutGymMensalidadeCustomersCustomeridSubscription.js'
@@ -28,10 +30,10 @@ import { deleteGymMensalidadePaymentsPaymentid } from '../gen/backoffice/hooks/u
 
 // ── Tipos (espelham a API; PT só na UI) ──────────────────────────────────────
 type Status = 'paid' | 'debt' | 'unpaid'
-export type Sub = { subscriptionId: string; name: string; price: number; dueDay: number; active: boolean; clientCount?: number }
+export type Sub = { subscriptionId: string; name: string; price: number; dueDay: number; active: boolean; isDefault?: boolean; clientCount?: number }
 export type Payment = { paymentId: string; period: string; amount: number; dueDate: string; status: Status; paidAt: string | null; method: string | null; notes: string | null; paidAmount: number | null; debtSince: string | null; overdue: boolean; updatedAt?: string | null; createdAt?: string | null }
-export type Membership = { customerId: string; name: string; blocked: boolean; payOnly?: boolean; subscription: Sub | null; payments: Payment[]; currentPeriod: string; today: string }
-type FinanceRow = { customerId: string; name: string; blocked: boolean; subscription: Sub | null; payment: Payment | null; status: Status; overdue: boolean }
+export type Membership = { customerId: string; name: string; blocked: boolean; payOnly?: boolean; status?: 'pending' | 'active'; subscription: Sub | null; payments: Payment[]; currentPeriod: string; today: string }
+type FinanceRow = { customerId: string; name: string; blocked: boolean; membershipStatus?: 'pending' | 'active'; subscription: Sub | null; payment: Payment | null; status: Status; overdue: boolean }
 type Finance = { period: string; today: string; kpis: { recebido: number; emDivida: number; emAtraso: number; mrr: number; blocked: number }; rows: FinanceRow[] }
 
 // ── Helpers de apresentação ──────────────────────────────────────────────────
@@ -113,7 +115,7 @@ function SubscricaoModal({ subscricao, onClose, onSaved }: { subscricao: Sub | n
 }
 
 // Catálogo de subscrições numa MODAL (ver lista; criar/editar abre a SubscricaoModal).
-function SubscricoesModal({ onClose }: { onClose: () => void }) {
+export function SubscricoesModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
   const { data } = useGetGymSubscriptions()
   const subs = (data ?? []) as Sub[]
@@ -122,6 +124,13 @@ function SubscricoesModal({ onClose }: { onClose: () => void }) {
   const del = useMutation({
     mutationFn: (id: string) => deleteGymSubscriptionsId(id),
     onSuccess: () => { invalidateMens(qc); toast.success('Subscrição eliminada') },
+    onError: (e) => toast.error(getApiError(e)),
+  })
+  const setDefault = useMutation({
+    // `as any`: cast até o swagger do PUT /gym/subscriptions/:id incluir `isDefault`
+    // no body (gap do swagger — follow-up na API; não mexer aqui).
+    mutationFn: (id: string) => putGymSubscriptionsId(id, { isDefault: true } as any),
+    onSuccess: () => { invalidateMens(qc); toast.success('Plano predefinido atualizado') },
     onError: (e) => toast.error(getApiError(e)),
   })
   return (
@@ -151,7 +160,12 @@ function SubscricoesModal({ onClose }: { onClose: () => void }) {
                 </div>
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-50 dark:border-zinc-800 text-[13px]">
                   <span className="inline-flex items-center gap-1.5 text-zinc-500"><Icon name="user" className="w-3.5 h-3.5" /><span className="font-medium text-zinc-800 dark:text-zinc-100">{s.clientCount ?? 0}</span> clientes · vence dia {s.dueDay}</span>
-                  {s.active ? <Badge tone="green" dot>Ativa</Badge> : <Badge tone="neutral">Inativa</Badge>}
+                  <div className="flex items-center gap-1.5">
+                    {s.isDefault
+                      ? <Badge tone="violet" dot>★ Predefinido</Badge>
+                      : <GuardButton variant="ghost" size="sm" onClick={() => setDefault.mutate(s.subscriptionId)}>Tornar predefinido</GuardButton>}
+                    {s.active ? <Badge tone="green" dot>Ativa</Badge> : <Badge tone="neutral">Inativa</Badge>}
+                  </div>
                 </div>
               </Card>
             ))}
@@ -164,6 +178,53 @@ function SubscricoesModal({ onClose }: { onClose: () => void }) {
         footer={<><Button variant="ghost" onClick={() => setConfirmDel(null)}>Cancelar</Button><Button variant="danger" isLoading={del.isPending} onClick={() => { if (confirmDel) del.mutate(confirmDel.subscriptionId); setConfirmDel(null) }}>Eliminar</Button></>}>
         <p className="text-sm text-zinc-500">Os clientes ligados ficam sem subscrição; os pagamentos mantêm-se. Continuar?</p>
       </Modal>
+    </Modal>
+  )
+}
+
+// ── Convidar sócio por email (Customer + GymMembership "pending") ───────────
+export function ConvidarSocioModal({ onClose, onInvited }: { onClose: () => void; onInvited: () => void }) {
+  const { data: subsData } = useGetGymSubscriptions()
+  const subs = (subsData ?? []) as Sub[]
+  const activeSubs = subs.filter((s) => s.active)
+  const defaultSub = activeSubs.find((s) => s.isDefault) ?? null
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [subscriptionId, setSubscriptionId] = useState('')
+
+  // Pré-seleciona o plano predefinido do tenant assim que o catálogo carrega.
+  useEffect(() => {
+    if (!subscriptionId && defaultSub) setSubscriptionId(defaultSub.subscriptionId)
+  }, [defaultSub, subscriptionId])
+
+  const invite = useMutation({
+    mutationFn: () => {
+      const body: any = { name: name.trim(), email: email.trim() }
+      if (subscriptionId) body.subscriptionId = subscriptionId
+      return postGymMembersInvite(body)
+    },
+    // `res: any`/`res?.alreadyInvited`: a resposta do invite ainda não tipa
+    // `alreadyInvited` no swagger (gap do swagger — follow-up na API; não mexer aqui).
+    onSuccess: (res: any) => {
+      onInvited()
+      toast.success(res?.alreadyInvited ? 'Sócio já tinha sido convidado' : 'Convite enviado por email')
+      onClose()
+    },
+    onError: (e) => toast.error(getApiError(e)),
+  })
+
+  const options = activeSubs.map((s) => ({ value: s.subscriptionId, label: s.isDefault ? `${s.name} · Predefinido` : s.name }))
+
+  return (
+    <Modal open onClose={onClose} width="max-w-md" title="Convidar sócio" subtitle="Cria a ficha e envia um email para o sócio definir a palavra-passe."
+      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><GuardButton icon="mail" isLoading={invite.isPending} disabled={!name.trim() || !email.trim() || !activeSubs.length} onClick={() => invite.mutate()}>Convidar</GuardButton></>}>
+      <div className="space-y-4">
+        <Input label="Nome" value={name} onChange={(e: any) => setName(e.target.value)} placeholder="Nome do sócio" />
+        <Input label="Email" type="email" value={email} onChange={(e: any) => setEmail(e.target.value)} placeholder="email@exemplo.pt" />
+        <Combobox label="Plano" value={subscriptionId} onChange={setSubscriptionId} options={options}
+          placeholder={activeSubs.length ? 'Selecionar plano…' : 'Sem planos ativos'} disabled={!activeSubs.length} />
+        {!activeSubs.length && <p className="text-xs text-amber-600 dark:text-amber-400">Cria uma subscrição ativa primeiro (em Subscrições).</p>}
+      </div>
     </Modal>
   )
 }
@@ -351,6 +412,13 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
 
   return (
     <div className={dense ? 'space-y-3' : 'space-y-4'}>
+      {mem.status === 'pending' && (
+        <div className="flex items-center gap-3 p-3.5 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
+          <Icon name="mail" className="w-5 h-5 text-blue-500 shrink-0" />
+          <p className="text-sm text-blue-700 dark:text-blue-300 flex-1">Sócio convidado — ainda não definiu a palavra-passe.</p>
+          <Badge tone="blue" dot>Convidado</Badge>
+        </div>
+      )}
       {mem.blocked && (
         <div className="flex items-center gap-3 p-3.5 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20">
           <Icon name="ban" className="w-5 h-5 text-red-500 shrink-0" />
@@ -579,6 +647,7 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <p className="font-medium text-zinc-900 dark:text-white truncate">{r.name}</p>
+                    {r.membershipStatus === 'pending' && <Badge tone="blue">Convidado</Badge>}
                     {r.blocked && <Badge tone="red">Bloqueado</Badge>}
                   </div>
                   <p className="text-xs text-zinc-400 truncate">{r.subscription?.name} · {fmtEur(r.subscription?.price ?? 0)} · <span className={di.fg}>{di.text}</span></p>
@@ -688,9 +757,11 @@ function AnaliseView() {
 
 // ── Tab principal: Financeiro do ginásio (Cobranças + Subscrições + Análise) ───
 export function MensalidadesTab() {
+  const qc = useQueryClient()
   const [sel, setSel] = useState<{ id: string; name: string } | null>(null)
   const [subsOpen, setSubsOpen] = useState(false)
   const [analiseOpen, setAnaliseOpen] = useState(false)
+  const [conviteOpen, setConviteOpen] = useState(false)
 
   if (sel) {
     return (
@@ -712,6 +783,7 @@ export function MensalidadesTab() {
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-zinc-500">Cobranças das mensalidades.</p>
         <div className="flex items-center gap-2">
+          <Button size="sm" icon="mail" onClick={() => setConviteOpen(true)}>Convidar sócio</Button>
           <Button variant="outline" size="sm" icon="trend" onClick={() => setAnaliseOpen(true)}>Análise</Button>
           <Button variant="outline" size="sm" icon="layers" onClick={() => setSubsOpen(true)}>Subscrições</Button>
         </div>
@@ -719,6 +791,7 @@ export function MensalidadesTab() {
 
       <CobrancasView onOpen={setSel} />
 
+      {conviteOpen && <ConvidarSocioModal onClose={() => setConviteOpen(false)} onInvited={() => invalidateMens(qc)} />}
       {subsOpen && <SubscricoesModal onClose={() => setSubsOpen(false)} />}
       {analiseOpen && (
         <Modal open onClose={() => setAnaliseOpen(false)} width="max-w-4xl" title="Análise"

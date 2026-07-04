@@ -27,7 +27,8 @@ Gerado de: `.design/platform-billing/DESIGN_BRIEF.md` · 2026-07-02
 ---
 
 ## FASE 2 — Self-serve (signup → escolher módulos → pagar)
-- [ ] **T8 · Signup self-serve + trial** `[API+BO]`: registo público de tenant → escolher módulos → **Stripe Checkout (subscription mode)** → trial → provisiona defaults. Liga ao roadmap "Activation" (Fases 3/5 do plano do site-engine). Segurança de auth (rate-limit, verificação de email). _Grande; brief próprio provável._
+- [x] **T8 · Signup self-serve + trial** `[API+BO]`: registo público de tenant → escolher módulos → **Stripe Checkout (subscription mode)** → trial → provisiona defaults. Liga ao roadmap "Activation" (Fases 3/5 do plano do site-engine). Segurança de auth (rate-limit, verificação de email). _Grande; brief próprio provável._
+  > **Feito em 2 fatias:** (1) registo público + trial LOCAL sem cartão — `.design/self-serve/` (2026-07-03), `POST /users/signup`. (2) **conversão do trial local numa subscrição Stripe real via Checkout Session** — `POST /billing/subscribe` (2026-07-04, `src/services/platformBilling.ts::createTenantCheckoutSession` + `Faturacao.tsx`). Reutiliza os webhooks já existentes de T2 (`customer.subscription.*`/`invoice.*`) sem alterações — uma Checkout Session em modo `subscription`, ao completar, cria uma Subscription normal que já dispara esses eventos.
 
 ## FASE 3 — Faturação certificada PT (GATE DE GO-LIVE — bloqueante legal)
 - [ ] **T9 · Integrar provider PT** `[API]`: escolher **Vendus / InvoiceXpress / Moloni**; por cada `invoice.paid`, emitir **recibo/fatura certificada** com os dados fiscais do tenant; guardar a referência. Só depois **`BILLING_LIVE=true`**. **Sem isto NÃO se cobra 1 € real** (SAF-T/AT). _Pré-requisito legal absoluto antes de faturar._

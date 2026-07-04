@@ -20,6 +20,7 @@ type BillingState = {
   currentPeriodEnd: string | null;
   cancelAt: string | null;
   graceEndsAt: string | null;
+  hasStripeSubscription: boolean;
 };
 
 const base: BillingState = {
@@ -32,6 +33,10 @@ const base: BillingState = {
   currentPeriodEnd: null,
   cancelAt: null,
   graceEndsAt: null,
+  // T9 (self-serve): a maioria destes estados de teste representa uma
+  // subscrição Stripe-backed (o "Gerir pagamento" do portal só aparece quando
+  // true) — ver `hasStripeSubscription` no BillingSubscription do backend.
+  hasStripeSubscription: true,
 };
 
 const iso = (days: number) => new Date(Date.now() + days * 864e5).toISOString();

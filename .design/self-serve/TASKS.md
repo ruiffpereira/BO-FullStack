@@ -22,6 +22,7 @@ Date: 2026-07-03 · Execução: agentes Sonnet + review adversarial; tokens salt
 - [x] **T7 — Kubb refresh**: dumpSpec offline → spec.json → `pnpm kubb`; hooks novos (signup/catalog/trial) gerados. _Tooling._
 - [x] **T8 — Página /signup**: standalone (par do Login), passo 1 (vertical radio-cards + nome + email, `?vertical=` pré-seleciona) → passo 2 (módulos pré-marcados + preços do catálogo público + total €/mês live + selo «14 dias grátis, sem cartão») → estado «vê o teu email» (role=status). Link «Criar conta» no Login. Mobile-first, foco gerido entre passos. Testes unit (fluxo completo mockado, anti-enumeração no UI, total recalcula). _Novo: src/pages/Signup.tsx; reutiliza ui.jsx + billingStatus labels._
 - [x] **T9 — Estados trial_expired**: `billingStatus.ts` (badge/label vermelho «período experimental terminado»), `BillingBanner` (ramo vermelho role=alert, «fala connosco» → /mensagens + «Ver faturação»), `Faturacao.tsx` (bloco de estado com CTA suporte). Testes unit dos 3. _Modifica._
+  > **Superseded 2026-07-04:** o CTA de `trial_expired` (e o de `trialing` local/`canceled`) deixou de apontar para o suporte — agora abre uma **Stripe Checkout Session** (`POST /api/billing/subscribe`, self-serve) que converte o trial local numa subscrição Stripe real. Fecha o item "cartão/Stripe no signup" que este ficheiro tinha como **Deferred**. Ver `src/services/platformBilling.ts` (`createTenantCheckoutSession`) + `Faturacao.tsx` + `.design/platform-billing/TASKS.md` (T8, Fase 2 — Stripe Checkout).
 - [x] **T10 — Estender trial no Admin**: `AdminBilling.tsx` — ação «Estender trial» (input dias, default 14) nas linhas com subscrição local/trial; badge trial_expired; invalida queries. Testes unit (payload certo, só aparece quando aplicável). _Modifica._
 
 ## Interactions & States (Backoffice)
@@ -34,4 +35,4 @@ Date: 2026-07-03 · Execução: agentes Sonnet + review adversarial; tokens salt
 
 ## Deferred (fora desta fase — ver Out of Scope do brief)
 - e2e Playwright do fluxo signup (juntar à dívida 5.3 do roadmap — e2e chat/site-engine; correr quando o grant do api_e2e estiver restaurado).
-- Cartão/Stripe no signup (Fase 3) · captcha · lifecycle emails · provisionamento do site (Fase 2).
+- ~~Cartão/Stripe no signup~~ **FEITO 2026-07-04** (self-serve subscribe, `POST /billing/subscribe` + Stripe Checkout Session — ver nota no T9 acima) · captcha · lifecycle emails · provisionamento do site (Fase 2) continuam por fazer.

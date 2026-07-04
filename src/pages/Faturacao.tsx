@@ -1,10 +1,10 @@
 import { toast } from 'sonner'
-import { useNavigate } from 'react-router-dom'
 import { Card, PageHeader, EmptyState, Button, Badge, SectionTitle } from '../ui/ui.jsx'
 import { Icon } from '../ui/icons.jsx'
 import { getApiError } from '../lib/apiError'
 import { useGetBillingSubscription } from '../gen/backoffice/hooks/useGetBillingSubscription'
 import { usePostBillingPortal } from '../gen/backoffice/hooks/usePostBillingPortal'
+import { usePostBillingSubscribe } from '../gen/backoffice/hooks/usePostBillingSubscribe'
 import {
   MODULE_LABELS,
   eur,
@@ -15,13 +15,23 @@ import {
 
 /**
  * Página "Faturação" (core, todos os tenants). Cada tenant vê a SUA subscrição
- * da plataforma (platform billing, T4/T5). Estados cobertos: sem subscrição
+ * da plataforma (platform billing, T4/T5/T9). Estados cobertos: sem subscrição
  * (`none`) · período de teste (`trialing`) · ativa (`active`) · pagamento em
  * atraso dentro do grace (`grace`) · acesso limitado a leitura (`past_due_locked`/
- * `canceled`) · por concluir (`incomplete`).
+ * `canceled`) · por concluir (`incomplete`) · trial local terminado (`trial_expired`).
  *
- * O CTA "Gerir/Regularizar pagamento" abre uma sessão do **Stripe Billing Portal**
- * (`POST /api/billing/portal` → redireciona para gerir cartão/faturas/cancelamento).
+ * O CTA "Gerir pagamento" abre uma sessão do **Stripe Billing Portal**
+ * (`POST /api/billing/portal` → redireciona para gerir cartão/faturas/cancelamento)
+ * — só faz sentido quando já existe uma subscrição Stripe REAL por trás
+ * (`hasStripeSubscription`).
+ *
+ * O CTA de self-serve "Adicionar cartão" (T9) cria uma **Stripe Checkout Session**
+ * (`POST /api/billing/subscribe` → `{ url }`, redirect) para o tenant introduzir o
+ * cartão e converter o trial local numa subscrição Stripe real. Só se mostra
+ * quando `!hasStripeSubscription` (trial local, nunca teve Stripe por trás) OU o
+ * estado é `canceled` (reativação — o Billing Portal não ressuscita uma
+ * subscrição Stripe já cancelada; o self-serve cria uma nova). Ver
+ * `canSelfServeSubscribe` abaixo.
  */
 
 const NOTICE_BORDER: Record<Tone, string> = {
@@ -82,7 +92,6 @@ function Notice({
 
 export function Faturacao() {
   const { data, isLoading, isError } = useGetBillingSubscription()
-  const navigate = useNavigate()
 
   // Abre o Stripe Billing Portal e redireciona o tenant. 409 = ainda sem
   // cliente/subscrição Stripe (o dono ainda não criou a subscrição — T6).
@@ -102,6 +111,42 @@ export function Faturacao() {
     },
   })
   const portalAction: NoticeAction = { onClick: () => portalM.mutate(), pending: portalM.isPending }
+
+  // Self-serve (T9): cria a Stripe Checkout Session e redireciona o tenant para
+  // introduzir o cartão. 400 = sem módulos/config em falta; 402 = cobrança
+  // bloqueada (BILLING_LIVE); 409 = já tem uma subscrição Stripe viva (usar o
+  // botão "Gerir pagamento" acima, não duplicado aqui).
+  const subscribeM = usePostBillingSubscribe({
+    mutation: {
+      onSuccess: (session) => {
+        if (session?.url) window.location.href = session.url
+      },
+      onError: (error) => {
+        const status = (error as any)?.response?.status ?? (error as any)?.status
+        if (status === 409) {
+          toast.error('Já tens uma subscrição em curso — usa "Gerir pagamento" para a atualizar.')
+        } else if (status === 402) {
+          toast.error(getApiError(error, 'Cobrança ainda não disponível — fala com o suporte.'))
+        } else {
+          toast.error(getApiError(error, 'Não foi possível iniciar a subscrição.'))
+        }
+      },
+    },
+  })
+  const subscribeAction: NoticeAction = {
+    onClick: () => subscribeM.mutate(),
+    pending: subscribeM.isPending,
+    label: 'Adicionar cartão',
+    icon: 'card',
+  }
+
+  // Só faz sentido oferecer o self-serve (Checkout Session) quando NÃO existe
+  // uma subscrição Stripe real por trás (trial local — signup self-serve) OU
+  // quando já está `canceled` (o Billing Portal não reativa uma subscrição
+  // Stripe cancelada; o self-serve cria uma nova). Nos restantes estados
+  // (Stripe-backed: trialing com cartão, incomplete, grace, past_due_locked,
+  // active) o caminho certo é sempre o Billing Portal.
+  const canSelfServeSubscribe = !!data && (!data.hasStripeSubscription || data.status === 'canceled')
 
   return (
     <div className="space-y-4 max-w-3xl">
@@ -145,7 +190,12 @@ export function Faturacao() {
                 icon="clock"
                 role="status"
                 title={`Período de teste — termina a ${fmtDate(data.trialEnd)}.`}
-                desc="No fim do período, a subscrição é cobrada automaticamente ao método de pagamento. Confirma que o teu cartão está registado."
+                desc={
+                  canSelfServeSubscribe
+                    ? 'Adiciona um método de pagamento para a subscrição continuar automaticamente no fim do período.'
+                    : 'No fim do período, a subscrição é cobrada automaticamente ao método de pagamento. Confirma que o teu cartão está registado.'
+                }
+                action={canSelfServeSubscribe ? subscribeAction : undefined}
               />
             )}
             {data.reason === 'incomplete' && (
@@ -184,8 +234,16 @@ export function Faturacao() {
                 icon="ban"
                 role="alert"
                 title="Subscrição cancelada — acesso limitado a leitura."
-                desc="Regulariza o pagamento para reativar a subscrição. Nenhum dado é apagado."
-                action={portalAction}
+                desc={
+                  canSelfServeSubscribe
+                    ? 'Reativa a subscrição com um novo cartão para recuperares o acesso completo. Nenhum dado é apagado.'
+                    : 'Regulariza o pagamento para reativar a subscrição. Nenhum dado é apagado.'
+                }
+                action={
+                  canSelfServeSubscribe
+                    ? { ...subscribeAction, label: 'Reativar subscrição' }
+                    : portalAction
+                }
               />
             )}
             {data.reason === 'trial_expired' && (
@@ -194,8 +252,8 @@ export function Faturacao() {
                 icon="ban"
                 role="alert"
                 title="O teu período experimental terminou."
-                desc="Esta fase ainda não tem cobrança automática — fala com o suporte para continuares a usar a plataforma. Nenhum dado é apagado."
-                action={{ onClick: () => navigate('/mensagens'), label: 'Falar com o suporte', icon: 'message' }}
+                desc="Adiciona um método de pagamento para continuares a usar a plataforma. Nenhum dado é apagado."
+                action={subscribeAction}
               />
             )}
 
@@ -231,12 +289,13 @@ export function Faturacao() {
               )}
             </Card>
 
-            {/* Método de pagamento → Stripe Customer Portal. Não aparece em
-                trial_expired: um tenant self-serve nesse estado nunca teve um
-                cliente Stripe, e o CTA acima (Notice) já cobre a ação (falar com o
-                suporte) — mostrar este cartão só duplicaria o CTA e o clique
+            {/* Método de pagamento → Stripe Customer Portal. Só aparece quando já
+                existe uma subscrição Stripe REAL por trás (`hasStripeSubscription`)
+                — um trial local (self-serve, sem cartão ainda) nunca teve um
+                cliente Stripe, e o CTA acima (Notice "Adicionar cartão", T9) já
+                cobre a ação; mostrar este cartão só duplicaria o CTA e o clique
                 resultaria sempre num 409 redundante. */}
-            {data.reason !== 'trial_expired' && (
+            {data.hasStripeSubscription && (
               <Card className="p-5">
                 <SectionTitle>Método de pagamento</SectionTitle>
                 <p className="text-sm text-zinc-500">

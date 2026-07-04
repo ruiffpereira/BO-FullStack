@@ -24,9 +24,17 @@ vi.mock("../../src/gen/backoffice/hooks/usePostBillingPortal", () => ({
   usePostBillingPortal: () => ({ mutate: portalMutateMock, isPending: false }),
 }));
 
+// Self-serve (T9): CTA "Adicionar cartão"/"Reativar subscrição" cria a Stripe
+// Checkout Session via usePostBillingSubscribe. Mesmo padrão de mock do portal.
+const subscribeMutateMock = vi.fn();
+
+vi.mock("../../src/gen/backoffice/hooks/usePostBillingSubscribe", () => ({
+  usePostBillingSubscribe: () => ({ mutate: subscribeMutateMock, isPending: false }),
+}));
+
 import { Faturacao } from "../../src/pages/Faturacao";
 
-// Objeto BillingSubscription completo (o shape do backend T3). Os testes só
+// Objeto BillingSubscription completo (o shape do backend T3/T9). Os testes só
 // alteram os campos relevantes por estado.
 type Sub = {
   status: string;
@@ -38,6 +46,7 @@ type Sub = {
   readOnly: boolean;
   reason: string;
   graceEndsAt?: string | null;
+  hasStripeSubscription: boolean;
 };
 
 const base: Sub = {
@@ -50,6 +59,9 @@ const base: Sub = {
   readOnly: false,
   reason: "active",
   graceEndsAt: null,
+  // A maioria dos estados (active/incomplete/grace/past_due_locked/canceled) só
+  // existe quando já há uma subscrição Stripe real por trás — default realista.
+  hasStripeSubscription: true,
 };
 const sub = (p: Partial<Sub>): Sub => ({ ...base, ...p });
 
@@ -64,8 +76,6 @@ function mockBilling(
   });
 }
 
-// A página usa useNavigate() (CTA "Falar com o suporte" do estado trial_expired,
-// T9) — precisa de um Router context mesmo nos estados que não o exercitam.
 function renderFaturacao() {
   return render(
     <MemoryRouter>
@@ -80,7 +90,9 @@ beforeEach(() => {
 
 describe("Faturação — sem subscrição (none)", () => {
   it("mostra um empty state neutro, sem plano nem avisos", () => {
-    mockBilling(sub({ status: "none", reason: "none", modules: [], monthlyTotalEur: 0 }));
+    mockBilling(
+      sub({ status: "none", reason: "none", modules: [], monthlyTotalEur: 0, hasStripeSubscription: false }),
+    );
     renderFaturacao();
 
     expect(screen.getByText("Sem subscrição ativa")).toBeInTheDocument();
@@ -90,8 +102,8 @@ describe("Faturação — sem subscrição (none)", () => {
   });
 });
 
-describe("Faturação — período de teste (trialing)", () => {
-  it("mostra o fim do trial e o total mensal", () => {
+describe("Faturação — período de teste (trialing, LOCAL — self-serve sem cartão, T9)", () => {
+  it("mostra o fim do trial, o total mensal e o CTA de self-serve 'Adicionar cartão'", () => {
     mockBilling(
       sub({
         status: "trialing",
@@ -99,6 +111,7 @@ describe("Faturação — período de teste (trialing)", () => {
         modules: ["agenda"],
         monthlyTotalEur: 15,
         trialEnd: "2026-07-16T12:00:00.000Z",
+        hasStripeSubscription: false,
       }),
     );
     renderFaturacao();
@@ -111,6 +124,48 @@ describe("Faturação — período de teste (trialing)", () => {
     // Total/mês
     expect(screen.getByText(/15,00/)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    // CTA de self-serve (sem cartão ainda) — nunca "Gerir pagamento" (não há
+    // cliente Stripe para gerir).
+    expect(screen.getByRole("button", { name: /adicionar cartão/i })).toBeInTheDocument();
+    expect(screen.queryByText("Método de pagamento")).not.toBeInTheDocument();
+  });
+
+  it("clicar 'Adicionar cartão' inicia a Stripe Checkout Session (dispara a mutação)", () => {
+    mockBilling(
+      sub({
+        status: "trialing",
+        reason: "trialing",
+        modules: ["agenda"],
+        monthlyTotalEur: 15,
+        trialEnd: "2026-07-16T12:00:00.000Z",
+        hasStripeSubscription: false,
+      }),
+    );
+    renderFaturacao();
+
+    fireEvent.click(screen.getByRole("button", { name: /adicionar cartão/i }));
+    expect(subscribeMutateMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Faturação — período de teste (trialing, Stripe-backed — o dono já criou a subscrição)", () => {
+  it("não mostra o CTA de self-serve; mostra o cartão 'Método de pagamento' normal", () => {
+    mockBilling(
+      sub({
+        status: "trialing",
+        reason: "trialing",
+        modules: ["agenda"],
+        monthlyTotalEur: 15,
+        trialEnd: "2026-07-16T12:00:00.000Z",
+        hasStripeSubscription: true,
+      }),
+    );
+    renderFaturacao();
+
+    expect(screen.queryByRole("button", { name: /adicionar cartão/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Método de pagamento")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /gerir pagamento/i })).toBeInTheDocument();
   });
 });
 
@@ -190,7 +245,7 @@ describe("Faturação — acesso limitado (past_due_locked)", () => {
 });
 
 describe("Faturação — período experimental terminado (trial_expired, self-serve T9)", () => {
-  it("mostra um alerta vermelho explicando + CTA para o suporte (não para o portal)", () => {
+  it("mostra um alerta vermelho explicando + CTA de self-serve 'Adicionar cartão' (não o portal)", () => {
     mockBilling(
       sub({
         status: "trialing",
@@ -198,6 +253,7 @@ describe("Faturação — período experimental terminado (trial_expired, self-s
         modules: ["agenda"],
         monthlyTotalEur: 15,
         readOnly: true,
+        hasStripeSubscription: false,
       }),
     );
     renderFaturacao();
@@ -205,13 +261,13 @@ describe("Faturação — período experimental terminado (trial_expired, self-s
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent(/período experimental terminou/i);
     expect(screen.getByText("Período experimental terminado")).toBeInTheDocument();
-    const cta = screen.getByRole("button", { name: /falar com o suporte/i });
+    const cta = screen.getByRole("button", { name: /adicionar cartão/i });
     expect(cta).toBeInTheDocument();
-    // Não mostra o CTA de regularizar pagamento (esta fase não tem cobrança automática)
+    // Não mostra o CTA de regularizar pagamento (não há subscrição Stripe para gerir)
     expect(screen.queryByRole("button", { name: /regularizar pagamento/i })).not.toBeInTheDocument();
   });
 
-  it("não mostra o cartão 'Método de pagamento' (FIX 3 — tenant self-serve nunca teve cliente Stripe)", () => {
+  it("clicar 'Adicionar cartão' inicia a Stripe Checkout Session (converte o trial local)", () => {
     mockBilling(
       sub({
         status: "trialing",
@@ -219,12 +275,30 @@ describe("Faturação — período experimental terminado (trial_expired, self-s
         modules: ["agenda"],
         monthlyTotalEur: 15,
         readOnly: true,
+        hasStripeSubscription: false,
+      }),
+    );
+    renderFaturacao();
+
+    fireEvent.click(screen.getByRole("button", { name: /adicionar cartão/i }));
+    expect(subscribeMutateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("não mostra o cartão 'Método de pagamento' (tenant self-serve nunca teve cliente Stripe)", () => {
+    mockBilling(
+      sub({
+        status: "trialing",
+        reason: "trial_expired",
+        modules: ["agenda"],
+        monthlyTotalEur: 15,
+        readOnly: true,
+        hasStripeSubscription: false,
       }),
     );
     renderFaturacao();
 
     // O CTA "Gerir pagamento" (Stripe Billing Portal) some inteiramente — o único
-    // CTA nesta fase é "Falar com o suporte" (já coberto no Notice acima), sem
+    // CTA nesta fase é "Adicionar cartão" (já coberto no Notice acima), sem
     // duplicar num 409 redundante.
     expect(screen.queryByText("Método de pagamento")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^gerir pagamento$/i })).not.toBeInTheDocument();
@@ -232,8 +306,8 @@ describe("Faturação — período experimental terminado (trial_expired, self-s
   });
 });
 
-describe("Faturação — cancelada (canceled)", () => {
-  it("mostra um alerta vermelho de subscrição cancelada / read-only", () => {
+describe("Faturação — cancelada (canceled) — self-serve SEMPRE disponível (T9: o Billing Portal não ressuscita uma subscrição Stripe cancelada, por isso 'Reativar subscrição' aparece independentemente de hasStripeSubscription)", () => {
+  it("com subscrição Stripe anterior (hasStripeSubscription:true) → 'Reativar subscrição' + mantém 'Método de pagamento' (faturas antigas)", () => {
     mockBilling(
       sub({
         status: "canceled",
@@ -241,6 +315,7 @@ describe("Faturação — cancelada (canceled)", () => {
         modules: ["agenda"],
         monthlyTotalEur: 15,
         readOnly: true,
+        hasStripeSubscription: true,
       }),
     );
     renderFaturacao();
@@ -249,6 +324,31 @@ describe("Faturação — cancelada (canceled)", () => {
     expect(alert).toHaveTextContent(/cancelada/i);
     expect(alert.className).toContain("border-red");
     expect(screen.getByText("Cancelada")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /reativar subscrição/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^regularizar pagamento$/i })).not.toBeInTheDocument();
+    // Mantém o cartão do portal (útil para ver faturas antigas), mesmo sem poder reativar por lá.
+    expect(screen.getByText("Método de pagamento")).toBeInTheDocument();
+  });
+
+  it("sem subscrição Stripe (hasStripeSubscription:false) → 'Reativar subscrição' e SEM o cartão 'Método de pagamento'", () => {
+    mockBilling(
+      sub({
+        status: "canceled",
+        reason: "canceled",
+        modules: ["agenda"],
+        monthlyTotalEur: 15,
+        readOnly: true,
+        hasStripeSubscription: false,
+      }),
+    );
+    renderFaturacao();
+
+    const cta = screen.getByRole("button", { name: /reativar subscrição/i });
+    expect(cta).toBeInTheDocument();
+    expect(screen.queryByText("Método de pagamento")).not.toBeInTheDocument();
+
+    fireEvent.click(cta);
+    expect(subscribeMutateMock).toHaveBeenCalledTimes(1);
   });
 });
 

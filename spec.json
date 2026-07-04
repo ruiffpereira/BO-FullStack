@@ -1134,6 +1134,10 @@
           "active": {
             "type": "boolean"
           },
+          "isDefault": {
+            "type": "boolean",
+            "description": "Plano atribuído automaticamente aos novos convites de sócio (exatamente 1 por tenant)"
+          },
           "position": {
             "type": "integer"
           },
@@ -1224,6 +1228,14 @@
           },
           "blocked": {
             "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "active"
+            ],
+            "description": "pending = convidado, ainda sem palavra-passe; active = normal"
           },
           "subscription": {
             "allOf": [
@@ -2154,6 +2166,10 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          },
+          "hasStripeSubscription": {
+            "type": "boolean",
+            "description": "T9 (self-serve): true se ja existe uma subscricao Stripe real por tras (nunca o id). false = trial local (sem cartao) ou nenhuma subscricao."
           }
         },
         "required": [
@@ -2161,12 +2177,26 @@
           "modules",
           "monthlyTotalEur",
           "readOnly",
-          "reason"
+          "reason",
+          "hasStripeSubscription"
         ]
       },
       "BillingPortalSession": {
         "type": "object",
         "description": "Sessao do Stripe Billing Portal (platform billing, T6). Redireciona o tenant para `url` para gerir cartao/faturas/cancelamento.",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "BillingCheckoutSession": {
+        "type": "object",
+        "description": "Stripe Checkout Session (platform billing self-serve, T9). Redireciona o tenant para `url` para introduzir o cartao e converter o trial local numa subscricao Stripe real.",
         "properties": {
           "url": {
             "type": "string",
@@ -4120,6 +4150,41 @@
           },
           "409": {
             "description": "O tenant ainda não tem subscrição/cliente Stripe para gerir (o dono da\nplataforma ainda não criou a subscrição — T6).\n"
+          }
+        }
+      }
+    },
+    "/billing/subscribe": {
+      "post": {
+        "summary": "Self-serve — o tenant converte o trial local numa subscrição Stripe real (Checkout Session)",
+        "description": "Cria uma Stripe Checkout Session (modo subscription) para o tenant autenticado\nintroduzir o cartão. Usa os módulos já guardados na `PlatformSubscription` do\ntenant (do signup self-serve) — não aceita módulos no body. Honra os dias\nrestantes do trial local (não reseta para 14 dias completos); se o trial local\njá expirou, cria sem trial (cobra logo ao completar o Checkout).\n",
+        "tags": [
+          "Billing"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "URL da Checkout Session para redirecionar o tenant.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingCheckoutSession"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sem módulos para subscrever, ou `BACKOFFICE_URL` não configurado (config)."
+          },
+          "402": {
+            "description": "Cobrança bloqueada (chave LIVE sem BILLING_LIVE=true — faturação certificada em falta)."
+          },
+          "409": {
+            "description": "O tenant já tem uma subscrição Stripe viva — usar o Billing Portal para gerir."
           }
         }
       }
@@ -7789,6 +7854,110 @@
         }
       }
     },
+    "/gym/members/invite": {
+      "post": {
+        "summary": "Convidar um novo sócio do ginásio por email",
+        "description": "Cria (ou reutiliza) um Customer sem password + uma GymMembership \"pending\" com o plano indicado (ou o plano default do tenant), e envia um email com o link para o convidado definir a password (reutiliza o fluxo genérico de reset de password). Idempotente: repetir o convite para o mesmo email não duplica nem muda o plano já atribuído — para trocar o plano usa-se o endpoint já existente `PUT /gym/mensalidade/customers/:customerId/subscription`.",
+        "tags": [
+          "GymMembers"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "email"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "subscriptionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Opcional — omitir usa o plano default do tenant"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Convite repetido (já existia customer + membership) — mesma forma da resposta 201"
+          },
+          "201": {
+            "description": "Sócio (e/ou membership) criado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "customer": {
+                      "type": "object",
+                      "properties": {
+                        "customerId": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "membership": {
+                      "type": "object",
+                      "properties": {
+                        "membershipId": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "active"
+                          ]
+                        },
+                        "subscriptionId": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "blocked": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "alreadyInvited": {
+                      "type": "boolean"
+                    },
+                    "emailSent": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos, subscrição inválida (não pertence ao tenant) ou sem plano de mensalidade disponível"
+          }
+        }
+      }
+    },
     "/gym/mensalidade/generate": {
       "post": {
         "summary": "Gerar as mensalidades em falta do período (todos os membros ativos)",
@@ -9428,6 +9597,10 @@
                   },
                   "active": {
                     "type": "boolean"
+                  },
+                  "isDefault": {
+                    "type": "boolean",
+                    "description": "Torna-se o plano default do tenant (atribuído automaticamente aos novos convites de sócio). A 1.ª subscrição criada é sempre default."
                   }
                 }
               }
@@ -9493,6 +9666,10 @@
                   },
                   "active": {
                     "type": "boolean"
+                  },
+                  "isDefault": {
+                    "type": "boolean",
+                    "description": "true = torna-se o único default do tenant; false = deixa de ser default"
                   }
                 }
               }
@@ -11674,6 +11851,10 @@
     {
       "name": "GymExercises",
       "description": "Catálogo de exercícios do ginásio (backoffice)"
+    },
+    {
+      "name": "GymMembers",
+      "description": "Convite de sócio por email (sem self-serve público — o tenant é quem convida)"
     },
     {
       "name": "GymMensalidade",

@@ -19,6 +19,8 @@ const postMutateMock = vi.fn();
 const useCatalogMock = vi.fn();
 const putMutateMock = vi.fn();
 const extendTrialMutateMock = vi.fn();
+const useSettingsMock = vi.fn();
+const putSettingsMutateMock = vi.fn();
 
 vi.mock("../../src/gen/backoffice/hooks/useGetAdminBillingSubscriptions", () => ({
   useGetAdminBillingSubscriptions: () => useAdminListMock(),
@@ -36,6 +38,13 @@ vi.mock("../../src/gen/backoffice/hooks/usePutAdminBillingCatalogModule", () => 
 }));
 vi.mock("../../src/gen/backoffice/hooks/usePatchAdminBillingSubscriptionsUseridTrial", () => ({
   usePatchAdminBillingSubscriptionsUseridTrial: () => ({ mutate: extendTrialMutateMock, isPending: false }),
+}));
+vi.mock("../../src/gen/backoffice/hooks/useGetAdminBillingSettings", () => ({
+  useGetAdminBillingSettings: () => useSettingsMock(),
+  getAdminBillingSettingsQueryKey: () => [{ url: "/admin/billing/settings" }],
+}));
+vi.mock("../../src/gen/backoffice/hooks/usePutAdminBillingSettings", () => ({
+  usePutAdminBillingSettings: () => ({ mutate: putSettingsMutateMock, isPending: false }),
 }));
 
 import { AdminBillingTab } from "../../src/components/AdminBilling";
@@ -64,6 +73,9 @@ function mockList(tenants: Tenant[], isLoading = false) {
 }
 function mockCatalog(rows: CatalogRow[], isLoading = false) {
   useCatalogMock.mockReturnValue({ data: rows, isLoading });
+}
+function mockSettings(data: { trialDays: number } | undefined, isLoading = false) {
+  useSettingsMock.mockReturnValue({ data, isLoading });
 }
 
 function renderTab() {
@@ -95,6 +107,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   // Default seguro: o catálogo carregado (os testes que precisam override chamam mockCatalog).
   mockCatalog(CATALOG);
+  mockSettings({ trialDays: 14 });
 });
 
 describe("AdminBillingTab — lista de tenants", () => {
@@ -176,6 +189,59 @@ describe("AdminBillingTab — catálogo de preços", () => {
     // Botão desativado → clicar não dispara o PUT.
     fireEvent.click(screen.getByRole("button", { name: "Guardar Agenda" }));
     expect(putMutateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("AdminBillingTab — período experimental (trialDays)", () => {
+  it("mostra o valor atual vindo da API", () => {
+    mockList(TENANTS);
+    mockSettings({ trialDays: 21 });
+    renderTab();
+
+    expect((screen.getByLabelText("Período experimental (dias)") as HTMLInputElement).value).toBe("21");
+  });
+
+  it("guardar chama o PUT com o novo valor (número)", () => {
+    mockList(TENANTS);
+    mockSettings({ trialDays: 14 });
+    renderTab();
+
+    fireEvent.change(screen.getByLabelText("Período experimental (dias)"), { target: { value: "30" } });
+    fireEvent.click(screen.getByRole("button", { name: /guardar período experimental/i }));
+
+    expect(putSettingsMutateMock).toHaveBeenCalledTimes(1);
+    expect(putSettingsMutateMock).toHaveBeenCalledWith({ data: { trialDays: 30 } });
+  });
+
+  it("não guarda com um valor fora de 0..90 (botão desativado + aviso)", () => {
+    mockList(TENANTS);
+    mockSettings({ trialDays: 14 });
+    renderTab();
+
+    fireEvent.change(screen.getByLabelText("Período experimental (dias)"), { target: { value: "91" } });
+    expect(screen.getByText(/introduz um número entre 0 e 90/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /guardar período experimental/i }));
+    expect(putSettingsMutateMock).not.toHaveBeenCalled();
+  });
+
+  it("aceita 0 (sem período experimental) e guarda", () => {
+    mockList(TENANTS);
+    mockSettings({ trialDays: 14 });
+    renderTab();
+
+    fireEvent.change(screen.getByLabelText("Período experimental (dias)"), { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: /guardar período experimental/i }));
+
+    expect(putSettingsMutateMock).toHaveBeenCalledWith({ data: { trialDays: 0 } });
+  });
+
+  it("botão desativado quando o valor não mudou (nada para guardar)", () => {
+    mockList(TENANTS);
+    mockSettings({ trialDays: 14 });
+    renderTab();
+
+    const btn = screen.getByRole("button", { name: /guardar período experimental/i });
+    expect(btn).toBeDisabled();
   });
 });
 

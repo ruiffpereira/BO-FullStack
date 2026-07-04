@@ -2506,6 +2506,21 @@
           "monthlyAmountCents"
         ]
       },
+      "BillingSettings": {
+        "type": "object",
+        "description": "Configuracao global de platform billing (dono) — hoje so o periodo experimental (dias) para NOVOS signups self-serve. Alterar afeta apenas trials futuros; os ja criados mantem o trialEnd fixado.",
+        "properties": {
+          "trialDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 90,
+            "description": "Dias de periodo experimental para NOVOS signups self-serve (default historico: 14)."
+          }
+        },
+        "required": [
+          "trialDays"
+        ]
+      },
       "Lead": {
         "type": "object",
         "properties": {
@@ -3062,6 +3077,85 @@
         }
       }
     },
+    "/admin/billing/settings": {
+      "get": {
+        "summary": "Ler a configuração global de platform billing (dono)",
+        "description": "Hoje só devolve `trialDays` — o período experimental (dias) atribuído\na NOVOS signups self-serve. Afeta apenas trials futuros.\n",
+        "tags": [
+          "BillingAdmin"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Configuração atual.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingSettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem permissão VIEW_ADMIN."
+          }
+        }
+      },
+      "put": {
+        "summary": "Atualizar a configuração global de platform billing (dono)",
+        "description": "Atualiza `trialDays` (0–90). Afeta APENAS signups self-serve NOVOS a\npartir daqui — os trials já criados mantêm o `trialEnd` já fixado\n(nunca se retroage).\n",
+        "tags": [
+          "BillingAdmin"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "trialDays"
+                ],
+                "properties": {
+                  "trialDays": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 90
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Configuração atualizada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body inválido (trialDays fora de 0..90 ou não inteiro)."
+          },
+          "403": {
+            "description": "Sem permissão VIEW_ADMIN."
+          }
+        }
+      }
+    },
     "/components": {
       "post": {
         "summary": "Create a new component",
@@ -3427,8 +3521,8 @@
     },
     "/users/signup": {
       "post": {
-        "summary": "Signup público self-serve (cria tenant em período experimental de 14 dias, sem cartão)",
-        "description": "Endpoint PÚBLICO (sem auth, sem CSRF — como o `/setup-password`), rate-limited\n(`authRateLimit`). Cria um `User` sem password (com `setupToken` de 24h), um\n`Permission` novo por-tenant com os componentes RBAC dos módulos escolhidos\n(+ os componentes \"core\" que o backend já exige), e uma `PlatformSubscription`\nlocal `trialing` (14 dias). Tudo numa única transação.\n\nANTI-ENUMERAÇÃO: a resposta é SEMPRE `{ ok: true }` (200), mesmo que o email já\nexista — nesse caso nada é criado; só o email enviado difere.\n",
+        "summary": "Signup público self-serve (cria tenant em período experimental configurável, default 14 dias, sem cartão)",
+        "description": "Endpoint PÚBLICO (sem auth, sem CSRF — como o `/setup-password`), rate-limited\n(`authRateLimit`). Cria um `User` sem password (com `setupToken` de 24h), um\n`Permission` novo por-tenant com os componentes RBAC dos módulos escolhidos\n(+ os componentes \"core\" que o backend já exige), e uma `PlatformSubscription`\nlocal `trialing` (período experimental configurável, default 14 dias). Tudo\nnuma única transação.\n\nANTI-ENUMERAÇÃO: a resposta é SEMPRE `{ ok: true }` (200), mesmo que o email já\nexista — nesse caso nada é criado; só o email enviado difere.\n",
         "tags": [
           "Users"
         ],

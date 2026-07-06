@@ -8,7 +8,9 @@ import { NotificationBell } from './NotificationBell'
 import { ChatLauncher } from './chat/ChatLauncher'
 import { ChatFab } from './chat/ChatFab'
 import { BillingBanner } from './BillingBanner'
+import { NavBadge } from './NavBadge'
 import { useSSE } from '../hooks/useSSE'
+import { useChatUnread } from '../hooks/useChat'
 
 // Core: todos os tenants têm (sem permissão). Módulos: por permissão.
 const CORE_PATHS = ['/clientes', '/mensagens', '/financeiro', '/conteudos', '/estatisticas', '/faturacao', '/website']
@@ -44,19 +46,28 @@ interface Props {
   children: React.ReactNode
 }
 
-function NavItem({ path, active, collapsed }: { path: string; active: boolean; collapsed: boolean }) {
+function NavItem({ path, active, collapsed, badge }: { path: string; active: boolean; collapsed: boolean; badge?: number }) {
   const meta = ROUTE_META[path]
   const navigate = useNavigate()
   if (!meta) return null
+  const unread = badge ?? 0
+  // Com não-lidas, o aria-label passa a incluir a contagem (lido pelo leitor de
+  // ecrã em vez do texto visível) — nos dois modos, colapsado e expandido.
+  const accessibleLabel = unread > 0 ? `${meta.nome}, ${unread} não lida${unread === 1 ? '' : 's'}` : undefined
   return (
     <button
       onClick={() => navigate(path)}
-      title={collapsed ? meta.nome : undefined}
+      title={collapsed ? (accessibleLabel ?? meta.nome) : undefined}
+      aria-label={accessibleLabel}
       className={`w-full flex items-center gap-3 rounded-lg text-sm font-medium transition-colors relative ${collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5'} ${active ? 'bg-accent/10 text-accent dark:bg-accent/15' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 hover:text-zinc-900 dark:hover:text-zinc-100'}`}
     >
       {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full bg-accent" />}
-      <Icon name={meta.icon} className="w-[19px] h-[19px] shrink-0" strokeWidth={active ? 2 : 1.75} />
+      <span className="relative inline-flex shrink-0">
+        <Icon name={meta.icon} className="w-[19px] h-[19px]" strokeWidth={active ? 2 : 1.75} />
+        {collapsed && <NavBadge count={unread} collapsed />}
+      </span>
       {!collapsed && <span>{meta.nome}</span>}
+      {!collapsed && <NavBadge count={unread} collapsed={false} />}
     </button>
   )
 }
@@ -69,6 +80,11 @@ function SidebarContent({ accessiblePaths, collapsed, onLogout }: {
   const { userId, username, permissions, loggingOut } = useAuth()
   const location = useLocation()
   const permLabel = permissions.length > 0 ? permissions[0].name?.replace('VIEW_', '') : 'Admin'
+  // Só o item /mensagens usa isto — chamado aqui (e não por NavItem) para não
+  // instanciar um hook de chat por cada item do menu. Fica coerente com o
+  // ChatLauncher/ChatFab, que já chamam useChatUnread() cada um por sua vez;
+  // o React Query cacheia/deduplica o pedido de rede pela mesma queryKey.
+  const unreadMessages = useChatUnread()
 
   return (
     <div className="flex flex-col h-full">
@@ -82,7 +98,13 @@ function SidebarContent({ accessiblePaths, collapsed, onLogout }: {
         {!collapsed && <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Menu</p>}
         <nav className="space-y-1">
           {accessiblePaths.map((path) => (
-            <NavItem key={path} path={path} active={location.pathname === path} collapsed={collapsed} />
+            <NavItem
+              key={path}
+              path={path}
+              active={location.pathname === path}
+              collapsed={collapsed}
+              badge={path === '/mensagens' ? unreadMessages : undefined}
+            />
           ))}
         </nav>
       </div>

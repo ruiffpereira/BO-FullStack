@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { Icon } from "../../ui/icons.jsx";
 import { useChatUnread } from "../../hooks/useChat";
 import { ChatPopup } from "./ChatPopup";
+import { CountBadge } from "../NavBadge";
 
 /**
  * Botão flutuante de mensagens (canto inferior direito). Abre um **mini-chat
@@ -40,14 +41,7 @@ export function ChatFab() {
         className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 sm:right-5 z-40 w-14 h-14 rounded-full bg-accent text-white shadow-lg shadow-accent/30 flex items-center justify-center hover:brightness-110 active:scale-95 transition"
       >
         <Icon name={open ? "x" : "message"} className="w-6 h-6" />
-        {!open && unread > 0 && (
-          <span
-            aria-hidden="true"
-            className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center border-2 border-white dark:border-zinc-950"
-          >
-            {unread > 99 ? "99+" : unread}
-          </span>
-        )}
+        {!open && <CountBadge count={unread} size="fab" className="absolute -top-1 -right-1" />}
       </button>
     </>
   );

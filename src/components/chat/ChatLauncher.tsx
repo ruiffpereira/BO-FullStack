@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Icon } from "../../ui/icons.jsx";
 import { useChatUnread } from "../../hooks/useChat";
+import { CountBadge } from "../NavBadge";
 
 /**
  * Ícone de mensagens no topbar (para todos). Navega para /mensagens e mostra
@@ -17,14 +18,7 @@ export function ChatLauncher() {
       className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors relative"
     >
       <Icon name="message" className="w-[18px] h-[18px]" />
-      {unread > 0 && (
-        <span
-          aria-hidden="true"
-          className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none"
-        >
-          {unread > 99 ? "99+" : unread}
-        </span>
-      )}
+      <CountBadge count={unread} size="icon" className="absolute -top-0.5 -right-0.5" />
     </button>
   );
 }

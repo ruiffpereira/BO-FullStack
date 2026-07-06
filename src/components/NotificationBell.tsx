@@ -9,6 +9,7 @@ import {
 } from "../hooks/useNotifications";
 import { notificationHref } from "../lib/notificationTarget";
 import { usePushSubscription } from "../hooks/usePushSubscription";
+import { CountBadge } from "./NavBadge";
 
 // Taxonomia unificada (espelha src/utils/notifyUser.ts na API): label + cores
 // por tipo, para o centro de notificações renderizar tudo de forma consistente.
@@ -225,14 +226,7 @@ export function NotificationBell() {
         className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors relative"
       >
         <BellIcon className="w-[18px] h-[18px]" />
-        {unread > 0 && (
-          <span
-            aria-hidden="true"
-            className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none"
-          >
-            {unread > 99 ? "99+" : unread}
-          </span>
-        )}
+        <CountBadge count={unread} size="icon" className="absolute -top-0.5 -right-0.5" />
       </button>
 
       {/* Mobile backdrop */}

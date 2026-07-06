@@ -120,7 +120,7 @@ export function FirstValueChecklist() {
         {
           id: 'gym-subscription',
           label: 'Cria a tua primeira subscrição',
-          href: '/financeiro?vista=ginasio',
+          href: '/financeiro/ginasio',
           done: (gymSubscriptions?.length ?? 0) > 0,
         },
       ]
@@ -142,7 +142,7 @@ export function FirstValueChecklist() {
       gymItems.push({
         id: 'gym-payment',
         label: 'Regista a primeira cobrança',
-        href: '/financeiro?vista=ginasio',
+        href: '/financeiro/ginasio',
         done: false,
       })
       return gymItems

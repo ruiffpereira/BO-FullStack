@@ -12,7 +12,7 @@ import type { Notification } from "../hooks/useNotifications";
  *   - Leads      `?tab=leads&lead=<id>` — tab "Leads" da própria página Clientes
  *     (um novo lead usa `type:"customer"` com `data.leadId`, sem `customerId` —
  *     ver `leadController.ts` na API; distingue-se do cliente normal por isso)
- *   - Financeiro `?vista=ginasio`
+ *   - Financeiro `/financeiro/ginasio`
  *   - Loja       `?tab=encomendas` · `?openProduct=<id>`
  *   - Mensagens  (sem parâmetro)
  */
@@ -58,7 +58,7 @@ export function notificationHref(
     }
 
     case "payment":
-      return "/financeiro?vista=ginasio";
+      return "/financeiro/ginasio";
 
     case "stock": {
       const pid = str("productId");
@@ -70,7 +70,7 @@ export function notificationHref(
       // mensalidades em atraso (data.period) → Financeiro/Ginásio (Cobranças).
       const date = day("date");
       if (date) return `/agenda?data=${encodeURIComponent(date)}`;
-      if (str("period")) return "/financeiro?vista=ginasio";
+      if (str("period")) return "/financeiro/ginasio";
       return "/agenda";
     }
 

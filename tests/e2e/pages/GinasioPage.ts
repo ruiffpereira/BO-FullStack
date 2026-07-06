@@ -54,10 +54,12 @@ export class GinasioPage {
 
   // ── Mensalidades (cobranças do ginásio — vive na página Financeiro) ──
   // O menu "Mensalidades" foi movido para Financeiro → tab Ginásio
-  // (/financeiro?vista=ginasio); o cockpit de Cobranças mostra os KPIs e o
-  // botão "Subscrições" abre o catálogo numa modal.
+  // (/financeiro/ginasio, T1.2 — rota real); o `?vista=ginasio` legacy só
+  // existe como deep-link de redirect (teste dedicado em financeiro.spec.ts).
+  // O cockpit de Cobranças mostra os KPIs e o botão "Subscrições" abre o
+  // catálogo numa modal.
   async openMensalidades() {
-    await this.page.goto("/financeiro?vista=ginasio");
+    await this.page.goto("/financeiro/ginasio");
     await this.page.waitForURL("**/financeiro**", { timeout: 15_000 });
     // Espera o cockpit de cobranças carregar (deixa de mostrar "A carregar…").
     await this.page.getByText(/cobranças das mensalidades/i).waitFor({ timeout: 10_000 });

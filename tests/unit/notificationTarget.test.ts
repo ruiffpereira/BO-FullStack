@@ -56,7 +56,7 @@ describe("notificationHref", () => {
 
   it("payment → Financeiro/Ginásio", () => {
     expect(notificationHref(notif("payment", { period: "2026-06" }))).toBe(
-      "/financeiro?vista=ginasio",
+      "/financeiro/ginasio",
     );
   });
 
@@ -72,7 +72,7 @@ describe("notificationHref", () => {
       "/agenda?data=2026-07-02",
     );
     expect(notificationHref(notif("reminder", { period: "2026-06", count: 2 }))).toBe(
-      "/financeiro?vista=ginasio",
+      "/financeiro/ginasio",
     );
     expect(notificationHref(notif("reminder"))).toBe("/agenda");
   });

@@ -312,7 +312,7 @@ function GymMiniCard({ fin, monthLabel }: { fin?: GymFinance; monthLabel: string
   return (
     <Card className="p-5">
       <SectionTitle right={
-        <button type="button" onClick={() => navigate('/financeiro?vista=ginasio')} className="text-xs text-accent hover:underline px-2 py-1 -mr-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">Ver cobranças</button>
+        <button type="button" onClick={() => navigate('/financeiro/ginasio')} className="text-xs text-accent hover:underline px-2 py-1 -mr-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">Ver cobranças</button>
       }>
         Ginásio · {monthLabel}
       </SectionTitle>
@@ -320,7 +320,7 @@ function GymMiniCard({ fin, monthLabel }: { fin?: GymFinance; monthLabel: string
       {emAtraso > 0 && (
         <button
           type="button"
-          onClick={() => navigate('/financeiro?vista=ginasio')}
+          onClick={() => navigate('/financeiro/ginasio')}
           className="mt-3 w-full flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-500/10 px-3 py-2 text-left"
         >
           <Icon name="alertTriangle" className="w-4 h-4 text-red-500 shrink-0" />
@@ -542,8 +542,8 @@ export function Dashboard() {
     if (canSchedule) list.push({ label: 'Marcações hoje', value: apptsToday.length, sub: pendingToday ? `${pendingToday} por confirmar` : apptsToday.length ? 'tudo confirmado' : 'dia livre', icon: 'calendar', tone: 'blue', loading: loadingAppts, href: `/agenda?data=${today}` })
     if (canGym) {
       list.push(gym.emAtraso > 0
-        ? { label: 'Em atraso', value: gym.emAtraso, sub: 'mensalidades', icon: 'alertTriangle', tone: 'red', loading: loadingGym, href: '/financeiro?vista=ginasio' }
-        : { label: 'Por cobrar', value: fmtEur(gym.porCobrar), sub: `de ${fmtEur(gym.previsto)} previstos`, icon: 'card', tone: 'amber', loading: loadingGym, href: '/financeiro?vista=ginasio' })
+        ? { label: 'Em atraso', value: gym.emAtraso, sub: 'mensalidades', icon: 'alertTriangle', tone: 'red', loading: loadingGym, href: '/financeiro/ginasio' }
+        : { label: 'Por cobrar', value: fmtEur(gym.porCobrar), sub: `de ${fmtEur(gym.previsto)} previstos`, icon: 'card', tone: 'amber', loading: loadingGym, href: '/financeiro/ginasio' })
     }
     if (canProducts) {
       list.push(openOrders > 0
@@ -553,7 +553,7 @@ export function Dashboard() {
     // Core + fillers (só para encher a faixa em tenants de uma só vertical).
     list.push({ label: 'Clientes', value: totalCustomers, sub: newCustomers ? `${newCustomers} novos esta semana` : 'no total', icon: 'users', tone: 'violet', loading: loadingCustomers, href: '/clientes' })
     if (canSchedule) list.push({ label: 'Marcações · 14 dias', value: weekCount, sub: 'últimos 7 dias', icon: 'trend', tone: 'violet', loading: loadingAppts, delta: weekDelta, spark: spark14, href: '/agenda' })
-    if (canGym) list.push({ label: 'Sócios ativos', value: dash?.gym?.activeMembers ?? '—', sub: 'ginásio', icon: 'users', tone: 'violet', loading: loadingDash, href: '/financeiro?vista=ginasio' })
+    if (canGym) list.push({ label: 'Sócios ativos', value: dash?.gym?.activeMembers ?? '—', sub: 'ginásio', icon: 'users', tone: 'violet', loading: loadingDash, href: '/financeiro/ginasio' })
     if (canProducts) list.push({ label: 'Ticket médio', value: fmtEur(dash?.ecommerce?.period.avgOrderValue ?? 0), sub: 'por encomenda', icon: 'cart', tone: 'blue', loading: loadingDash, href: '/loja?tab=encomendas' })
     return list.slice(0, 4)
   }, [canSchedule, canProducts, canGym, revToday, apptsToday.length, pendingToday, today, gym.emAtraso, gym.porCobrar, gym.previsto, openOrders, salesToday, totalCustomers, newCustomers, weekCount, weekDelta, spark14, dash, loadingDash, loadingAppts, loadingGym, loadingOrders, loadingCustomers])

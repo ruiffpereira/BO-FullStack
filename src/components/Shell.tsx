@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Icon } from '../ui/icons.jsx'
@@ -11,6 +12,7 @@ import { BillingBanner } from './BillingBanner'
 import { NavBadge } from './NavBadge'
 import { useSSE } from '../hooks/useSSE'
 import { useChatUnread } from '../hooks/useChat'
+import { SUBMENU, allowedSubitems, findRoot, type SubmenuItem } from '../lib/navigation'
 
 // Core: todos os tenants têm (sem permissão). Módulos: por permissão.
 const CORE_PATHS = ['/clientes', '/mensagens', '/financeiro', '/conteudos', '/estatisticas', '/faturacao', '/website']
@@ -56,9 +58,11 @@ function NavItem({ path, active, collapsed, badge }: { path: string; active: boo
   const accessibleLabel = unread > 0 ? `${meta.nome}, ${unread} não lida${unread === 1 ? '' : 's'}` : undefined
   return (
     <button
+      data-nav-focusable="true"
       onClick={() => navigate(path)}
       title={collapsed ? (accessibleLabel ?? meta.nome) : undefined}
       aria-label={accessibleLabel}
+      aria-current={active ? 'page' : undefined}
       className={`w-full flex items-center gap-3 rounded-lg text-sm font-medium transition-colors relative ${collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5'} ${active ? 'bg-accent/10 text-accent dark:bg-accent/15' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 hover:text-zinc-900 dark:hover:text-zinc-100'}`}
     >
       {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full bg-accent" />}
@@ -72,19 +76,308 @@ function NavItem({ path, active, collapsed, badge }: { path: string; active: boo
   )
 }
 
+/**
+ * Subitem partilhado entre o acordeão (sidebar expandida) e o flyout (sidebar
+ * colapsada) — mesmo render, classes diferentes por `variant`. Centraliza a
+ * política de acessibilidade: **só o subitem folha tem `aria-current="page"`**
+ * (o botão-pai do grupo nunca tem — ver `NavItemGroup`).
+ */
+function SubmenuLink({
+  item,
+  active,
+  onClick,
+  variant,
+  focusable,
+}: {
+  item: SubmenuItem
+  active: boolean
+  onClick: () => void
+  variant: 'accordion' | 'flyout'
+  /** Só usado no modo acordeão: focável (roving `[data-nav-focusable]`) só quando o pai está expandido. */
+  focusable?: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-current={active ? 'page' : undefined}
+      data-nav-focusable={variant === 'accordion' && focusable ? 'true' : undefined}
+      tabIndex={variant === 'accordion' ? (focusable ? 0 : -1) : undefined}
+      className={
+        variant === 'accordion'
+          ? `w-full text-left px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${active ? 'text-accent bg-accent/10' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/70'}`
+          : `w-full text-left px-3 py-2 text-sm transition-colors ${active ? 'text-accent bg-accent/10' : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/70'}`
+      }
+    >
+      {item.label}
+    </button>
+  )
+}
+
+/**
+ * Item de navegação expansível (T1.1) para páginas que absorveram as tabs de
+ * topo para dentro do menu (piloto: Financeiro, T1.2). Dois modos distintos:
+ *
+ * - **Expandido** (`collapsed=false`, inclui o drawer mobile): clicar no pai
+ *   navega para o 1.º subitem permitido; o acordeão expande-se sozinho porque
+ *   `expanded` é derivado da rota ativa (`SidebarContent`, `expandedPath`) —
+ *   não há estado próprio nem callback "expandir sem navegar" (não existe essa
+ *   interação: expandir e navegar são sempre o mesmo clique). Os subitens
+ *   ficam indentados por baixo, sempre no DOM (mostrados/escondidos por CSS)
+ *   para a navegação por setas do `<nav>` os conseguir alcançar.
+ * - **Colapsado** (sidebar só-ícones, desktop): clicar OU passar o rato abre um
+ *   flyout em portal (mesmo padrão do `Combobox`/`useAnchoredMenu`, mas
+ *   ancorado à direita do ícone em vez de por baixo) — nunca navega ao clicar
+ *   no próprio pai, só ao escolher um subitem. Fecha ao navegar, Esc, Tab ou
+ *   clique fora; o foco volta ao botão do pai ao fechar por Esc. Abrir por
+ *   Enter/Espaço foca o 1.º subitem; abrir por hover ou clique de rato não
+ *   rouba o foco.
+ */
+function NavItemGroup({
+  path,
+  items,
+  collapsed,
+  expanded,
+  activePathname,
+}: {
+  path: string
+  items: SubmenuItem[]
+  collapsed: boolean
+  expanded: boolean
+  activePathname: string
+}) {
+  const meta = ROUTE_META[path]
+  const navigate = useNavigate()
+  const [flyout, setFlyout] = useState(false)
+  const [flyoutPos, setFlyoutPos] = useState<{ top: number; left: number } | null>(null)
+  const btnRef = useRef<HTMLButtonElement | null>(null)
+  const flyoutRef = useRef<HTMLDivElement | null>(null)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  // true só quando o flyout foi aberto por Enter/Espaço (não por clique de rato
+  // nem por hover) — `MouseEvent.detail === 0` é o sinal de ativação por teclado
+  // num <button> (o browser sintetiza um click com detail 0 para Enter/Espaço).
+  const openedByKeyboard = useRef(false)
+
+  const isActiveRoot = activePathname === path || activePathname.startsWith(`${path}/`)
+
+  const clearCloseTimer = () => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current)
+      closeTimer.current = undefined
+    }
+  }
+  const scheduleClose = () => {
+    clearCloseTimer()
+    closeTimer.current = setTimeout(() => setFlyout(false), 150)
+  }
+  const openFlyoutNow = () => {
+    clearCloseTimer()
+    const r = btnRef.current?.getBoundingClientRect()
+    if (r) {
+      const estimatedH = items.length * 40 + 48
+      setFlyoutPos({
+        left: r.right + 8,
+        top: Math.min(r.top, Math.max(8, window.innerHeight - estimatedH - 8)),
+      })
+    }
+    setFlyout(true)
+  }
+
+  // Estado do flyout fica obsoleto se o sidebar deixar de estar colapsado
+  // enquanto aberto: sem este reset, recolapsar mais tarde reabre-o sozinho
+  // (o `collapsed && flyout` do render voltaria a ser true sem clique nenhum).
+  useEffect(() => {
+    if (!collapsed) setFlyout(false)
+  }, [collapsed])
+
+  // Ao abrir por teclado: foco entra no 1.º subitem do flyout (mesmo padrão do
+  // Combobox.tsx — setTimeout 0 para focar já depois do portal montar).
+  useEffect(() => {
+    if (!collapsed || !flyout || !openedByKeyboard.current) return
+    openedByKeyboard.current = false
+    const t = setTimeout(() => {
+      flyoutRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
+    }, 0)
+    return () => clearTimeout(t)
+  }, [collapsed, flyout])
+
+  // Fecha ao clicar fora / Esc (só relevante enquanto o flyout está aberto).
+  useEffect(() => {
+    if (!collapsed || !flyout) return
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (btnRef.current?.contains(t) || flyoutRef.current?.contains(t)) return
+      setFlyout(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setFlyout(false)
+        btnRef.current?.focus()
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [collapsed, flyout])
+
+  if (!meta) return null
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (collapsed) {
+      if (flyout) {
+        setFlyout(false)
+      } else {
+        openedByKeyboard.current = e.detail === 0
+        openFlyoutNow()
+      }
+      return
+    }
+    navigate(items[0]?.path ?? path)
+  }
+
+  const goToSub = (subPath: string) => {
+    navigate(subPath)
+    setFlyout(false)
+  }
+
+  // Navegação por ↑/↓ DENTRO do flyout (handler local, não o roving global do
+  // <nav> — os botões vivem num portal fora do navRef; ver comentário no
+  // SidebarContent). stopPropagation evita que o evento chegue ao <nav>: como
+  // React despacha eventos sintéticos pela árvore de componentes (não pelo DOM),
+  // NavItemGroup continua "dentro" do <nav> mesmo com o flyout portalled para
+  // document.body, e o handler global apanharia a tecla se deixássemos subir.
+  const onFlyoutKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const buttons = Array.from(flyoutRef.current?.querySelectorAll<HTMLButtonElement>('button') ?? [])
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      e.stopPropagation()
+      if (!buttons.length) return
+      const idx = buttons.indexOf(document.activeElement as HTMLButtonElement)
+      const next = e.key === 'ArrowDown' ? (idx + 1) % buttons.length : (idx - 1 + buttons.length) % buttons.length
+      buttons[next]?.focus()
+    } else if (e.key === 'Tab') {
+      // Tab fecha o flyout (comportamento de menu) — não impede o Tab nativo
+      // de mover o foco, só deixa de o mostrar aberto.
+      e.stopPropagation()
+      setFlyout(false)
+    }
+    // Esc já é tratado pelo listener global do document (fecha + devolve o
+    // foco ao botão-pai), não precisa de handling aqui.
+  }
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={collapsed ? openFlyoutNow : undefined}
+      onMouseLeave={collapsed ? scheduleClose : undefined}
+    >
+      <button
+        ref={btnRef}
+        data-nav-focusable="true"
+        onClick={handleClick}
+        title={collapsed ? meta.nome : undefined}
+        aria-expanded={collapsed ? flyout : expanded}
+        className={`w-full flex items-center gap-3 rounded-lg text-sm font-medium transition-colors relative ${collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5'} ${isActiveRoot ? 'bg-accent/10 text-accent dark:bg-accent/15' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 hover:text-zinc-900 dark:hover:text-zinc-100'}`}
+      >
+        {isActiveRoot && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full bg-accent" />}
+        <Icon name={meta.icon} className="w-[19px] h-[19px] shrink-0" strokeWidth={isActiveRoot ? 2 : 1.75} />
+        {!collapsed && <span className="flex-1 text-left">{meta.nome}</span>}
+        {!collapsed && (
+          <Icon
+            name="chevronDown"
+            className={`w-4 h-4 shrink-0 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+          />
+        )}
+      </button>
+
+      {/* Acordeão (sidebar expandida + drawer mobile): subitens indentados. */}
+      {!collapsed && (
+        <div
+          className={`overflow-hidden transition-all ${expanded ? 'max-h-96 mt-1' : 'max-h-0'}`}
+        >
+          <div className="ml-4 pl-3 border-l border-zinc-200 dark:border-zinc-800 space-y-0.5 pb-0.5">
+            {items.map((it) => (
+              <SubmenuLink
+                key={it.path}
+                item={it}
+                active={activePathname === it.path}
+                onClick={() => navigate(it.path)}
+                variant="accordion"
+                focusable={expanded}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Flyout (sidebar colapsada, portal — mesmo padrão do Combobox). */}
+      {collapsed && flyout && createPortal(
+        <div
+          ref={flyoutRef}
+          style={{ position: 'fixed', top: flyoutPos?.top ?? 0, left: flyoutPos?.left ?? 0, zIndex: 100 }}
+          onMouseEnter={clearCloseTimer}
+          onMouseLeave={scheduleClose}
+          onKeyDown={onFlyoutKeyDown}
+          className="w-48 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1.5"
+        >
+          <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">{meta.nome}</p>
+          {items.map((it) => (
+            <SubmenuLink
+              key={it.path}
+              item={it}
+              active={activePathname === it.path}
+              onClick={() => goToSub(it.path)}
+              variant="flyout"
+            />
+          ))}
+        </div>,
+        document.body,
+      )}
+    </div>
+  )
+}
+
 function SidebarContent({ accessiblePaths, collapsed, onLogout }: {
   accessiblePaths: string[]
   collapsed: boolean
   onLogout: () => void
 }) {
-  const { userId, username, permissions, loggingOut } = useAuth()
+  const { userId, username, permissions, loggingOut, hasPermission } = useAuth()
   const location = useLocation()
+  const navRef = useRef<HTMLElement | null>(null)
   const permLabel = permissions.length > 0 ? permissions[0].name?.replace('VIEW_', '') : 'Admin'
   // Só o item /mensagens usa isto — chamado aqui (e não por NavItem) para não
   // instanciar um hook de chat por cada item do menu. Fica coerente com o
   // ChatLauncher/ChatFab, que já chamam useChatUnread() cada um por sua vez;
   // o React Query cacheia/deduplica o pedido de rede pela mesma queryKey.
   const unreadMessages = useChatUnread()
+
+  // Acordeão: só um pai (com submenu) expandido de cada vez — sempre o da rota
+  // ativa. Puramente derivado da rota (nunca há "expandir sem navegar": clicar
+  // num pai já navega para o seu 1.º subitem, o que muda `location.pathname` e
+  // portanto este valor na mesma) — sem estado próprio nem prop `onExpand`.
+  const expandedPath = useMemo(
+    () => accessiblePaths.find((p) => SUBMENU[p] && (location.pathname === p || location.pathname.startsWith(`${p}/`))) ?? null,
+    [accessiblePaths, location.pathname],
+  )
+
+  // Navegação por setas (↑/↓) entre todos os itens focáveis do menu (pais +
+  // subitens visíveis do acordeão aberto) — Enter/Espaço já "expande" (é o
+  // clique nativo do botão, que expande + navega). Roving simples: percorre
+  // por ordem do DOM.
+  const handleNavKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    const root = navRef.current
+    if (!root) return
+    const focusables = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-nav-focusable="true"]'))
+    if (!focusables.length) return
+    e.preventDefault()
+    const idx = focusables.indexOf(document.activeElement as HTMLButtonElement)
+    const next = e.key === 'ArrowDown' ? (idx + 1) % focusables.length : (idx - 1 + focusables.length) % focusables.length
+    focusables[next]?.focus()
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -96,16 +389,31 @@ function SidebarContent({ accessiblePaths, collapsed, onLogout }: {
 
       <div className={`mt-2 ${collapsed ? 'px-2' : 'px-3'}`}>
         {!collapsed && <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Menu</p>}
-        <nav className="space-y-1">
-          {accessiblePaths.map((path) => (
-            <NavItem
-              key={path}
-              path={path}
-              active={location.pathname === path}
-              collapsed={collapsed}
-              badge={path === '/mensagens' ? unreadMessages : undefined}
-            />
-          ))}
+        <nav ref={navRef} className="space-y-1" onKeyDown={handleNavKeyDown}>
+          {accessiblePaths.map((path) => {
+            const groupItems = allowedSubitems(path, hasPermission)
+            if (groupItems.length > 0) {
+              return (
+                <NavItemGroup
+                  key={path}
+                  path={path}
+                  items={groupItems}
+                  collapsed={collapsed}
+                  expanded={expandedPath === path}
+                  activePathname={location.pathname}
+                />
+              )
+            }
+            return (
+              <NavItem
+                key={path}
+                path={path}
+                active={location.pathname === path}
+                collapsed={collapsed}
+                badge={path === '/mensagens' ? unreadMessages : undefined}
+              />
+            )
+          })}
         </nav>
       </div>
 
@@ -134,13 +442,30 @@ function SidebarContent({ accessiblePaths, collapsed, onLogout }: {
   )
 }
 
+/**
+ * Título do topbar (T1.1): a rota-raiz (ex.: `/financeiro`, que é também o
+ * path do 1.º subitem "O Negócio") continua a mostrar só o nome da página —
+ * duplicar em "Financeiro · O Negócio" seria redundante. Uma subpágina real
+ * (ex.: `/financeiro/despesas`) compõe "Pai · Subitem", como um breadcrumb
+ * curto — dá contexto sem precisar de abrir a sidebar para saber onde se está.
+ */
+function resolveTopbarTitle(pathname: string): string {
+  const direct = ROUTE_META[pathname]?.nome
+  if (direct) return direct
+  const root = Object.keys(SUBMENU).find((r) => pathname.startsWith(`${r}/`))
+  if (!root) return ''
+  const rootLabel = ROUTE_META[root]?.nome ?? ''
+  const sub = SUBMENU[root].find((s) => s.path === pathname)
+  return sub ? `${rootLabel} · ${sub.label}` : rootLabel
+}
+
 function Topbar({ theme, onToggleTheme, onMenu, onCollapse }: {
   theme: string; onToggleTheme: () => void
   onMenu: () => void; onCollapse: () => void
 }) {
   const { username } = useAuth()
   const location = useLocation()
-  const title = ROUTE_META[location.pathname]?.nome ?? ''
+  const title = resolveTopbarTitle(location.pathname)
 
   return (
     <header className="h-16 shrink-0 border-b border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur sticky top-0 z-30 flex items-center gap-3 px-4 sm:px-6">
@@ -180,7 +505,7 @@ function SwRegistrar() {
 }
 
 export function Shell({ theme, onToggleTheme, children }: Props) {
-  const { logout, permissions } = useAuth()
+  const { logout, permissions, hasPermission } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [drawer, setDrawer] = useState(false)
@@ -217,14 +542,31 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   // Fecha o drawer ao navegar
   useEffect(() => { setDrawer(false) }, [location.pathname])
 
-  // Rotas válidas para o guard (inclui deep-links sem item de menu, ex.: /despesas
-  // abre o Financeiro na tab Despesas).
-  const allowedPaths = [...accessiblePaths, '/despesas']
+  // Guard por PREFIXO (T1.1): um pathname sob um root acessível é válido, não só
+  // o path exato (/financeiro/despesas é válido porque /financeiro é). "/despesas"
+  // é um deep-link antigo sem item de menu próprio — entra como root extra só para
+  // o guard não o expulsar antes do <Navigate> do App.tsx o reescrever para
+  // /financeiro/despesas (o guard não faz essa reescrita; só garante que o pathname
+  // não é imediatamente atirado para o dashboard nesse instante).
+  const guardRoots = [...accessiblePaths, '/despesas']
 
-  // Redirige para rota acessível se a actual não o for
+  // Redirige para rota acessível se a actual não o for; um SUBITEM sem permissão
+  // (ex.: /financeiro/ginasio sem VIEW_GYM) cai no 1.º subitem permitido do MESMO
+  // pai — nunca no dashboard.
   useEffect(() => {
-    if (accessiblePaths.length && !allowedPaths.includes(location.pathname)) {
+    if (!accessiblePaths.length) return
+    const root = findRoot(location.pathname, guardRoots)
+    if (!root) {
       navigate(accessiblePaths[0], { replace: true })
+      return
+    }
+    const subs = allowedSubitems(root, hasPermission)
+    if (subs.length > 0 && !subs.some((s) => s.path === location.pathname)) {
+      // Preserva a query string (coerente com o FinanceiroEntry, App.tsx, que
+      // já faz o mesmo no seu próprio redirect de `?vista=`) — este redirect é
+      // por pathname/permissão, não por um query param específico, por isso
+      // não há nada próprio a remover daqui.
+      navigate(`${subs[0].path}${location.search}`, { replace: true })
     }
   }, [location.pathname, permissions]) // eslint-disable-line
 

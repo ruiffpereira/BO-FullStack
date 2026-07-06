@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { pt } from 'date-fns/locale'
 import { useAuth } from '../context/AuthContext'
 import { Icon } from '../ui/icons.jsx'
-import { Tabs, PageHeader } from '../ui/ui.jsx'
+import { PageHeader } from '../ui/ui.jsx'
 import { DateRangePicker, type DateRange } from '../components/DateRangePicker'
 import { VatToggle } from '../components/financeiro/kit'
 import type { DashboardPeriod } from '../hooks/useDashboard'
@@ -15,8 +14,8 @@ import { FinanceiroLoja } from './financeiro/FinanceiroLoja'
 import { Despesas } from './Despesas'
 import { MensalidadesTab } from './GymMensalidade'
 
-type Tab = 'negocio' | 'agenda' | 'loja' | 'ginasio' | 'despesas'
-const VERTICALS: Tab[] = ['negocio', 'agenda', 'loja']
+export type FinanceiroView = 'negocio' | 'agenda' | 'loja' | 'ginasio' | 'despesas'
+const VERTICALS: FinanceiroView[] = ['negocio', 'agenda', 'loja']
 
 const PRESETS: { key: DashboardPeriod; label: string }[] = [
   { key: 'today', label: 'Hoje' },
@@ -27,31 +26,27 @@ const PRESETS: { key: DashboardPeriod; label: string }[] = [
 ]
 
 /**
- * Página "Financeiro" (core). Tabs por vertical, cada uma só visível com a
- * permissão respetiva; "O Negócio" (consolidado) e "Despesas" sempre presentes.
- * Período + IVA são partilhados pelos verticais (O Negócio/Agenda/Loja); Despesas
- * e Ginásio mantêm os seus próprios controlos. Estado da tab vai à URL (?vista=).
+ * Página "Financeiro" (core). Cada vertical vive na sua própria rota
+ * (`/financeiro`, `/financeiro/agenda|loja|ginasio|despesas`, T1.2 — piloto da
+ * sidebar com submenus) — a navegação entre vistas já não é feita por `Tabs`
+ * de topo, é a sidebar (`NavItemGroup`/`Shell.tsx`); a página só recebe a
+ * vista pedida via `view` e mostra o conteúdo correspondente. Período + IVA
+ * são partilhados pelos verticais (O Negócio/Agenda/Loja); Despesas e Ginásio
+ * mantêm os seus próprios controlos.
+ *
+ * `view` gated sem permissão cai defensivamente em "negocio" — na prática o
+ * guard do `Shell.tsx` já impede lá chegar (redireciona o subitem sem
+ * permissão para o 1.º subitem permitido do pai), mas mantém-se aqui como
+ * fallback caso a página seja renderizada fora desse guard (ex.: testes).
  */
-export function FinanceiroPage({ initialTab }: { initialTab?: Tab }) {
+export function FinanceiroPage({ view }: { view: FinanceiroView }) {
   const { hasPermission, username } = useAuth()
   const canSchedule = hasPermission('VIEW_SCHEDULE')
   const canProducts = hasPermission('VIEW_PRODUCTS')
   const canGym = hasPermission('VIEW_GYM')
 
-  const [params, setParams] = useSearchParams()
-  const urlTab = (params.get('vista') as Tab) || initialTab || 'negocio'
-
-  const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: 'negocio', label: 'O Negócio', icon: 'euro' },
-    ...(canSchedule ? [{ id: 'agenda' as Tab, label: 'Agenda', icon: 'calendar' }] : []),
-    ...(canProducts ? [{ id: 'loja' as Tab, label: 'Loja', icon: 'cart' }] : []),
-    ...(canGym ? [{ id: 'ginasio' as Tab, label: 'Ginásio', icon: 'trend' }] : []),
-    { id: 'despesas', label: 'Despesas', icon: 'card' },
-  ]
-  // Tab pedida sem permissão → cai em "O Negócio".
-  const allowed = new Set(tabs.map((t) => t.id))
-  const tab: Tab = allowed.has(urlTab) ? urlTab : 'negocio'
-  const setTab = (t: Tab) => { const p = new URLSearchParams(params); p.set('vista', t); setParams(p, { replace: true }) }
+  const gated = (view === 'agenda' && !canSchedule) || (view === 'loja' && !canProducts) || (view === 'ginasio' && !canGym)
+  const tab: FinanceiroView = gated ? 'negocio' : view
 
   const [period, setPeriod] = useState<DashboardPeriod>('month')
   const [iva, setIva] = useState<VatMode>('com')
@@ -64,8 +59,6 @@ export function FinanceiroPage({ initialTab }: { initialTab?: Tab }) {
 
   return (
     <div className="space-y-4">
-      <Tabs tabs={tabs} value={tab} onChange={setTab} />
-
       {isVertical && (
         <PageHeader title="Financeiro" subtitle={`Resumo do negócio${username ? `, ${username}` : ''}.`}>
           <div className="flex flex-wrap items-center gap-2">

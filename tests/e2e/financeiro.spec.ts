@@ -29,11 +29,29 @@ test.describe("Financeiro", () => {
     }
   });
 
-  test("Financeiro é core — abre com as tabs O Negócio / Despesas", async ({ page }) => {
+  test("Financeiro é core — a sidebar expande o submenu com O Negócio / Despesas (T1.2, já não são tabs de topo)", async ({ page }) => {
     await page.goto("/financeiro");
     await page.waitForURL("**/financeiro", { timeout: 15_000 });
-    await expect(page.getByRole("tab", { name: "O Negócio" })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole("tab", { name: "Despesas", exact: true })).toBeVisible();
+    // O item "Financeiro" da sidebar expande-se automaticamente por ser a rota
+    // ativa (acordeão, Shell.tsx::NavItemGroup) — os subitens são botões dentro
+    // do <nav>, não `role="tab"` (as Tabs de topo da página foram removidas).
+    const nav = page.locator("nav").first();
+    await expect(nav.getByRole("button", { name: "O Negócio", exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(nav.getByRole("button", { name: "Despesas", exact: true })).toBeVisible();
+  });
+
+  test("navegar para Despesas pelo submenu da sidebar → /financeiro/despesas", async ({ page }) => {
+    await page.goto("/financeiro");
+    await page.waitForURL("**/financeiro", { timeout: 15_000 });
+    const nav = page.locator("nav").first();
+    await nav.getByRole("button", { name: "Despesas", exact: true }).click();
+    await page.waitForURL("**/financeiro/despesas", { timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: "Despesas", level: 1 })).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("deep-link antigo /financeiro?vista=ginasio redireciona para /financeiro/ginasio", async ({ page }) => {
+    await page.goto("/financeiro?vista=ginasio");
+    await page.waitForURL("**/financeiro/ginasio", { timeout: 15_000 });
   });
 
   test("página não crasha com parâmetros inválidos na URL", async ({ page }) => {

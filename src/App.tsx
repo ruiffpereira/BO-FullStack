@@ -18,6 +18,7 @@ import { Estatisticas } from "./pages/Estatisticas";
 import { Mensagens } from "./pages/Mensagens";
 import { Website } from "./pages/Website";
 import { Faturacao } from "./pages/Faturacao";
+import { Perfil } from "./pages/Perfil";
 import { resolveLegacyTabTarget } from "./lib/navigation";
 
 /**
@@ -153,6 +154,8 @@ function App() {
         <Route path="/clientes/leads" element={<Clientes view="leads" />} />
         <Route path="/faturacao" element={<Faturacao />} />
         <Route path="/mensagens" element={<Mensagens />} />
+        {/* Core, fora da sidebar — acede-se pelo menu do avatar no topbar (Shell.tsx). */}
+        <Route path="/perfil" element={<Perfil />} />
         <Route path="/loja" element={<LegacyTabEntry root="/loja" param="tab"><Loja view="produtos" /></LegacyTabEntry>} />
         <Route path="/loja/encomendas" element={<Loja view="encomendas" />} />
         <Route path="/loja/categorias" element={<Loja view="categorias" />} />

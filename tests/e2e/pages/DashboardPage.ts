@@ -29,7 +29,15 @@ export class DashboardPage {
     await expect(this.navItem(name)).not.toBeVisible();
   }
 
+  // Terminar sessão vive só no menu do avatar (topbar) — a sidebar deixou de
+  // ter um botão de logout próprio (era duplicado com o AvatarMenu, T3.3).
+  // Abrir o menu é um passo prévio explícito porque o item só existe no DOM
+  // enquanto o menu está aberto (portal condicional).
+  async openAccountMenu() {
+    await this.page.getByRole("button", { name: "Menu da conta" }).click();
+  }
+
   logoutButton() {
-    return this.page.locator('button', { hasText: "Terminar sessão" });
+    return this.page.getByRole("menuitem", { name: "Terminar sessão" });
   }
 }

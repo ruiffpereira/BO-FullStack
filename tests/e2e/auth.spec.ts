@@ -50,6 +50,7 @@ test.describe("Logout", () => {
     await page.waitForURL("**/dashboard", { timeout: 15_000 });
 
     const dashboard = new DashboardPage(page);
+    await dashboard.openAccountMenu();
     await dashboard.logoutButton().click();
 
     // After logout, app should return to login form (in-place, same URL).

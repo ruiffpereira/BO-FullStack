@@ -21,6 +21,7 @@ type Permission = GetUserpermissions200[number];
 interface AuthState {
   userId: string | null;
   username: string | null;
+  email: string | null;
   accessToken: string | null;
   permissions: Permission[];
   isAuthenticated: boolean;
@@ -35,6 +36,25 @@ interface AuthCtx extends AuthState {
   loggingOut: boolean;
   error: string | null;
   initializing: boolean;
+  /**
+   * Adota um accessToken NOVO na sessão atual sem passar por login/refresh —
+   * usado pelo `PUT /users/me/password` (T3.2/T3.3, `Perfil.tsx`), que bump
+   * o `tokenVersion` (invalida o token antigo de imediato) mas já devolve, na
+   * mesma resposta, um par de tokens novo para a sessão que pediu a mudança.
+   * Sem isto, o próximo pedido autenticado usaria o token antigo (já inválido)
+   * e levava um 401 — recuperável pelo interceptor de refresh, mas só depois
+   * de uma volta extra. Também realinha o temporizador de refresh automático
+   * (`scheduleRefresh`) com a validade real do token novo.
+   */
+  setAccessToken: (accessToken: string) => void;
+  /**
+   * Atualiza `username`/`email` em memória + no cache de identidade
+   * (localStorage) sem round-trip ao servidor — usado pelo `Perfil.tsx` depois
+   * de um `PUT /users/me` bem-sucedido, para o nome/email mostrados no avatar
+   * do topbar (e num eventual reload) ficarem coerentes com a edição sem
+   * precisar de um logout/login.
+   */
+  updateIdentity: (patch: { username?: string; email?: string }) => void;
 }
 
 const AuthContext = createContext<AuthCtx | null>(null);
@@ -57,6 +77,7 @@ const AUTH_IDENTITY_STORAGE_KEY = "backoffice.auth.identity";
 const emptyAuth: AuthState = {
   userId: null,
   username: null,
+  email: null,
   accessToken: null,
   permissions: [],
   isAuthenticated: false,
@@ -65,12 +86,13 @@ const emptyAuth: AuthState = {
 function readStoredIdentity(): {
   userId: string | null;
   username: string | null;
+  email: string | null;
 } {
-  if (typeof window === "undefined") return { userId: null, username: null };
+  if (typeof window === "undefined") return { userId: null, username: null, email: null };
   try {
     const raw = window.localStorage.getItem(AUTH_IDENTITY_STORAGE_KEY);
-    if (!raw) return { userId: null, username: null };
-    const parsed = JSON.parse(raw) as { userId?: unknown; username?: unknown };
+    if (!raw) return { userId: null, username: null, email: null };
+    const parsed = JSON.parse(raw) as { userId?: unknown; username?: unknown; email?: unknown };
     return {
       userId:
         typeof parsed.userId === "string" && parsed.userId.trim()
@@ -80,15 +102,20 @@ function readStoredIdentity(): {
         typeof parsed.username === "string" && parsed.username.trim()
           ? parsed.username
           : null,
+      email:
+        typeof parsed.email === "string" && parsed.email.trim()
+          ? parsed.email
+          : null,
     };
   } catch {
-    return { userId: null, username: null };
+    return { userId: null, username: null, email: null };
   }
 }
 
 function writeStoredIdentity(identity: {
   userId: string | null;
   username: string | null;
+  email: string | null;
 }) {
   if (typeof window === "undefined") return;
   try {
@@ -136,9 +163,10 @@ function decodeJwtPayload(accessToken: string): Record<string, unknown> | null {
 function getIdentityFromJwt(accessToken: string): {
   userId: string | null;
   username: string | null;
+  email: string | null;
 } {
   const payload = decodeJwtPayload(accessToken);
-  if (!payload) return { userId: null, username: null };
+  if (!payload) return { userId: null, username: null, email: null };
 
   const pick = (...keys: string[]) => {
     for (const key of keys) {
@@ -151,6 +179,11 @@ function getIdentityFromJwt(accessToken: string): {
   return {
     userId: pick("userId", "uid", "sub"),
     username: pick("username", "preferred_username", "name", "email"),
+    // O access token do BO só carrega { userId, tokenVersion } (ver
+    // `generateAccessToken` na API) — nunca vem daqui na prática hoje, mas
+    // fica pronto caso o payload alguma vez ganhe o campo, sem mais um sítio
+    // a mudar. A identidade real (login/reload) vem do `login()`/localStorage.
+    email: pick("email"),
   };
 }
 
@@ -271,12 +304,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const nextIdentity = {
           userId: identity.userId ?? storedIdentity.userId,
           username: identity.username ?? storedIdentity.username,
+          email: identity.email ?? storedIdentity.email,
         };
         writeStoredIdentity(nextIdentity);
         setAuth((prev) => ({
           ...prev,
           userId: prev.userId ?? nextIdentity.userId,
           username: prev.username ?? nextIdentity.username,
+          email: prev.email ?? nextIdentity.email,
           accessToken: nextAccessToken,
           permissions,
           isAuthenticated: true,
@@ -383,12 +418,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const identity = {
           userId: loginRes?.userId ?? null,
           username: loginRes?.username ?? username,
+          email: loginRes?.email ?? null,
         };
         writeStoredIdentity(identity);
 
         setAuth({
           userId: identity.userId,
           username: identity.username,
+          email: identity.email,
           accessToken,
           permissions,
           isAuthenticated: true,
@@ -475,6 +512,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [auth.permissions],
   );
 
+  // Ver docstring em `AuthCtx.setAccessToken` — adota o token devolvido por
+  // `PUT /users/me/password` sem passar por login/refresh, e realinha o
+  // temporizador de refresh automático com a validade real do token novo.
+  const setAccessToken = useCallback(
+    (accessToken: string) => {
+      setAuth((prev) => ({ ...prev, accessToken, isAuthenticated: true }));
+      scheduleRefresh(accessToken);
+    },
+    [scheduleRefresh],
+  );
+
+  // Ver docstring em `AuthCtx.updateIdentity` — sincroniza username/email em
+  // memória + localStorage depois de um `PUT /users/me` bem-sucedido.
+  const updateIdentity = useCallback(
+    (patch: { username?: string; email?: string }) => {
+      setAuth((prev) => ({
+        ...prev,
+        username: patch.username !== undefined ? patch.username : prev.username,
+        email: patch.email !== undefined ? patch.email : prev.email,
+      }));
+      const stored = readStoredIdentity();
+      writeStoredIdentity({
+        userId: stored.userId,
+        username: patch.username !== undefined ? patch.username : stored.username,
+        email: patch.email !== undefined ? patch.email : stored.email,
+      });
+    },
+    [],
+  );
+
   return (
     <AuthContext.Provider
       value={{
@@ -487,6 +554,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loggingOut,
         error,
         initializing,
+        setAccessToken,
+        updateIdentity,
       }}
     >
       {children}

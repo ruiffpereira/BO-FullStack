@@ -3413,6 +3413,232 @@
         }
       }
     },
+    "/users/me": {
+      "get": {
+        "summary": "Perfil do tenant autenticado (self)",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dados do próprio utilizador",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string",
+                      "format": "email"
+                    },
+                    "phone": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "logoUrl": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "uiTheme": {
+                      "type": "string",
+                      "enum": [
+                        "light",
+                        "dark",
+                        "system"
+                      ]
+                    },
+                    "defaultLanguage": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication token"
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          }
+        }
+      },
+      "put": {
+        "summary": "Atualizar o perfil do tenant autenticado (self)",
+        "description": "Atualiza name/phone/logoUrl/uiTheme livremente. Mudar o email exige `currentPassword` válida (bcrypt) — v1 sem verificação por link. Whitelist estrita: qualquer outro campo do body (userId, permissionId, password, tokenVersion, websiteDomain, ...) é ignorado.",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "logoUrl": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "URL http(s), ou vazio/null para remover"
+                  },
+                  "uiTheme": {
+                    "type": "string",
+                    "enum": [
+                      "light",
+                      "dark",
+                      "system"
+                    ]
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "currentPassword": {
+                    "type": "string",
+                    "description": "Obrigatória apenas quando `email` muda de valor"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Perfil atualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string",
+                      "format": "email"
+                    },
+                    "phone": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "logoUrl": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "uiTheme": {
+                      "type": "string",
+                      "enum": [
+                        "light",
+                        "dark",
+                        "system"
+                      ]
+                    },
+                    "defaultLanguage": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos (zod), ou mudança de email sem `currentPassword`"
+          },
+          "401": {
+            "description": "Missing/invalid token, ou `currentPassword` incorreta"
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          },
+          "409": {
+            "description": "Email já em uso por outro utilizador"
+          }
+        }
+      }
+    },
+    "/users/me/password": {
+      "put": {
+        "summary": "Mudar a password do tenant autenticado (self)",
+        "description": "Exige `currentPassword` válida (bcrypt). Ao ter sucesso, incrementa `tokenVersion` — o que invalida de imediato os access/refresh tokens de TODOS os dispositivos, incluindo o próprio pedido atual — mas reemite já a seguir, na mesma resposta, um par de tokens NOVO (accessToken no corpo + refresh token em cookie HttpOnly), exactamente como `POST /users/login`. Resultado líquido: a sessão que pediu a mudança continua ligada (basta adotar o `accessToken` devolvido); todas as OUTRAS sessões são forçadas a re-autenticar. Contas sem password ainda definida (signup self-serve por verificar) não podem usar este endpoint — o caminho correto é o link de definição de password (`POST /users/setup-password`).",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "currentPassword",
+                  "newPassword"
+                ],
+                "properties": {
+                  "currentPassword": {
+                    "type": "string"
+                  },
+                  "newPassword": {
+                    "type": "string",
+                    "description": "Mínimo 8 caracteres"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password alterada; novo par de tokens emitido para esta sessão",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos (zod — newPassword curta/currentPassword em falta), ou conta ainda sem password definida"
+          },
+          "401": {
+            "description": "Missing/invalid token, ou `currentPassword` incorreta"
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          }
+        }
+      }
+    },
     "/permissions": {
       "get": {
         "summary": "Get all permissions",
@@ -12016,6 +12242,10 @@
     {
       "name": "Components",
       "description": "Management of UI components and their permissions"
+    },
+    {
+      "name": "Users",
+      "description": "Utilizadores do backoffice"
     },
     {
       "name": "Permissions",

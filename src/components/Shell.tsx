@@ -40,6 +40,9 @@ const ROUTE_META: Record<string, { nome: string; icon: string }> = {
   '/conteudos':         { nome: 'Conteúdos',  icon: 'layers' },
   '/website':           { nome: 'Website',    icon: 'globe' },
   '/admin':             { nome: 'Admin',      icon: 'shield' },
+  // Fora da sidebar (acede-se pelo menu do avatar, AvatarMenu) — entrada só
+  // para o título do topbar (resolveTopbarTitle) reconhecer a rota.
+  '/perfil':            { nome: 'Perfil',     icon: 'user' },
 }
 
 interface Props {
@@ -360,12 +363,11 @@ function NavItemGroup({
   )
 }
 
-function SidebarContent({ accessiblePaths, collapsed, onLogout }: {
+function SidebarContent({ accessiblePaths, collapsed }: {
   accessiblePaths: string[]
   collapsed: boolean
-  onLogout: () => void
 }) {
-  const { loggingOut, hasPermission } = useAuth()
+  const { hasPermission } = useAuth()
   const location = useLocation()
   const navRef = useRef<HTMLElement | null>(null)
   // Só o item /mensagens usa isto — chamado aqui (e não por NavItem) para não
@@ -418,7 +420,8 @@ function SidebarContent({ accessiblePaths, collapsed, onLogout }: {
       {/* Zona de navegação scrollável: com todos os grupos do acordeão abertos
           o menu pode ficar mais alto que o viewport — `flex-1 min-h-0
           overflow-y-auto` deixa-a encolher e ganhar scroll próprio, com o
-          logo (acima) e o rodapé/logout (abaixo, `shrink-0`) sempre fixos.
+          logo (acima, `shrink-0`) sempre fixo. Sem rodapé: o logout vive só no
+          menu do avatar (`AvatarMenu`, topbar) — ver T3.3.
           A scrollbar discreta vem do CSS global (`index.css`), igual à usada
           noutros painéis com scroll (NotificationBell, ChatPopup, …). */}
       <div className={`mt-2 flex-1 min-h-0 overflow-y-auto pb-2 ${collapsed ? 'px-2' : 'px-3'}`}>
@@ -452,22 +455,6 @@ function SidebarContent({ accessiblePaths, collapsed, onLogout }: {
           })}
         </nav>
       </div>
-
-      {/* Rodapé fixo (shrink-0, fora da zona scrollável): só o logout — o
-          cartão de identificação ("Sessão activa" + username + permissão) foi
-          removido por redundante (a identificação volta noutro sítio, menu do
-          avatar, Fase 3). Borda subtil substitui o cartão como separador. */}
-      <div className={`shrink-0 mt-auto pt-2 border-t border-zinc-100 dark:border-zinc-800 ${collapsed ? 'px-2' : 'px-3'} pb-3`}>
-        <button
-          onClick={onLogout}
-          disabled={loggingOut}
-          title={collapsed ? 'Sair' : undefined}
-          className={`w-full flex items-center gap-3 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50 disabled:cursor-wait disabled:hover:bg-transparent disabled:hover:text-zinc-600 dark:disabled:hover:text-zinc-400 transition-colors ${collapsed ? 'justify-center py-2.5' : 'px-3 py-2.5'}`}
-        >
-          <Icon name="logout" className="w-[19px] h-[19px] shrink-0" />
-          {!collapsed && <span>{loggingOut ? 'A sair...' : 'Terminar sessão'}</span>}
-        </button>
-      </div>
     </div>
   )
 }
@@ -489,11 +476,111 @@ function resolveTopbarTitle(pathname: string): string {
   return sub ? `${rootLabel} · ${sub.label}` : rootLabel
 }
 
-function Topbar({ theme, onToggleTheme, onMenu, onCollapse }: {
+/**
+ * Menu do avatar no topbar (T3.3, `.design/shell-nav-perfil/`): devolve a
+ * identidade do tenant que foi removida do cartão da sidebar (fix anterior) —
+ * "O meu perfil" (→ `/perfil`) e "Terminar sessão". Portal (mesmo padrão do
+ * flyout de `NavItemGroup`/`useAnchoredMenu`), ancorado à direita por baixo do
+ * avatar (é o item mais à direita do topbar — um menu alinhado à esquerda
+ * sairia do ecrã). Acessível: `aria-haspopup`/`aria-expanded`, fecha em Esc e
+ * clique fora, foco volta ao botão do avatar ao fechar por Esc.
+ */
+function AvatarMenu({ onLogout }: { onLogout: () => void }) {
+  const { username, loggingOut } = useAuth()
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null)
+  const btnRef = useRef<HTMLButtonElement | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  const openMenu = () => {
+    const r = btnRef.current?.getBoundingClientRect()
+    if (r) setPos({ top: r.bottom + 8, right: Math.max(8, window.innerWidth - r.right) })
+    setOpen(true)
+  }
+
+  // Fecha ao clicar fora / Esc (mesmo padrão do NavItemGroup/NotificationBell).
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (btnRef.current?.contains(t) || menuRef.current?.contains(t)) return
+      setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false)
+        btnRef.current?.focus()
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const goToProfile = () => {
+    setOpen(false)
+    navigate('/perfil')
+  }
+
+  return (
+    <div className="relative">
+      <button
+        ref={btnRef}
+        onClick={() => (open ? setOpen(false) : openMenu())}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Menu da conta"
+        className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+      >
+        <Avatar name={username ?? '?'} color="#2A6FDB" size={34} />
+      </button>
+
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          role="menu"
+          aria-label="Conta"
+          style={{ position: 'fixed', top: pos?.top ?? 0, right: pos?.right ?? 0, zIndex: 100 }}
+          className="w-52 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1.5"
+        >
+          {username && (
+            <p className="px-3 pb-1.5 mb-0.5 border-b border-zinc-100 dark:border-zinc-800 text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">
+              {username}
+            </p>
+          )}
+          <button
+            role="menuitem"
+            onClick={goToProfile}
+            className="w-full flex items-center gap-2.5 text-left px-3 py-2 text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 transition-colors"
+          >
+            <Icon name="user" className="w-4 h-4" />
+            O meu perfil
+          </button>
+          <button
+            role="menuitem"
+            onClick={() => { setOpen(false); onLogout() }}
+            disabled={loggingOut}
+            className="w-full flex items-center gap-2.5 text-left px-3 py-2 text-sm text-zinc-600 dark:text-zinc-300 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50 transition-colors"
+          >
+            <Icon name="logout" className="w-4 h-4" />
+            {loggingOut ? 'A sair...' : 'Terminar sessão'}
+          </button>
+        </div>,
+        document.body,
+      )}
+    </div>
+  )
+}
+
+function Topbar({ theme, onToggleTheme, onMenu, onCollapse, onLogout }: {
   theme: string; onToggleTheme: () => void
   onMenu: () => void; onCollapse: () => void
+  onLogout: () => void
 }) {
-  const { username } = useAuth()
   const location = useLocation()
   const title = resolveTopbarTitle(location.pathname)
 
@@ -519,7 +606,7 @@ function Topbar({ theme, onToggleTheme, onMenu, onCollapse }: {
         <ChatLauncher />
         <IconButton icon={theme === 'dark' ? 'sun' : 'moon'} onClick={onToggleTheme} label="Tema" />
         <div className="w-px h-6 bg-zinc-200 dark:bg-zinc-800 mx-0.5 hidden sm:block" />
-        <Avatar name={username ?? '?'} color="#2A6FDB" size={34} />
+        <AvatarMenu onLogout={onLogout} />
       </div>
     </header>
   )
@@ -577,8 +664,11 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   // é um deep-link antigo sem item de menu próprio — entra como root extra só para
   // o guard não o expulsar antes do <Navigate> do App.tsx o reescrever para
   // /financeiro/despesas (o guard não faz essa reescrita; só garante que o pathname
-  // não é imediatamente atirado para o dashboard nesse instante).
-  const guardRoots = [...accessiblePaths, '/despesas']
+  // não é imediatamente atirado para o dashboard nesse instante). "/perfil" (T3.3)
+  // é core mas fora da sidebar (acede-se pelo menu do avatar, AvatarMenu) — pela
+  // mesma razão entra como root extra, senão o guard expulsava-o para o dashboard
+  // por não pertencer a nenhum item de `accessiblePaths`.
+  const guardRoots = [...accessiblePaths, '/despesas', '/perfil']
 
   // Redirige para rota acessível se a actual não o for; um SUBITEM sem permissão
   // (ex.: /financeiro/ginasio sem VIEW_GYM) cai no 1.º subitem permitido do MESMO
@@ -631,7 +721,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
     <div className="flex bg-zinc-50 dark:bg-zinc-950 overflow-hidden" style={{ height: 'var(--app-h, 100%)' }}>
       <SwRegistrar />
       <aside className={`hidden lg:flex flex-col shrink-0 border-r border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-[width] duration-200 ${collapsed ? 'w-[72px]' : 'w-64'}`}>
-        <SidebarContent accessiblePaths={accessiblePaths} collapsed={collapsed} onLogout={handleLogout} />
+        <SidebarContent accessiblePaths={accessiblePaths} collapsed={collapsed} />
       </aside>
 
       {drawer && (
@@ -644,7 +734,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
               onClick={() => setDrawer(false)}
               className="absolute top-4 right-3 z-10"
             />
-            <SidebarContent accessiblePaths={accessiblePaths} collapsed={false} onLogout={handleLogout} />
+            <SidebarContent accessiblePaths={accessiblePaths} collapsed={false} />
           </aside>
         </div>
       )}
@@ -655,6 +745,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
           onToggleTheme={onToggleTheme}
           onMenu={() => setDrawer(true)}
           onCollapse={() => setCollapsed(!collapsed)}
+          onLogout={handleLogout}
         />
         {/* Faixa de billing (platform subscription): fica acima do <main> e por
             isso persiste no topo enquanto o conteúdo faz scroll. Silenciosa

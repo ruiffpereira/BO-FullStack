@@ -8,7 +8,6 @@ import {
   Input,
   Toggle,
   PageHeader,
-  Tabs,
   SectionTitle,
 } from "../ui/ui.jsx";
 import { Icon } from "../ui/icons.jsx";
@@ -53,11 +52,18 @@ import { usePostWebsitePreviewToken } from "../gen/backoffice/hooks/usePostWebsi
 
 /**
  * "Website" — área self-serve onde o tenant configura o site público
- * (renderizado pelo site-engine à parte). Tabs: O meu site (estado + publicar),
- * Template (galeria de arranque), Páginas (gestor de páginas — título/slug/nav/tipo,
- * T23), Marca (preset/accent/fonte/logo) e Domínio (subdomínio com verificação).
- * O editor de blocos dentro de cada página e o preview ao vivo ficam fora deste
- * ecrã (fase seguinte).
+ * (renderizado pelo site-engine à parte). Cada separador vive na sua própria
+ * rota (`/website`, `/website/template`, `/website/paginas`, `/website/marca`,
+ * `/website/rodape-nav`, `/website/dominio` — T2.3, Fase 2 da sidebar com
+ * submenus) — a navegação entre vistas já não é feita por `Tabs` de topo, é a
+ * sidebar (`NavItemGroup`/`Shell.tsx`); a página só recebe a vista pedida via
+ * `view`. A página nunca usou `?tab=` (sem redirect de deep-link legacy a
+ * fazer aqui, ao contrário de Loja/Clientes/Financeiro).
+ *
+ * Vistas: O meu site (estado + publicar), Template (galeria de arranque),
+ * Páginas (gestor de páginas — título/slug/nav/tipo, T23), Marca
+ * (preset/accent/fonte/logo) e Domínio (subdomínio com verificação). O editor
+ * de blocos vive dentro da vista Páginas.
  *
  * Env (OBRIGATÓRIA, sem default — erro se faltar, em qualquer ambiente):
  *   VITE_SITE_ROOT_URL — base pública dos sites dos tenants
@@ -73,16 +79,7 @@ function siteRoot(): URL {
   return new URL(SITE_ROOT_URL);
 }
 
-type TabId = "site" | "template" | "pages" | "brand" | "footer" | "domain";
-
-const TABS = [
-  { id: "site", label: "O meu site", icon: "globe" },
-  { id: "template", label: "Template", icon: "layers" },
-  { id: "pages", label: "Páginas", icon: "folder" },
-  { id: "brand", label: "Marca", icon: "star" },
-  { id: "footer", label: "Rodapé & Nav", icon: "grid" },
-  { id: "domain", label: "Domínio", icon: "link" },
-];
+export type WebsiteView = "site" | "template" | "pages" | "brand" | "footer" | "domain";
 
 /** URL público mostrado ao tenant ({subdomain}.{host da base}). */
 function siteUrl(subdomain: string | null): string {
@@ -1709,8 +1706,7 @@ function DomainTab({ site }: { site: Site }) {
 
 // ── Página ────────────────────────────────────────────────────────────────────
 
-export function Website() {
-  const [tab, setTab] = useState<TabId>("site");
+export function Website({ view }: { view: WebsiteView }) {
   const { data: site, isLoading, dataUpdatedAt } = useSite();
 
   return (
@@ -1731,10 +1727,6 @@ export function Website() {
           ))}
       </PageHeader>
 
-      <div className="mb-6">
-        <Tabs tabs={TABS} value={tab} onChange={(id: string) => setTab(id as TabId)} />
-      </div>
-
       {isLoading || !site ? (
         <Card className="p-5">
           <div className="h-6 w-40 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
@@ -1742,12 +1734,12 @@ export function Website() {
         </Card>
       ) : (
         <>
-          {tab === "site" && <SiteStatusTab site={site} siteUpdatedAt={dataUpdatedAt} />}
-          {tab === "template" && <TemplateTab site={site} />}
-          {tab === "pages" && <PagesTab site={site} />}
-          {tab === "brand" && <BrandTab site={site} />}
-          {tab === "footer" && <FooterNavTab site={site} />}
-          {tab === "domain" && <DomainTab site={site} />}
+          {view === "site" && <SiteStatusTab site={site} siteUpdatedAt={dataUpdatedAt} />}
+          {view === "template" && <TemplateTab site={site} />}
+          {view === "pages" && <PagesTab site={site} />}
+          {view === "brand" && <BrandTab site={site} />}
+          {view === "footer" && <FooterNavTab site={site} />}
+          {view === "domain" && <DomainTab site={site} />}
         </>
       )}
     </div>

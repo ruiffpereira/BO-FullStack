@@ -145,7 +145,12 @@ function App() {
         <Route path="/agenda/config" element={<Agenda view="config" />} />
         <Route path="/ginasio" element={<Ginasio />} />
         <Route path="/conteudos" element={<Conteudos />} />
-        <Route path="/website" element={<Website />} />
+        <Route path="/website" element={<Website view="site" />} />
+        <Route path="/website/template" element={<Website view="template" />} />
+        <Route path="/website/paginas" element={<Website view="pages" />} />
+        <Route path="/website/marca" element={<Website view="brand" />} />
+        <Route path="/website/rodape-nav" element={<Website view="footer" />} />
+        <Route path="/website/dominio" element={<Website view="domain" />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

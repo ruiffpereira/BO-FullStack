@@ -138,9 +138,18 @@ beforeEach(() => {
   mockWebsiteTemplates(TEMPLATES);
 });
 
+// Nota (T2.3, migração sidebar-com-submenus): a página `Website` deixou de ter
+// `Tabs` de topo — cada separador é agora uma rota própria (`/website`,
+// `/website/template`, `/website/paginas`, `/website/marca`,
+// `/website/rodape-nav`, `/website/dominio`) e o componente recebe a vista
+// pedida via a prop `view` (mesmo padrão de `Clientes`/`Loja`/`Financeiro`/
+// `Agenda`). Os testes abaixo montam `<Website view="..." />` diretamente em
+// vez de clicar numa barra de tabs — a navegação real por submenu/URL fica
+// coberta pelo e2e (`rbac-matriz.spec.ts`).
+
 describe("Website", () => {
   it("(a) estado: mostra Rascunho e Publicar desativado quando o setup está incompleto", () => {
-    render(<Website />);
+    render(<Website view="site" />);
     // Badge de rascunho (aparece no header e na tab de estado).
     expect(screen.getAllByText("Rascunho").length).toBeGreaterThan(0);
     const publicar = screen.getByRole("button", { name: /Publicar/i });
@@ -149,10 +158,7 @@ describe("Website", () => {
 
   it("(b) escolher um template chama save com um Site JSON com template + pages", async () => {
     const user = userEvent.setup();
-    render(<Website />);
-
-    // Ir para a tab Template.
-    await user.click(screen.getByRole("tab", { name: /Template/i }));
+    render(<Website view="template" />);
 
     // Escolher a Barbearia (não há site montado → aplica direto, sem confirmar).
     await user.click(screen.getByRole("button", { name: /Barbearia/i }));
@@ -171,10 +177,8 @@ describe("Website", () => {
     expect(arg.pages.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("(b2) Template: renderiza a galeria a partir do endpoint (GET /website/templates)", async () => {
-    const user = userEvent.setup();
-    render(<Website />);
-    await user.click(screen.getByRole("tab", { name: /Template/i }));
+  it("(b2) Template: renderiza a galeria a partir do endpoint (GET /website/templates)", () => {
+    render(<Website view="template" />);
 
     expect(useWebsiteTemplatesMock).toHaveBeenCalled();
     expect(screen.getByRole("button", { name: /Barbearia/i })).toBeInTheDocument();
@@ -184,8 +188,7 @@ describe("Website", () => {
 
   it("(b3) Template: aplicar chama useSaveSite com o payload `site` exato do template escolhido", async () => {
     const user = userEvent.setup();
-    render(<Website />);
-    await user.click(screen.getByRole("tab", { name: /Template/i }));
+    render(<Website view="template" />);
 
     await user.click(screen.getByRole("button", { name: /Ginásio/i }));
 
@@ -193,21 +196,17 @@ describe("Website", () => {
     expect(saveMutate.mock.calls[0][0]).toEqual(TEMPLATES[1].site);
   });
 
-  it("(b4) Template: mostra um estado de carregamento enquanto o endpoint não responde", async () => {
-    const user = userEvent.setup();
+  it("(b4) Template: mostra um estado de carregamento enquanto o endpoint não responde", () => {
     mockWebsiteTemplates(undefined, { isLoading: true });
-    render(<Website />);
-    await user.click(screen.getByRole("tab", { name: /Template/i }));
+    render(<Website view="template" />);
 
     expect(screen.queryByRole("button", { name: /Barbearia/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/Não foi possível carregar/i)).not.toBeInTheDocument();
   });
 
   it("(b5) Template: mostra uma mensagem de erro em PT quando o endpoint falha", async () => {
-    const user = userEvent.setup();
     mockWebsiteTemplates(undefined, { isError: true });
-    render(<Website />);
-    await user.click(screen.getByRole("tab", { name: /Template/i }));
+    render(<Website view="template" />);
 
     expect(await screen.findByText(/Não foi possível carregar os templates/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Barbearia/i })).not.toBeInTheDocument();
@@ -216,9 +215,8 @@ describe("Website", () => {
   it("(c) domínio: mostra a razão de indisponibilidade devolvida pela verificação", async () => {
     const user = userEvent.setup();
     checkFn.mockResolvedValue({ value: "admin", available: false, reason: "reserved" });
-    render(<Website />);
+    render(<Website view="domain" />);
 
-    await user.click(screen.getByRole("tab", { name: /Domínio/i }));
     const input = screen.getByPlaceholderText("a-tua-marca");
     await user.type(input, "admin");
 
@@ -241,7 +239,7 @@ describe("Website", () => {
       }),
       isLoading: false,
     });
-    render(<Website />);
+    render(<Website view="site" />);
 
     const publicar = screen.getByRole("button", { name: /Publicar/i });
     expect(publicar).toBeEnabled();
@@ -268,7 +266,7 @@ describe("Website — Publicar bloqueado sem conteúdo na página inicial", () =
       }),
       isLoading: false,
     });
-    render(<Website />);
+    render(<Website view="site" />);
 
     const publicar = screen.getByRole("button", { name: /Publicar/i });
     expect(publicar).toBeDisabled();
@@ -287,7 +285,7 @@ describe("Website — Publicar bloqueado sem conteúdo na página inicial", () =
       }),
       isLoading: false,
     });
-    render(<Website />);
+    render(<Website view="site" />);
 
     const publicar = screen.getByRole("button", { name: /Publicar/i });
     expect(publicar).toBeEnabled();
@@ -300,9 +298,9 @@ describe("Website — Publicar bloqueado sem conteúdo na página inicial", () =
 
 describe("Website — Pré-visualização", () => {
   it("minta um token ao montar e renderiza o iframe + link 'Abrir em nova aba' com o URL devolvido", async () => {
-    render(<Website />);
+    render(<Website view="site" />);
 
-    // Mint-on-mount (tab "site" é a default).
+    // Mint-on-mount (view "site" é a default).
     expect(previewMintMutate).toHaveBeenCalledTimes(1);
 
     act(() => {
@@ -320,7 +318,7 @@ describe("Website — Pré-visualização", () => {
   });
 
   it("quando a API não devolve `url` mas devolve `token`, constrói o URL a partir de VITE_SITE_ROOT_URL", async () => {
-    render(<Website />);
+    render(<Website view="site" />);
     expect(previewMintMutate).toHaveBeenCalledTimes(1);
 
     act(() => {
@@ -335,7 +333,7 @@ describe("Website — Pré-visualização", () => {
   });
 
   it("falha ao mintar (onError, ou onSuccess sem url nem token) → sem iframe, mostra erro e sem link clicável", async () => {
-    render(<Website />);
+    render(<Website view="site" />);
     expect(previewMintMutate).toHaveBeenCalledTimes(1);
 
     act(() => {
@@ -356,7 +354,7 @@ describe("Website — Pré-visualização", () => {
 
   it("refresh-on-save: um save noutra parte da página (dataUpdatedAt muda) remint o token da pré-visualização", async () => {
     useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false, dataUpdatedAt: 1 });
-    const { rerender } = render(<Website />);
+    const { rerender } = render(<Website view="site" />);
     expect(previewMintMutate).toHaveBeenCalledTimes(1);
 
     act(() => {
@@ -370,7 +368,7 @@ describe("Website — Pré-visualização", () => {
     // Simula um save bem sucedido noutra tab (ex.: Marca/Template/Páginas) —
     // qualquer save invalida a query `website.site`, o que muda `dataUpdatedAt`.
     useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false, dataUpdatedAt: 2 });
-    rerender(<Website />);
+    rerender(<Website view="site" />);
 
     expect(previewMintMutate).toHaveBeenCalledTimes(2);
   });
@@ -402,15 +400,10 @@ describe("Website — Páginas (gestor de páginas)", () => {
     return makeSite({ pages });
   }
 
-  async function goToPages(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(screen.getByRole("tab", { name: /Páginas/i }));
-  }
-
   it("adiciona uma página com slug auto-gerado do título", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithPages([HOME]), isLoading: false });
-    render(<Website />);
-    await goToPages(user);
+    render(<Website view="pages" />);
 
     await user.type(screen.getByLabelText("Título"), "Sobre Nós");
 
@@ -431,8 +424,7 @@ describe("Website — Páginas (gestor de páginas)", () => {
   it("rejeita um slug duplicado ao adicionar (edição manual do campo endereço)", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithPages([HOME, SOBRE]), isLoading: false });
-    render(<Website />);
-    await goToPages(user);
+    render(<Website view="pages" />);
 
     await user.type(screen.getByLabelText("Título"), "Sobre Nós Novamente");
     // O campo "Endereço" do formulário Nova página é o 1º a aparecer no DOM
@@ -450,8 +442,7 @@ describe("Website — Páginas (gestor de páginas)", () => {
   it("rejeita um slug reservado ao adicionar", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithPages([HOME]), isLoading: false });
-    render(<Website />);
-    await goToPages(user);
+    render(<Website view="pages" />);
 
     await user.type(screen.getByLabelText("Título"), "Loja");
 
@@ -463,8 +454,7 @@ describe("Website — Páginas (gestor de páginas)", () => {
   it("reordena páginas (mover para baixo) e persiste a nova ordem", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithPages([HOME, SOBRE]), isLoading: false });
-    render(<Website />);
-    await goToPages(user);
+    render(<Website view="pages" />);
 
     const downButtons = screen.getAllByRole("button", { name: "Mover para baixo" });
     await user.click(downButtons[0]); // move a página inicial para baixo
@@ -475,22 +465,18 @@ describe("Website — Páginas (gestor de páginas)", () => {
     expect(pages[1]).toEqual(expect.objectContaining({ id: "home", order: 1 }));
   });
 
-  it("bloqueia remover a página inicial", async () => {
-    const user = userEvent.setup();
+  it("bloqueia remover a página inicial", () => {
     useSiteMock.mockReturnValue({ data: siteWithPages([HOME, SOBRE]), isLoading: false });
-    render(<Website />);
-    await goToPages(user);
+    render(<Website view="pages" />);
 
     const removeButtons = screen.getAllByRole("button", { name: "Remover página" });
     expect(removeButtons[0]).toBeDisabled(); // a linha da página inicial
   });
 
-  it("bloqueia remover a última página restante mesmo não sendo a inicial", async () => {
-    const user = userEvent.setup();
+  it("bloqueia remover a última página restante mesmo não sendo a inicial", () => {
     const solo = { ...SOBRE, order: 0 };
     useSiteMock.mockReturnValue({ data: siteWithPages([solo]), isLoading: false });
-    render(<Website />);
-    await goToPages(user);
+    render(<Website view="pages" />);
 
     const removeButton = screen.getByRole("button", { name: "Remover página" });
     expect(removeButton).toBeDisabled();
@@ -499,8 +485,7 @@ describe("Website — Páginas (gestor de páginas)", () => {
   it("remove uma página não-inicial após confirmação", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithPages([HOME, SOBRE]), isLoading: false });
-    render(<Website />);
-    await goToPages(user);
+    render(<Website view="pages" />);
 
     const removeButtons = screen.getAllByRole("button", { name: "Remover página" });
     await user.click(removeButtons[1]); // a página "Sobre"
@@ -515,8 +500,7 @@ describe("Website — Páginas (gestor de páginas)", () => {
   it("o toggle de navegação persiste o valor invertido no payload gravado", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithPages([HOME, SOBRE]), isLoading: false });
-    render(<Website />);
-    await goToPages(user);
+    render(<Website view="pages" />);
 
     const switches = screen.getAllByRole("switch");
     await user.click(switches[1]); // a página "Sobre" (inNav:true → false)
@@ -590,10 +574,6 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
     return makeSite({ pages, activeLocales: ["pt"], defaultLocale: "pt", ...overrides });
   }
 
-  async function goToPages(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(screen.getByRole("tab", { name: /Páginas/i }));
-  }
-
   async function openBlocksFor(user: ReturnType<typeof userEvent.setup>) {
     await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
   }
@@ -601,8 +581,7 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
   it("adiciona um bloco a uma página e persiste-o no payload", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_EMPTY]), isLoading: false });
-    render(<Website />);
-    await goToPages(user);
+    render(<Website view="pages" />);
     await openBlocksFor(user);
 
     await user.click(screen.getByRole("button", { name: /Adicionar bloco/i }));
@@ -620,8 +599,7 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
   it("reordena blocos (mover para baixo) e persiste a nova ordem", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_TWO_BLOCKS]), isLoading: false });
-    render(<Website />);
-    await goToPages(user);
+    render(<Website view="pages" />);
     await openBlocksFor(user);
 
     const downButtons = screen.getAllByRole("button", { name: "Mover bloco para baixo" });
@@ -637,8 +615,7 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
   it("remove um bloco após confirmação e persiste sem ele", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_TWO_BLOCKS]), isLoading: false });
-    render(<Website />);
-    await goToPages(user);
+    render(<Website view="pages" />);
     await openBlocksFor(user);
 
     const removeButtons = screen.getAllByRole("button", { name: "Remover bloco" });
@@ -655,8 +632,7 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
   it("muda a variante de um bloco via Combobox e persiste-a", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_TWO_BLOCKS]), isLoading: false });
-    render(<Website />);
-    await goToPages(user);
+    render(<Website view="pages" />);
     await openBlocksFor(user);
 
     const variantButtons = screen.getAllByRole("button", { name: "Variante" });
@@ -673,8 +649,7 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
   it("edita o título (formulário rico) na língua padrão e guarda em settings.content.pt.title", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_TWO_BLOCKS]), isLoading: false });
-    render(<Website />);
-    await goToPages(user);
+    render(<Website view="pages" />);
     await openBlocksFor(user);
 
     const editButtons = screen.getAllByRole("button", { name: "Editar conteúdo" });
@@ -699,8 +674,7 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
       data: siteWithBlocks([HOME_MULTI_LOCALE], { activeLocales: ["pt", "en"] }),
       isLoading: false,
     });
-    render(<Website />);
-    await goToPages(user);
+    render(<Website view="pages" />);
     await openBlocksFor(user);
 
     await user.click(screen.getByRole("button", { name: "Editar conteúdo" }));
@@ -741,7 +715,6 @@ describe("Website — Blocos (upload de imagem)", () => {
   }
 
   async function openHeroContentModal(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(screen.getByRole("tab", { name: /Páginas/i }));
     await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
     await user.click(screen.getByRole("button", { name: "Editar conteúdo" }));
     return screen.getByRole("dialog");
@@ -750,7 +723,7 @@ describe("Website — Blocos (upload de imagem)", () => {
   it("o campo Imagem do hero mostra o uploader (não um input de URL simples)", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_HERO]), isLoading: false });
-    render(<Website />);
+    render(<Website view="pages" />);
     const dialog = await openHeroContentModal(user);
 
     expect(within(dialog).getByText("Carregar imagem")).toBeInTheDocument();
@@ -763,7 +736,7 @@ describe("Website — Blocos (upload de imagem)", () => {
     const user = userEvent.setup();
     uploadImage.mockResolvedValue({ fileUrl: "https://x/hero.webp", key: "k1" });
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_HERO]), isLoading: false });
-    render(<Website />);
+    render(<Website view="pages" />);
     const dialog = await openHeroContentModal(user);
 
     const fileInput = dialog.querySelector('input[type="file"]') as HTMLInputElement;
@@ -790,7 +763,7 @@ describe("Website — Blocos (upload de imagem)", () => {
   it("cancelar a escolha pendente (botão remover) não envia nada e mantém o campo vazio ao guardar", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_HERO]), isLoading: false });
-    render(<Website />);
+    render(<Website view="pages" />);
     const dialog = await openHeroContentModal(user);
 
     const fileInput = dialog.querySelector('input[type="file"]') as HTMLInputElement;
@@ -816,15 +789,9 @@ describe("Website — Blocos (upload de imagem)", () => {
 // ── Marca: upload do logótipo ──────────────────────────────────────────────────
 
 describe("Website — Marca (upload do logótipo)", () => {
-  async function goToBrand(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(screen.getByRole("tab", { name: /Marca/i }));
-  }
-
   it("mostra o uploader do logótipo (sem o antigo aviso de upload direto)", async () => {
-    const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
-    render(<Website />);
-    await goToBrand(user);
+    render(<Website view="brand" />);
 
     expect(screen.getByText("Carregar logótipo")).toBeInTheDocument();
     expect(screen.getByText(/ou cola um URL/i)).toBeInTheDocument();
@@ -835,8 +802,7 @@ describe("Website — Marca (upload do logótipo)", () => {
     const user = userEvent.setup();
     uploadImage.mockResolvedValue({ fileUrl: "https://x/logo.webp", key: "k2" });
     useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
-    render(<Website />);
-    await goToBrand(user);
+    render(<Website view="brand" />);
 
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     const img = new File(["x"], "logo.png", { type: "image/png" });
@@ -856,8 +822,7 @@ describe("Website — Marca (upload do logótipo)", () => {
   it("cola um URL manualmente quando não há upload", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
-    render(<Website />);
-    await goToBrand(user);
+    render(<Website view="brand" />);
 
     await user.click(screen.getByRole("button", { name: /ou cola um URL/i }));
     const input = screen.getByPlaceholderText("https://…/logo.svg");
@@ -889,7 +854,6 @@ describe("Website — Blocos (palete completa: Coleção + funcionais)", () => {
   }
 
   async function openPalette(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(screen.getByRole("tab", { name: /Páginas/i }));
     await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
     await user.click(screen.getByRole("button", { name: /Adicionar bloco/i }));
   }
@@ -897,7 +861,7 @@ describe("Website — Blocos (palete completa: Coleção + funcionais)", () => {
   it("(D3) a palete inclui o bloco Coleção — a page-kind \"Coleção\" deixa de ser beco sem saída", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_EMPTY]), isLoading: false });
-    render(<Website />);
+    render(<Website view="pages" />);
     await openPalette(user);
 
     // Escopado ao diálogo da palete — a tab "Páginas" tem o seu próprio botão
@@ -909,7 +873,7 @@ describe("Website — Blocos (palete completa: Coleção + funcionais)", () => {
   it("(D3) adicionar o bloco Coleção persiste type:collection e a variante default 'grid'", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_EMPTY]), isLoading: false });
-    render(<Website />);
+    render(<Website view="pages" />);
     await openPalette(user);
 
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^Coleção/ }));
@@ -935,8 +899,7 @@ describe("Website — Blocos (palete completa: Coleção + funcionais)", () => {
         ]),
         isLoading: false,
       });
-      render(<Website />);
-      await user.click(screen.getByRole("tab", { name: /Páginas/i }));
+      render(<Website view="pages" />);
       await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
 
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
@@ -965,8 +928,7 @@ describe("Website — Blocos (palete completa: Coleção + funcionais)", () => {
       ]),
       isLoading: false,
     });
-    render(<Website />);
-    await user.click(screen.getByRole("tab", { name: /Páginas/i }));
+    render(<Website view="pages" />);
     await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
 
     const editButtons = screen.getAllByRole("button", { name: "Editar conteúdo" });
@@ -989,8 +951,7 @@ describe("Website — Blocos (palete completa: Coleção + funcionais)", () => {
       ]),
       isLoading: false,
     });
-    render(<Website />);
-    await user.click(screen.getByRole("tab", { name: /Páginas/i }));
+    render(<Website view="pages" />);
     await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
     await user.click(screen.getByRole("button", { name: "Editar conteúdo" }));
 
@@ -1026,7 +987,6 @@ describe("Website — Blocos (Coleção — editor de itens)", () => {
   }
 
   async function openCollectionContentModal(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(screen.getByRole("tab", { name: /Páginas/i }));
     await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
     await user.click(screen.getByRole("button", { name: "Editar conteúdo" }));
     return screen.getByRole("dialog");
@@ -1035,7 +995,7 @@ describe("Website — Blocos (Coleção — editor de itens)", () => {
   it("adicionar um item preenche o formulário e persiste o CollectionItem (slug/summary/tags)", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_WITH_COLLECTION]), isLoading: false });
-    render(<Website />);
+    render(<Website view="pages" />);
     const dialog = within(await openCollectionContentModal(user));
 
     await user.click(dialog.getByRole("button", { name: /Adicionar item/i }));
@@ -1064,7 +1024,7 @@ describe("Website — Blocos (Coleção — editor de itens)", () => {
   it("o campo Imagem do item usa o uploader (não um input de URL simples)", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_WITH_COLLECTION]), isLoading: false });
-    render(<Website />);
+    render(<Website view="pages" />);
     const dialog = within(await openCollectionContentModal(user));
 
     await user.click(dialog.getByRole("button", { name: /Adicionar item/i }));
@@ -1076,12 +1036,7 @@ describe("Website — Blocos (Coleção — editor de itens)", () => {
 // ── Rodapé & Nav (D1 footer + D2 nav CTA — site-editor-complete) ─────────────
 
 describe("Website — Rodapé & Nav (D1 footer + D2 nav CTA)", () => {
-  async function goToFooterNav(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(screen.getByRole("tab", { name: /Rodapé/i }));
-  }
-
   it("(D1) mostra os valores atuais do rodapé (nome, tagline, nota legal, colunas+links)", async () => {
-    const user = userEvent.setup();
     useSiteMock.mockReturnValue({
       data: makeSite({
         footer: {
@@ -1093,8 +1048,7 @@ describe("Website — Rodapé & Nav (D1 footer + D2 nav CTA)", () => {
       }),
       isLoading: false,
     });
-    render(<Website />);
-    await goToFooterNav(user);
+    render(<Website view="footer" />);
 
     // Os campos `name`/`smallPrint` têm hint (texto extra dentro do próprio
     // <label>), por isso o nome acessível não é exatamente a etiqueta — regex
@@ -1114,8 +1068,7 @@ describe("Website — Rodapé & Nav (D1 footer + D2 nav CTA)", () => {
       data: makeSite({ footer: { name: "Acme" } }),
       isLoading: false,
     });
-    render(<Website />);
-    await goToFooterNav(user);
+    render(<Website view="footer" />);
 
     await user.click(screen.getByRole("button", { name: /Adicionar coluna/i }));
     await user.type(screen.getByLabelText("Título da coluna 1"), "Empresa");
@@ -1141,8 +1094,7 @@ describe("Website — Rodapé & Nav (D1 footer + D2 nav CTA)", () => {
       data: makeSite({ nav: { items: [{ label: "Início", to: "/" }], cta: null } }),
       isLoading: false,
     });
-    render(<Website />);
-    await goToFooterNav(user);
+    render(<Website view="footer" />);
 
     await user.click(screen.getByRole("switch"));
     await user.type(screen.getByLabelText("Texto do botão"), "Marcar");
@@ -1166,8 +1118,7 @@ describe("Website — Rodapé & Nav (D1 footer + D2 nav CTA)", () => {
       }),
       isLoading: false,
     });
-    render(<Website />);
-    await goToFooterNav(user);
+    render(<Website view="footer" />);
 
     // O toggle começa ligado (já há CTA guardado) — desligar limpa o CTA.
     await user.click(screen.getByRole("switch"));

@@ -19,7 +19,7 @@ Cada slice: rotas novas + remoção das `Tabs` de topo + redirect `?tab=` + deep
 
 - [x] **T2.1 Loja**: `/loja/produtos|encomendas|categorias`; `?tab=`→redirect; `?openProduct=` continua; `notificationTarget` (`order`, `stock`) + `FirstValueChecklist` (2 hrefs). _Modifica: `Loja.tsx:411-420,759-761`._
 - [x] **T2.2 Clientes**: `/clientes`(lista)·`/clientes/leads`; `?tab=leads&lead=`→`/clientes/leads?lead=`; `?cliente=` mantém-se; tabs da ficha (agenda/ginásio) NÃO migram. _Modifica: `Clientes.tsx:79-85,265-268`; `notificationTarget` (`customer`)._
-- [ ] **T2.3 Website**: `/website`·`/website/template|paginas|marca|rodape-nav|dominio`. _Modifica: `Website.tsx:78-84,1713`; migrar as ~48 asserções de `tests/unit/Website.test.tsx` que navegam por tabs._
+- [x] **T2.3 Website**: `/website`·`/website/template|paginas|marca|rodape-nav|dominio`. _Modifica: `Website.tsx:78-84,1713`; migrar as ~48 asserções de `tests/unit/Website.test.tsx` que navegam por tabs._
 - [ ] **T2.4 Admin**: `/admin/utilizadores|permissoes|componentes|tokens|faturacao|integracoes|atividade|sistema` (`/admin`→utilizadores). _Modifica: `Admin.tsx:1557-1601`; e2e admin/admin-tokens._
 - [ ] **T2.5 Ginásio**: `/ginasio/exercicios|treinos|planos|clientes` (`/ginasio`→exercicios); sub-toggle interno fica. _Modifica: `Ginasio.tsx:2879-2895`; e2e ginasio/ginasio-detalhe._
 - [ ] **T2.6 Conteúdos**: `/conteudos/website|produtos|servicos|ginasio|linguas|emails|notificacoes` com gating por permissão por subitem (o submenu da sidebar filtra como `visibleTabs`). _Modifica: `Conteudos.tsx:116-133,784-787`; e2e conteudos/conteudos-multilingua._

@@ -7,10 +7,10 @@
  * de rotas (prefixo + redirect do subitem sem permissão), e (c) o título do
  * topbar para subpaths.
  *
- * Financeiro (T1.2, piloto), Loja (T2.1), Clientes (T2.2) e Agenda (T2.7) já
- * estão migradas — as restantes páginas com tabs (Website, Admin, Ginásio,
- * Conteúdos) entram na Fase 2, uma de cada vez, cada uma acrescentando a sua
- * entrada a este mapa.
+ * Financeiro (T1.2, piloto), Loja (T2.1), Clientes (T2.2), Website (T2.3) e
+ * Agenda (T2.7) já estão migradas — as restantes páginas com tabs (Admin,
+ * Ginásio, Conteúdos) entram na Fase 2, uma de cada vez, cada uma
+ * acrescentando a sua entrada a este mapa.
  */
 
 export interface SubmenuItem {
@@ -49,6 +49,17 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     { id: "marcacoes", label: "Marcações", path: "/agenda/marcacoes" },
     { id: "servicos", label: "Serviços", path: "/agenda/servicos" },
     { id: "config", label: "Configurações", path: "/agenda/config" },
+  ],
+  "/website": [
+    // Label do âncora ("O meu site", não "Website") pelo mesmo motivo dos
+    // outros grupos acima. A página nunca usou `?tab=` (sem deep-link legacy
+    // a redirecionar aqui, T2.3).
+    { id: "site", label: "O meu site", path: "/website" },
+    { id: "template", label: "Template", path: "/website/template" },
+    { id: "pages", label: "Páginas", path: "/website/paginas" },
+    { id: "brand", label: "Marca", path: "/website/marca" },
+    { id: "footer", label: "Rodapé & Nav", path: "/website/rodape-nav" },
+    { id: "domain", label: "Domínio", path: "/website/dominio" },
   ],
 };
 

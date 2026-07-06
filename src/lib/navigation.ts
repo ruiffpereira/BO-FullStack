@@ -7,10 +7,10 @@
  * de rotas (prefixo + redirect do subitem sem permissão), e (c) o título do
  * topbar para subpaths.
  *
- * Nesta fase só o Financeiro está migrado (T1.2, piloto) — as restantes
- * páginas com tabs (Loja, Clientes, Website, Admin, Ginásio, Conteúdos,
- * Agenda) entram na Fase 2, uma de cada vez, cada uma acrescentando a sua
- * entrada a este mapa.
+ * Financeiro (T1.2, piloto) e Loja (T2.1) já estão migradas — as restantes
+ * páginas com tabs (Clientes, Website, Admin, Ginásio, Conteúdos, Agenda)
+ * entram na Fase 2, uma de cada vez, cada uma acrescentando a sua entrada a
+ * este mapa.
  */
 
 export interface SubmenuItem {
@@ -29,6 +29,11 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     { id: "ginasio", label: "Ginásio", path: "/financeiro/ginasio", perm: "VIEW_GYM" },
     { id: "despesas", label: "Despesas", path: "/financeiro/despesas" },
   ],
+  "/loja": [
+    { id: "produtos", label: "Produtos", path: "/loja" },
+    { id: "encomendas", label: "Encomendas", path: "/loja/encomendas" },
+    { id: "categorias", label: "Categorias", path: "/loja/categorias" },
+  ],
 };
 
 /** Subitens de `root` que o tenant pode ver, pela mesma semântica de gating das tabs antigas. */
@@ -46,4 +51,24 @@ export function allowedSubitems(root: string, hasPermission: (name: string) => b
  */
 export function findRoot(pathname: string, accessiblePaths: string[]): string | undefined {
   return accessiblePaths.find((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+/**
+ * Resolve o alvo de um redirect de deep-link legacy `?<param>=<id>` (T1.2
+ * piloto Financeiro, generalizado no T2.1 para as restantes páginas com
+ * submenu da Fase 2). `id` tem de ser um subitem REAL de `SUBMENU[root]` cujo
+ * path não seja o da própria raiz — o id-âncora da raiz (ex.: "negocio" no
+ * Financeiro, "produtos" na Loja) nunca gera redirect, porque o seu path já É
+ * a raiz (ficar lá não é um redirect). `restSearch` são os restantes query
+ * params já serializados (sem o `<param>` legacy) — preservados no destino
+ * (ex.: `?openProduct=` sobrevive a `?tab=encomendas&openProduct=`). Devolve
+ * `null` quando não há nada a redirecionar (sem valor, id desconhecido, ou
+ * id-âncora) — quem chama fica responsável por renderizar o conteúdo por
+ * defeito da raiz nesse caso.
+ */
+export function resolveLegacyTabTarget(root: string, id: string | null, restSearch: string): string | null {
+  if (!id) return null;
+  const item = (SUBMENU[root] ?? []).find((it) => it.id === id && it.path !== root);
+  if (!item) return null;
+  return `${item.path}${restSearch ? `?${restSearch}` : ""}`;
 }

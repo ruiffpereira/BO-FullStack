@@ -26,7 +26,7 @@ describe("notificationHref", () => {
 
   it("order → separador Encomendas da Loja", () => {
     expect(notificationHref(notif("order", { orderId: "o-9" }))).toBe(
-      "/loja?tab=encomendas",
+      "/loja/encomendas",
     );
   });
 

@@ -120,8 +120,7 @@ test.describe("Isolamento multi-tenant — vista simétrica de B + mais módulos
     // ID/Total/Data. O isolamento prova-se por A ver SÓ 1 linha (a sua) — se a de B
     // vazasse, apareceriam 2 linhas.
     await loginAs(context, "tenantA@e2e");
-    await page.goto("/loja");
-    await page.getByRole("tab", { name: "Encomendas", exact: true }).first().click();
+    await page.goto("/loja/encomendas");
     // Espera a tabela de encomendas renderizar (cabeçalho "Total").
     await expect(page.getByRole("columnheader", { name: "Total" })).toBeVisible({ timeout: 12_000 });
     const rows = page.locator("table tbody tr");

@@ -13,7 +13,7 @@ import type { Notification } from "../hooks/useNotifications";
  *     (um novo lead usa `type:"customer"` com `data.leadId`, sem `customerId` —
  *     ver `leadController.ts` na API; distingue-se do cliente normal por isso)
  *   - Financeiro `/financeiro/ginasio`
- *   - Loja       `?tab=encomendas` · `?openProduct=<id>`
+ *   - Loja       `/loja/encomendas` · `?openProduct=<id>` (produtos = raiz `/loja`)
  *   - Mensagens  (sem parâmetro)
  */
 export function notificationHref(
@@ -38,7 +38,7 @@ export function notificationHref(
     }
 
     case "order":
-      return "/loja?tab=encomendas";
+      return "/loja/encomendas";
 
     case "customer": {
       // Um lead novo notifica com `type:"customer"` mas carrega `data.leadId`

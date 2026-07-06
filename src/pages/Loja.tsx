@@ -22,7 +22,6 @@ import {
   PageHeader,
   EmptyState,
   ImgPlaceholder,
-  Tabs,
   BADGE_TONES,
 } from "../ui/ui.jsx";
 import { GuardButton } from "../components/GuardButton";
@@ -401,23 +400,23 @@ function ProdutoModal({
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 
-export function Loja() {
+export type LojaView = "produtos" | "encomendas" | "categorias";
+
+/**
+ * Página "Loja" (VIEW_PRODUCTS). Cada separador vive na sua própria rota
+ * (`/loja`, `/loja/encomendas`, `/loja/categorias`, T2.1 — Fase 2 da sidebar
+ * com submenus) — a navegação entre vistas já não é feita por `Tabs` de topo,
+ * é a sidebar (`NavItemGroup`/`Shell.tsx`); a página só recebe a vista pedida
+ * via `view`. Sem gate por subitem: a página inteira já está atrás de
+ * `VIEW_PRODUCTS` (Shell.tsx), por isso os 3 subitens de `SUBMENU["/loja"]`
+ * não têm `perm` individual.
+ */
+export function Loja({ view }: { view: LojaView }) {
   const { authHeader } = useAuth();
   const qc = useQueryClient();
   const headers = authHeader();
   const [searchParams, setSearchParams] = useSearchParams();
-  const validTab = (t: string | null): t is "produtos" | "encomendas" | "categorias" =>
-    t === "produtos" || t === "encomendas" || t === "categorias";
-  const [tab, setTab] = useState<"produtos" | "encomendas" | "categorias">(() => {
-    const t = searchParams.get("tab");
-    return validTab(t) ? t : "produtos";
-  });
-  // Deep-link `?tab=` (ex.: notificação de encomenda → separador Encomendas)
-  // também quando a página já está montada.
-  useEffect(() => {
-    const t = searchParams.get("tab");
-    if (validTab(t)) setTab(t);
-  }, [searchParams]);
+  const tab = view;
   const [q, setQ] = useState("");
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
@@ -753,17 +752,6 @@ export function Loja() {
           </Card>
         ))}
       </div>
-
-      <Tabs
-        tabs={[
-          { id: "produtos", label: "Produtos", icon: "box" },
-          { id: "encomendas", label: "Encomendas", icon: "cart" },
-          { id: "categorias", label: "Categorias", icon: "folder" },
-        ]}
-        value={tab}
-        onChange={setTab}
-        className="mb-5"
-      />
 
       {tab === "produtos" && (
         <div>

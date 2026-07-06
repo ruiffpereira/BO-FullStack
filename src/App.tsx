@@ -18,39 +18,26 @@ import { Estatisticas } from "./pages/Estatisticas";
 import { Mensagens } from "./pages/Mensagens";
 import { Website } from "./pages/Website";
 import { Faturacao } from "./pages/Faturacao";
-import { SUBMENU } from "./lib/navigation";
-
-// Ids de subitem do Financeiro que correspondem mesmo a um path próprio
-// (`/financeiro/<id>`) — "negocio" fica de fora porque o seu path é a
-// própria raiz (`/financeiro`), tratada à parte abaixo. Fonte única:
-// `src/lib/navigation.ts` (SUBMENU) — nunca duplicar esta lista.
-const VALID_FINANCEIRO_VISTAS = new Set(
-  (SUBMENU["/financeiro"] ?? []).map((it) => it.id).filter((id) => id !== "negocio"),
-);
+import { resolveLegacyTabTarget } from "./lib/navigation";
 
 /**
- * Entrada de `/financeiro` (T1.2 — piloto de rotas reais). O deep-link antigo
- * `?vista=X` (notificações/emails/links já enviados) redireciona para o path
- * novo `/financeiro/X`, preservando quaisquer OUTROS query params; sem `vista`
- * (ou `vista=negocio`) mostra logo "O Negócio" — sem hop de redirect extra,
- * porque o path já é o correto. Uma vista sem permissão redireciona aqui para
- * o path novo na mesma (ex.: `?vista=ginasio` → `/financeiro/ginasio`) — quem
- * decide se essa vista é mesmo permitida é o guard do `Shell.tsx` (prefixo +
- * fallback para o 1.º subitem permitido), não esta entrada. Um `vista`
- * desconhecido/inválido (não é nenhum dos ids reais do submenu) fica em
- * "O Negócio" em vez de tentar navegar para um path que não existe — isso
- * cairia no catch-all `*` e ejetava para o `/dashboard`.
+ * Entrada genérica de uma página com submenu (T1.2 — piloto Financeiro;
+ * generalizada no T2.1 para ser reutilizada por T2.2…T2.7). O deep-link antigo
+ * `?<param>=<id>` (notificações/emails já enviados) redireciona para o path
+ * novo do subitem, preservando quaisquer OUTROS query params; sem o param (ou
+ * um valor que não é um id real do submenu, incl. o id-âncora da raiz — ex.
+ * "negocio"/"produtos") renderiza `children` sem hop de redirect extra. Uma
+ * vista sem permissão redireciona aqui para o path novo na mesma (ex.:
+ * `?vista=ginasio` → `/financeiro/ginasio`) — quem decide se essa vista é
+ * mesmo permitida é o guard do `Shell.tsx` (prefixo + fallback para o 1.º
+ * subitem permitido), não esta entrada.
  */
-function FinanceiroEntry() {
+function LegacyTabEntry({ root, param, children }: { root: string; param: string; children: React.ReactElement }) {
   const [params] = useSearchParams();
-  const vista = params.get("vista");
-  if (!vista || !VALID_FINANCEIRO_VISTAS.has(vista)) {
-    return <FinanceiroPage view="negocio" />;
-  }
   const rest = new URLSearchParams(params);
-  rest.delete("vista");
-  const qs = rest.toString();
-  return <Navigate to={`/financeiro/${vista}${qs ? `?${qs}` : ""}`} replace />;
+  rest.delete(param);
+  const target = resolveLegacyTabTarget(root, params.get(param), rest.toString());
+  return target ? <Navigate to={target} replace /> : children;
 }
 
 function App() {
@@ -118,7 +105,7 @@ function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/estatisticas" element={<Estatisticas />} />
-        <Route path="/financeiro" element={<FinanceiroEntry />} />
+        <Route path="/financeiro" element={<LegacyTabEntry root="/financeiro" param="vista"><FinanceiroPage view="negocio" /></LegacyTabEntry>} />
         <Route path="/financeiro/agenda" element={<FinanceiroPage view="agenda" />} />
         <Route path="/financeiro/loja" element={<FinanceiroPage view="loja" />} />
         <Route path="/financeiro/ginasio" element={<FinanceiroPage view="ginasio" />} />
@@ -128,7 +115,9 @@ function App() {
         <Route path="/clientes" element={<Clientes />} />
         <Route path="/faturacao" element={<Faturacao />} />
         <Route path="/mensagens" element={<Mensagens />} />
-        <Route path="/loja" element={<Loja />} />
+        <Route path="/loja" element={<LegacyTabEntry root="/loja" param="tab"><Loja view="produtos" /></LegacyTabEntry>} />
+        <Route path="/loja/encomendas" element={<Loja view="encomendas" />} />
+        <Route path="/loja/categorias" element={<Loja view="categorias" />} />
         <Route path="/agenda" element={<Agenda />} />
         <Route path="/ginasio" element={<Ginasio />} />
         <Route path="/conteudos" element={<Conteudos />} />

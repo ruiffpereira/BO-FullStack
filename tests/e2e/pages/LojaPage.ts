@@ -12,14 +12,22 @@ export class LojaPage {
     return this.page.getByRole("heading", { name: "Loja", level: 1 });
   }
 
-  /** Tabs: Produtos · Encomendas · Categorias. Renderizadas com role="tab" (ui/Tabs). */
+  /** Subitens da sidebar (T2.1): Produtos · Encomendas · Categorias — botões do submenu, não mais role="tab". */
+  private static PATH_BY_LABEL: Record<string, string> = {
+    Produtos: "/loja",
+    Encomendas: "/loja/encomendas",
+    Categorias: "/loja/categorias",
+  };
+
   tab(label: string) {
-    return this.page.getByRole("tab", { name: label, exact: true });
+    return this.page.locator("nav").first().getByRole("button", { name: label, exact: true });
   }
 
   async goToTab(label: string) {
     await this.tab(label).first().click();
-    await this.page.waitForTimeout(400);
+    const path = LojaPage.PATH_BY_LABEL[label];
+    if (path) await this.page.waitForURL(`**${path}`, { timeout: 10_000 });
+    await this.page.waitForTimeout(200);
   }
 
   searchInput() {

@@ -2,7 +2,7 @@ import { test, expect } from "./fixtures/auth";
 import { LojaPage } from "./pages/LojaPage";
 
 test.describe("Loja — Navegação", () => {
-  test("a página carrega com o cabeçalho e as tabs", async ({ page }) => {
+  test("a página carrega com o cabeçalho e o submenu da sidebar", async ({ page }) => {
     const p = new LojaPage(page);
     await p.goto();
     await expect(p.header()).toBeVisible();
@@ -19,6 +19,13 @@ test.describe("Loja — Navegação", () => {
       await expect(p.header()).toBeVisible();
     }
     await expect(page).toHaveURL(/\/loja/);
+  });
+
+  test("deep-link antigo /loja?tab=encomendas redireciona para /loja/encomendas", async ({ page }) => {
+    const p = new LojaPage(page);
+    await page.goto("/loja?tab=encomendas");
+    await page.waitForURL("**/loja/encomendas", { timeout: 15_000 });
+    await expect(p.header()).toBeVisible();
   });
 });
 

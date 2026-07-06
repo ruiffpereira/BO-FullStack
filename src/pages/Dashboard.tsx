@@ -338,7 +338,7 @@ function OrdersList({ orders }: { orders: OrderLike[] }) {
   return (
     <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
       {orders.map((o, i) => (
-        <RowLink key={o.orderId ?? i} to="/loja?tab=encomendas" ariaLabel={`Abrir encomendas`}>
+        <RowLink key={o.orderId ?? i} to="/loja/encomendas" ariaLabel={`Abrir encomendas`}>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-zinc-900 dark:text-white truncate group-hover/row:text-accent">
               {o.customerName ?? o.clientName ?? `Encomenda #${String(o.orderId ?? i).slice(0, 8)}`}
@@ -368,7 +368,7 @@ function FulfillmentSpine({ orders, openCount, salesToday, alerts, loading }: {
       {/* Por despachar — the one thing to act on */}
       <button
         type="button"
-        onClick={() => navigate('/loja?tab=encomendas')}
+        onClick={() => navigate('/loja/encomendas')}
         className={`w-full flex items-center gap-3 rounded-xl px-4 py-3 text-left border transition-colors ${
           openCount > 0
             ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-200/70 dark:border-amber-500/20'
@@ -408,7 +408,7 @@ function StockAlerts({ alerts, bare = false }: { alerts: { name: string; referen
           <button
             key={s.reference || s.name}
             type="button"
-            onClick={() => navigate('/loja?tab=produtos')}
+            onClick={() => navigate('/loja')}
             className="group/row w-full text-left flex items-center gap-3 py-2.5 first:pt-0 last:pb-0"
           >
             <Icon name="alertTriangle" className="w-4 h-4 text-amber-500 shrink-0" />
@@ -547,14 +547,14 @@ export function Dashboard() {
     }
     if (canProducts) {
       list.push(openOrders > 0
-        ? { label: 'Por despachar', value: openOrders, sub: 'encomendas', icon: 'package', tone: 'amber', loading: loadingOrders, href: '/loja?tab=encomendas' }
-        : { label: 'Vendas de hoje', value: fmtEur(salesToday), sub: 'loja', icon: 'cart', tone: 'blue', loading: loadingDash, href: '/loja?tab=encomendas' })
+        ? { label: 'Por despachar', value: openOrders, sub: 'encomendas', icon: 'package', tone: 'amber', loading: loadingOrders, href: '/loja/encomendas' }
+        : { label: 'Vendas de hoje', value: fmtEur(salesToday), sub: 'loja', icon: 'cart', tone: 'blue', loading: loadingDash, href: '/loja/encomendas' })
     }
     // Core + fillers (só para encher a faixa em tenants de uma só vertical).
     list.push({ label: 'Clientes', value: totalCustomers, sub: newCustomers ? `${newCustomers} novos esta semana` : 'no total', icon: 'users', tone: 'violet', loading: loadingCustomers, href: '/clientes' })
     if (canSchedule) list.push({ label: 'Marcações · 14 dias', value: weekCount, sub: 'últimos 7 dias', icon: 'trend', tone: 'violet', loading: loadingAppts, delta: weekDelta, spark: spark14, href: '/agenda' })
     if (canGym) list.push({ label: 'Sócios ativos', value: dash?.gym?.activeMembers ?? '—', sub: 'ginásio', icon: 'users', tone: 'violet', loading: loadingDash, href: '/financeiro/ginasio' })
-    if (canProducts) list.push({ label: 'Ticket médio', value: fmtEur(dash?.ecommerce?.period.avgOrderValue ?? 0), sub: 'por encomenda', icon: 'cart', tone: 'blue', loading: loadingDash, href: '/loja?tab=encomendas' })
+    if (canProducts) list.push({ label: 'Ticket médio', value: fmtEur(dash?.ecommerce?.period.avgOrderValue ?? 0), sub: 'por encomenda', icon: 'cart', tone: 'blue', loading: loadingDash, href: '/loja/encomendas' })
     return list.slice(0, 4)
   }, [canSchedule, canProducts, canGym, revToday, apptsToday.length, pendingToday, today, gym.emAtraso, gym.porCobrar, gym.previsto, openOrders, salesToday, totalCustomers, newCustomers, weekCount, weekDelta, spark14, dash, loadingDash, loadingAppts, loadingGym, loadingOrders, loadingCustomers])
 

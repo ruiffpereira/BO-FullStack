@@ -152,13 +152,13 @@ export function FirstValueChecklist() {
         {
           id: 'loja-product',
           label: 'Cria o teu primeiro produto',
-          href: '/loja?tab=produtos',
+          href: '/loja',
           done: productsCount > 0,
         },
         {
           id: 'loja-orders',
           label: 'Revê as tuas encomendas',
-          href: '/loja?tab=encomendas',
+          href: '/loja/encomendas',
           done: false,
         },
       ]

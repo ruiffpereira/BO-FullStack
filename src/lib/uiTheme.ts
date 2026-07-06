@@ -5,15 +5,21 @@
  * porque corre antes do bundle — mantém os dois em sincronia se mexeres
  * aqui).
  *
- * T3.4 (`.design/shell-nav-perfil/TASKS.md`) vai promover isto a preferência
- * server-side (`User.uiTheme`): prioridade passa a ser servidor > localStorage > sistema.
+ * T3.4 (`.design/shell-nav-perfil/TASKS.md`): a preferência server-side
+ * (`User.uiTheme`, via `useThemeSync` em `src/hooks/useThemeSync.ts`) manda
+ * assim que `GET /users/me` resolve — prioridade servidor > localStorage >
+ * sistema. Este ficheiro continua a ser só o 1.º palpite (antes de saber se
+ * há sessão) + as funções puras partilhadas pelos dois lados.
  */
 
 export type Theme = "light" | "dark";
 
+/** Preferência guardada no servidor (`User.uiTheme`) — 3 vias, ao contrário
+ * do `Theme` aplicado (2 vias: o que fica na classe `dark` do `<html>`). */
+export type UiThemeChoice = "light" | "dark" | "system";
+
 // Não exportada: sem consumidores fora deste ficheiro (readStoredTheme/
-// persistTheme já a encapsulam). O T3.4 (tema server-side) pode voltar a
-// precisar de a expor — só reexportar então.
+// persistTheme já a encapsulam).
 const THEME_STORAGE_KEY = "bo.theme";
 
 function isTheme(value: unknown): value is Theme {
@@ -40,8 +46,9 @@ export function resolveInitialTheme(
 
 /**
  * Lê o tema guardado em localStorage (`null` se ausente/bloqueado). Não
- * exportada: usada só por `computeInitialTheme` neste ficheiro — sem
- * consumidores externos (o T3.4 pode voltar a expô-la).
+ * exportada: usada só por `computeInitialTheme` neste ficheiro — `useThemeSync`
+ * (T3.4) não precisa de a ler diretamente, só de a persistir/limpar
+ * (`persistTheme`/`clearStoredTheme`, essas sim exportadas).
  */
 function readStoredTheme(): string | null {
   try {
@@ -61,11 +68,25 @@ export function persistTheme(theme: Theme): void {
 }
 
 /**
- * `true`/`false` = preferência do sistema; `undefined` = matchMedia
- * indisponível. Não exportada: usada só por `computeInitialTheme` neste
- * ficheiro — sem consumidores externos (o T3.4 pode voltar a expô-la).
+ * Limpa o override local (T3.4): usada quando a preferência (servidor ou
+ * escolha do user) passa a `"system"` — em vez de gravar a string `"system"`
+ * no localStorage, limpa a chave para o anti-flash do próximo reload (que só
+ * conhece localStorage/sistema, nunca o servidor) cair direto no sistema.
  */
-function getSystemPrefersDark(): boolean | undefined {
+export function clearStoredTheme(): void {
+  try {
+    localStorage.removeItem(THEME_STORAGE_KEY);
+  } catch {
+    // localStorage indisponível — ignora (mesmo caso de persistTheme).
+  }
+}
+
+/**
+ * `true`/`false` = preferência do sistema; `undefined` = matchMedia
+ * indisponível. Exportada (T3.4): `useThemeSync` usa-a para resolver o tema
+ * aplicado quando a preferência do servidor é `"system"`.
+ */
+export function getSystemPrefersDark(): boolean | undefined {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
     return undefined;
   }
@@ -79,4 +100,25 @@ function getSystemPrefersDark(): boolean | undefined {
 /** Composição pronta a usar no init lazy do `useState` do tema no `App.tsx`. */
 export function computeInitialTheme(): Theme {
   return resolveInitialTheme(readStoredTheme(), getSystemPrefersDark());
+}
+
+/**
+ * Resolve o tema APLICADO a partir da preferência guardada no SERVIDOR
+ * (`User.uiTheme`, `GET /users/me`) e da preferência de sistema atual. Pura
+ * — não toca em `localStorage`/`matchMedia` — para ser testável sem DOM
+ * real (T3.4, `useThemeSync`).
+ *
+ * Prioridade: `"light"`/`"dark"` explícitos no servidor GANHAM SEMPRE (é a
+ * correção do "o tema começa sempre X noutro browser" — sobrepõe-se ao que o
+ * localStorage/sistema deste browser diziam) > `"system"` (ou
+ * ausente/inválido) segue o sistema, com o mesmo fallback `"dark"` de
+ * `resolveInitialTheme` quando o sistema não é detetável.
+ */
+export function resolveThemeFromServer(
+  serverTheme: string | null | undefined,
+  systemPrefersDark: boolean | undefined,
+): Theme {
+  if (isTheme(serverTheme)) return serverTheme;
+  if (systemPrefersDark === false) return "light";
+  return "dark";
 }

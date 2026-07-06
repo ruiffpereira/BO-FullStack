@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { Routes, Route, Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
-import { type Theme, computeInitialTheme, persistTheme } from "./lib/uiTheme";
+import { useThemeSync } from "./hooks/useThemeSync";
 import { Shell } from "./components/Shell";
 import { Login } from "./components/Login";
 import { SetupPassword } from "./pages/SetupPassword";
@@ -79,10 +79,10 @@ function AdminEntry() {
 }
 
 function App() {
-  // Init lazy: localStorage("bo.theme") > prefers-color-scheme do sistema >
-  // "dark" (src/lib/uiTheme.ts). T3.4 vai promover a fonte para
-  // servidor > localStorage > sistema (User.uiTheme).
-  const [theme, setTheme] = useState<Theme>(computeInitialTheme);
+  // Fonte única do tema (T3.4, src/hooks/useThemeSync.ts): init lazy local
+  // (localStorage > sistema > dark) até autenticar, servidor > localStorage >
+  // sistema depois de GET /users/me resolver — ver docstring do hook.
+  const { theme, toggleTheme } = useThemeSync();
   const { isAuthenticated, initializing } = useAuth();
   const location = useLocation();
 
@@ -100,13 +100,6 @@ function App() {
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", theme === "dark" ? "#09090b" : "#ffffff");
   }, [theme]);
-
-  const toggleTheme = () =>
-    setTheme((t) => {
-      const next = t === "dark" ? "light" : "dark";
-      persistTheme(next);
-      return next;
-    });
 
   // Public routes — accessible without authentication
   if (location.pathname === "/setup-password") {

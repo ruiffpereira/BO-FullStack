@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 //
@@ -10,10 +11,23 @@ import { MemoryRouter } from "react-router-dom";
 // <Routes> com todas as páginas (Dashboard, Agenda, ...), que precisariam de
 // QueryClientProvider + dezenas de hooks gerados; como o stub não renderiza
 // `children`, essas rotas nunca chegam a montar.
+//
+// App.tsx usa useThemeSync (T3.4) — GET/PUT /users/me (hooks gerados) +
+// useQueryClient. Mockamos os hooks gerados (nenhum destes testes de routing
+// exercita o toggle de tema) e envolvemos num QueryClientProvider real, mesmo
+// padrão de tests/unit/Perfil.test.tsx/useThemeSync.test.tsx.
 
 const authMock = vi.fn();
 vi.mock("../../src/context/AuthContext", () => ({
   useAuth: () => authMock(),
+}));
+
+vi.mock("../../src/gen/backoffice/hooks/useGetUsersMe", () => ({
+  useGetUsersMe: () => ({ data: undefined }),
+  getUsersMeQueryKey: () => [{ url: "/users/me" }],
+}));
+vi.mock("../../src/gen/backoffice/hooks/usePutUsersMe", () => ({
+  usePutUsersMe: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock("../../src/components/Shell", () => ({
@@ -37,10 +51,13 @@ function mockAuth(opts: { isAuthenticated: boolean; initializing: boolean }) {
 
 function renderApp(path: string) {
   window.history.pushState({}, "", path);
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <App />
-    </MemoryRouter>,
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={[path]}>
+        <App />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 

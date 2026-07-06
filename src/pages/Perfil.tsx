@@ -14,8 +14,7 @@ import { uploadImage } from "../gen/backoffice/hooks/useUploadImage.js";
 import type { GetUsersMe200 } from "../gen/backoffice/types/GetUsersMe";
 import { useGetSettingsLanguages, usePutSettingsLanguages } from "../hooks/useSettingsLanguages";
 import { LangFlag } from "../utils/langFlag";
-
-type UiThemeChoice = "light" | "dark" | "system";
+import { type UiThemeChoice } from "../lib/uiTheme";
 
 const THEME_TABS: { id: UiThemeChoice; label: string; icon: string }[] = [
   { id: "light", label: "Claro", icon: "sun" },
@@ -251,9 +250,14 @@ function PreferenciasCard({ data }: { data?: GetUsersMe200 }) {
     if (data?.uiTheme) setThemeState(data.uiTheme);
   }, [data?.uiTheme]);
 
-  // Persiste de imediato ao mudar (sem botão Guardar próprio) — o efeito de
-  // aplicar este tema a partir do servidor no arranque da app é o T3.4; aqui
-  // só grava a escolha. Reverte otimisticamente se o PUT falhar.
+  // Persiste de imediato ao mudar (sem botão Guardar próprio); grava a
+  // escolha (incl. "system", que o toggle do topbar nunca escolhe sozinho).
+  // Reverte otimisticamente se o PUT falhar. Quem aplica de facto o tema
+  // visual (classe `dark` do `<html>`) é o `useThemeSync` (`src/hooks/`,
+  // T3.4) em `App.tsx` — reage a esta MESMA query key
+  // (`getUsersMeQueryKey()`) via a cache partilhada do React Query, por
+  // isso o `invalidateQueries` abaixo já é suficiente para o topbar (e
+  // qualquer outra página) ficar coerente sem duplicar lógica aqui.
   const onThemeChange = (next: UiThemeChoice) => {
     const prev = theme;
     if (next === prev) return;

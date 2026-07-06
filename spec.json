@@ -11710,8 +11710,7 @@
                     },
                     "url": {
                       "type": "string",
-                      "nullable": true,
-                      "description": "URL completo do preview no renderer (null se `RENDERER_URL` não estiver configurado — o backoffice constrói o URL)"
+                      "description": "URL completo do preview no renderer (RENDERER_URL, se configurado; senão deriva-se de `https://<PLATFORM_ROOT_DOMAIN>`)"
                     }
                   }
                 }

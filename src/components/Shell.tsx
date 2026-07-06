@@ -117,16 +117,18 @@ function SubmenuLink({
  * Item de navegação expansível (T1.1) para páginas que absorveram as tabs de
  * topo para dentro do menu (piloto: Financeiro, T1.2). Dois modos distintos:
  *
- * - **Expandido** (`collapsed=false`, inclui o drawer mobile): clicar no pai
- *   navega para o 1.º subitem permitido; o acordeão expande-se sozinho porque
- *   `expanded` é derivado da rota ativa (`SidebarContent`, `expandedPath`) —
- *   não há estado próprio nem callback "expandir sem navegar" (não existe essa
- *   interação: expandir e navegar são sempre o mesmo clique). Os subitens
- *   ficam indentados por baixo, e só existem no DOM quando `expanded` (render
- *   condicional, não CSS) — caso contrário os `SubmenuLink` de grupos
- *   fechados ficariam acessíveis via `getByRole`/roving tabindex ao mesmo
- *   tempo que os `NavItem` de módulo homónimos (ex.: "Loja"/"Agenda"/"Ginásio"
- *   dentro do Financeiro), duplicando o nome acessível na sidebar inteira.
+ * - **Expandido** (`collapsed=false`, inclui o drawer mobile): `expanded` é
+ *   derivado da rota ativa por omissão (`SidebarContent`, `expandedPath`),
+ *   mas pode ser **manualmente colapsado** sem navegar — clicar num pai
+ *   FECHADO navega para o 1.º subitem permitido (como sempre); clicar num pai
+ *   EXPANDIDO chama `onToggleExpanded` (que a `SidebarContent` traduz num
+ *   `collapsedOverride`) e fica fechado até a rota ativa mudar de grupo. Os
+ *   subitens ficam indentados por baixo, e só existem no DOM quando
+ *   `expanded` (render condicional, não CSS) — caso contrário os
+ *   `SubmenuLink` de grupos fechados ficariam acessíveis via
+ *   `getByRole`/roving tabindex ao mesmo tempo que os `NavItem` de módulo
+ *   homónimos (ex.: "Loja"/"Agenda"/"Ginásio" dentro do Financeiro),
+ *   duplicando o nome acessível na sidebar inteira.
  * - **Colapsado** (sidebar só-ícones, desktop): clicar OU passar o rato abre um
  *   flyout em portal (mesmo padrão do `Combobox`/`useAnchoredMenu`, mas
  *   ancorado à direita do ícone em vez de por baixo) — nunca navega ao clicar
@@ -141,12 +143,15 @@ function NavItemGroup({
   collapsed,
   expanded,
   activePathname,
+  onToggleExpanded,
 }: {
   path: string
   items: SubmenuItem[]
   collapsed: boolean
   expanded: boolean
   activePathname: string
+  /** Só relevante no modo expandido: alterna o colapso manual deste grupo (ver `SidebarContent`). */
+  onToggleExpanded: () => void
 }) {
   const meta = ROUTE_META[path]
   const navigate = useNavigate()
@@ -237,6 +242,17 @@ function NavItemGroup({
       }
       return
     }
+    if (expanded) {
+      // Pai expandido → colapsa sem navegar (pedido de UX: hoje não havia
+      // forma de fechar o acordeão ativo).
+      onToggleExpanded()
+      return
+    }
+    // Pai fechado (rota ativa ou não) → navega para o 1.º subitem permitido e
+    // expande. Chamar onToggleExpanded aqui também limpa qualquer colapso
+    // manual anterior deste grupo mesmo quando o `navigate` é um no-op (já
+    // estamos no subitem) — sem isto o grupo ficaria preso fechado.
+    onToggleExpanded()
     navigate(items[0]?.path ?? path)
   }
 
@@ -349,24 +365,31 @@ function SidebarContent({ accessiblePaths, collapsed, onLogout }: {
   collapsed: boolean
   onLogout: () => void
 }) {
-  const { userId, username, permissions, loggingOut, hasPermission } = useAuth()
+  const { loggingOut, hasPermission } = useAuth()
   const location = useLocation()
   const navRef = useRef<HTMLElement | null>(null)
-  const permLabel = permissions.length > 0 ? permissions[0].name?.replace('VIEW_', '') : 'Admin'
   // Só o item /mensagens usa isto — chamado aqui (e não por NavItem) para não
   // instanciar um hook de chat por cada item do menu. Fica coerente com o
   // ChatLauncher/ChatFab, que já chamam useChatUnread() cada um por sua vez;
   // o React Query cacheia/deduplica o pedido de rede pela mesma queryKey.
   const unreadMessages = useChatUnread()
 
-  // Acordeão: só um pai (com submenu) expandido de cada vez — sempre o da rota
-  // ativa. Puramente derivado da rota (nunca há "expandir sem navegar": clicar
-  // num pai já navega para o seu 1.º subitem, o que muda `location.pathname` e
-  // portanto este valor na mesma) — sem estado próprio nem prop `onExpand`.
-  const expandedPath = useMemo(
+  // Acordeão: só um pai (com submenu) expandido de cada vez — por omissão o da
+  // rota ativa (derivado). Pode ser manualmente COLAPSADO sem navegar
+  // (pedido de UX): `collapsedOverride` guarda o path que o utilizador fechou
+  // à mão; só tem efeito enquanto continuar a ser o grupo ativo — noutro
+  // grupo/rota, `derivedExpandedPath` muda e o efeito abaixo limpa o
+  // override (senão o grupo ativo nunca mais reabriria sozinho ao voltar por
+  // outro caminho que não o clique no próprio pai, ex.: deep-link).
+  const [collapsedOverride, setCollapsedOverride] = useState<string | null>(null)
+  const derivedExpandedPath = useMemo(
     () => accessiblePaths.find((p) => SUBMENU[p] && (location.pathname === p || location.pathname.startsWith(`${p}/`))) ?? null,
     [accessiblePaths, location.pathname],
   )
+  useEffect(() => {
+    setCollapsedOverride(null)
+  }, [derivedExpandedPath])
+  const expandedPath = collapsedOverride !== null && collapsedOverride === derivedExpandedPath ? null : derivedExpandedPath
 
   // Navegação por setas (↑/↓) entre todos os itens focáveis do menu (pais +
   // subitens visíveis do acordeão aberto) — Enter/Espaço já "expande" (é o
@@ -392,20 +415,28 @@ function SidebarContent({ accessiblePaths, collapsed, onLogout }: {
         {!collapsed && <span className="font-semibold text-[17px] tracking-tight text-zinc-900 dark:text-white">Backoffice</span>}
       </div>
 
-      <div className={`mt-2 ${collapsed ? 'px-2' : 'px-3'}`}>
+      {/* Zona de navegação scrollável: com todos os grupos do acordeão abertos
+          o menu pode ficar mais alto que o viewport — `flex-1 min-h-0
+          overflow-y-auto` deixa-a encolher e ganhar scroll próprio, com o
+          logo (acima) e o rodapé/logout (abaixo, `shrink-0`) sempre fixos.
+          A scrollbar discreta vem do CSS global (`index.css`), igual à usada
+          noutros painéis com scroll (NotificationBell, ChatPopup, …). */}
+      <div className={`mt-2 flex-1 min-h-0 overflow-y-auto pb-2 ${collapsed ? 'px-2' : 'px-3'}`}>
         {!collapsed && <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Menu</p>}
         <nav ref={navRef} className="space-y-1" onKeyDown={handleNavKeyDown}>
           {accessiblePaths.map((path) => {
             const groupItems = allowedSubitems(path, hasPermission)
             if (groupItems.length > 0) {
+              const isExpanded = expandedPath === path
               return (
                 <NavItemGroup
                   key={path}
                   path={path}
                   items={groupItems}
                   collapsed={collapsed}
-                  expanded={expandedPath === path}
+                  expanded={isExpanded}
                   activePathname={location.pathname}
+                  onToggleExpanded={() => setCollapsedOverride(isExpanded ? path : null)}
                 />
               )
             }
@@ -422,17 +453,11 @@ function SidebarContent({ accessiblePaths, collapsed, onLogout }: {
         </nav>
       </div>
 
-      <div className={`mt-auto ${collapsed ? 'px-2' : 'px-3'} pb-3`}>
-        {!collapsed && (
-          <div className="mb-2 mx-1 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-accent" />
-              <span className="text-xs font-medium text-zinc-500">Sessão activa</span>
-            </div>
-            <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 mt-1">{username ?? userId ?? 'Sessão recuperada'}</p>
-            <p className="text-xs text-zinc-400">{permLabel}</p>
-          </div>
-        )}
+      {/* Rodapé fixo (shrink-0, fora da zona scrollável): só o logout — o
+          cartão de identificação ("Sessão activa" + username + permissão) foi
+          removido por redundante (a identificação volta noutro sítio, menu do
+          avatar, Fase 3). Borda subtil substitui o cartão como separador. */}
+      <div className={`shrink-0 mt-auto pt-2 border-t border-zinc-100 dark:border-zinc-800 ${collapsed ? 'px-2' : 'px-3'} pb-3`}>
         <button
           onClick={onLogout}
           disabled={loggingOut}

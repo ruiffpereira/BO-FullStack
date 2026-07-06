@@ -37,14 +37,14 @@ describe("notificationHref", () => {
     expect(notificationHref(notif("customer"))).toBe("/clientes");
   });
 
-  it("customer com leadId (novo lead) → tab Leads, não a ficha de cliente", () => {
+  it("customer com leadId (novo lead) → rota Leads, não a ficha de cliente", () => {
     expect(notificationHref(notif("customer", { leadId: "lead-1" }))).toBe(
-      "/clientes?tab=leads&lead=lead-1",
+      "/clientes/leads?lead=lead-1",
     );
     // leadId tem prioridade mesmo que (por engano) venha também customerId.
     expect(
       notificationHref(notif("customer", { leadId: "lead-1", customerId: "c-7" })),
-    ).toBe("/clientes?tab=leads&lead=lead-1");
+    ).toBe("/clientes/leads?lead=lead-1");
   });
 
   it("gym com cliente → ficha do cliente; sem cliente → /ginasio", () => {

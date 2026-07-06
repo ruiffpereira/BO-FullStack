@@ -47,8 +47,9 @@ function SkeletonRow() {
 /**
  * Inbox de leads (pedidos de contacto/orçamento capturados no form do site
  * público do tenant, `POST /websites/leads` — ver `leadController.ts` na API).
- * Vive como tab da página Clientes (`?tab=leads`, ver `Clientes.tsx`): leads são
- * "clientes em potencial", mesma família core (VIEW_CUSTOMERS).
+ * Vive na rota `/clientes/leads` (submenu da página Clientes, T2.2 — ver
+ * `Clientes.tsx`/`src/lib/navigation.ts`): leads são "clientes em potencial",
+ * mesma família core (VIEW_CUSTOMERS).
  *
  * Deep-link de notificação: `?lead=<id>` (ver `src/lib/notificationTarget.ts`)
  * muda o filtro para "Todos", salta para a página certa, expande e realça o

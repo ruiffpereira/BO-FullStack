@@ -12,6 +12,23 @@ export class ClientesPage {
     return this.page.getByRole("heading", { name: "Clientes", level: 1 });
   }
 
+  /** Subitens da sidebar (T2.2): Lista (âncora, `/clientes`) · Leads — botões do submenu. */
+  private static PATH_BY_LABEL: Record<string, string> = {
+    Lista: "/clientes",
+    Leads: "/clientes/leads",
+  };
+
+  tab(label: string) {
+    return this.page.locator("nav").first().getByRole("button", { name: label, exact: true });
+  }
+
+  async goToTab(label: string) {
+    await this.tab(label).first().click();
+    const path = ClientesPage.PATH_BY_LABEL[label];
+    if (path) await this.page.waitForURL(`**${path}`, { timeout: 10_000 });
+    await this.page.waitForTimeout(200);
+  }
+
   searchInput() {
     return this.page.getByPlaceholder(/procurar por nome/i);
   }

@@ -112,7 +112,8 @@ function App() {
         <Route path="/financeiro/despesas" element={<FinanceiroPage view="despesas" />} />
         {/* Deep-link antigo (não está na sidebar): redireciona para o path novo. */}
         <Route path="/despesas" element={<Navigate to="/financeiro/despesas" replace />} />
-        <Route path="/clientes" element={<Clientes />} />
+        <Route path="/clientes" element={<LegacyTabEntry root="/clientes" param="tab"><Clientes view="clientes" /></LegacyTabEntry>} />
+        <Route path="/clientes/leads" element={<Clientes view="leads" />} />
         <Route path="/faturacao" element={<Faturacao />} />
         <Route path="/mensagens" element={<Mensagens />} />
         <Route path="/loja" element={<LegacyTabEntry root="/loja" param="tab"><Loja view="produtos" /></LegacyTabEntry>} />

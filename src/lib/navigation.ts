@@ -7,8 +7,8 @@
  * de rotas (prefixo + redirect do subitem sem permissão), e (c) o título do
  * topbar para subpaths.
  *
- * Financeiro (T1.2, piloto) e Loja (T2.1) já estão migradas — as restantes
- * páginas com tabs (Clientes, Website, Admin, Ginásio, Conteúdos, Agenda)
+ * Financeiro (T1.2, piloto), Loja (T2.1) e Clientes (T2.2) já estão migradas —
+ * as restantes páginas com tabs (Website, Admin, Ginásio, Conteúdos, Agenda)
  * entram na Fase 2, uma de cada vez, cada uma acrescentando a sua entrada a
  * este mapa.
  */
@@ -33,6 +33,13 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     { id: "produtos", label: "Produtos", path: "/loja" },
     { id: "encomendas", label: "Encomendas", path: "/loja/encomendas" },
     { id: "categorias", label: "Categorias", path: "/loja/categorias" },
+  ],
+  "/clientes": [
+    // Label do âncora ("Lista", não "Clientes") por desenho — evita duplicar o
+    // nome acessível do próprio item pai da sidebar quando o acordeão está
+    // expandido (mesmo motivo por trás de "O Negócio"/"Produtos" acima).
+    { id: "clientes", label: "Lista", path: "/clientes" },
+    { id: "leads", label: "Leads", path: "/clientes/leads" },
   ],
 };
 

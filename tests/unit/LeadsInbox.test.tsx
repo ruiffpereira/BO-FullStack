@@ -97,7 +97,7 @@ function mockBilling(readOnly: boolean) {
   });
 }
 
-function renderInbox(initialEntries: string[] = ["/clientes"]) {
+function renderInbox(initialEntries: string[] = ["/clientes/leads"]) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
@@ -220,7 +220,7 @@ describe("LeadsInbox — ações (marcar lido / arquivar)", () => {
 describe("LeadsInbox — deep-link de notificação (?lead=)", () => {
   it("com ?lead=<id>, muda para 'Todos', expande e marca como lido o lead indicado", () => {
     useGetLeadsMock.mockImplementation(makeLeadsMock(ALL_LEADS));
-    renderInbox(["/clientes?tab=leads&lead=lead-new"]);
+    renderInbox(["/clientes/leads?lead=lead-new"]);
 
     // Força o filtro "Todos" (o lead pode não estar em "Novos")
     expect(useGetLeadsMock).toHaveBeenCalledWith(undefined);

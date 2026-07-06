@@ -1,6 +1,33 @@
 import { test, expect } from "./fixtures/auth";
 import { ClientesPage } from "./pages/ClientesPage";
 
+test.describe("Clientes — Navegação (submenu + deep-links legacy, T2.2)", () => {
+  test("a página carrega com o submenu da sidebar (Lista/Leads)", async ({ page }) => {
+    const p = new ClientesPage(page);
+    await p.goto();
+    await expect(p.header()).toBeVisible();
+    for (const label of ["Lista", "Leads"]) {
+      await expect(p.tab(label)).toBeVisible();
+    }
+  });
+
+  test("alternar para Leads muda a URL para /clientes/leads e mostra o separador Leads", async ({ page }) => {
+    const p = new ClientesPage(page);
+    await p.goto();
+    await p.goToTab("Leads");
+    await expect(page).toHaveURL(/\/clientes\/leads/);
+    await expect(page.getByRole("tab", { name: /Novos|Todos/ }).first()).toBeVisible({ timeout: 8_000 });
+  });
+
+  test("deep-link antigo /clientes?tab=leads&lead=<id> redireciona para /clientes/leads?lead=<id>", async ({ page }) => {
+    await page.goto("/clientes?tab=leads&lead=algum-id-inexistente");
+    // Regex (não glob): o glob `**/clientes/leads` exige correspondência exata
+    // até ao fim da URL e falha com o `?lead=` a seguir — a regex faz substring.
+    await page.waitForURL(/\/clientes\/leads\?lead=algum-id-inexistente/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/clientes\/leads\?lead=algum-id-inexistente/);
+  });
+});
+
 test.describe("Clientes — Lista & pesquisa", () => {
   test("a página carrega com o cabeçalho e a pesquisa", async ({ page }) => {
     const p = new ClientesPage(page);

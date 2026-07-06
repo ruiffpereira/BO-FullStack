@@ -6,9 +6,12 @@ import { test, expect } from "./fixtures/auth";
  * IMPORTANTE: `admin@e2e` é o utilizador seeded partilhado por praticamente
  * todos os outros specs (login via `./fixtures/auth`, `TEST_USER=admin@e2e`
  * por omissão) — e o campo "Nome do negócio" (`Users.name`) É o identificador
- * de login (`username`). O teste que edita o nome tem de o RESTAURAR no fim
- * (`finally`), senão qualquer spec a seguir nesta run que faça login como
- * "admin@e2e" deixa de autenticar.
+ * de login (`username`). Por isso o teste de persistência abaixo edita o
+ * campo **"Telefone"** (`Users.phone`), não o nome: `phone` não é usado por
+ * `loginAs`/login nenhum, por isso mesmo que o restore no `finally` falhe
+ * (ex.: timeout do toast), a sessão de "admin@e2e" nunca fica envenenada para
+ * os specs seguintes (rbac, isolamento, etc. — correm em serial, um nome
+ * alterado aqui deixava-os todos a levar 401).
  */
 test.describe("Perfil — menu do avatar", () => {
   test("abrir o menu do avatar navega para /perfil", async ({ page }) => {
@@ -42,31 +45,31 @@ test.describe("Perfil — menu do avatar", () => {
 });
 
 test.describe("Perfil — Conta", () => {
-  test("editar o nome e guardar persiste (reload mantém o valor novo)", async ({ page }) => {
+  test("editar o telefone e guardar persiste (reload mantém o valor novo)", async ({ page }) => {
     await page.goto("/perfil");
 
-    const nameInput = page.getByLabel("Nome do negócio");
-    await expect(nameInput).toHaveValue(/.+/, { timeout: 10_000 });
-    const original = await nameInput.inputValue();
-    const novoNome = `Perfil E2E ${Date.now()}`;
+    const phoneInput = page.getByLabel("Telefone");
+    await expect(phoneInput).toBeVisible({ timeout: 10_000 });
+    const original = await phoneInput.inputValue();
+    const novoTelefone = "+351 912 345 678";
 
     // exact:true — sem isto "Guardar" também casa com "Guardar logótipo"
     // (Playwright faz substring match por omissão no `name` do getByRole).
     try {
-      await nameInput.fill(novoNome);
+      await phoneInput.fill(novoTelefone);
       const saveBtn = page.getByRole("button", { name: "Guardar", exact: true });
       await expect(saveBtn).toBeEnabled();
       await saveBtn.click();
       await expect(page.locator("[data-sonner-toast]").first()).toBeVisible({ timeout: 8_000 });
 
       // Persistência real: recarrega a página (novo GET /users/me) e confirma
-      // que o nome novo veio da API, não só do estado local do formulário.
+      // que o telefone novo veio da API, não só do estado local do formulário.
       await page.reload();
-      await expect(page.getByLabel("Nome do negócio")).toHaveValue(novoNome, {
+      await expect(page.getByLabel("Telefone")).toHaveValue(novoTelefone, {
         timeout: 10_000,
       });
     } finally {
-      await page.getByLabel("Nome do negócio").fill(original);
+      await page.getByLabel("Telefone").fill(original);
       const saveBtn = page.getByRole("button", { name: "Guardar", exact: true });
       await expect(saveBtn).toBeEnabled();
       await saveBtn.click();

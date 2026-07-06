@@ -632,6 +632,17 @@ function CmsReferencesModal({
     plano: "Plano",
   };
 
+  // Rota do Ginásio (T2.5, sidebar com submenus) por tipo de referência:
+  // exercícios/grupos musculares vivem na tab Exercícios (raiz `/ginasio` —
+  // os grupos musculares geram-se num modal dentro dela), treinos e planos
+  // têm rota própria.
+  const GYM_TYPE_ROUTE: Record<string, string> = {
+    exercise: "/ginasio",
+    group: "/ginasio",
+    treino: "/ginasio/treinos",
+    plano: "/ginasio/planos",
+  };
+
   const goTo = (path: string) => {
     onClose();
     navigate(path);
@@ -746,7 +757,7 @@ function CmsReferencesModal({
               <button
                 key={`${g.type}-${g.id}`}
                 type="button"
-                onClick={() => goTo("/ginasio")}
+                onClick={() => goTo(GYM_TYPE_ROUTE[g.type] ?? "/ginasio")}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 hover:bg-zinc-100 dark:hover:bg-zinc-700/60 transition-colors text-sm text-left"
               >
                 <Icon name="trend" className="w-3.5 h-3.5 text-zinc-400 shrink-0" />

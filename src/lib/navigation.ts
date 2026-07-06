@@ -8,8 +8,8 @@
  * topbar para subpaths.
  *
  * Financeiro (T1.2, piloto), Loja (T2.1), Clientes (T2.2), Website (T2.3),
- * Admin (T2.4) e Agenda (T2.7) já estão migradas — as restantes páginas com
- * tabs (Ginásio, Conteúdos) entram na Fase 2, uma de cada vez, cada uma
+ * Admin (T2.4), Ginásio (T2.5) e Agenda (T2.7) já estão migradas — a
+ * restante página com tabs (Conteúdos) entra na Fase 2 a seguir,
  * acrescentando a sua entrada a este mapa.
  */
 
@@ -75,6 +75,21 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     { id: "integracoes", label: "Integrações", path: "/admin/integracoes" },
     { id: "atividade", label: "Atividade", path: "/admin/atividade" },
     { id: "sistema", label: "Sistema", path: "/admin/sistema" },
+  ],
+  "/ginasio": [
+    // Label do âncora ("Exercícios", não "Ginásio") pelo mesmo motivo dos
+    // outros grupos acima. O último subitem NÃO se chama "Clientes": esse
+    // nome já é o do item core `/clientes` da sidebar — com o grupo Ginásio
+    // expandido (rota `/ginasio/*`) os dois botões coexistiriam no `<nav>` e
+    // colidiriam em qualquer `getByRole("button", { name: "Clientes" })`
+    // (ex.: a matriz RBAC navega para `/ginasio` antes de asserir "Clientes"
+    // core visível). O conteúdo real da tab é atribuir/mudar planos e ver a
+    // adesão/progresso de cada cliente — não uma lista de clientes por si só
+    // — daí "Progresso de clientes", mais preciso e sem ambiguidade.
+    { id: "exercicios", label: "Exercícios", path: "/ginasio" },
+    { id: "treinos", label: "Treinos", path: "/ginasio/treinos" },
+    { id: "planos", label: "Planos", path: "/ginasio/planos" },
+    { id: "clientes", label: "Progresso de clientes", path: "/ginasio/clientes" },
   ],
 };
 

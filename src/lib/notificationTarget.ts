@@ -14,6 +14,7 @@ import type { Notification } from "../hooks/useNotifications";
  *     (um novo lead usa `type:"customer"` com `data.leadId`, sem `customerId` —
  *     ver `leadController.ts` na API; distingue-se do cliente normal por isso)
  *   - Financeiro `/financeiro/ginasio`
+ *   - Ginásio    `/ginasio` (raiz, tab Exercícios — sem cliente associado)
  *   - Loja       `/loja/encomendas` · `?openProduct=<id>` (produtos = raiz `/loja`)
  *   - Mensagens  (sem parâmetro)
  */
@@ -53,7 +54,9 @@ export function notificationHref(
 
     case "gym": {
       // Notificações de ginásio normalmente referem um cliente (ex.: plano a
-      // terminar) → ficha do cliente (tab Ginásio); senão, a página do ginásio.
+      // terminar) → ficha do cliente (tab Ginásio); senão, a raiz `/ginasio`
+      // (tab Exercícios, T2.5 — sem um subitem mais específico para "sem
+      // cliente associado").
       const cid = str("customerId");
       return cid ? `/clientes?cliente=${encodeURIComponent(cid)}` : "/ginasio";
     }

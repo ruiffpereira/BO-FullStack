@@ -19,7 +19,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
-import { Card, Button, IconButton, Badge, Input, Modal, PageHeader, EmptyState, Avatar, Tabs, BADGE_TONES } from '../ui/ui.jsx'
+import { Card, Button, IconButton, Badge, Input, Modal, PageHeader, EmptyState, Avatar, BADGE_TONES } from '../ui/ui.jsx'
 import { usePagination, Pagination } from '../components/Pagination'
 import { LineChart, DonutChart } from '../ui/charts.jsx'
 import { useGetCustomers } from '../gen/backoffice/hooks/useGetCustomers.js'
@@ -124,7 +124,7 @@ function GymGroupsProvider({ children }: { children: ReactNode }) {
   return <GymGroupsContext.Provider value={value}>{children}</GymGroupsContext.Provider>
 }
 
-type Tab = 'catalogo' | 'treinos' | 'planos' | 'clientes'
+export type GinasioView = 'catalogo' | 'treinos' | 'planos' | 'clientes'
 
 // Série-a-série: cada série tem reps/peso/descanso próprios (campos string p/ vazio).
 // Série composta (dropset): drop=true + passos; `rest` é o descanso após a série toda.
@@ -2875,29 +2875,35 @@ function MensalidadesTab() {
   )
 }
 
-export function Ginasio() {
-  const [tab, setTab] = useState<Tab>('catalogo')
+/**
+ * "Ginásio" — cada separador vive na sua própria rota (`/ginasio`,
+ * `/ginasio/treinos`, `/ginasio/planos`, `/ginasio/clientes` — T2.5, Fase 2
+ * da sidebar com submenus) — a navegação entre vistas já não é feita por
+ * `Tabs` de topo, é a sidebar (`NavItemGroup`/`Shell.tsx`); a página só
+ * recebe a vista pedida via `view`. A página nunca usou `?tab=` (sem
+ * redirect de deep-link legacy a fazer aqui, ao contrário de
+ * Loja/Clientes/Financeiro). O sub-toggle interno "Visão geral"/"Subscrições"
+ * da tab Mensalidades (`MensalidadesTab`, código morto — não ligado a esta
+ * rota, ver nota no CLAUDE.md) NÃO migra: é interno a um componente, não uma
+ * tab de topo de página.
+ *
+ * Nota do subitem "clientes": o rótulo na sidebar é "Progresso de clientes",
+ * não "Clientes" — ver o comentário em `src/lib/navigation.ts` (colisão de
+ * nome acessível com o item core `/clientes`).
+ */
+export function Ginasio({ view }: { view: GinasioView }) {
   const { data: custData } = useGetCustomers()
   const customers = (custData?.rows ?? []) as { customerId: string; name: string }[]
-
-  const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: 'catalogo', label: 'Exercícios', icon: 'grid' },
-    { id: 'treinos', label: 'Treinos', icon: 'layers' },
-    { id: 'planos', label: 'Planos', icon: 'calendar' },
-    { id: 'clientes', label: 'Clientes', icon: 'user' },
-  ]
 
   return (
     <GymGroupsProvider>
     <div className="space-y-6">
       <PageHeader title="Ginásio" subtitle="Exercícios, treinos, planos e progresso dos clientes." />
 
-      <Tabs tabs={tabs} value={tab} onChange={setTab} />
-
-      {tab === 'catalogo' && <CatalogoTab />}
-      {tab === 'treinos' && <TreinosTab />}
-      {tab === 'planos' && <PlanosTab />}
-      {tab === 'clientes' && <ClientesTab customers={customers} />}
+      {view === 'catalogo' && <CatalogoTab />}
+      {view === 'treinos' && <TreinosTab />}
+      {view === 'planos' && <PlanosTab />}
+      {view === 'clientes' && <ClientesTab customers={customers} />}
     </div>
     </GymGroupsProvider>
   )

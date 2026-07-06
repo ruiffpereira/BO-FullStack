@@ -1,6 +1,27 @@
 import { test, expect } from "./fixtures/auth";
 import { GinasioPage } from "./pages/GinasioPage";
 
+test.describe("Ginásio — Navegação", () => {
+  test("a página carrega com o cabeçalho e o submenu da sidebar", async ({ page }) => {
+    const p = new GinasioPage(page);
+    await p.goto();
+    await expect(p.header()).toBeVisible();
+    for (const label of ["Exercícios", "Treinos", "Planos", "Progresso de clientes"]) {
+      await expect(p.tab(label)).toBeVisible();
+    }
+  });
+
+  test("alternar entre subitens mantém a página estável", async ({ page }) => {
+    const p = new GinasioPage(page);
+    await p.goto();
+    for (const label of ["Treinos", "Planos", "Progresso de clientes", "Exercícios"]) {
+      await p.goToTab(label);
+      await expect(p.header()).toBeVisible();
+    }
+    await expect(page).toHaveURL(/\/ginasio/);
+  });
+});
+
 test.describe("Ginásio — Smoke", () => {
   test("a página carrega com o cabeçalho", async ({ page }) => {
     const p = new GinasioPage(page);

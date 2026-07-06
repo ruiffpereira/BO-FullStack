@@ -12,6 +12,30 @@ export class GinasioPage {
     return this.page.getByRole("heading", { name: "Ginásio", level: 1 });
   }
 
+  /**
+   * Subitens da sidebar (T2.5): Exercícios · Treinos · Planos · Progresso de
+   * clientes — botões do submenu, não `role="tab"`. O último NÃO se chama
+   * "Clientes" de propósito (evita colidir com o item core `/clientes` da
+   * sidebar quando o grupo Ginásio está expandido — ver `src/lib/navigation.ts`).
+   */
+  private static PATH_BY_LABEL: Record<string, string> = {
+    Exercícios: "/ginasio",
+    Treinos: "/ginasio/treinos",
+    Planos: "/ginasio/planos",
+    "Progresso de clientes": "/ginasio/clientes",
+  };
+
+  tab(label: string) {
+    return this.page.locator("nav").first().getByRole("button", { name: label, exact: true });
+  }
+
+  async goToTab(label: string) {
+    await this.tab(label).first().click();
+    const path = GinasioPage.PATH_BY_LABEL[label];
+    if (path) await this.page.waitForURL(`**${path}`, { timeout: 10_000 });
+    await this.page.waitForTimeout(200);
+  }
+
   searchInput() {
     return this.page.getByPlaceholder(/procurar exercício/i);
   }

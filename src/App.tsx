@@ -164,7 +164,13 @@ function App() {
         <Route path="/ginasio/treinos" element={<Ginasio view="treinos" />} />
         <Route path="/ginasio/planos" element={<Ginasio view="planos" />} />
         <Route path="/ginasio/clientes" element={<Ginasio view="clientes" />} />
-        <Route path="/conteudos" element={<Conteudos />} />
+        <Route path="/conteudos" element={<Conteudos view="website" />} />
+        <Route path="/conteudos/produtos" element={<Conteudos view="product" />} />
+        <Route path="/conteudos/servicos" element={<Conteudos view="service" />} />
+        <Route path="/conteudos/ginasio" element={<Conteudos view="gym" />} />
+        <Route path="/conteudos/linguas" element={<Conteudos view="linguas" />} />
+        <Route path="/conteudos/emails" element={<Conteudos view="emails" />} />
+        <Route path="/conteudos/notificacoes" element={<Conteudos view="notificacoes" />} />
         <Route path="/website" element={<Website view="site" />} />
         <Route path="/website/template" element={<Website view="template" />} />
         <Route path="/website/paginas" element={<Website view="pages" />} />

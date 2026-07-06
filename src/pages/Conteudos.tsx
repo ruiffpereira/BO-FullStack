@@ -30,7 +30,6 @@ import {
   Button,
   PageHeader,
   EmptyState,
-  Tabs,
 } from "../ui/ui.jsx";
 import { GuardButton } from "../components/GuardButton";
 import {
@@ -69,7 +68,8 @@ import { Combobox } from "../components/Combobox";
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type CmsContext = "website" | "product" | "service" | "gym";
-type TabId = CmsContext | "linguas" | "emails" | "notificacoes";
+/** Vista pedida via `view` (rota — T2.6, `src/lib/navigation.ts`). */
+export type ConteudosView = CmsContext | "linguas" | "emails" | "notificacoes";
 type Section = {
   sectionId: string;
   parentId: string | null;
@@ -113,21 +113,27 @@ type ConfirmAction =
 
 const TYPE_LABEL: Record<string, string> = { text: "Texto", image: "Imagem" };
 
+// Labels usados nas mensagens internas da página (empty states, título do
+// modal de secção). Alinhados com os labels do submenu da sidebar
+// (`SUBMENU["/conteudos"]`, `src/lib/navigation.ts`) — incluindo o mesmo
+// desambiguar de "Website"/"Loja"/"Agenda"/"Ginásio" (que colidiriam com os
+// nomes acessíveis dos itens homónimos da sidebar): "Site público",
+// "Produtos", "Serviços", "Ginásio (nomes)". Ver o comentário lá para o porquê.
 const CMS_TABS: {
-  id: TabId;
+  id: ConteudosView;
   label: string;
   icon: string;
   permission: string | null;
 }[] = [
-  { id: "website", label: "Website", icon: "globe", permission: null },
-  { id: "product", label: "Loja", icon: "store", permission: "VIEW_PRODUCTS" },
+  { id: "website", label: "Site público", icon: "globe", permission: null },
+  { id: "product", label: "Produtos", icon: "store", permission: "VIEW_PRODUCTS" },
   {
     id: "service",
-    label: "Agenda",
+    label: "Serviços",
     icon: "scissors",
     permission: "VIEW_SCHEDULE",
   },
-  { id: "gym", label: "Ginásio", icon: "trend", permission: "VIEW_GYM" },
+  { id: "gym", label: "Ginásio (nomes)", icon: "trend", permission: "VIEW_GYM" },
   { id: "linguas", label: "Línguas", icon: "globe", permission: null },
   { id: "emails", label: "Emails", icon: "mail", permission: null },
   { id: "notificacoes", label: "Notificações", icon: "bell", permission: null },
@@ -782,7 +788,21 @@ function CmsReferencesModal({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-export function Conteudos() {
+/**
+ * Página "Conteúdos" (core). Cada tab de CMS vive na sua própria rota
+ * (`/conteudos`, `/conteudos/produtos|servicos|ginasio|linguas|emails|
+ * notificacoes`, T2.6 — última página da Fase 2 da sidebar com submenus) — a
+ * navegação entre vistas já não é feita por `Tabs` de topo, é a sidebar
+ * (`NavItemGroup`/`Shell.tsx`); a página só recebe a vista pedida via `view`.
+ * ÚNICA página desta fase com gating POR SUBITEM (produtos/serviços/ginásio
+ * continuam atrás de VIEW_PRODUCTS/VIEW_SCHEDULE/VIEW_GYM, como as tabs
+ * antigas) — `SUBMENU["/conteudos"]` espelha esse gating com `perm` por
+ * subitem (`src/lib/navigation.ts`), e o guard do `Shell.tsx` já redireciona
+ * um subitem sem permissão para o 1.º permitido. O fallback abaixo (mesmo
+ * padrão do `FinanceiroPage`) é só defensivo, para o caso de a página ser
+ * renderizada fora desse guard (ex.: testes).
+ */
+export function Conteudos({ view }: { view: ConteudosView }) {
   const qc = useQueryClient();
   const { hasPermission, authHeader } = useAuth();
   const headers = authHeader();
@@ -795,7 +815,12 @@ export function Conteudos() {
   const visibleTabs = CMS_TABS.filter(
     (t) => t.permission === null || hasPermission(t.permission),
   );
-  const [activeTab, setActiveTab] = useState<TabId>("website");
+  const requestedTab = CMS_TABS.find((t) => t.id === view);
+  const activeTab: ConteudosView =
+    requestedTab &&
+    (requestedTab.permission === null || hasPermission(requestedTab.permission))
+      ? view
+      : (visibleTabs[0]?.id ?? "website");
 
   // Section / search state
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(
@@ -1475,7 +1500,7 @@ export function Conteudos() {
     ? `Nenhuma entrada encontrada para "${searchQuery}".`
     : selectedSection
       ? `Ainda não há entradas em "${selectedSection.name}".`
-      : `Cria a primeira entrada de conteúdo no separador "${CMS_TABS.find((t) => t.id === activeTab)?.label}".`;
+      : `Cria a primeira entrada de conteúdo em "${CMS_TABS.find((t) => t.id === activeTab)?.label}".`;
 
   // Default language - only show in default lang column in table
   const tableLocale =
@@ -1490,11 +1515,7 @@ export function Conteudos() {
       <PageHeader
         title="Conteúdos"
         subtitle="Gere o conteúdo do site, produtos e serviços em múltiplos idiomas."
-      />
-
-      {/* ── Tab bar ── */}
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <Tabs tabs={visibleTabs} value={activeTab} onChange={setActiveTab} />
+      >
         {activeTab !== "linguas" && activeTab !== "emails" && activeTab !== "notificacoes" && (
           <button
             onClick={() => importFileRef.current?.click()}
@@ -1505,7 +1526,7 @@ export function Conteudos() {
             <span className="hidden sm:inline">Importar</span>
           </button>
         )}
-      </div>
+      </PageHeader>
 
       {/* ── Línguas tab ── */}
       {activeTab === "linguas" && (

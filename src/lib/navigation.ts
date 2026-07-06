@@ -8,9 +8,9 @@
  * topbar para subpaths.
  *
  * Financeiro (T1.2, piloto), Loja (T2.1), Clientes (T2.2), Website (T2.3),
- * Admin (T2.4), Ginásio (T2.5) e Agenda (T2.7) já estão migradas — a
- * restante página com tabs (Conteúdos) entra na Fase 2 a seguir,
- * acrescentando a sua entrada a este mapa.
+ * Admin (T2.4), Ginásio (T2.5), Agenda (T2.7) e Conteúdos (T2.6) já estão
+ * migradas — as 8 páginas com tabs de topo do brief (`.design/shell-nav-perfil/
+ * DESIGN_BRIEF.md`) estão todas neste mapa.
  */
 
 export interface SubmenuItem {
@@ -90,6 +90,28 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     { id: "treinos", label: "Treinos", path: "/ginasio/treinos" },
     { id: "planos", label: "Planos", path: "/ginasio/planos" },
     { id: "clientes", label: "Progresso de clientes", path: "/ginasio/clientes" },
+  ],
+  "/conteudos": [
+    // ÚNICA página com gating POR SUBITEM (T2.6): produtos/serviços/ginásio
+    // continuam atrás das mesmas permissões que as tabs antigas do
+    // `CMS_TABS` em `Conteudos.tsx` (VIEW_PRODUCTS/VIEW_SCHEDULE/VIEW_GYM) —
+    // o `allowedSubitems`/guard do `Shell.tsx` fazem exatamente o que
+    // `visibleTabs` fazia antes (filtrar + redirecionar para o 1.º
+    // permitido). Nenhum destes 4 primeiros subitens pôde manter o nome
+    // "óbvio" (Website/Loja/Agenda/Ginásio): colidiam com o nome acessível
+    // dos itens homónimos da sidebar, sempre visíveis quando o subitem
+    // também está — para produtos/serviços/ginásio a MESMA permissão que
+    // gate o subitem gate também o item de módulo, por isso a colisão era
+    // garantida; para o site público, o item `/website` é core (sempre
+    // visível a qualquer tenant). Mesmo problema e solução do "Progresso de
+    // clientes" no Ginásio (T2.5).
+    { id: "website", label: "Site público", path: "/conteudos" },
+    { id: "product", label: "Produtos", path: "/conteudos/produtos", perm: "VIEW_PRODUCTS" },
+    { id: "service", label: "Serviços", path: "/conteudos/servicos", perm: "VIEW_SCHEDULE" },
+    { id: "gym", label: "Ginásio (nomes)", path: "/conteudos/ginasio", perm: "VIEW_GYM" },
+    { id: "linguas", label: "Línguas", path: "/conteudos/linguas" },
+    { id: "emails", label: "Emails", path: "/conteudos/emails" },
+    { id: "notificacoes", label: "Notificações", path: "/conteudos/notificacoes" },
   ],
 };
 

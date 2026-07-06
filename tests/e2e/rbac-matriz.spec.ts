@@ -190,6 +190,15 @@ test.describe("RBAC matriz — noaccess@e2e (sem componentes)", () => {
     }
   });
 
+  // T2.4: o guard de prefixo (findRoot em Shell.tsx) tem de cobrir também os
+  // SUBPATHS de /admin — não só a raiz — senão um tenant sem VIEW_ADMIN
+  // conseguiria aceder a uma subpágina (ex.: gerar tokens de site) navegando
+  // directamente para o path, mesmo sem o item aparecer na sidebar.
+  test("guard: /admin/tokens (subpágina) também redireciona para /dashboard", async ({ page, context }) => {
+    await loginAs(context, "noaccess@e2e");
+    await expectBlockedRedirect(page, context, "noaccess@e2e", "/admin/tokens");
+  });
+
   test("core permanece acessível (cai em rota mínima, não em erro)", async ({ page, context }) => {
     await loginAs(context, "noaccess@e2e");
     await page.goto("/clientes");

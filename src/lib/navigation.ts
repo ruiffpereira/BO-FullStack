@@ -7,9 +7,9 @@
  * de rotas (prefixo + redirect do subitem sem permissão), e (c) o título do
  * topbar para subpaths.
  *
- * Financeiro (T1.2, piloto), Loja (T2.1), Clientes (T2.2), Website (T2.3) e
- * Agenda (T2.7) já estão migradas — as restantes páginas com tabs (Admin,
- * Ginásio, Conteúdos) entram na Fase 2, uma de cada vez, cada uma
+ * Financeiro (T1.2, piloto), Loja (T2.1), Clientes (T2.2), Website (T2.3),
+ * Admin (T2.4) e Agenda (T2.7) já estão migradas — as restantes páginas com
+ * tabs (Ginásio, Conteúdos) entram na Fase 2, uma de cada vez, cada uma
  * acrescentando a sua entrada a este mapa.
  */
 
@@ -60,6 +60,21 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     { id: "brand", label: "Marca", path: "/website/marca" },
     { id: "footer", label: "Rodapé & Nav", path: "/website/rodape-nav" },
     { id: "domain", label: "Domínio", path: "/website/dominio" },
+  ],
+  "/admin": [
+    // Label do âncora ("Utilizadores", não "Admin") pelo mesmo motivo dos
+    // outros grupos acima. Sem `?tab=` legacy a redirecionar aqui — o único
+    // deep-link real desta página é o retorno do OAuth do Google
+    // (`/admin?google=connected|error`), tratado à parte no `AdminEntry`
+    // (App.tsx), não por `resolveLegacyTabTarget`.
+    { id: "utilizadores", label: "Utilizadores", path: "/admin" },
+    { id: "permissoes", label: "Permissões", path: "/admin/permissoes" },
+    { id: "componentes", label: "Componentes", path: "/admin/componentes" },
+    { id: "tokens", label: "Tokens de site", path: "/admin/tokens" },
+    { id: "faturacao", label: "Faturação", path: "/admin/faturacao" },
+    { id: "integracoes", label: "Integrações", path: "/admin/integracoes" },
+    { id: "atividade", label: "Atividade", path: "/admin/atividade" },
+    { id: "sistema", label: "Sistema", path: "/admin/sistema" },
   ],
 };
 

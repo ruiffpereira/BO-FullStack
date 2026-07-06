@@ -60,6 +60,23 @@ function AgendaEntry() {
   return <Agenda view="cal" />;
 }
 
+/**
+ * Entrada da rota `/admin` (T2.4). O único deep-link legacy real aqui não é um
+ * `?<param>=<id de subitem>` (`LegacyTabEntry`) — é o retorno do OAuth do
+ * Google (`GET /integrations/google/callback` na API, `googleController.ts`),
+ * que redireciona sempre para `/admin?google=connected|error`. Com o
+ * parâmetro presente, redireciona para `/admin/integracoes` preservando-o (o
+ * toast + limpeza do query string continuam dentro de `Admin.tsx`, já
+ * view-agnósticos). Sem o parâmetro, renderiza a vista Utilizadores (âncora).
+ */
+function AdminEntry() {
+  const [params] = useSearchParams();
+  if (params.get("google")) {
+    return <Navigate to={`/admin/integracoes?${params.toString()}`} replace />;
+  }
+  return <Admin view="utilizadores" />;
+}
+
 function App() {
   // Init lazy: localStorage("bo.theme") > prefers-color-scheme do sistema >
   // "dark" (src/lib/uiTheme.ts). T3.4 vai promover a fonte para
@@ -151,7 +168,14 @@ function App() {
         <Route path="/website/marca" element={<Website view="brand" />} />
         <Route path="/website/rodape-nav" element={<Website view="footer" />} />
         <Route path="/website/dominio" element={<Website view="domain" />} />
-        <Route path="/admin" element={<Admin />} />
+        <Route path="/admin" element={<AdminEntry />} />
+        <Route path="/admin/permissoes" element={<Admin view="permissoes" />} />
+        <Route path="/admin/componentes" element={<Admin view="componentes" />} />
+        <Route path="/admin/tokens" element={<Admin view="tokens" />} />
+        <Route path="/admin/faturacao" element={<Admin view="faturacao" />} />
+        <Route path="/admin/integracoes" element={<Admin view="integracoes" />} />
+        <Route path="/admin/atividade" element={<Admin view="atividade" />} />
+        <Route path="/admin/sistema" element={<Admin view="sistema" />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Shell>

@@ -13,7 +13,6 @@ import {
   Input,
   Modal,
   PageHeader,
-  Tabs,
 } from "../ui/ui.jsx";
 import { Combobox } from "../components/Combobox";
 import { confirmDialog } from "../components/confirm";
@@ -1554,37 +1553,38 @@ function IntegracoesTab() {
 }
 
 // ─── Admin root ───────────────────────────────────────────────────────────────
-const TABS = [
-  { id: "utilizadores", label: "Utilizadores", icon: "users" },
-  { id: "permissoes", label: "Permissões", icon: "shield" },
-  { id: "componentes", label: "Componentes", icon: "grid" },
-  { id: "tokens", label: "Tokens de site", icon: "key" },
-  { id: "faturacao", label: "Faturação", icon: "card" },
-  { id: "integracoes", label: "Integrações", icon: "link" },
-  { id: "atividade", label: "Atividade", icon: "clock" },
-  { id: "sistema", label: "Sistema", icon: "settings" },
-] as const;
 
-type AdminTab =
+/**
+ * "Admin" — cada separador vive na sua própria rota (`/admin`,
+ * `/admin/permissoes`, `/admin/componentes`, `/admin/tokens`,
+ * `/admin/faturacao`, `/admin/integracoes`, `/admin/atividade`,
+ * `/admin/sistema` — T2.4, Fase 2 da sidebar com submenus) — a navegação
+ * entre vistas já não é feita por `Tabs` de topo, é a sidebar
+ * (`NavItemGroup`/`Shell.tsx`); a página só recebe a vista pedida via `view`.
+ * A página em si nunca usou `?tab=` — o único deep-link legacy real é o
+ * retorno do OAuth do Google (`/admin?google=connected|error`), resolvido
+ * pelo `AdminEntry` do `App.tsx` (redireciona para `/admin/integracoes`
+ * preservando o parâmetro); o toast + limpeza do query string continuam
+ * aqui, agora view-agnósticos (já não precisam de trocar de tab sozinhos).
+ */
+export type AdminView =
   | "utilizadores" | "permissoes" | "componentes" | "tokens"
   | "faturacao" | "integracoes" | "atividade" | "sistema";
 
-export function Admin() {
+export function Admin({ view }: { view: AdminView }) {
   const { authHeader } = useAuth();
   const headers = authHeader();
-  const [tab, setTab] = useState<AdminTab>("utilizadores");
 
-  // Volta do OAuth do Google (?google=connected|error) → toast + abre Integrações.
+  // Volta do OAuth do Google (?google=connected|error) → toast (o AdminEntry
+  // já garantiu que estamos em /admin/integracoes quando o parâmetro existe).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const g = params.get("google");
     if (!g) return;
     if (g === "connected") {
       toast.success("Google Calendar ligado com sucesso");
-      setTab("integracoes");
     } else if (g === "error") {
       toast.error("Não foi possível ligar o Google");
-      setTab("integracoes");
     }
     // Limpa o query param para não repetir o toast em refresh.
     params.delete("google");
@@ -1598,15 +1598,14 @@ export function Admin() {
         title="Admin"
         subtitle="Gere utilizadores, permissões e componentes."
       />
-      <Tabs tabs={TABS as any} value={tab} onChange={(id) => setTab(id as AdminTab)} className="mb-6" />
-      {tab === "utilizadores" && <UtilizadoresTab headers={headers} />}
-      {tab === "permissoes" && <PermissoesTab headers={headers} />}
-      {tab === "componentes" && <ComponentesTab headers={headers} />}
-      {tab === "tokens" && <TokensTab headers={headers} />}
-      {tab === "faturacao" && <AdminBillingTab />}
-      {tab === "integracoes" && <IntegracoesTab />}
-      {tab === "atividade" && <AtividadeTab />}
-      {tab === "sistema" && <SistemaTab />}
+      {view === "utilizadores" && <UtilizadoresTab headers={headers} />}
+      {view === "permissoes" && <PermissoesTab headers={headers} />}
+      {view === "componentes" && <ComponentesTab headers={headers} />}
+      {view === "tokens" && <TokensTab headers={headers} />}
+      {view === "faturacao" && <AdminBillingTab />}
+      {view === "integracoes" && <IntegracoesTab />}
+      {view === "atividade" && <AtividadeTab />}
+      {view === "sistema" && <SistemaTab />}
     </div>
   );
 }

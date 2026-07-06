@@ -8,9 +8,27 @@ export class AdminPage {
     await this.page.waitForURL("**/admin", { timeout: 15_000 });
   }
 
+  /** Subitens da sidebar (T2.4): Utilizadores (âncora, `/admin`) · Permissões · Componentes · Tokens de site · Faturação · Integrações · Atividade · Sistema — botões do submenu, não mais role="tab". */
+  private static PATH_BY_LABEL: Record<string, string> = {
+    Utilizadores: "/admin",
+    Permissões: "/admin/permissoes",
+    Componentes: "/admin/componentes",
+    "Tokens de site": "/admin/tokens",
+    Faturação: "/admin/faturacao",
+    Integrações: "/admin/integracoes",
+    Atividade: "/admin/atividade",
+    Sistema: "/admin/sistema",
+  };
+
+  tab(label: string) {
+    return this.page.locator("nav").first().getByRole("button", { name: label, exact: true });
+  }
+
   async goToTab(name: string) {
-    await this.page.locator('button[role="tab"], button', { hasText: name }).first().click();
-    await this.page.waitForTimeout(500);
+    await this.tab(name).first().click();
+    const path = AdminPage.PATH_BY_LABEL[name];
+    if (path) await this.page.waitForURL(`**${path}`, { timeout: 10_000 });
+    await this.page.waitForTimeout(200);
   }
 
   // ── Users ─────────────────────────────────────────────────────────────────

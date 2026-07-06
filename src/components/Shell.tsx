@@ -122,8 +122,11 @@ function SubmenuLink({
  *   `expanded` é derivado da rota ativa (`SidebarContent`, `expandedPath`) —
  *   não há estado próprio nem callback "expandir sem navegar" (não existe essa
  *   interação: expandir e navegar são sempre o mesmo clique). Os subitens
- *   ficam indentados por baixo, sempre no DOM (mostrados/escondidos por CSS)
- *   para a navegação por setas do `<nav>` os conseguir alcançar.
+ *   ficam indentados por baixo, e só existem no DOM quando `expanded` (render
+ *   condicional, não CSS) — caso contrário os `SubmenuLink` de grupos
+ *   fechados ficariam acessíveis via `getByRole`/roving tabindex ao mesmo
+ *   tempo que os `NavItem` de módulo homónimos (ex.: "Loja"/"Agenda"/"Ginásio"
+ *   dentro do Financeiro), duplicando o nome acessível na sidebar inteira.
  * - **Colapsado** (sidebar só-ícones, desktop): clicar OU passar o rato abre um
  *   flyout em portal (mesmo padrão do `Combobox`/`useAnchoredMenu`, mas
  *   ancorado à direita do ícone em vez de por baixo) — nunca navega ao clicar
@@ -292,11 +295,13 @@ function NavItemGroup({
         )}
       </button>
 
-      {/* Acordeão (sidebar expandida + drawer mobile): subitens indentados. */}
-      {!collapsed && (
-        <div
-          className={`overflow-hidden transition-all ${expanded ? 'max-h-96 mt-1' : 'max-h-0'}`}
-        >
+      {/* Acordeão (sidebar expandida + drawer mobile): subitens indentados.
+          Só existe no DOM quando expandido — um grupo fechado não pode deixar
+          os seus subitens alcançáveis (roving tabindex / getByRole), senão
+          duplicam o nome acessível dos itens de módulo da sidebar (ex.: "Loja"
+          aparece no menu E, escondido por CSS, dentro do Financeiro). */}
+      {!collapsed && expanded && (
+        <div className="mt-1">
           <div className="ml-4 pl-3 border-l border-zinc-200 dark:border-zinc-800 space-y-0.5 pb-0.5">
             {items.map((it) => (
               <SubmenuLink
@@ -305,7 +310,7 @@ function NavItemGroup({
                 active={activePathname === it.path}
                 onClick={() => navigate(it.path)}
                 variant="accordion"
-                focusable={expanded}
+                focusable
               />
             ))}
           </div>

@@ -2887,37 +2887,31 @@ function MarcacoesPanel() {
 }
 
 // ─── Agenda root ──────────────────────────────────────────────────────────────
-const TABS = [
-  ["cal", "Calendário", "calendar"],
-  ["marcacoes", "Marcações", "grid"],
-  ["servicos", "Serviços", "scissors"],
-  ["config", "Configurações", "clock"],
-] as const;
 
-export function Agenda() {
-  const [searchParams] = useSearchParams();
-  const [vista, setVista] = useState<
-    "cal" | "marcacoes" | "servicos" | "config"
-  >(searchParams.get("openService") ? "servicos" : "cal");
+export type AgendaView = "cal" | "marcacoes" | "servicos" | "config";
+
+/**
+ * Página "Agenda" (`VIEW_SCHEDULE`). Cada separador vive na sua própria rota
+ * (`/agenda` = Calendário · `/agenda/marcacoes` · `/agenda/servicos` ·
+ * `/agenda/config`, T2.7 — Fase 2 da sidebar com submenus) — a navegação entre
+ * vistas já não é feita por `Tabs`/botões de topo, é a sidebar
+ * (`NavItemGroup`/`Shell.tsx`); a página só recebe a vista pedida via `view`.
+ * Sem gate por subitem: a página inteira já está atrás de `VIEW_SCHEDULE`
+ * (`Shell.tsx`), por isso os 4 subitens de `SUBMENU["/agenda"]` não têm `perm`
+ * individual. O deep-link antigo `?openService=<id>` (abre o modal de edição
+ * de um serviço, ex. a partir do CMS) já não chega aqui — o `AgendaEntry` do
+ * `App.tsx` intercepta-o na rota `/agenda` e redireciona para
+ * `/agenda/servicos?openService=<id>` antes de renderizar; `?marcacao=`/
+ * `?data=` continuam a ser lidos pelo `CalendarioView` na raiz.
+ */
+export function Agenda({ view }: { view: AgendaView }) {
   return (
     <div>
       <PageHeader title="Agenda" subtitle="Marcações, serviços e horários." />
-      <div className="flex items-center gap-1 p-1 mb-6 bg-zinc-100 dark:bg-zinc-800/60 rounded-xl w-full sm:w-auto sm:inline-flex overflow-x-auto">
-        {TABS.map(([id, label, icon]) => (
-          <button
-            key={id}
-            onClick={() => setVista(id)}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${vista === id ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
-          >
-            <Icon name={icon} className="w-4 h-4" />
-            {label}
-          </button>
-        ))}
-      </div>
-      {vista === "cal" && <CalendarioView />}
-      {vista === "marcacoes" && <MarcacoesPanel />}
-      {vista === "servicos" && <ServicosPanel />}
-      {vista === "config" && <ConfigPanel />}
+      {view === "cal" && <CalendarioView />}
+      {view === "marcacoes" && <MarcacoesPanel />}
+      {view === "servicos" && <ServicosPanel />}
+      {view === "config" && <ConfigPanel />}
     </div>
   );
 }

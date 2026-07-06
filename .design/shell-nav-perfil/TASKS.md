@@ -23,7 +23,7 @@ Cada slice: rotas novas + remoção das `Tabs` de topo + redirect `?tab=` + deep
 - [ ] **T2.4 Admin**: `/admin/utilizadores|permissoes|componentes|tokens|faturacao|integracoes|atividade|sistema` (`/admin`→utilizadores). _Modifica: `Admin.tsx:1557-1601`; e2e admin/admin-tokens._
 - [ ] **T2.5 Ginásio**: `/ginasio/exercicios|treinos|planos|clientes` (`/ginasio`→exercicios); sub-toggle interno fica. _Modifica: `Ginasio.tsx:2879-2895`; e2e ginasio/ginasio-detalhe._
 - [ ] **T2.6 Conteúdos**: `/conteudos/website|produtos|servicos|ginasio|linguas|emails|notificacoes` com gating por permissão por subitem (o submenu da sidebar filtra como `visibleTabs`). _Modifica: `Conteudos.tsx:116-133,784-787`; e2e conteudos/conteudos-multilingua._
-- [ ] **T2.7 Agenda**: `/agenda`(calendário)·`/agenda/marcacoes|servicos|config`; `?marcacao=`/`?data=`/`?openService=` continuam (openService passa a apontar a `/agenda/servicos`). _Modifica: `Agenda.tsx:2890-2901`; `notificationTarget` (`booking/reminder`); e2e agenda/agenda-pagamentos._
+- [x] **T2.7 Agenda**: `/agenda`(calendário)·`/agenda/marcacoes|servicos|config`; `?marcacao=`/`?data=`/`?openService=` continuam (openService passa a apontar a `/agenda/servicos`). _Modifica: `Agenda.tsx:2890-2901`; `notificationTarget` (`booking/reminder`); e2e agenda/agenda-pagamentos._
 - [ ] **T2.8 Varredura de deep-links órfãos**: grep final a `?tab=|?vista=|/despesas` em `src/**` + e2e + emails/push (API `notifyUser` payloads) — tudo ou migrado ou coberto por redirect. _Novo teste unit: mapa de redirects._
 
 ## Fase 3 — Perfil do tenant (API primeiro; independente das Fases 1-2)

@@ -7,10 +7,10 @@
  * de rotas (prefixo + redirect do subitem sem permissão), e (c) o título do
  * topbar para subpaths.
  *
- * Financeiro (T1.2, piloto), Loja (T2.1) e Clientes (T2.2) já estão migradas —
- * as restantes páginas com tabs (Website, Admin, Ginásio, Conteúdos, Agenda)
- * entram na Fase 2, uma de cada vez, cada uma acrescentando a sua entrada a
- * este mapa.
+ * Financeiro (T1.2, piloto), Loja (T2.1), Clientes (T2.2) e Agenda (T2.7) já
+ * estão migradas — as restantes páginas com tabs (Website, Admin, Ginásio,
+ * Conteúdos) entram na Fase 2, uma de cada vez, cada uma acrescentando a sua
+ * entrada a este mapa.
  */
 
 export interface SubmenuItem {
@@ -40,6 +40,15 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     // expandido (mesmo motivo por trás de "O Negócio"/"Produtos" acima).
     { id: "clientes", label: "Lista", path: "/clientes" },
     { id: "leads", label: "Leads", path: "/clientes/leads" },
+  ],
+  "/agenda": [
+    // Label do âncora ("Calendário", não "Agenda") pelo mesmo motivo dos
+    // outros grupos acima — e é também o nome mais preciso: a raiz É o
+    // calendário, não um resumo genérico da página.
+    { id: "cal", label: "Calendário", path: "/agenda" },
+    { id: "marcacoes", label: "Marcações", path: "/agenda/marcacoes" },
+    { id: "servicos", label: "Serviços", path: "/agenda/servicos" },
+    { id: "config", label: "Configurações", path: "/agenda/config" },
   ],
 };
 

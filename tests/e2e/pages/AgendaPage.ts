@@ -12,14 +12,23 @@ export class AgendaPage {
     return this.page.getByRole("heading", { name: "Agenda", level: 1 });
   }
 
-  /** Tabs: Calendário · Marcações · Serviços · Configurações. */
-  async goToTab(label: string) {
-    await this.page.getByRole("button", { name: label, exact: true }).first().click();
-    await this.page.waitForTimeout(400);
-  }
+  /** Subitens da sidebar (T2.7): Calendário (âncora, `/agenda`) · Marcações · Serviços · Configurações — botões do submenu, não mais role="tab". */
+  private static PATH_BY_LABEL: Record<string, string> = {
+    Calendário: "/agenda",
+    Marcações: "/agenda/marcacoes",
+    Serviços: "/agenda/servicos",
+    Configurações: "/agenda/config",
+  };
 
   tab(label: string) {
-    return this.page.getByRole("button", { name: label, exact: true });
+    return this.page.locator("nav").first().getByRole("button", { name: label, exact: true });
+  }
+
+  async goToTab(label: string) {
+    await this.tab(label).first().click();
+    const path = AgendaPage.PATH_BY_LABEL[label];
+    if (path) await this.page.waitForURL(`**${path}`, { timeout: 10_000 });
+    await this.page.waitForTimeout(200);
   }
 
   // ── Marcações (lista + filtro por intervalo de datas) ───────────────────────

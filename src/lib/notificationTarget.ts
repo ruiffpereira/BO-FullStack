@@ -7,7 +7,8 @@ import type { Notification } from "../hooks/useNotifications";
  * Espelha os payloads de `notifyUser` na API: cada `type` traz no `data` as
  * chaves convencionais (appointmentId, customerId, productId, period, …). Os
  * destinos usam os parâmetros que cada página já lê:
- *   - Agenda     `?marcacao=<id>` · `?data=YYYY-MM-DD`
+ *   - Agenda     `?marcacao=<id>` · `?data=YYYY-MM-DD` — raiz `/agenda`
+ *     (Calendário, subitem-âncora do submenu da Agenda, T2.7)
  *   - Clientes   `?cliente=<id>` — raiz `/clientes` (perfil do cliente)
  *   - Leads      `/clientes/leads?lead=<id>` — rota "Leads" (T2.2, submenu de Clientes)
  *     (um novo lead usa `type:"customer"` com `data.leadId`, sem `customerId` —

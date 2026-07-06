@@ -98,13 +98,13 @@ export function FirstValueChecklist() {
         {
           id: 'agenda-service',
           label: 'Cria o teu primeiro serviço',
-          href: '/agenda',
+          href: '/agenda/servicos',
           done: (services?.length ?? 0) > 0,
         },
         {
           id: 'agenda-hours',
           label: 'Define o horário de funcionamento',
-          href: '/agenda',
+          href: '/agenda/config',
           done: (workingHours?.length ?? 0) > 0,
         },
         {

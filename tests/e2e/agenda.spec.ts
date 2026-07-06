@@ -3,8 +3,8 @@ import { test as anon } from "@playwright/test";
 import { AgendaPage } from "./pages/AgendaPage";
 import { loginAs } from "./fixtures/login";
 
-test.describe("Agenda — Navegação", () => {
-  test("a página carrega com o cabeçalho e as tabs", async ({ page }) => {
+test.describe("Agenda — Navegação (submenu + deep-links legacy, T2.7)", () => {
+  test("a página carrega com o cabeçalho e o submenu da sidebar", async ({ page }) => {
     const p = new AgendaPage(page);
     await p.goto();
     await expect(p.header()).toBeVisible();
@@ -13,14 +13,35 @@ test.describe("Agenda — Navegação", () => {
     }
   });
 
-  test("alternar entre tabs mantém a página estável", async ({ page }) => {
+  test("alternar entre tabs mantém a página estável e muda a URL", async ({ page }) => {
     const p = new AgendaPage(page);
     await p.goto();
     for (const label of ["Marcações", "Serviços", "Configurações", "Calendário"]) {
       await p.goToTab(label);
       await expect(p.header()).toBeVisible();
     }
-    await expect(page).toHaveURL(/\/agenda/);
+    await expect(page).toHaveURL(/\/agenda$/);
+  });
+
+  test("Marcações/Serviços/Configurações vivem em rotas próprias", async ({ page }) => {
+    const p = new AgendaPage(page);
+    await p.goto();
+    await p.goToTab("Marcações");
+    await expect(page).toHaveURL(/\/agenda\/marcacoes/);
+    await p.goToTab("Serviços");
+    await expect(page).toHaveURL(/\/agenda\/servicos/);
+    await p.goToTab("Configurações");
+    await expect(page).toHaveURL(/\/agenda\/config/);
+    await p.goToTab("Calendário");
+    await expect(page).toHaveURL(/\/agenda$/);
+  });
+
+  test("deep-link antigo /agenda?openService=<id> redireciona para /agenda/servicos preservando o parâmetro", async ({ page }) => {
+    await page.goto("/agenda?openService=algum-id-inexistente");
+    await page.waitForURL(/\/agenda\/servicos\?openService=algum-id-inexistente/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/agenda\/servicos\?openService=algum-id-inexistente/);
+    const p = new AgendaPage(page);
+    await expect(p.header()).toBeVisible();
   });
 });
 

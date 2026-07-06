@@ -40,6 +40,26 @@ function LegacyTabEntry({ root, param, children }: { root: string; param: string
   return target ? <Navigate to={target} replace /> : children;
 }
 
+/**
+ * Entrada da rota `/agenda` (T2.7). Não usa `LegacyTabEntry`/
+ * `resolveLegacyTabTarget` porque o deep-link antigo aqui não é `?<param>=<id
+ * de subitem>` (ex. `?tab=encomendas`) — é `?openService=<id de serviço>`, um
+ * ID de negócio arbitrário, não o id de um item do `SUBMENU["/agenda"]`. Só a
+ * PRESENÇA do parâmetro importa: quando existe, redirece para
+ * `/agenda/servicos` preservando TODOS os query params (incl. o próprio
+ * `openService`, que o `ServicosPanel` ainda precisa de ler para abrir o modal
+ * de edição — ao contrário do `LegacyTabEntry`, que descarta o param legacy
+ * porque o valor dele já não serve de nada no destino). Sem o parâmetro,
+ * renderiza o Calendário normalmente.
+ */
+function AgendaEntry() {
+  const [params] = useSearchParams();
+  if (params.get("openService")) {
+    return <Navigate to={`/agenda/servicos?${params.toString()}`} replace />;
+  }
+  return <Agenda view="cal" />;
+}
+
 function App() {
   // Init lazy: localStorage("bo.theme") > prefers-color-scheme do sistema >
   // "dark" (src/lib/uiTheme.ts). T3.4 vai promover a fonte para
@@ -119,7 +139,10 @@ function App() {
         <Route path="/loja" element={<LegacyTabEntry root="/loja" param="tab"><Loja view="produtos" /></LegacyTabEntry>} />
         <Route path="/loja/encomendas" element={<Loja view="encomendas" />} />
         <Route path="/loja/categorias" element={<Loja view="categorias" />} />
-        <Route path="/agenda" element={<Agenda />} />
+        <Route path="/agenda" element={<AgendaEntry />} />
+        <Route path="/agenda/marcacoes" element={<Agenda view="marcacoes" />} />
+        <Route path="/agenda/servicos" element={<Agenda view="servicos" />} />
+        <Route path="/agenda/config" element={<Agenda view="config" />} />
         <Route path="/ginasio" element={<Ginasio />} />
         <Route path="/conteudos" element={<Conteudos />} />
         <Route path="/website" element={<Website />} />

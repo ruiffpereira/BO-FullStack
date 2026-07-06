@@ -2,9 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Acento por tema (light/dark) — ESTÁTICO, não depende de tenant/configuração
+   (confirmado: o único escritor destas vars era o useEffect do App.tsx, só em
+   função de `theme` — removido de lá, ver comentário em App.tsx). Definido
+   aqui em CSS para estar correto desde o 1.º paint: o script anti-flash do
+   index.html já aplica a classe `.dark` antes do paint, e a cascata CSS
+   resolve o resto sem esperar por nenhum efeito React (que só corria depois
+   do mount, causando um flash do acento claro em reloads em dark). */
 :root {
   --accent: 42 111 219;
   --accent-hex: #2A6FDB;
+}
+
+.dark {
+  --accent: 76 134 240;
+  --accent-hex: #4C86F0;
 }
 
 html {

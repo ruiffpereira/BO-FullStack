@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
+import { type Theme, computeInitialTheme, persistTheme } from "./lib/uiTheme";
 import { Shell } from "./components/Shell";
 import { Login } from "./components/Login";
 import { SetupPassword } from "./pages/SetupPassword";
@@ -19,7 +20,10 @@ import { Website } from "./pages/Website";
 import { Faturacao } from "./pages/Faturacao";
 
 function App() {
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  // Init lazy: localStorage("bo.theme") > prefers-color-scheme do sistema >
+  // "dark" (src/lib/uiTheme.ts). T3.4 vai promover a fonte para
+  // servidor > localStorage > sistema (User.uiTheme).
+  const [theme, setTheme] = useState<Theme>(computeInitialTheme);
   const { isAuthenticated, initializing } = useAuth();
   const location = useLocation();
 
@@ -27,20 +31,23 @@ function App() {
     const root = document.documentElement;
     if (theme === "dark") root.classList.add("dark");
     else root.classList.remove("dark");
-    root.style.setProperty(
-      "--accent-hex",
-      theme === "dark" ? "#4C86F0" : "#2A6FDB",
-    );
-    root.style.setProperty(
-      "--accent",
-      theme === "dark" ? "76 134 240" : "42 111 219",
-    );
-    // Barra superior da PWA = cor do header (branco no claro, zinc-950 no escuro).
+    // Barra superior da PWA = cor do header (branco no claro, zinc-950 no
+    // escuro). Duplicado em index.html:13 (fallback estático) e no script
+    // anti-flash ali mesmo — mantém em sincronia.
+    // (--accent/--accent-hex NÃO se definem aqui: são estáticas por tema em
+    // src/index.css (:root / .dark), aplicadas desde o 1.º paint pela classe
+    // `dark` que o script anti-flash já põe — sem isto o acento piscava claro
+    // num reload em dark, até este efeito correr depois do mount.)
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", theme === "dark" ? "#09090b" : "#ffffff");
   }, [theme]);
 
-  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+  const toggleTheme = () =>
+    setTheme((t) => {
+      const next = t === "dark" ? "light" : "dark";
+      persistTheme(next);
+      return next;
+    });
 
   // Public routes — accessible without authentication
   if (location.pathname === "/setup-password") {

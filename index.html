@@ -7,9 +7,59 @@
          fica colado por cima do teclado e a lista de mensagens encolhe + faz scroll,
          em vez de empurrar o conteúdo para cima. -->
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
-    <!-- Cor da barra superior da PWA = cor do header. Default = tema escuro
-         (a app arranca em dark); o App.tsx atualiza dinamicamente ao trocar de tema. -->
+    <!-- Cor da barra superior da PWA = cor do header. Valor estático abaixo é só
+         o fallback antes do script correr; o script anti-flash (abaixo) e o
+         App.tsx (src/lib/uiTheme.ts) mantêm-no sincronizado com o tema real. -->
     <meta name="theme-color" content="#09090b" />
+    <!-- Anti-flash de tema: aplica a classe `dark` no <html> ANTES do 1.º paint,
+         para o reload não mostrar um instante de tema errado até o App.tsx montar.
+         Duplica a prioridade de src/lib/uiTheme.ts (localStorage > sistema > dark)
+         porque corre antes do bundle carregar — script normal (não `type=module`),
+         para ser síncrono/bloqueante aqui na <head>. A classe+theme-color são
+         SEMPRE aplicadas (fora de qualquer try) com o `isDark` calculado abaixo —
+         cada leitura falível (localStorage, matchMedia) tem o seu próprio
+         try/catch, e o try exterior é só rede de segurança: se rebentar mesmo
+         assim, cai no fallback dark explícito, para bater sempre com
+         computeInitialTheme() (nunca deixar a classe por aplicar a meio). -->
+    <script>
+      (function () {
+        var isDark;
+        try {
+          var stored = null;
+          try {
+            stored = localStorage.getItem("bo.theme");
+          } catch (e) {
+            stored = null; // localStorage bloqueado (modo privado, quota, etc.)
+          }
+          if (stored === "light") {
+            isDark = false;
+          } else if (stored === "dark") {
+            isDark = true;
+          } else {
+            var systemPrefersDark;
+            try {
+              var mql = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)");
+              systemPrefersDark = mql ? mql.matches : undefined;
+            } catch (e) {
+              systemPrefersDark = undefined; // matchMedia indisponível/bloqueado
+            }
+            // Mesma prioridade de src/lib/uiTheme.ts::resolveInitialTheme: só
+            // "light" explícito do sistema vira light; true/undefined cai no
+            // fallback dark.
+            isDark = systemPrefersDark === false ? false : true;
+          }
+        } catch (e) {
+          // Falha inesperada no cálculo acima (não devia acontecer, dado os
+          // try internos) — fallback dark explícito.
+          isDark = true;
+        }
+        var root = document.documentElement;
+        if (isDark) root.classList.add("dark");
+        else root.classList.remove("dark");
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute("content", isDark ? "#09090b" : "#ffffff");
+      })();
+    </script>
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Backoffice" />

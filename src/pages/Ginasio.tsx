@@ -1340,7 +1340,8 @@ function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved, onCre
   )
 }
 
-// Reusable workout templates tab
+// Reusable workout templates tab ("Dia de Treino" na sidebar — cada item É um
+// dia de treino reutilizável, conjunto de exercícios sem dias fixos).
 function TreinosTab() {
   const qc = useQueryClient()
   const { colorOf } = useGymGroups()
@@ -1352,12 +1353,19 @@ function TreinosTab() {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<GymWorkout | null>(null)
   const [confirmDel, setConfirmDel] = useState<GymWorkout | null>(null)
+  const [q, setQ] = useState('')
 
   const remove = useMutation({
     mutationFn: (id: string) => deleteGymWorkoutTemplatesId(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: [{ url: '/gym/workout-templates' }] }); toast.success('Treino eliminado') },
     onError: (e) => toast.error(getApiError(e)),
   })
+
+  const filtered = useMemo(
+    () => templates.filter((t) => t.name.toLowerCase().includes(q.toLowerCase())),
+    [templates, q],
+  )
+  const pg = usePagination(filtered, { resetKey: q })
 
   // Editor inline (substitui a lista) — não é overlay fixo, mantém o menu da app.
   if (open) {
@@ -1366,34 +1374,54 @@ function TreinosTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-zinc-500">{templates.length} treino{templates.length === 1 ? '' : 's'} reutilizáve{templates.length === 1 ? 'l' : 'is'}</p>
-        <Button icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo treino</Button>
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+        <div className="relative flex-1 max-w-sm">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"><Icon name="search" className="w-[18px] h-[18px]" /></span>
+          <input
+            aria-label="Procurar dia de treino"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Procurar dia de treino…"
+            className="w-full bg-zinc-50 dark:bg-zinc-800/60 border border-transparent rounded-lg text-sm pl-10 pr-3 py-2 focus:bg-white dark:focus:bg-zinc-900 focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none text-zinc-800 dark:text-zinc-100"
+          />
+        </div>
+        <p className="text-sm text-zinc-500 sm:ml-auto">{filtered.length} dia{filtered.length === 1 ? '' : 's'} de treino reutilizáve{filtered.length === 1 ? 'l' : 'is'}</p>
+        <Button icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo dia de treino</Button>
       </div>
       {isLoading ? (
         <Card className="p-8 text-center text-zinc-400">A carregar…</Card>
       ) : templates.length === 0 ? (
-        <EmptyState icon="folder" title="Sem treinos" desc="Cria treinos reutilizáveis (conjuntos de exercícios) para usar nos Planos e atribuir aos clientes." action={<Button icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo treino</Button>} />
+        <EmptyState icon="folder" title="Sem dias de treino" desc="Cria dias de treino reutilizáveis (conjuntos de exercícios) para usar nos Planos e atribuir aos clientes." action={<Button icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo dia de treino</Button>} />
+      ) : filtered.length === 0 ? (
+        <EmptyState icon="search" title="Sem resultados" desc="Não há dias de treino que correspondam à pesquisa." />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {templates.map((t) => (
-            <Card key={t.id} className="p-5 group hover:shadow-md transition-all flex flex-col">
-              <div className="flex items-start justify-between">
-                <span className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center"><Icon name="layers" className="w-5 h-5" /></span>
-                <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition">
-                  <IconButton icon="trash" label="Eliminar" onClick={() => setConfirmDel(t)} className="hover:text-red-500" />
+        <div>
+          <Card className="overflow-hidden divide-y divide-zinc-50 dark:divide-zinc-800/50">
+            {pg.pageItems.map((t) => (
+              <div
+                key={t.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => { setEditing(t); setOpen(true) }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { setEditing(t); setOpen(true) } }}
+                className="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 cursor-pointer"
+              >
+                <span className="w-9 h-9 rounded-lg bg-accent/10 text-accent flex items-center justify-center shrink-0"><Icon name="layers" className="w-[18px] h-[18px]" /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-zinc-900 dark:text-white truncate">{t.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-zinc-400">{t.exercises.length} exercício{t.exercises.length === 1 ? '' : 's'}</p>
+                    <span className="flex gap-1">{(t.muscleGroups ?? []).map((g) => <span key={g} className="w-2 h-2 rounded-full" style={{ background: colorOf(g) }} title={g} />)}</span>
+                  </div>
                 </div>
+                <span onClick={(e) => e.stopPropagation()}>
+                  <IconButton icon="trash" label="Eliminar" onClick={() => setConfirmDel(t)} className="hover:text-red-500" />
+                </span>
+                <Icon name="chevronRight" className="w-4 h-4 text-zinc-300 shrink-0" />
               </div>
-              <h3 className="font-semibold text-zinc-900 dark:text-white mt-3">{t.name}</h3>
-              <p className="text-[13px] text-zinc-500 mt-0.5">{t.exercises.length} exercício{t.exercises.length === 1 ? '' : 's'}</p>
-              <div className="flex flex-wrap gap-1.5 mt-3">
-                {(t.muscleGroups ?? []).map((g) => <span key={g} className="w-2.5 h-2.5 rounded-full" style={{ background: colorOf(g) }} title={g} />)}
-              </div>
-              <div className="mt-4 pt-4 border-t border-zinc-50 dark:border-zinc-800 flex-1 flex items-end">
-                <Button variant="ghost" size="sm" icon="edit" onClick={() => { setEditing(t); setOpen(true) }} className="-ml-2">Abrir treino</Button>
-              </div>
-            </Card>
-          ))}
+            ))}
+          </Card>
+          <Pagination {...pg} />
         </div>
       )}
 
@@ -2273,6 +2301,7 @@ function PlanosTab() {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<GymPlano | null>(null)
   const [confirmDel, setConfirmDel] = useState<GymPlano | null>(null)
+  const [q, setQ] = useState('')
 
   const invalidate = () => qc.invalidateQueries({ queryKey: [{ url: '/gym/planos' }] })
   const remove = useMutation({
@@ -2281,14 +2310,30 @@ function PlanosTab() {
     onError: (e) => toast.error(getApiError(e)),
   })
 
+  const filtered = useMemo(
+    () => planos.filter((p) => p.name.toLowerCase().includes(q.toLowerCase())),
+    [planos, q],
+  )
+  const pg = usePagination(filtered, { resetKey: q, pageSize: 12 })
+
   if (open) {
     return <PlanoModal open onClose={() => setOpen(false)} plano={editing} catalog={catalog} templates={templates} onSaved={invalidate} />
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-zinc-500">{planos.length} plano{planos.length === 1 ? '' : 's'} de treino</p>
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+        <div className="relative flex-1 max-w-sm">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"><Icon name="search" className="w-[18px] h-[18px]" /></span>
+          <input
+            aria-label="Procurar plano"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Procurar plano…"
+            className="w-full bg-zinc-50 dark:bg-zinc-800/60 border border-transparent rounded-lg text-sm pl-10 pr-3 py-2 focus:bg-white dark:focus:bg-zinc-900 focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none text-zinc-800 dark:text-zinc-100"
+          />
+        </div>
+        <p className="text-sm text-zinc-500 sm:ml-auto">{filtered.length} plano{filtered.length === 1 ? '' : 's'} de treino</p>
         <Button icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo plano</Button>
       </div>
 
@@ -2296,50 +2341,57 @@ function PlanosTab() {
         <Card className="p-8 text-center text-zinc-400">A carregar…</Card>
       ) : planos.length === 0 ? (
         <EmptyState icon="folder" title="Sem planos" desc="Cria um plano (conjunto de treinos por dias da semana) e atribui-o a clientes." action={<Button icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo plano</Button>} />
+      ) : filtered.length === 0 ? (
+        <EmptyState icon="search" title="Sem resultados" desc="Não há planos que correspondam à pesquisa." />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {planos.map((p) => {
-            const livre = (p as any).mode === 'free'
-            return (
-              <Card key={p.id} className="p-5 group hover:shadow-md transition-all">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center shrink-0"><Icon name="calendar" className="w-5 h-5" /></span>
-                    <div className="min-w-0">
-                      <h3 className="font-semibold text-zinc-900 dark:text-white truncate">{p.name}</h3>
-                      <p className="text-[13px] text-zinc-500">{livre ? 'Dias livres' : 'Semana fixa'} · {p.workouts.length} treino{p.workouts.length === 1 ? '' : 's'}</p>
+        <div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {pg.pageItems.map((p) => {
+              const livre = (p as any).mode === 'free'
+              return (
+                <Card
+                  key={p.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => { setEditing(p); setOpen(true) }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { setEditing(p); setOpen(true) } }}
+                  className="p-3.5 group hover:shadow-md transition-all cursor-pointer"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="w-8 h-8 rounded-lg bg-accent/10 text-accent flex items-center justify-center shrink-0"><Icon name="calendar" className="w-4 h-4" /></span>
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-sm text-zinc-900 dark:text-white truncate" title={p.note || undefined}>{p.name}</h3>
+                        <p className="text-xs text-zinc-500 truncate">{livre ? 'Dias livres' : 'Semana fixa'} · {p.workouts.length} treino{p.workouts.length === 1 ? '' : 's'}{p.note ? ` · ${p.note}` : ''}</p>
+                      </div>
                     </div>
+                    <span onClick={(e) => e.stopPropagation()} className="shrink-0">
+                      <IconButton icon="trash" label="Eliminar" onClick={() => setConfirmDel(p)} className="hover:text-red-500 w-7 h-7" />
+                    </span>
                   </div>
-                  <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition shrink-0">
-                    <IconButton icon="trash" label="Eliminar" onClick={() => setConfirmDel(p)} className="hover:text-red-500" />
-                  </div>
-                </div>
-                {p.note && <p className="text-xs text-zinc-400 mt-2">{p.note}</p>}
-                <div className="flex flex-wrap gap-1 mt-4">
-                  {livre
-                    ? p.workouts.map((w, i) => (
-                        <div key={w.id} className="flex-1 min-w-[40px] rounded-lg px-1.5 py-2 text-center bg-accent/[0.07]" title={w.name}>
-                          <p className="text-[10px] font-semibold text-zinc-400 uppercase truncate">{(w as any).dayLabel || `Dia ${i + 1}`}</p>
-                          <Icon name="layers" className="w-3.5 h-3.5 text-accent mx-auto mt-1" />
-                        </div>
-                      ))
-                    : WEEK_DAYS.map((wd) => {
-                        const w = p.workouts.find((x) => (x.daysOfWeek ?? []).includes(wd.value))
-                        return (
-                          <div key={wd.value} className={`flex-1 min-w-[40px] rounded-lg px-1.5 py-2 text-center ${w ? 'bg-accent/[0.07]' : 'bg-zinc-50 dark:bg-zinc-800/40'}`} title={w ? w.name : 'Descanso'}>
-                            <p className="text-[10px] font-semibold text-zinc-400 uppercase">{wd.short}</p>
-                            {w ? <Icon name="layers" className="w-3.5 h-3.5 text-accent mx-auto mt-1" /> : <span className="block text-[10px] text-zinc-300 dark:text-zinc-600 mt-1">—</span>}
+                  <div className="flex flex-wrap gap-1 mt-2.5">
+                    {livre
+                      ? p.workouts.map((w, i) => (
+                          <div key={w.id} className="flex-1 min-w-[32px] rounded-md px-1 py-1 text-center bg-accent/[0.07]" title={w.name}>
+                            <p className="text-[9px] font-semibold text-zinc-400 uppercase truncate">{(w as any).dayLabel || `D${i + 1}`}</p>
+                            <Icon name="layers" className="w-3 h-3 text-accent mx-auto mt-0.5" />
                           </div>
-                        )
-                      })}
-                </div>
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-50 dark:border-zinc-800 text-[13px]">
-                  <span className="text-zinc-500">{p.workouts.length} treino{p.workouts.length === 1 ? '' : 's'}</span>
-                  <Button variant="ghost" size="sm" icon="edit" onClick={() => { setEditing(p); setOpen(true) }} className="-mr-2">Abrir</Button>
-                </div>
-              </Card>
-            )
-          })}
+                        ))
+                      : WEEK_DAYS.map((wd) => {
+                          const w = p.workouts.find((x) => (x.daysOfWeek ?? []).includes(wd.value))
+                          return (
+                            <div key={wd.value} className={`flex-1 min-w-[32px] rounded-md px-1 py-1 text-center ${w ? 'bg-accent/[0.07]' : 'bg-zinc-50 dark:bg-zinc-800/40'}`} title={w ? w.name : 'Descanso'}>
+                              <p className="text-[9px] font-semibold text-zinc-400 uppercase">{wd.short}</p>
+                              {w ? <Icon name="layers" className="w-3 h-3 text-accent mx-auto mt-0.5" /> : <span className="block text-[9px] text-zinc-300 dark:text-zinc-600 mt-0.5">—</span>}
+                            </div>
+                          )
+                        })}
+                  </div>
+                </Card>
+              )
+            })}
+          </div>
+          <Pagination {...pg} />
         </div>
       )}
 
@@ -2698,39 +2750,6 @@ function AtribuirPlanoModal({ open, customer, planos, onClose, onSaved }: {
   )
 }
 
-// Card de um cliente na lista: plano ativo (badge) + adesão.
-function ClienteCard({ customer, onOpen, onAssign }: { customer: Cliente; onOpen: () => void; onAssign: () => void }) {
-  const { data: programsData } = useGetGymPrograms({ customerId: customer.customerId }, { query: { enabled: !!customer.customerId } })
-  const active = ((programsData ?? []) as GymProgram[]).find((p) => (p as any).active)
-  const planoNome = active?.name ?? null
-  const { data: stats } = useGetGymClientsCustomeridStats(customer.customerId, { query: { enabled: !!planoNome } })
-  const adesao: number | null = (stats as any)?.adherence?.percent ?? null
-  return (
-    <Card className="p-5 group hover:shadow-md transition-all cursor-pointer" onClick={onOpen}>
-      <div className="flex items-center gap-3">
-        <Avatar name={customer.name} size={44} />
-        <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-zinc-900 dark:text-white truncate">{customer.name}</h3>
-          <p className="text-[13px] text-zinc-500">{planoNome ? 'Plano ativo' : 'Sem plano'}</p>
-        </div>
-        <Icon name="chevronRight" className="w-4 h-4 text-zinc-300 group-hover:text-accent" />
-      </div>
-      <div className="mt-4 flex items-center gap-2">
-        {planoNome ? <Badge tone="blue" dot>{planoNome}</Badge> : <Badge tone="amber" dot>Sem plano</Badge>}
-      </div>
-      {planoNome && adesao != null && (
-        <div className="mt-4 pt-4 border-t border-zinc-50 dark:border-zinc-800">
-          <div className="flex items-center justify-between text-[13px] mb-1.5"><span className="text-zinc-500">Adesão</span><span className="font-medium text-zinc-800 dark:text-zinc-100 tabular-nums">{adesao}%</span></div>
-          <div className="h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${adesao}%`, background: adesao >= 80 ? '#1F8A5B' : adesao >= 50 ? '#E6B450' : '#D97757' }} /></div>
-        </div>
-      )}
-      <div className="mt-3 flex justify-end" onClick={(e) => e.stopPropagation()}>
-        <Button variant="ghost" size="sm" icon="calendar" onClick={onAssign} className="-mr-2">{planoNome ? 'Mudar plano' : 'Atribuir plano'}</Button>
-      </div>
-    </Card>
-  )
-}
-
 // Detalhe do cliente: cabeçalho com ações + dashboard de progresso.
 function ClienteProgresso({ customer, onBack, onAtribuir, onEditar }: { customer: Cliente; onBack: () => void; onAtribuir: () => void; onEditar: () => void }) {
   const { data: programsData } = useGetGymPrograms({ customerId: customer.customerId }, { query: { enabled: !!customer.customerId } })
@@ -2791,12 +2810,27 @@ function ClientePlanoEditorLoader({ customer, onClose }: { customer: Cliente; on
   )
 }
 
+// Lista de clientes (T2.5 densidade, batch Ginásio §5/§6): antes cada
+// `ClienteCard` disparava 2 pedidos próprios (programas ativos + stats de
+// adesão) — com uma centena de clientes isso são ~200 pedidos só para
+// desenhar a lista. A linha densa mostra só o que é barato (avatar + nome,
+// já disponível de `useGetCustomers`); "Plano ativo"/adesão deixam de
+// aparecer na lista e passam a carregar só quando se abre o cliente
+// (`ClienteProgresso` já busca o programa ativo próprio, e `ProgressoTab` os
+// stats) — lista leve, detalhe pesado só on-demand.
 function ClientesTab({ customers }: { customers: Cliente[] }) {
   const [sel, setSel] = useState<Cliente | null>(null)
   const [atribuir, setAtribuir] = useState<Cliente | null>(null)
   const [editing, setEditing] = useState<Cliente | null>(null)
+  const [q, setQ] = useState('')
   const { data: planosData } = useGetGymPlanos()
   const planos = (planosData ?? []) as GymPlano[]
+
+  const filtered = useMemo(
+    () => customers.filter((c) => c.name.toLowerCase().includes(q.toLowerCase())),
+    [customers, q],
+  )
+  const pg = usePagination(filtered, { resetKey: q })
 
   // "Editar plano" → editor do programa ativo do cliente em ecrã cheio.
   if (editing) {
@@ -2813,15 +2847,45 @@ function ClientesTab({ customers }: { customers: Cliente[] }) {
   }
 
   return (
-    <div>
-      <p className="text-sm text-zinc-500 mb-4">{customers.length} cliente{customers.length === 1 ? '' : 's'}</p>
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+        <div className="relative flex-1 max-w-sm">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"><Icon name="search" className="w-[18px] h-[18px]" /></span>
+          <input
+            aria-label="Procurar cliente"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Procurar cliente…"
+            className="w-full bg-zinc-50 dark:bg-zinc-800/60 border border-transparent rounded-lg text-sm pl-10 pr-3 py-2 focus:bg-white dark:focus:bg-zinc-900 focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none text-zinc-800 dark:text-zinc-100"
+          />
+        </div>
+        <p className="text-sm text-zinc-500 sm:ml-auto">{filtered.length} cliente{filtered.length === 1 ? '' : 's'}</p>
+      </div>
+
       {customers.length === 0 ? (
         <EmptyState icon="user" title="Sem clientes" desc="Os clientes aparecem aqui para lhes atribuíres planos e veres o progresso." />
+      ) : filtered.length === 0 ? (
+        <EmptyState icon="search" title="Sem resultados" desc="Não há clientes que correspondam à pesquisa." />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {customers.map((c) => (
-            <ClienteCard key={c.customerId} customer={c} onOpen={() => setSel(c)} onAssign={() => setAtribuir(c)} />
-          ))}
+        <div>
+          <Card className="overflow-hidden divide-y divide-zinc-50 dark:divide-zinc-800/50">
+            {pg.pageItems.map((c) => (
+              <div
+                key={c.customerId}
+                role="button"
+                tabIndex={0}
+                onClick={() => setSel(c)}
+                onKeyDown={(e) => { if (e.key === 'Enter') setSel(c) }}
+                className="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 cursor-pointer"
+              >
+                <Avatar name={c.name} size={36} />
+                <p className="font-medium text-zinc-900 dark:text-white truncate flex-1 min-w-0">{c.name}</p>
+                <Button variant="ghost" size="sm" icon="calendar" onClick={(e?: any) => { e?.stopPropagation(); setAtribuir(c) }}>Atribuir plano</Button>
+                <Icon name="chevronRight" className="w-4 h-4 text-zinc-300 shrink-0" />
+              </div>
+            ))}
+          </Card>
+          <Pagination {...pg} />
         </div>
       )}
       <AtribuirPlanoModal open={!!atribuir} customer={atribuir} planos={planos} onClose={() => setAtribuir(null)} onSaved={() => {}} />

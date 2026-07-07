@@ -6,7 +6,7 @@ test.describe("Ginásio — Navegação", () => {
     const p = new GinasioPage(page);
     await p.goto();
     await expect(p.header()).toBeVisible();
-    for (const label of ["Exercícios", "Treinos", "Planos", "Progresso de clientes"]) {
+    for (const label of ["Exercícios", "Dia de Treino", "Planos", "Progresso de clientes"]) {
       await expect(p.tab(label)).toBeVisible();
     }
   });
@@ -14,7 +14,7 @@ test.describe("Ginásio — Navegação", () => {
   test("alternar entre subitens mantém a página estável", async ({ page }) => {
     const p = new GinasioPage(page);
     await p.goto();
-    for (const label of ["Treinos", "Planos", "Progresso de clientes", "Exercícios"]) {
+    for (const label of ["Dia de Treino", "Planos", "Progresso de clientes", "Exercícios"]) {
       await p.goToTab(label);
       await expect(p.header()).toBeVisible();
     }

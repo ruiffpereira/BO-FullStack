@@ -13,14 +13,15 @@ export class GinasioPage {
   }
 
   /**
-   * Subitens da sidebar (T2.5): Exercícios · Treinos · Planos · Progresso de
-   * clientes — botões do submenu, não `role="tab"`. O último NÃO se chama
-   * "Clientes" de propósito (evita colidir com o item core `/clientes` da
-   * sidebar quando o grupo Ginásio está expandido — ver `src/lib/navigation.ts`).
+   * Subitens da sidebar (T2.5): Exercícios · Dia de Treino · Planos ·
+   * Progresso de clientes — botões do submenu, não `role="tab"`. O último NÃO
+   * se chama "Clientes" de propósito (evita colidir com o item core
+   * `/clientes` da sidebar quando o grupo Ginásio está expandido — ver
+   * `src/lib/navigation.ts`).
    */
   private static PATH_BY_LABEL: Record<string, string> = {
     Exercícios: "/ginasio",
-    Treinos: "/ginasio/treinos",
+    "Dia de Treino": "/ginasio/treinos",
     Planos: "/ginasio/planos",
     "Progresso de clientes": "/ginasio/clientes",
   };

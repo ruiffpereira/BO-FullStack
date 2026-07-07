@@ -87,7 +87,7 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     // adesão/progresso de cada cliente — não uma lista de clientes por si só
     // — daí "Progresso de clientes", mais preciso e sem ambiguidade.
     { id: "exercicios", label: "Exercícios", path: "/ginasio" },
-    { id: "treinos", label: "Treinos", path: "/ginasio/treinos" },
+    { id: "treinos", label: "Dia de Treino", path: "/ginasio/treinos" },
     { id: "planos", label: "Planos", path: "/ginasio/planos" },
     { id: "clientes", label: "Progresso de clientes", path: "/ginasio/clientes" },
   ],

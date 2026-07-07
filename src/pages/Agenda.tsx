@@ -2467,7 +2467,7 @@ function ServicosPanel() {
             </Button>
             <GuardButton
               onClick={handleSave}
-              disabled={create.isPending || update.isPending}
+              disabled={create.isPending || update.isPending || !form.name.trim()}
             >
               {create.isPending || update.isPending ? "A guardar…" : "Guardar"}
             </GuardButton>

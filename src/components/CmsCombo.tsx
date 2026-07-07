@@ -157,6 +157,12 @@ export function CmsCombo({
             placeholder={placeholder}
             className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400"
           />
+          {!open && showCreate && (
+            <p className="mt-1.5 flex items-center gap-1.5 text-xs text-accent">
+              <Icon name="plus" className="w-3.5 h-3.5 shrink-0" />
+              <span>Nova tradução — será criada ao guardar</span>
+            </p>
+          )}
           {menuOpen && createPortal(
             <div
               ref={menuRef}

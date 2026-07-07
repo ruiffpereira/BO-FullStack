@@ -138,6 +138,26 @@ type SetRowDraft = { reps: string; weight: string; rest: string; drop: boolean; 
 type PresetDraft = { id: string; name: string; contentKey: string | null; type: 'strength' | 'time'; mode: 'uniform' | 'perSet'; sets: string; reps: string; weight: string; rest: string; duration: string; notes: string; setRows: SetRowDraft[] }
 const emptyPreset = (): PresetDraft => ({ id: newUid(), name: '', contentKey: null, type: 'strength', mode: 'uniform', sets: '', reps: '', weight: '', rest: '', duration: '', notes: '', setRows: [] })
 
+// Mínimo para um preset poder ser guardado: nome + trabalho real prescrito —
+// duração>0 (tempo) ou séries+reps (força, uniform ou série-a-série). Evita
+// criar/guardar um exercício com presets "vazios" (só o nome, sem prescrição).
+function presetIsComplete(p: PresetDraft): boolean {
+  if (!p.name.trim()) return false
+  if (p.type === 'time') {
+    const d = parseFloat(p.duration)
+    return p.duration.trim() !== '' && !Number.isNaN(d) && d > 0
+  }
+  if (p.mode === 'perSet') {
+    // Cada série tem de ter reps — numa composta (dropset), as reps reais vivem
+    // no 1.º passo (`steps`), não no campo `reps` da linha (que fica obsoleto
+    // assim que a série passa a composta).
+    return p.setRows.length > 0 && p.setRows.every((r) =>
+      r.drop ? r.steps.length > 0 && r.steps.every((s) => s.reps.trim() !== '') : r.reps.trim() !== '',
+    )
+  }
+  return p.sets.trim() !== '' && p.reps.trim() !== ''
+}
+
 // ── Conversões série-a-série (draft ⇄ API) ─────────────────────────────────────
 const numOr0 = (v: string) => (v === '' ? 0 : Number(v))
 const emptySetRow = (seed?: { reps?: string; weight?: string; rest?: string }): SetRowDraft => ({
@@ -561,6 +581,11 @@ function CatalogoTab() {
     const f = presetEdit.form
     return presets.some((x) => x.id === f.id) ? presets.map((x) => (x.id === f.id ? f : x)) : [...presets, f]
   }
+  // Payload que seria mesmo enviado ao guardar (presets nomeados, incl. o
+  // rascunho aberto) — gate mínimo do botão principal: nome + grupo + ≥1
+  // preset e TODOS completos (reps+séries ou duração, consoante tipo/modo).
+  const payloadPresets = presetsWithOpenDraft().filter((p) => p.name.trim())
+  const canCreate = !!name.trim() && !!groupId && payloadPresets.length > 0 && payloadPresets.every(presetIsComplete)
 
   const subs = groups.filter((g) => g.parentId === groupId)
 
@@ -583,12 +608,19 @@ function CatalogoTab() {
 
   const startCreate = () => {
     setEditing(null); setName(''); setContentKey(null); setGroupId(''); setSubGroupId('')
-    setPresets([]); setPresetEdit(null); setOpen(true)
+    // Abre já com um rascunho de preset vazio (em vez de null) — ao criar um
+    // exercício de raiz o utilizador vai precisar de pelo menos um preset de
+    // qualquer forma, por isso o form já vem pronto a preencher.
+    setPresets([]); setPresetEdit({ form: emptyPreset(), isNew: true }); setOpen(true)
   }
   const startEdit = (e: GymExercise) => {
     // Fallback p/ legados sem id: resolve pelo nome guardado.
     const gid = (e as any).muscleGroupId ?? topGroups.find((g) => g.name === e.muscleGroup)?.muscleGroupId ?? ''
     setEditing(e); setName(e.name); setContentKey((e as any).contentKey ?? null); setGroupId(gid); setSubGroupId((e as any).subGroupId ?? '')
+    // Limpa qualquer rascunho de preset que tenha ficado aberto (ex: de um
+    // "Novo exercício" cancelado sem fechar o form) — editar carrega sempre os
+    // presets reais da API, nunca deve herdar um rascunho de outra sessão do modal.
+    setPresetEdit(null)
     // Presets vindos da API; se vazios, semeia um a partir dos default* legados.
     const fromApi = (e.presets ?? []).map(toPresetDraft)
     const hasLegacy = e.defaultSets != null || e.defaultReps != null || e.defaultRest != null || e.defaultWeight != null
@@ -743,7 +775,7 @@ function CatalogoTab() {
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button
               isLoading={save.isPending}
-              disabled={!name.trim() || !groupId || (presets.filter((p) => p.name.trim()).length === 0 && !(presetEdit && presetEdit.form.name.trim()))}
+              disabled={!canCreate}
               onClick={() => {
                 // Comita primeiro o rascunho de preset aberto (se válido) para o
                 // array, e só depois guarda — um único clique cobre os dois passos.
@@ -790,18 +822,20 @@ function CatalogoTab() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-medium text-zinc-500">Presets ({presets.length})</span>
-              <Button
-                size="sm" variant="ghost" icon="plus"
-                onClick={() => {
-                  // Se já há um rascunho válido aberto, comita-o antes de abrir um
-                  // novo — assim dá para encadear vários presets sem um botão
-                  // "Guardar preset" à parte.
-                  if (presetEdit && presetEdit.form.name.trim()) savePresetEdit()
-                  setPresetEdit({ form: emptyPreset(), isNew: true })
-                }}
-              >
-                Adicionar preset
-              </Button>
+              {(!presetEdit || presetEdit.form.name.trim()) && (
+                <Button
+                  size="sm" variant="ghost" icon="plus"
+                  onClick={() => {
+                    // Se já há um rascunho válido aberto, comita-o antes de abrir um
+                    // novo — assim dá para encadear vários presets sem um botão
+                    // "Guardar preset" à parte.
+                    if (presetEdit && presetEdit.form.name.trim()) savePresetEdit()
+                    setPresetEdit({ form: emptyPreset(), isNew: true })
+                  }}
+                >
+                  Adicionar preset
+                </Button>
+              )}
             </div>
             {presets.length === 0 && !presetEdit ? (
               <p className="text-xs text-amber-600 dark:text-amber-500 border border-dashed border-amber-300 dark:border-amber-500/40 rounded-lg p-3 text-center">É obrigatório pelo menos um preset (ex: “Iniciante”, “Avançado”). Presets de “tempo” servem para pranchas/mobilidade.</p>

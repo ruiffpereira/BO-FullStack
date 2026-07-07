@@ -16,6 +16,7 @@ import {
 import { pt } from "date-fns/locale";
 import { toast } from "sonner";
 import { getApiError } from "../lib/apiError";
+import { apptDebt, apptStatusView } from "../lib/apptStatus";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { Icon } from "../ui/icons.jsx";
@@ -83,7 +84,6 @@ import type { Customer } from "../gen/backoffice/types/Customer.js";
 import {
   ApptModal,
   colorForService,
-  STATUS_LABELS,
 } from "../components/ApptModal.js";
 import { Combobox } from "../components/Combobox";
 import { CalendarSubscribeCard } from "../components/CalendarSubscribeCard";
@@ -303,19 +303,6 @@ type CustomerHistory = {
   appointments: HistoryAppt[];
 };
 
-const STATUS_PT: Record<string, string> = {
-  pending: "Pendente",
-  confirmed: "Confirmada",
-  completed: "Concluída",
-  cancelled: "Cancelada",
-};
-const STATUS_TONE: Record<string, string> = {
-  pending: "amber",
-  confirmed: "green",
-  completed: "green",
-  cancelled: "red",
-};
-
 function CustomerProfileModal({
   customerId,
   customers,
@@ -511,14 +498,19 @@ function CustomerProfileModal({
                           Number(a.paymentMbway || 0) +
                           Number(a.paymentCard || 0)
                         : null;
+                      const view = apptStatusView(a);
                       return (
                         <button
                           key={a.appointmentId}
                           onClick={() =>
                             onOpenAppointment(a as unknown as Appointment)
                           }
-                          className="w-full flex items-center gap-3 p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/40 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition text-left"
+                          className="w-full flex items-center gap-3 p-2.5 pl-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/40 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition text-left"
                         >
+                          <span
+                            className={`w-1 self-stretch rounded-full shrink-0 ${view.barClass}`}
+                            aria-hidden="true"
+                          />
                           <div className="min-w-0 flex-1">
                             <p className="font-medium text-zinc-800 dark:text-zinc-100">
                               {a.date} · {a.time}
@@ -528,11 +520,7 @@ function CustomerProfileModal({
                             </p>
                           </div>
                           <div className="text-right shrink-0">
-                            <Badge
-                              tone={(STATUS_TONE[a.status] as any) ?? "zinc"}
-                            >
-                              {STATUS_PT[a.status] ?? a.status}
-                            </Badge>
+                            <Badge tone={view.tone}>{view.label}</Badge>
                             {paid != null && (
                               <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
                                 {paid.toFixed(2)} €
@@ -2761,12 +2749,10 @@ function MarcacoesPanel() {
             <tbody>
               {filtered.map((a) => {
                 const svc = services.find((s) => s.serviceId === a.serviceId);
-                const status = (a.status ??
-                  "pending") as keyof typeof STATUS_LABELS;
                 const isPaid = !!a.paidAt;
-                const apptTotalPaid = Number(a.paymentCash ?? 0) + Number(a.paymentMbway ?? 0) + Number(a.paymentCard ?? 0);
-                const apptDebt = Math.max(0, Number(a.servicePrice ?? 0) - apptTotalPaid);
-                const apptHasDebt = a.status === "completed" && apptDebt > 0;
+                const debt = apptDebt(a);
+                const apptHasDebt = debt > 0;
+                const view = apptStatusView(a);
                 const color = colorForService(a.serviceId, services);
                 return (
                   <tr
@@ -2798,22 +2784,12 @@ function MarcacoesPanel() {
                       {svc?.name ?? "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <Badge
-                        tone={
-                          status === "confirmed" || status === "completed"
-                            ? "green"
-                            : status === "cancelled"
-                              ? "red"
-                              : "amber"
-                        }
-                      >
-                        {STATUS_LABELS[status]}
-                      </Badge>
+                      <Badge tone={view.tone}>{view.statusLabel}</Badge>
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
                       {apptHasDebt ? (
                         <span className="flex items-center gap-1 text-xs font-semibold text-red-600 dark:text-red-400">
-                          <Icon name="euro" className="w-3 h-3" /> Dívida {apptDebt.toFixed(2)} €
+                          <Icon name="euro" className="w-3 h-3" /> Dívida {debt.toFixed(2)} €
                         </span>
                       ) : isPaid ? (
                         <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">

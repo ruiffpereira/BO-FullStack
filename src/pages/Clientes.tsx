@@ -22,6 +22,7 @@ import { ClienteMensalidade } from './GymMensalidade'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { LeadsInbox } from './clientes/LeadsInbox'
 import { axiosInstance } from '@kubb/plugin-client/clients/axios'
+import { apptStatusView } from '../lib/apptStatus'
 
 function colorFromName(name: string) {
   const colors = ['#2A6FDB', '#1F8A5B', '#D97757', '#7C5CDB', '#E6B450', '#0EA5A4']
@@ -58,9 +59,6 @@ type CustomerHistory = {
   stats: { visitCount: number; totalSpent: number; lastVisit: string | null; favoriteServiceId: string | null }
   appointments: HistoryAppt[]
 }
-
-const STATUS_PT: Record<string, string> = { pending: 'Pendente', confirmed: 'Confirmada', completed: 'Concluída', cancelled: 'Cancelada' }
-const STATUS_TONE: Record<string, string> = { pending: 'amber', confirmed: 'green', completed: 'green', cancelled: 'red' }
 
 export type ClientesView = 'clientes' | 'leads'
 
@@ -456,19 +454,20 @@ export function Clientes({ view }: { view: ClientesView }) {
                       {history.appointments.map((a) => {
                         const totalPaid = Number(a.paymentCash || 0) + Number(a.paymentMbway || 0) + Number(a.paymentCard || 0)
                         const paid = a.paidAt ? totalPaid : null
-                        const debt = a.status === 'completed' ? Math.max(0, Number(a.servicePrice ?? a.service?.price ?? 0) - totalPaid) : 0
+                        const view = apptStatusView(a)
                         return (
                           <button
                             key={a.appointmentId}
                             onClick={() => setSelAppt(a)}
-                            className="w-full flex items-center gap-3 p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/40 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition text-left"
+                            className="w-full flex items-center gap-3 p-2.5 pl-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/40 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition text-left"
                           >
+                            <span className={`w-1 self-stretch rounded-full shrink-0 ${view.barClass}`} aria-hidden="true" />
                             <div className="min-w-0 flex-1">
                               <p className="font-medium text-zinc-800 dark:text-zinc-100">{a.date} · {a.time}</p>
                               <p className="text-xs text-zinc-400 truncate">{a.service?.name ?? '—'}</p>
                             </div>
                             <div className="text-right shrink-0">
-                              <Badge tone={debt > 0 ? 'red' : STATUS_TONE[a.status] as any ?? 'zinc'}>{debt > 0 ? `Dívida ${debt.toFixed(2)} €` : STATUS_PT[a.status] ?? a.status}</Badge>
+                              <Badge tone={view.tone}>{view.label}</Badge>
                               {paid != null && paid > 0 && <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">{paid.toFixed(2)} €</p>}
                             </div>
                           </button>

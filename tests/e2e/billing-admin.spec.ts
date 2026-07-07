@@ -55,7 +55,8 @@ async function openAdminBilling(page: import("@playwright/test").Page) {
   });
   const admin = new AdminPage(page);
   await admin.goto();
-  await expect(page.getByRole("heading", { name: "Admin", level: 1 })).toBeVisible();
+  // Título só existe no topbar (h2, Shell.tsx) — a página já não tem h1 próprio.
+  await expect(page.getByRole("heading", { name: "Admin", level: 2 })).toBeVisible();
   // Faturação vive na sua própria rota (/admin/faturacao) — submenu da sidebar
   // (role=button), já não role="tab".
   await admin.goToTab("Faturação");

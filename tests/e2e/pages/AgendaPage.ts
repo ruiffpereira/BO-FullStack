@@ -9,7 +9,10 @@ export class AgendaPage {
   }
 
   header() {
-    return this.page.getByRole("heading", { name: "Agenda", level: 1 });
+    // Título vive agora no topbar (Shell.tsx, h2) — "Agenda" continua a bater
+    // (substring match, exact:false por omissão) mesmo em subpaths, onde o
+    // topbar compõe "Agenda · Marcações" etc.
+    return this.page.getByRole("heading", { name: "Agenda", level: 2 });
   }
 
   /** Subitens da sidebar (T2.7): Calendário (âncora, `/agenda`) · Marcações · Serviços · Configurações — botões do submenu, não mais role="tab". */

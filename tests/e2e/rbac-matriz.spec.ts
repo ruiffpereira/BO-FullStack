@@ -203,7 +203,8 @@ test.describe("RBAC matriz — noaccess@e2e (sem componentes)", () => {
     await loginAs(context, "noaccess@e2e");
     await page.goto("/clientes");
     await expect(page).toHaveURL(/\/clientes/, { timeout: 15_000 });
-    await expect(page.getByRole("heading", { name: "Clientes", level: 1 })).toBeVisible({ timeout: 10_000 });
+    // Título só existe no topbar (h2, Shell.tsx) — a página já não tem h1 próprio.
+    await expect(page.getByRole("heading", { name: "Clientes", level: 2 })).toBeVisible({ timeout: 10_000 });
   });
 
   test("/website é core: acessível sem redirect mesmo sem qualquer permissão", async ({ page, context }) => {

@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Icon } from '../ui/icons.jsx'
 import { IconButton, Avatar } from '../ui/ui.jsx'
 import { useAuth } from '../context/AuthContext'
+import { PageMetaProvider, usePageMeta } from '../context/PageMetaContext'
 import { NotificationBell } from './NotificationBell'
 import { ChatLauncher } from './chat/ChatLauncher'
 import { ChatFab } from './chat/ChatFab'
@@ -583,6 +584,7 @@ function Topbar({ theme, onToggleTheme, onMenu, onCollapse, onLogout }: {
 }) {
   const location = useLocation()
   const title = resolveTopbarTitle(location.pathname)
+  const { subtitle } = usePageMeta()
 
   return (
     <header className="h-16 shrink-0 border-b border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur sticky top-0 z-30 flex items-center gap-3 px-4 sm:px-6">
@@ -597,8 +599,15 @@ function Topbar({ theme, onToggleTheme, onMenu, onCollapse, onLogout }: {
         </span>
       </button>
 
-      <div className="hidden sm:block">
-        <h2 className="text-[15px] font-semibold text-zinc-900 dark:text-white capitalize">{title}</h2>
+      {/* Título (path-based, "Pai · Subitem") + subtítulo da página ativa
+          (`usePageSubtitle`, PageMetaContext) — duas linhas apertadas
+          (`leading-tight`) que cabem folgadamente na barra `h-16`. Visível em
+          TODOS os tamanhos (incl. mobile, onde antes só havia o hambúrguer +
+          ícones); `min-w-0` + `truncate` garantem que um título/subtítulo
+          longo trunca em vez de empurrar os ícones da direita. */}
+      <div className="min-w-0 flex-1 mr-2">
+        <h2 className="text-[15px] font-semibold text-zinc-900 dark:text-white truncate leading-tight">{title}</h2>
+        {subtitle && <p className="text-xs text-zinc-500 truncate leading-tight">{subtitle}</p>}
       </div>
 
       <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
@@ -718,6 +727,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   const fullBleed = location.pathname === "/mensagens";
 
   return (
+    <PageMetaProvider>
     <div className="flex bg-zinc-50 dark:bg-zinc-950 overflow-hidden" style={{ height: 'var(--app-h, 100%)' }}>
       <SwRegistrar />
       <aside className={`hidden lg:flex flex-col shrink-0 border-r border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-[width] duration-200 ${collapsed ? 'w-[72px]' : 'w-64'}`}>
@@ -767,5 +777,6 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
       {/* Botão flutuante de mensagens (some na própria página /mensagens) */}
       <ChatFab />
     </div>
+    </PageMetaProvider>
   )
 }

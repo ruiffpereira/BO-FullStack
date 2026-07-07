@@ -1,5 +1,6 @@
-import { PageHeader, Avatar } from "../ui/ui.jsx";
+import { Avatar } from "../ui/ui.jsx";
 import { useAuth } from "../context/AuthContext";
+import { usePageSubtitle } from "../context/PageMetaContext";
 import { MensagensTab } from "../components/chat/MensagensTab";
 import { ChatConversationView } from "../components/chat/ChatConversationView";
 
@@ -34,16 +35,10 @@ function TenantSupport() {
 export function Mensagens() {
   const { permissions } = useAuth();
   const isAdmin = permissions.some((p) => p.name === "VIEW_ADMIN");
+  usePageSubtitle(isAdmin ? "Conversas com os teus clientes" : "Fala com o suporte");
 
   return (
     <div className="h-full sm:h-auto flex flex-col">
-      {/* Título da página só no desktop — no mobile o chat é imersivo (full-bleed). */}
-      <div className="hidden sm:block">
-        <PageHeader
-          title="Mensagens"
-          subtitle={isAdmin ? "Conversas com os teus clientes" : "Fala com o suporte"}
-        />
-      </div>
       {isAdmin ? <MensagensTab /> : <TenantSupport />}
     </div>
   );

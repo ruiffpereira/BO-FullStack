@@ -51,8 +51,9 @@ async function openWith(page: import("@playwright/test").Page, state: Partial<Bi
     }),
   );
   await page.goto("/faturacao");
-  // h1 do PageHeader (o topbar também tem um h2 "Faturação" → level:1 desambigua).
-  await expect(page.getByRole("heading", { name: "Faturação", level: 1 })).toBeVisible();
+  // Título só existe no topbar (h2, Shell.tsx) — o PageHeader da página já não
+  // renderiza h1 (título+subtítulo moveram-se para o topbar).
+  await expect(page.getByRole("heading", { name: "Faturação", level: 2 })).toBeVisible();
 }
 
 test("aparece na sidebar como item core", async ({ page }) => {

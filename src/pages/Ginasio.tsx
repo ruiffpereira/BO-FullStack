@@ -19,7 +19,8 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
-import { Card, Button, IconButton, Badge, Input, Modal, PageHeader, EmptyState, Avatar, BADGE_TONES } from '../ui/ui.jsx'
+import { Card, Button, IconButton, Badge, Input, Modal, EmptyState, Avatar, BADGE_TONES } from '../ui/ui.jsx'
+import { usePageSubtitle } from '../context/PageMetaContext'
 import { usePagination, Pagination } from '../components/Pagination'
 import { LineChart, DonutChart } from '../ui/charts.jsx'
 import { useGetCustomers } from '../gen/backoffice/hooks/useGetCustomers.js'
@@ -2991,12 +2992,11 @@ function MensalidadesTab() {
 export function Ginasio({ view }: { view: GinasioView }) {
   const { data: custData } = useGetCustomers()
   const customers = (custData?.rows ?? []) as { customerId: string; name: string }[]
+  usePageSubtitle('Exercícios, treinos, planos e progresso dos clientes.')
 
   return (
     <GymGroupsProvider>
     <div className="space-y-6">
-      <PageHeader title="Ginásio" subtitle="Exercícios, treinos, planos e progresso dos clientes." />
-
       {view === 'catalogo' && <CatalogoTab />}
       {view === 'treinos' && <TreinosTab />}
       {view === 'planos' && <PlanosTab />}

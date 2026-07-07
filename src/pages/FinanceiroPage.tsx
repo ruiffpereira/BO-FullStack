@@ -4,6 +4,7 @@ import { pt } from 'date-fns/locale'
 import { useAuth } from '../context/AuthContext'
 import { Icon } from '../ui/icons.jsx'
 import { PageHeader } from '../ui/ui.jsx'
+import { usePageSubtitle } from '../context/PageMetaContext'
 import { DateRangePicker, type DateRange } from '../components/DateRangePicker'
 import { VatToggle } from '../components/financeiro/kit'
 import type { DashboardPeriod } from '../hooks/useDashboard'
@@ -56,11 +57,16 @@ export function FinanceiroPage({ view }: { view: FinanceiroView }) {
   const customEnd = range?.to ? format(range.to, 'yyyy-MM-dd') : ''
 
   const isVertical = VERTICALS.includes(tab)
+  // `null` quando a tab ativa não é uma das verticais (despesas/ginásio) — a
+  // tab Despesas define o SEU PRÓPRIO subtítulo (mês); `null` aqui não o
+  // apaga (ver comentário em `usePageSubtitle`, PageMetaContext) porque só
+  // "não faz nada" em vez de forçar o valor partilhado a vazio.
+  usePageSubtitle(isVertical ? `Resumo do negócio${username ? `, ${username}` : ''}.` : null)
 
   return (
     <div className="space-y-4">
       {isVertical && (
-        <PageHeader title="Financeiro" subtitle={`Resumo do negócio${username ? `, ${username}` : ''}.`}>
+        <PageHeader>
           <div className="flex flex-wrap items-center gap-2">
             {/* IVA só afeta Agenda/Loja (decompõem por item); O Negócio agrega recebido. */}
             {(tab === 'agenda' || tab === 'loja') && <VatToggle value={iva} onChange={setIva} />}

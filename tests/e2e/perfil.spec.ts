@@ -25,7 +25,8 @@ test.describe("Perfil — menu do avatar", () => {
 
     await page.getByRole("menuitem", { name: "O meu perfil" }).click();
     await expect(page).toHaveURL(/\/perfil/);
-    await expect(page.getByRole("heading", { name: "Perfil", level: 1 })).toBeVisible({
+    // Título só existe no topbar (h2, Shell.tsx) — a página já não tem h1 próprio.
+    await expect(page.getByRole("heading", { name: "Perfil", level: 2 })).toBeVisible({
       timeout: 10_000,
     });
   });

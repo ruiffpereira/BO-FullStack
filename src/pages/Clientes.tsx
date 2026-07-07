@@ -5,7 +5,8 @@ import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
-import { Card, Badge, Avatar, Modal, Input, Button, IconButton, PageHeader, EmptyState, Tabs, Toggle } from '../ui/ui.jsx'
+import { Card, Badge, Avatar, Modal, Input, Button, IconButton, EmptyState, Tabs, Toggle } from '../ui/ui.jsx'
+import { usePageSubtitle } from '../context/PageMetaContext'
 import { GuardButton } from '../components/GuardButton'
 import { usePagination, Pagination } from '../components/Pagination'
 import { DatePicker } from '../components/DatePicker'
@@ -104,6 +105,7 @@ export function Clientes({ view }: { view: ClientesView }) {
   )
   const services = svcData ?? []
   const customers = data?.rows ?? []
+  usePageSubtitle(`${data?.count ?? customers.length} clientes registados.`)
 
   useEffect(() => {
     const customerId = searchParams.get('cliente')
@@ -255,8 +257,6 @@ export function Clientes({ view }: { view: ClientesView }) {
 
   return (
     <div>
-      <PageHeader title="Clientes" subtitle={`${data?.count ?? customers.length} clientes registados.`} />
-
       {view === 'leads' && <LeadsInbox />}
 
       {view === 'clientes' && (

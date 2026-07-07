@@ -9,7 +9,8 @@ export class GinasioPage {
   }
 
   header() {
-    return this.page.getByRole("heading", { name: "Ginásio", level: 1 });
+    // Título vive agora no topbar (Shell.tsx, h2).
+    return this.page.getByRole("heading", { name: "Ginásio", level: 2 });
   }
 
   /**

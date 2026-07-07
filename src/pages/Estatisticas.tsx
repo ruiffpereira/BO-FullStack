@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Card, PageHeader, EmptyState, Input, Button } from '../ui/ui.jsx'
 import { Icon } from '../ui/icons.jsx'
+import { usePageSubtitle } from '../context/PageMetaContext'
 import { LineChart } from '../ui/charts.jsx'
 import { KpiCard } from '../components/financeiro/kit'
 import {
@@ -114,6 +115,10 @@ function DomainForm({ initial = '' }: { initial?: string }) {
 export function Estatisticas() {
   const [period, setPeriod] = useState<AnalyticsPeriod>('month')
   const { data, isLoading } = useSiteAnalytics(period)
+  // Mesmo texto nos 3 estados (configurado/no-domain/no-plausible) exceto
+  // quando já há domínio guardado — chamado uma única vez, antes de qualquer
+  // "return" condicional (regra dos hooks).
+  usePageSubtitle(data?.domain ? `Tráfego de ${data.domain}.` : 'Tráfego do teu site público.')
 
   const agg = data?.aggregate
   const series = useMemo(() => {
@@ -129,7 +134,6 @@ export function Estatisticas() {
     if (data.reason === 'no-domain') {
       return (
         <div className="space-y-4">
-          <PageHeader title="Estatísticas" subtitle="Tráfego do teu site público." />
           <DomainForm />
         </div>
       )
@@ -137,7 +141,6 @@ export function Estatisticas() {
     // no-plausible (ou outro): a plataforma ainda não ligou o Plausible.
     return (
       <div className="space-y-4">
-        <PageHeader title="Estatísticas" subtitle="Tráfego do teu site público." />
         <Card className="p-2">
           <EmptyState
             icon="trend"
@@ -154,10 +157,7 @@ export function Estatisticas() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title="Estatísticas"
-        subtitle={data?.domain ? `Tráfego de ${data.domain}.` : 'Tráfego do teu site público.'}
-      >
+      <PageHeader>
         <div className="inline-flex flex-wrap items-center rounded-lg border border-zinc-200 dark:border-zinc-700 p-0.5 bg-white dark:bg-zinc-900">
           {PRESETS.map((p) => (
             <button

@@ -46,7 +46,9 @@ test.describe("Financeiro", () => {
     const nav = page.locator("nav").first();
     await nav.getByRole("button", { name: "Despesas", exact: true }).click();
     await page.waitForURL("**/financeiro/despesas", { timeout: 15_000 });
-    await expect(page.getByRole("heading", { name: "Despesas", level: 1 })).toBeVisible({ timeout: 10_000 });
+    // Título só existe no topbar (h2, Shell.tsx): compõe "Financeiro · Despesas"
+    // num subpath — "Despesas" continua a bater por substring (exact:false).
+    await expect(page.getByRole("heading", { name: "Despesas", level: 2 })).toBeVisible({ timeout: 10_000 });
   });
 
   test("deep-link antigo /financeiro?vista=ginasio redireciona para /financeiro/ginasio", async ({ page }) => {

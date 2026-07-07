@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Card, Button, Input, Tabs, PageHeader, SectionTitle } from "../ui/ui.jsx";
+import { Card, Button, Input, Tabs, SectionTitle } from "../ui/ui.jsx";
 import { Icon } from "../ui/icons.jsx";
 import { useAuth } from "../context/AuthContext";
+import { usePageSubtitle } from "../context/PageMetaContext";
 import { GuardButton } from "../components/GuardButton";
 import { FileUpload } from "../components/FileUpload";
 import { getApiError } from "../lib/apiError";
@@ -34,11 +35,10 @@ const THEME_TABS: { id: UiThemeChoice; label: string; icon: string }[] = [
  */
 export function Perfil() {
   const { data, isLoading, isError } = useGetUsersMe();
+  usePageSubtitle("Os teus dados, password e preferências.");
 
   return (
     <div className="max-w-2xl space-y-5">
-      <PageHeader title="Perfil" subtitle="Os teus dados, password e preferências." />
-
       {isLoading && (
         <Card className="p-5 space-y-3">
           <div className="h-5 w-40 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />

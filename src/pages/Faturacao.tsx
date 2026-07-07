@@ -1,6 +1,7 @@
 import { toast } from 'sonner'
 import { Card, PageHeader, EmptyState, Button, Badge, SectionTitle } from '../ui/ui.jsx'
 import { Icon } from '../ui/icons.jsx'
+import { usePageSubtitle } from '../context/PageMetaContext'
 import { getApiError } from '../lib/apiError'
 import { useGetBillingSubscription } from '../gen/backoffice/hooks/useGetBillingSubscription'
 import { usePostBillingPortal } from '../gen/backoffice/hooks/usePostBillingPortal'
@@ -147,10 +148,11 @@ export function Faturacao() {
   // (Stripe-backed: trialing com cartão, incomplete, grace, past_due_locked,
   // active) o caminho certo é sempre o Billing Portal.
   const canSelfServeSubscribe = !!data && (!data.hasStripeSubscription || data.status === 'canceled')
+  usePageSubtitle('A tua subscrição da plataforma.')
 
   return (
     <div className="space-y-4 max-w-3xl">
-      <PageHeader title="Faturação" subtitle="A tua subscrição da plataforma.">
+      <PageHeader>
         {data && <Badge tone={reasonBadge(data.reason).tone}>{reasonBadge(data.reason).label}</Badge>}
       </PageHeader>
 

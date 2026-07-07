@@ -13,7 +13,7 @@ declare module '*/ui.jsx' {
   export function Select(props: { label?: string; children?: ReactNode; className?: string; [key: string]: any }): JSX.Element
   export function Toggle(props: { checked?: boolean; onChange?: (v: boolean) => void; size?: string; [key: string]: any }): JSX.Element
   export function Modal(props: { open: boolean; onClose: () => void; title?: string; subtitle?: string; children?: ReactNode; footer?: ReactNode; width?: string; [key: string]: any }): JSX.Element
-  export function PageHeader(props: { title?: string; subtitle?: string; children?: ReactNode; [key: string]: any }): JSX.Element
+  export function PageHeader(props: { children?: ReactNode; [key: string]: any }): JSX.Element
   export function EmptyState(props: { icon?: string; title?: string; desc?: string; action?: ReactNode; [key: string]: any }): JSX.Element
   export function Avatar(props: { name?: string; color?: string; size?: number; [key: string]: any }): JSX.Element
   export function ImgPlaceholder(props: { label?: string; tint?: string; rounded?: string; className?: string; [key: string]: any }): JSX.Element

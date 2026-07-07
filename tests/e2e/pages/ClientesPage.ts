@@ -9,7 +9,8 @@ export class ClientesPage {
   }
 
   header() {
-    return this.page.getByRole("heading", { name: "Clientes", level: 1 });
+    // Título vive agora no topbar (Shell.tsx, h2).
+    return this.page.getByRole("heading", { name: "Clientes", level: 2 });
   }
 
   /** Subitens da sidebar (T2.2): Lista (âncora, `/clientes`) · Leads — botões do submenu. */

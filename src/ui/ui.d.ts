@@ -9,7 +9,7 @@ export declare function Input(props: { label?: string; icon?: string; hint?: str
 export declare function Select(props: { label?: string; value?: any; onChange?: (e: ChangeEvent<HTMLSelectElement>) => void; children?: ReactNode; className?: string; [k: string]: any }): JSX.Element
 export declare function Toggle(props: { checked?: boolean; onChange?: (v: boolean) => void; size?: string; [k: string]: any }): JSX.Element
 export declare function Modal(props: { open: boolean; onClose: () => void; title?: string; subtitle?: string; children?: ReactNode; footer?: ReactNode; width?: string; [k: string]: any }): JSX.Element
-export declare function PageHeader(props: { title?: string; subtitle?: string; children?: ReactNode; [k: string]: any }): JSX.Element
+export declare function PageHeader(props: { children?: ReactNode; [k: string]: any }): JSX.Element
 export declare function Tabs(props: { tabs: ReadonlyArray<{ id: string; label: ReactNode; icon?: string }>; value: string; onChange: (id: any) => void; fullWidth?: boolean; size?: 'sm' | 'md'; className?: string }): JSX.Element
 export declare function SectionTitle(props: { children?: ReactNode; right?: ReactNode; className?: string }): JSX.Element
 export declare function EmptyState(props: { icon?: string; title?: string; desc?: string; action?: ReactNode; [k: string]: any }): JSX.Element

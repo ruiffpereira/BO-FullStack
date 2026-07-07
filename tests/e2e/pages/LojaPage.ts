@@ -9,7 +9,8 @@ export class LojaPage {
   }
 
   header() {
-    return this.page.getByRole("heading", { name: "Loja", level: 1 });
+    // Título vive agora no topbar (Shell.tsx, h2).
+    return this.page.getByRole("heading", { name: "Loja", level: 2 });
   }
 
   /** Subitens da sidebar (T2.1): Produtos · Encomendas · Categorias — botões do submenu, não mais role="tab". */

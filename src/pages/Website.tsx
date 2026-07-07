@@ -11,6 +11,7 @@ import {
   SectionTitle,
 } from "../ui/ui.jsx";
 import { Icon } from "../ui/icons.jsx";
+import { usePageSubtitle } from "../context/PageMetaContext";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { FileUpload } from "../components/FileUpload";
 import { PageBlocksSection } from "../components/website/PageBlocksSection";
@@ -1708,13 +1709,11 @@ function DomainTab({ site }: { site: Site }) {
 
 export function Website({ view }: { view: WebsiteView }) {
   const { data: site, isLoading, dataUpdatedAt } = useSite();
+  usePageSubtitle("Configura o teu site público — template, marca, domínio e publicação.");
 
   return (
     <div>
-      <PageHeader
-        title="Website"
-        subtitle="Configura o teu site público — template, marca, domínio e publicação."
-      >
+      <PageHeader>
         {site &&
           (site.published ? (
             <Badge tone="green" dot>

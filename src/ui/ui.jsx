@@ -193,14 +193,15 @@ function SectionTitle({ children, right, className = '' }) {
   );
 }
 
-function PageHeader({ title, subtitle, children }) {
+// Barra de ações do topo da página (título/subtítulo já vivem no topbar do
+// Shell — ver `resolveTopbarTitle` + `usePageSubtitle`, `PageMetaContext`).
+// Sem ações não há nada a mostrar: devolve `null` para não deixar um espaço
+// vazio entre o topbar e o conteúdo da página.
+function PageHeader({ children }) {
+  if (!children) return null;
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-6">
-      <div className="min-w-0">
-        <h1 className="text-xl sm:text-2xl font-semibold text-zinc-900 dark:text-white tracking-tight">{title}</h1>
-        {subtitle && <p className="text-sm text-zinc-500 mt-1">{subtitle}</p>}
-      </div>
-      {children && <div className="sm:ml-auto flex items-center gap-2 flex-wrap">{children}</div>}
+    <div className="flex items-center justify-end gap-2 flex-wrap mb-6">
+      {children}
     </div>
   );
 }

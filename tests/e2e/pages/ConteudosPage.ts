@@ -9,7 +9,8 @@ export class ConteudosPage {
   }
 
   header() {
-    return this.page.getByRole("heading", { name: "Conteúdos", level: 1 });
+    // Título vive agora no topbar (Shell.tsx, h2).
+    return this.page.getByRole("heading", { name: "Conteúdos", level: 2 });
   }
 
   searchInput() {

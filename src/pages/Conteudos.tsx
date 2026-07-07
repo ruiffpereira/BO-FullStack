@@ -31,6 +31,7 @@ import {
   PageHeader,
   EmptyState,
 } from "../ui/ui.jsx";
+import { usePageSubtitle } from "../context/PageMetaContext";
 import { GuardButton } from "../components/GuardButton";
 import {
   useGetSettingsLanguages,
@@ -806,6 +807,7 @@ export function Conteudos({ view }: { view: ConteudosView }) {
   const qc = useQueryClient();
   const { hasPermission, authHeader } = useAuth();
   const headers = authHeader();
+  usePageSubtitle("Gere o conteúdo do site, produtos e serviços em múltiplos idiomas.");
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -1512,10 +1514,7 @@ export function Conteudos({ view }: { view: ConteudosView }) {
 
   return (
     <div>
-      <PageHeader
-        title="Conteúdos"
-        subtitle="Gere o conteúdo do site, produtos e serviços em múltiplos idiomas."
-      >
+      <PageHeader>
         {activeTab !== "linguas" && activeTab !== "emails" && activeTab !== "notificacoes" && (
           <button
             onClick={() => importFileRef.current?.click()}

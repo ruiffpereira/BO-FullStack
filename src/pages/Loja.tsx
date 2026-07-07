@@ -24,6 +24,7 @@ import {
   ImgPlaceholder,
   BADGE_TONES,
 } from "../ui/ui.jsx";
+import { usePageSubtitle } from "../context/PageMetaContext";
 import { GuardButton } from "../components/GuardButton";
 import { Combobox } from "../components/Combobox";
 import {
@@ -721,10 +722,11 @@ export function Loja({ view }: { view: LojaView }) {
 
   const isPending =
     saving || createProduct.isPending || updateProduct.isPending;
+  usePageSubtitle("Gere produtos, stock e encomendas.");
 
   return (
     <div>
-      <PageHeader title="Loja" subtitle="Gere produtos, stock e encomendas.">
+      <PageHeader>
         <GuardButton icon="plus" onClick={openNew}>
           Novo produto
         </GuardButton>

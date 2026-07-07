@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Badge, Button, Input, Modal, PageHeader, EmptyState, IconButton, BADGE_TONES } from '../ui/ui.jsx'
+import { usePageSubtitle } from '../context/PageMetaContext'
 import { usePagination, Pagination } from '../components/Pagination'
 import { Combobox } from '../components/Combobox'
 import { DatePicker } from '../components/DatePicker'
@@ -263,10 +264,11 @@ export function Despesas() {
   const byCategory = summary?.byCategory ?? []
   const maxCat = Math.max(1, ...byCategory.map((c) => c.total ?? 0))
   const monthLabel = format(new Date(month + '-01T00:00:00'), 'MMMM yyyy', { locale: pt })
+  usePageSubtitle(`Custos de ${monthLabel}.`)
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Despesas" subtitle={`Custos de ${monthLabel}.`}>
+      <PageHeader>
         <input
           type="month"
           value={month}

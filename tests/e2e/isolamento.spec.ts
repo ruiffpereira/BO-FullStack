@@ -149,7 +149,8 @@ test.describe("Isolamento multi-tenant — deep-links de recurso alheio", () => 
     // Login como A e tentar abrir o produto de B pelo deep-link.
     await loginAs(context, "tenantA@e2e");
     await page.goto(`/loja?openProduct=${bProductId}`);
-    await expect(page.getByRole("heading", { name: "Loja", level: 1 })).toBeVisible({ timeout: 15_000 });
+    // Título só existe no topbar (h2, Shell.tsx) — a página já não tem h1 próprio.
+    await expect(page.getByRole("heading", { name: "Loja", level: 2 })).toBeVisible({ timeout: 15_000 });
     // O produto de A é visível; o de B nunca aparece (nem lista nem modal).
     await expect(page.getByText("A-SKU-001")).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText("B-SKU-001")).toHaveCount(0);

@@ -29,8 +29,8 @@ import {
   Modal,
   Input,
   Select,
-  PageHeader,
 } from "../ui/ui.jsx";
+import { usePageSubtitle } from "../context/PageMetaContext";
 import { GuardButton } from "../components/GuardButton";
 import { confirmDialog } from "../components/confirm";
 import { DatePicker } from "../components/DatePicker";
@@ -2881,9 +2881,9 @@ export type AgendaView = "cal" | "marcacoes" | "servicos" | "config";
  * `?data=` continuam a ser lidos pelo `CalendarioView` na raiz.
  */
 export function Agenda({ view }: { view: AgendaView }) {
+  usePageSubtitle("Marcações, serviços e horários.");
   return (
     <div>
-      <PageHeader title="Agenda" subtitle="Marcações, serviços e horários." />
       {view === "cal" && <CalendarioView />}
       {view === "marcacoes" && <MarcacoesPanel />}
       {view === "servicos" && <ServicosPanel />}

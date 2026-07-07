@@ -12,8 +12,8 @@ import {
   Badge,
   Input,
   Modal,
-  PageHeader,
 } from "../ui/ui.jsx";
+import { usePageSubtitle } from "../context/PageMetaContext";
 import { Combobox } from "../components/Combobox";
 import { confirmDialog } from "../components/confirm";
 
@@ -1574,6 +1574,7 @@ export type AdminView =
 export function Admin({ view }: { view: AdminView }) {
   const { authHeader } = useAuth();
   const headers = authHeader();
+  usePageSubtitle("Gere utilizadores, permissões e componentes.");
 
   // Volta do OAuth do Google (?google=connected|error) → toast (o AdminEntry
   // já garantiu que estamos em /admin/integracoes quando o parâmetro existe).
@@ -1594,10 +1595,6 @@ export function Admin({ view }: { view: AdminView }) {
 
   return (
     <div>
-      <PageHeader
-        title="Admin"
-        subtitle="Gere utilizadores, permissões e componentes."
-      />
       {view === "utilizadores" && <UtilizadoresTab headers={headers} />}
       {view === "permissoes" && <PermissoesTab headers={headers} />}
       {view === "componentes" && <ComponentesTab headers={headers} />}

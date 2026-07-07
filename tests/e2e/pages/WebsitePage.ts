@@ -9,7 +9,8 @@ export class WebsitePage {
   }
 
   header() {
-    return this.page.getByRole("heading", { name: "Website", level: 1 });
+    // Título vive agora no topbar (Shell.tsx, h2).
+    return this.page.getByRole("heading", { name: "Website", level: 2 });
   }
 
   /** Subitens da sidebar (T2.3): O meu site (âncora) · Template · Páginas · Marca · Rodapé & Nav · Domínio — botões do submenu, não role="tab". */

@@ -231,8 +231,9 @@ describe("ApptModal — pagamento de uma marcação concluída", () => {
     expect(cashInput.value).toBe("10");
     await user.clear(cashInput);
 
-    // Agora há alteração de pagamento → Guardar fica ativo.
-    const saveBtn = screen.getByRole("button", { name: "Guardar" });
+    // Agora há alteração de pagamento → o botão único de pagamento fica ativo
+    // (baixar a 0 ao EDITAR é reverter/anular — ação válida, não é "sem valor").
+    const saveBtn = screen.getByRole("button", { name: "Guardar pagamento" });
     expect(saveBtn).toBeEnabled();
     await user.click(saveBtn);
 
@@ -293,12 +294,81 @@ describe("ApptModal — contribuinte na fatura (wantsInvoice)", () => {
       'input[type="number"]',
     ) as HTMLInputElement;
     await user.type(cashInput, "10");
-    await user.click(screen.getByRole("button", { name: /^Pagar/ }));
+    await user.click(screen.getByRole("button", { name: "Guardar pagamento" }));
 
     expect(onSaveCustomer).toHaveBeenCalledWith("cus-1", {
       wantsInvoice: true,
       nif: "123456789",
     });
     expect(onSave).toHaveBeenCalled();
+  });
+});
+
+// Botão único de pagamento (novo fluxo): desativado sem valor, cor por tom
+// (amarelo falta / azul certo / verde a mais) — a lógica de cor em si tem
+// cobertura isolada e mais exaustiva em tests/unit/paymentTone.test.ts; aqui
+// só se confirma que o componente liga o helper à UI (disabled + classe).
+describe("ApptModal — botão único de pagamento (cor por tom)", () => {
+  it("sem valor: fica desativado e mostra o link 'Concluir sem pagamento'", async () => {
+    const user = userEvent.setup();
+    const { onSetStatus } = renderModal({ status: "confirmed" });
+
+    await user.click(screen.getByRole("button", { name: "Pagamento" }));
+
+    const payBtn = screen.getByRole("button", { name: "Guardar pagamento" });
+    expect(payBtn).toBeDisabled();
+
+    const noPayLink = screen.getByRole("button", {
+      name: /Concluir sem pagamento/i,
+    });
+    await user.click(noPayLink);
+    expect(onSetStatus).toHaveBeenCalledWith("appt-1", "completed");
+  });
+
+  it("valor a menos: âmbar, e o link de concluir sem pagamento desaparece", async () => {
+    const user = userEvent.setup();
+    renderModal({ status: "confirmed" });
+    await user.click(screen.getByRole("button", { name: "Pagamento" }));
+
+    // Preço do serviço (svc-1, "Corte") é 10€.
+    const cashInput = document.querySelector(
+      'input[type="number"]',
+    ) as HTMLInputElement;
+    await user.type(cashInput, "5");
+
+    const payBtn = screen.getByRole("button", { name: "Guardar pagamento" });
+    expect(payBtn).toBeEnabled();
+    expect(payBtn.className).toContain("bg-amber-500");
+    expect(
+      screen.queryByRole("button", { name: /Concluir sem pagamento/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("valor exato: azul", async () => {
+    const user = userEvent.setup();
+    renderModal({ status: "confirmed" });
+    await user.click(screen.getByRole("button", { name: "Pagamento" }));
+
+    const cashInput = document.querySelector(
+      'input[type="number"]',
+    ) as HTMLInputElement;
+    await user.type(cashInput, "10");
+
+    const payBtn = screen.getByRole("button", { name: "Guardar pagamento" });
+    expect(payBtn.className).toContain("bg-blue-600");
+  });
+
+  it("valor a mais: verde", async () => {
+    const user = userEvent.setup();
+    renderModal({ status: "confirmed" });
+    await user.click(screen.getByRole("button", { name: "Pagamento" }));
+
+    const cashInput = document.querySelector(
+      'input[type="number"]',
+    ) as HTMLInputElement;
+    await user.type(cashInput, "15");
+
+    const payBtn = screen.getByRole("button", { name: "Guardar pagamento" });
+    expect(payBtn.className).toContain("bg-emerald-600");
   });
 });

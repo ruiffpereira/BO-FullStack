@@ -20,6 +20,12 @@ import { Combobox } from "./Combobox";
 import { PriceFillChip } from "./PriceFillChip";
 import { confirmDialog } from "./confirm";
 import { TimeField } from "./TimeField";
+import {
+  paymentTone,
+  PAYMENT_TONE_BUTTON_CLASS,
+  PAYMENT_TONE_TEXT_CLASS,
+  type PaymentTone,
+} from "../lib/paymentTone";
 import type {
   Appointment,
   AppointmentStatusEnum,
@@ -66,6 +72,42 @@ const STATUS_TONE: Record<AppointmentStatusEnum, string> = {
   completed: "green",
   cancelled: "red",
 };
+
+/**
+ * Botão de pagamento ÚNICO — o mesmo aspeto no fluxo de novo pagamento e no
+ * de editar pagamento (só muda o `onClick`/label conforme o fluxo que o usa).
+ * Cor por tom (amarelo/azul/verde, ver `src/lib/paymentTone.ts`); desativado
+ * mostra o motivo via `title` (o `disabled:pointer-events-none` do próprio
+ * botão trata do hover).
+ */
+function PaymentButton({
+  label,
+  tone,
+  disabled,
+  title,
+  onClick,
+  className = "",
+}: {
+  label: string;
+  tone: PaymentTone;
+  disabled?: boolean;
+  title?: string;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      aria-disabled={disabled || undefined}
+      title={title}
+      onClick={onClick}
+      className={`rounded-lg py-2.5 px-4 text-sm font-bold text-white transition disabled:opacity-50 disabled:pointer-events-none ${PAYMENT_TONE_BUTTON_CLASS[tone]} ${className}`}
+    >
+      {label}
+    </button>
+  );
+}
 
 export function ApptModal({
   appt,
@@ -153,8 +195,6 @@ export function ApptModal({
     (parseFloat(card) || 0) +
     tipVal;
   const price = Number(svc?.price ?? 0);
-  const isExact = payTotal > 0 && Math.abs(payTotal - price) < 0.01;
-  const isOver = payTotal > price + 0.01;
 
   const snapshotPrice = Number(appt.servicePrice ?? 0);
   const totalPaid = Number(appt.paymentCash ?? 0) + Number(appt.paymentMbway ?? 0) + Number(appt.paymentCard ?? 0);
@@ -179,10 +219,15 @@ export function ApptModal({
   };
   const payNoTip =
     (parseFloat(cash) || 0) + (parseFloat(mbway) || 0) + (parseFloat(card) || 0);
-  // Botão "Pagar" vs "Pagar com dívida": o valor introduzido cobre o preço?
+  // Preço-alvo (sem gorjeta) que decide o tom do botão único de pagamento e da
+  // linha "Total": falta (amber) / certo (blue) / a mais (green) — a MESMA
+  // fonte nos dois fluxos (novo + editar). Ver src/lib/paymentTone.ts.
   const targetPrice = price || snapshotPrice;
-  const willHaveDebt = payNoTip < targetPrice - 0.01;
-  const shortfall = Math.max(0, targetPrice - payNoTip);
+  const payTone = paymentTone(payNoTip, targetPrice);
+  // O botão só desativa por falta de valor no fluxo de NOVO pagamento — ao
+  // EDITAR um pagamento já registado, baixar o valor a 0 é uma ação válida
+  // (reverter/anular), por isso não se desativa aí.
+  const payButtonNoValue = !isPaid && payNoTip <= 0;
   const activeMethod =
     fillPrice > 0 && Math.abs(payNoTip - fillPrice) < 0.01
       ? (parseFloat(cash) || 0) === payNoTip
@@ -273,20 +318,27 @@ export function ApptModal({
     setEditMode(null);
   };
 
-  // "Pagar": guarda o valor introduzido e conclui. Se nada foi introduzido,
-  // conclui com dívida total. (Só aparece em marcações ainda não concluídas.)
+  // "Guardar pagamento" (fluxo novo): guarda o valor introduzido e conclui.
+  // O botão desativa sem valor (payButtonNoValue) — por isso nunca é chamado
+  // com payNoTip<=0; para dívida total sem registar nada há "Concluir sem
+  // pagamento" (handleCompleteWithoutPayment), abaixo.
   const handlePay = () => {
     persistCustomerPrefs();
-    if (payNoTip > 0) {
-      // Envia sempre os valores (mesmo sem mudança) para o backend concluir a vaga.
-      const data = buildSaveData();
-      data.paymentCash = (parseFloat(cash) || 0) + tipVal;
-      data.paymentMbway = parseFloat(mbway) || 0;
-      data.paymentCard = parseFloat(card) || 0;
-      onSave(appt.appointmentId, data);
-    } else {
-      onSetStatus(appt.appointmentId, "completed");
-    }
+    // Envia sempre os valores (mesmo sem mudança) para o backend concluir a vaga.
+    const data = buildSaveData();
+    data.paymentCash = (parseFloat(cash) || 0) + tipVal;
+    data.paymentMbway = parseFloat(mbway) || 0;
+    data.paymentCard = parseFloat(card) || 0;
+    onSave(appt.appointmentId, data);
+  };
+
+  // "Concluir sem pagamento": marca a vaga concluída em dívida total, sem
+  // registar nenhum valor. Preserva a capacidade que antes só existia ao
+  // clicar "Pagar" com os campos vazios (agora o botão fica desativado nesse
+  // caso) — link discreto, só visível quando não há valor introduzido.
+  const handleCompleteWithoutPayment = () => {
+    persistCustomerPrefs();
+    onSetStatus(appt.appointmentId, "completed");
   };
 
   const handleCancelPayment = async () => {
@@ -401,9 +453,22 @@ export function ApptModal({
                   Cancelar
                 </Button>
                 <div className="flex-1" />
-                <GuardButton disabled={!hasChanges || busy} onClick={handleSave}>
-                  {isSaving ? "A guardar…" : "Guardar"}
-                </GuardButton>
+                {editMode === "payment" ? (
+                  // Botão único de pagamento (mesmo aspeto do fluxo novo): cor
+                  // pelo tom (falta/certo/a mais), sem o "sem valor desativa"
+                  // do fluxo novo — baixar a 0 aqui é reverter/anular, ação válida.
+                  <PaymentButton
+                    label={isSaving ? "A guardar…" : "Guardar pagamento"}
+                    tone={payTone.tone}
+                    disabled={!hasChanges || busy || billingReadOnly}
+                    title={billingReadOnly ? billingLockMsg : undefined}
+                    onClick={handleSave}
+                  />
+                ) : (
+                  <GuardButton disabled={!hasChanges || busy} onClick={handleSave}>
+                    {isSaving ? "A guardar…" : "Guardar"}
+                  </GuardButton>
+                )}
               </div>
             ) : tab === "details" ? (
               <>
@@ -885,6 +950,10 @@ export function ApptModal({
                           </span>
                         </div>
                       </div>
+                      {/* Feedback de cor em tempo real — mesma fonte do botão único (payTone). */}
+                      <p className={`text-xs font-medium px-0.5 ${PAYMENT_TONE_TEXT_CLASS[payTone.tone]}`}>
+                        {payTone.hint}
+                      </p>
                     </div>
                   ) : (
                     /* Esteja paga ou com dívida → um só botão. A dívida vê-se no recibo. */
@@ -984,57 +1053,57 @@ export function ApptModal({
                     <div className="space-y-1.5">
                       <div className="flex justify-between text-sm font-medium px-1">
                         <span className="text-zinc-500">Total</span>
-                        <span
-                          className={
-                            isExact
-                              ? "text-emerald-600 dark:text-emerald-400"
-                              : isOver
-                                ? "text-orange-500 dark:text-orange-400"
-                                : "text-amber-500"
-                          }
-                        >
-                          {payTotal.toFixed(2)} €{isExact && " ✓"}
-                          {!isExact &&
-                            !isOver &&
-                            ` (faltam ${(price - payTotal).toFixed(2)} €)`}
-                          {isOver &&
+                        <span className={PAYMENT_TONE_TEXT_CLASS[payTone.tone]}>
+                          {payTotal.toFixed(2)} €{payTone.tone === "blue" && " ✓"}
+                          {payTone.tone === "amber" &&
+                            ` (faltam ${(targetPrice - payNoTip).toFixed(2)} €)`}
+                          {payTone.tone === "green" &&
                             !tipVal &&
-                            ` (+${(payTotal - price).toFixed(2)} € gorjeta)`}
+                            ` (+${(payNoTip - targetPrice).toFixed(2)} € gorjeta)`}
                         </span>
                       </div>
-                      {isOver && !tipVal && (
-                        <div className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20 rounded-lg px-2.5 py-2">
+                      {payTone.tone === "green" && !tipVal && (
+                        <div className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-lg px-2.5 py-2">
                           <Icon
                             name="alertCircle"
                             className="w-3.5 h-3.5 shrink-0"
                           />
                           O valor excede o preço em{" "}
-                          {(payTotal - price).toFixed(2)} €. Se for gorjeta, usa
-                          o campo acima.
+                          {(payNoTip - targetPrice).toFixed(2)} €. Se for
+                          gorjeta, usa o campo acima.
                         </div>
                       )}
                     </div>
                   )}
 
                   {status !== "cancelled" && (
-                    <button
-                      type="button"
-                      disabled={busy || billingReadOnly}
-                      aria-disabled={billingReadOnly || undefined}
-                      title={billingReadOnly ? billingLockMsg : undefined}
-                      onClick={handlePay}
-                      className={`w-full rounded-lg py-2.5 text-sm font-bold text-white transition disabled:opacity-50 ${
-                        willHaveDebt
-                          ? "bg-amber-500 hover:bg-amber-600"
-                          : "bg-emerald-600 hover:bg-emerald-700"
-                      }`}
-                    >
-                      {busy
-                        ? "A guardar…"
-                        : willHaveDebt
-                          ? `Pagar com dívida${shortfall > 0 ? ` · faltam ${shortfall.toFixed(2)} €` : ""}`
-                          : "Pagar"}
-                    </button>
+                    <div className="space-y-2">
+                      <PaymentButton
+                        label={busy ? "A guardar…" : "Guardar pagamento"}
+                        tone={payTone.tone}
+                        disabled={busy || billingReadOnly || payButtonNoValue}
+                        title={
+                          billingReadOnly
+                            ? billingLockMsg
+                            : payButtonNoValue
+                              ? "Introduz um valor"
+                              : undefined
+                        }
+                        onClick={handlePay}
+                        className="w-full"
+                      />
+                      {payButtonNoValue && (
+                        <button
+                          type="button"
+                          disabled={busy || billingReadOnly}
+                          title={billingReadOnly ? billingLockMsg : undefined}
+                          onClick={handleCompleteWithoutPayment}
+                          className="w-full text-center text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline decoration-dotted underline-offset-2 disabled:opacity-50"
+                        >
+                          Concluir sem pagamento (dívida total)
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               )}

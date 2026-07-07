@@ -72,6 +72,8 @@ import { Combobox } from '../components/Combobox'
 import { DateRangePicker, type DateRange } from '../components/DateRangePicker'
 import { DatePicker } from '../components/DatePicker'
 import { format } from 'date-fns'
+import { useGetUsersMe } from '../gen/backoffice/hooks/useGetUsersMe.js'
+import { buildPlanPrintHtml, printPlan } from '../lib/planPdf'
 
 // Paleta de cores sugeridas para grupos/subgrupos — usada para dar uma cor
 // aleatória por defeito ao criar (o user pode sempre mudar).
@@ -2789,6 +2791,18 @@ function AtribuirPlanoModal({ open, customer, planos, onClose, onSaved }: {
 function ClienteProgresso({ customer, onBack, onAtribuir, onEditar }: { customer: Cliente; onBack: () => void; onAtribuir: () => void; onEditar: () => void }) {
   const { data: programsData } = useGetGymPrograms({ customerId: customer.customerId }, { query: { enabled: !!customer.customerId } })
   const active = ((programsData ?? []) as GymProgram[]).find((p) => (p as any).active)
+  const { data: me } = useGetUsersMe()
+  const { colorOf } = useGymGroups()
+  const handlePdf = () => {
+    if (!active) return
+    const html = buildPlanPrintHtml({
+      program: active,
+      customerName: customer.name,
+      tenant: { name: me?.name, logoUrl: me?.logoUrl },
+      colorOf,
+    })
+    printPlan(html)
+  }
   return (
     <div className="space-y-4">
       <button onClick={onBack} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"><Icon name="chevronLeft" className="w-4 h-4" />Voltar aos clientes</button>
@@ -2807,6 +2821,7 @@ function ClienteProgresso({ customer, onBack, onAtribuir, onEditar }: { customer
           <div className="sm:ml-auto flex items-center gap-2 flex-wrap">
             {active ? <Badge tone="blue" dot>{active.name}</Badge> : <Badge tone="amber" dot>Sem plano</Badge>}
             {active && <Button variant="outline" size="sm" icon="edit" onClick={onEditar}>Editar plano</Button>}
+            {active && <Button variant="outline" size="sm" icon="printer" onClick={handlePdf}>PDF do plano</Button>}
             <Button variant={active ? 'ghost' : 'outline'} size="sm" icon="calendar" onClick={onAtribuir}>{active ? 'Mudar plano' : 'Atribuir plano'}</Button>
           </div>
         </div>

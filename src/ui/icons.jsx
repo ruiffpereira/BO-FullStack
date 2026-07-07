@@ -58,6 +58,7 @@ const ICON_PATHS = {
   message: '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 21l1.9-5.1A8.4 8.4 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.5 8.5 0 0 1 21 11.5z"/>',
   send: '<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/>',
   paperclip: '<path d="M21.4 11.1 12.3 20a5 5 0 0 1-7-7L13.6 4.5a3.3 3.3 0 0 1 4.7 4.7L9.6 18a1.7 1.7 0 0 1-2.4-2.4l8-8"/>',
+  printer: '<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
 };
 
 function Icon({ name, className = 'w-5 h-5', strokeWidth = 1.75 }) {

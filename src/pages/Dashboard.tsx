@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { format, subDays, eachDayOfInterval } from 'date-fns'
 import { pt } from 'date-fns/locale'
 import { useNavigate } from 'react-router-dom'
@@ -13,6 +13,7 @@ import { useGetScheduleAppointments } from '../gen/backoffice/hooks/useGetSchedu
 import { useGetScheduleServices } from '../gen/backoffice/hooks/useGetScheduleServices.js'
 import { useGetGymMensalidadeFinance } from '../gen/backoffice/hooks/useGetGymMensalidadeFinance.js'
 import { useDashboard } from '../hooks/useDashboard'
+import { useNow } from '../hooks/useNow'
 
 const fmtEur = (n: number) =>
   '€' + n.toLocaleString('pt-PT', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })
@@ -32,16 +33,6 @@ const OPEN_ORDER = new Set(['pending', 'processing'])
 const toMin = (t: string) => {
   const [h, m] = t.split(':')
   return Number(h) * 60 + Number(m)
-}
-
-/** Ticks every minute so the "agora" marker tracks real time without a noisy seconds clock. */
-function useNow(intervalMs = 60_000) {
-  const [now, setNow] = useState(() => new Date())
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), intervalMs)
-    return () => clearInterval(id)
-  }, [intervalMs])
-  return now
 }
 
 // ── KPI ───────────────────────────────────────────────────────────────────

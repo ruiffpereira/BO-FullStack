@@ -87,12 +87,12 @@ import {
 } from "../components/ApptModal.js";
 import { Combobox } from "../components/Combobox";
 import { CalendarSubscribeCard } from "../components/CalendarSubscribeCard";
+import { useNow } from "../hooks/useNow";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const AG_H_START = 0; // grelha cobre o dia todo (00:00–24:00)
 const AG_H_END = 24;
 const AG_ROW_H = 80;
-const AG_SCROLL_START_H = 8; // scroll arranca nas 8h (mas dá para subir até às 0h)
 
 const SERVICE_COLORS = [
   "#2A6FDB",
@@ -926,6 +926,9 @@ function CalendarioView() {
   const [novaDate, setNovaDate] = useState<Date | null>(null);
   const [novaTime, setNovaTime] = useState<string | null>(null);
 
+  // Tick de minuto para a risca do "agora" na grelha semanal.
+  const now = useNow();
+
   // Mini calendar
   const [showMiniCal, setShowMiniCal] = useState(false);
   const [miniCalMonth, setMiniCalMonth] = useState(() =>
@@ -984,12 +987,19 @@ function CalendarioView() {
   const autoScrollRafRef = useRef<number | null>(null);
   const calScrollEl = useRef<HTMLDivElement | null>(null);
 
-  // Scroll inicial da grelha (arranca nas 8h, mas dá para subir até às 0h).
+  // Scroll inicial da grelha: arranca com a hora ATUAL centrada no viewport
+  // (mas dá para percorrer o dia todo, 0h–24h).
   const didInitScroll = useRef(false);
   const calScrollRef = useCallback((node: HTMLDivElement | null) => {
     calScrollEl.current = node;
     if (node && !didInitScroll.current) {
-      node.scrollTop = (AG_SCROLL_START_H - AG_H_START) * AG_ROW_H;
+      const initNow = new Date();
+      const initNowH = initNow.getHours() + initNow.getMinutes() / 60;
+      const target = (initNowH - AG_H_START) * AG_ROW_H - node.clientHeight / 2;
+      node.scrollTop = Math.max(
+        0,
+        Math.min(target, node.scrollHeight - node.clientHeight),
+      );
       didInitScroll.current = true;
     }
   }, []);
@@ -1969,6 +1979,32 @@ function CalendarioView() {
                   </div>
                 );
               })}
+
+              {/* Risca do "AGORA" — só quando a semana visível contém hoje. */}
+              {days.some((d) => isSameDay(d, now)) && (
+                <div
+                  className="pointer-events-none absolute inset-x-0 z-30"
+                  style={{
+                    left: 48,
+                    top:
+                      (now.getHours() + now.getMinutes() / 60 - AG_H_START) *
+                      AG_ROW_H,
+                  }}
+                >
+                  {/* Linha à largura das colunas de dia (não sobre os rótulos de hora) */}
+                  <div className="absolute inset-x-0 top-0 h-[2px] -translate-y-1/2 bg-red-500" />
+                  {/* Pontinho na extremidade esquerda da coluna de HOJE */}
+                  {days.map((day, idx) =>
+                    isSameDay(day, now) ? (
+                      <div
+                        key={day.toISOString()}
+                        className="absolute top-0 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500"
+                        style={{ left: `${(idx / days.length) * 100}%` }}
+                      />
+                    ) : null,
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

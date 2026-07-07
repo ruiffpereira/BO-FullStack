@@ -48,7 +48,9 @@ export class GinasioPage {
   /**
    * Cria um exercício completo. Requer que exista pelo menos um grupo muscular no
    * tenant (o seed cria "Peito A"/"Peito B"). Passos: Nome (CmsCombo) → grupo →
-   * adicionar 1 preset (força, só precisa de nome) → Guardar.
+   * abrir 1 preset (força, só precisa de nome) → Criar exercício (o rascunho de
+   * preset aberto é comitado automaticamente pelo botão final — UM só clique,
+   * já não existe "Guardar preset" separado).
    * Usar com o tenantA/tenantB (que têm grupo semeado).
    */
   async createExercise(opts: { name: string; group: string; preset?: string }) {
@@ -59,12 +61,12 @@ export class GinasioPage {
     // Grupo muscular: Combobox (botão que abre opções num portal).
     await dialog.getByRole("button", { name: /escolher grupo/i }).click();
     await this.page.getByRole("option", { name: opts.group }).first().click();
-    // Adicionar um preset de força (basta o nome).
+    // Abrir o editor de preset de força e só preencher o nome (não há mais
+    // botão "Guardar preset" — o rascunho fica comitado no clique final).
     await dialog.getByRole("button", { name: /adicionar preset/i }).click();
     await dialog.getByPlaceholder("Ex: Iniciante").fill(opts.preset ?? "Base");
-    await dialog.getByRole("button", { name: /guardar preset/i }).click();
-    // Guardar o exercício (botão do footer principal).
-    await dialog.getByRole("button", { name: /^guardar$/i }).click();
+    // Criar o exercício (botão único do footer — comita o preset + guarda).
+    await dialog.getByRole("button", { name: /criar exercício/i }).click();
     await expect(dialog).toHaveCount(0, { timeout: 12_000 });
   }
 

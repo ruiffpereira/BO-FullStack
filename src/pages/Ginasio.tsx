@@ -523,7 +523,6 @@ function CatalogoTab() {
   // Relação por id (fonte de verdade); o nome é só display/cache no backend.
   const [groupId, setGroupId] = useState<string>('')
   const [subGroupId, setSubGroupId] = useState<string>('')
-  const [active, setActive] = useState(true)
   const [presets, setPresets] = useState<PresetDraft[]>([])
   // Layout do protótipo: sidebar de grupos (filtro) + pesquisa + cards expansíveis.
   const [grupoSel, setGrupoSel] = useState<string>('todos')
@@ -535,13 +534,13 @@ function CatalogoTab() {
 
   const presetResumo = (p: GymExercisePreset) =>
     (p as any).type === 'time'
-      ? `${(p as any).duration ?? 0}s${p.rest ? ` · ${p.rest}s desc.` : ''}`
+      ? `${p.reps ? `${p.reps}× ` : ''}${(p as any).duration ?? 0}s${p.rest ? ` · ${p.rest}s desc.` : ''}`
       : (p as any).mode === 'perSet' && (p.setRows?.length)
         ? setRowsResumo(p.setRows)
         : `${p.sets ?? '–'}×${p.reps ?? '–'}${p.weight ? ` · ${p.weight}kg` : ''}${p.rest ? ` · ${p.rest}s` : ''}`
   const draftResumo = (p: PresetDraft) =>
     p.type === 'time'
-      ? `${p.duration || '–'}s${p.rest ? ` · ${p.rest}s desc.` : ''}`
+      ? `${p.reps ? `${p.reps}× ` : ''}${p.duration || '–'}s${p.rest ? ` · ${p.rest}s desc.` : ''}`
       : p.mode === 'perSet' && p.setRows.length
         ? setRowsResumo(setRowsToApi(p.setRows))
         : `${p.sets || '–'}×${p.reps || '–'}${p.weight ? ` · ${p.weight}kg` : ''}${p.rest ? ` · ${p.rest}s` : ''}`
@@ -552,6 +551,14 @@ function CatalogoTab() {
     const f = presetEdit.form
     setPresets((ps) => (ps.some((x) => x.id === f.id) ? ps.map((x) => (x.id === f.id ? f : x)) : [...ps, f]))
     setPresetEdit(null)
+  }
+  // Lista efetiva de presets incluindo o rascunho aberto (se válido) — o "Criar
+  // exercício"/"Guardar alterações" faz o commit implícito do preset em edição,
+  // para que preencher 1 preset + guardar seja UM clique só.
+  const presetsWithOpenDraft = (): PresetDraft[] => {
+    if (!presetEdit || !presetEdit.form.name.trim()) return presets
+    const f = presetEdit.form
+    return presets.some((x) => x.id === f.id) ? presets.map((x) => (x.id === f.id ? f : x)) : [...presets, f]
   }
 
   const subs = groups.filter((g) => g.parentId === groupId)
@@ -574,13 +581,13 @@ function CatalogoTab() {
   })
 
   const startCreate = () => {
-    setEditing(null); setName(''); setContentKey(null); setGroupId(''); setSubGroupId(''); setActive(true)
+    setEditing(null); setName(''); setContentKey(null); setGroupId(''); setSubGroupId('')
     setPresets([]); setPresetEdit(null); setOpen(true)
   }
   const startEdit = (e: GymExercise) => {
     // Fallback p/ legados sem id: resolve pelo nome guardado.
     const gid = (e as any).muscleGroupId ?? topGroups.find((g) => g.name === e.muscleGroup)?.muscleGroupId ?? ''
-    setEditing(e); setName(e.name); setContentKey((e as any).contentKey ?? null); setGroupId(gid); setSubGroupId((e as any).subGroupId ?? ''); setActive(e.active ?? true)
+    setEditing(e); setName(e.name); setContentKey((e as any).contentKey ?? null); setGroupId(gid); setSubGroupId((e as any).subGroupId ?? '')
     // Presets vindos da API; se vazios, semeia um a partir dos default* legados.
     const fromApi = (e.presets ?? []).map(toPresetDraft)
     const hasLegacy = e.defaultSets != null || e.defaultReps != null || e.defaultRest != null || e.defaultWeight != null
@@ -597,10 +604,15 @@ function CatalogoTab() {
   const numOrNull = (v: string) => (v === '' ? null : Number(v))
 
   const save = useMutation({
-    mutationFn: async () => {
+    // `overridePresets`, quando presente, ganha à `presets` do estado — usado pelo
+    // botão único de guardar, que comita o rascunho de preset aberto e guarda no
+    // mesmo clique (o `setPresets` é assíncrono, por isso não dá para confiar no
+    // `presets` do closure logo a seguir a um `setPresets`).
+    mutationFn: async (overridePresets?: PresetDraft[]) => {
+      const activePresets = overridePresets ?? presets
       // O nome de cada preset é traduzível (CMS): garante a chave ao Guardar.
       const cleanPresets = await Promise.all(
-        presets.filter((p) => p.name.trim()).map(async (p) => {
+        activePresets.filter((p) => p.name.trim()).map(async (p) => {
           const pk = await ensureCmsName(p.contentKey, 'gym', p.name, defaultLang)
           const perSet = p.type === 'strength' && p.mode === 'perSet' && p.setRows.length > 0
           return {
@@ -615,7 +627,8 @@ function CatalogoTab() {
       )
       const key = await ensureCmsName(contentKey, 'gym', name, defaultLang)
       const body = {
-        name: name.trim(), contentKey: key, muscleGroupId: groupId, subGroupId: subGroupId || null, active, media: [],
+        // O exercício fica sempre visível na app do cliente (sem toggle de ativo/inativo).
+        name: name.trim(), contentKey: key, muscleGroupId: groupId, subGroupId: subGroupId || null, active: true, media: [],
         presets: cleanPresets,
       } as any
       if (editing) return putGymExercisesId(editing.exerciseId, body)
@@ -693,7 +706,6 @@ function CatalogoTab() {
                       <p className="font-medium text-zinc-900 dark:text-white truncate">{e.name}</p>
                       <p className="text-xs text-zinc-400">{e.muscleGroup}{e.subGroup ? ` · ${e.subGroup}` : ''}</p>
                     </div>
-                    {!e.active && <Badge tone="neutral">Inactivo</Badge>}
                     <Badge tone="neutral">{e.presets?.length ?? 0} preset{(e.presets?.length ?? 0) === 1 ? '' : 's'}</Badge>
                     <span onClick={(ev) => ev.stopPropagation()} className="flex items-center gap-1">
                       <IconButton icon="edit" label="Editar" onClick={() => startEdit(e)} />
@@ -728,7 +740,19 @@ function CatalogoTab() {
         footer={
           <>
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button isLoading={save.isPending} disabled={!name.trim() || !groupId || presets.filter((p) => p.name.trim()).length === 0} onClick={() => save.mutate()}>Guardar</Button>
+            <Button
+              isLoading={save.isPending}
+              disabled={!name.trim() || !groupId || (presets.filter((p) => p.name.trim()).length === 0 && !(presetEdit && presetEdit.form.name.trim()))}
+              onClick={() => {
+                // Comita primeiro o rascunho de preset aberto (se válido) para o
+                // array, e só depois guarda — um único clique cobre os dois passos.
+                const finalPresets = presetsWithOpenDraft()
+                if (presetEdit && presetEdit.form.name.trim()) { setPresets(finalPresets); setPresetEdit(null) }
+                save.mutate(finalPresets)
+              }}
+            >
+              {editing ? 'Guardar alterações' : 'Criar exercício'}
+            </Button>
           </>
         }
       >
@@ -765,7 +789,18 @@ function CatalogoTab() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-medium text-zinc-500">Presets ({presets.length})</span>
-              <Button size="sm" variant="ghost" icon="plus" onClick={() => setPresetEdit({ form: emptyPreset(), isNew: true })}>Adicionar preset</Button>
+              <Button
+                size="sm" variant="ghost" icon="plus"
+                onClick={() => {
+                  // Se já há um rascunho válido aberto, comita-o antes de abrir um
+                  // novo — assim dá para encadear vários presets sem um botão
+                  // "Guardar preset" à parte.
+                  if (presetEdit && presetEdit.form.name.trim()) savePresetEdit()
+                  setPresetEdit({ form: emptyPreset(), isNew: true })
+                }}
+              >
+                Adicionar preset
+              </Button>
             </div>
             {presets.length === 0 && !presetEdit ? (
               <p className="text-xs text-amber-600 dark:text-amber-500 border border-dashed border-amber-300 dark:border-amber-500/40 rounded-lg p-3 text-center">É obrigatório pelo menos um preset (ex: “Iniciante”, “Avançado”). Presets de “tempo” servem para pranchas/mobilidade.</p>
@@ -794,7 +829,8 @@ function CatalogoTab() {
                 </div>
                 <CmsCombo label="Nome do preset" context="gym" value={presetEdit.form.contentKey} name={presetEdit.form.name} onChange={(k, nm) => setEditField({ contentKey: k, name: nm })} placeholder="Ex: Iniciante" />
                 {presetEdit.form.type === 'time' ? (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
+                    <NumField label="Repetições" value={presetEdit.form.reps} onChange={(v) => setEditField({ reps: v })} />
                     <NumField label="Duração (s)" value={presetEdit.form.duration} onChange={(v) => setEditField({ duration: v })} />
                     <NumField label="Descanso (s)" value={presetEdit.form.rest} onChange={(v) => setEditField({ rest: v })} />
                   </div>
@@ -808,18 +844,15 @@ function CatalogoTab() {
                   />
                 )}
                 <Input label="Notas (opcional)" value={presetEdit.form.notes} onChange={(ev: any) => setEditField({ notes: ev.target.value })} placeholder="Ex: cadência 2-0-2" />
+                {/* Sem botão "Guardar preset": este rascunho fica comitado
+                    automaticamente ao clicar "Adicionar preset" outra vez (para
+                    encadear mais um) ou no botão final do modal — um só clique. */}
                 <div className="flex justify-end gap-2">
                   <Button size="sm" variant="ghost" onClick={() => setPresetEdit(null)}>Cancelar</Button>
-                  <Button size="sm" icon="check" disabled={!presetEdit.form.name.trim()} onClick={savePresetEdit}>Guardar preset</Button>
                 </div>
               </div>
             )}
           </div>
-
-          <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-            <input type="checkbox" checked={active} onChange={(ev) => setActive(ev.target.checked)} />
-            Activo (visível na app do cliente)
-          </label>
         </div>
       </Modal>
 
@@ -1009,7 +1042,7 @@ function ExerciseRowsEditor({ rows, setRows, catalog }: {
               const matched = presets.find((p) => presetMatchesRow(p, row)) ?? null
               const personalizado = presets.length > 0 && !matched
               const resumo = row.type === 'time'
-                ? `${row.duration}s · ${row.rest}s desc.`
+                ? `${row.reps ? `${row.reps}× ` : ''}${row.duration}s · ${row.rest}s desc.`
                 : row.mode === 'perSet' && row.setRows?.length
                   ? setRowsResumo(row.setRows)
                   : `${row.sets}×${row.reps} · ${row.weight}kg · ${row.rest}s`

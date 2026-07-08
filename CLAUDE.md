@@ -2,6 +2,7 @@
 
 Vite + React + TypeScript + TailwindCSS + React Query (gerado por Kubb).
 Backoffice multi-tenant — um único deploy serve todos os clientes da plataforma.
+**PWA:** instala-se como **"RufVision BO"** (nome em `public/manifest.json` + `index.html` + fallback de push em `public/sw.js`), com os ícones do monograma RV em `public/icons/` — ao mudar os ícones, incrementar o `?v=` nos URLs (manifest + links do `index.html`) para forçar o refresh nos dispositivos já instalados.
 
 ---
 

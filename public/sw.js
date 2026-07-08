@@ -9,7 +9,7 @@ self.addEventListener("push", (event) => {
     payload = { title: event.data.text() };
   }
 
-  const title = payload.title ?? "Backoffice";
+  const title = payload.title ?? "RufVision BO";
   const options = {
     body: payload.body ?? "",
     icon: "/icons/icon-192.png",

@@ -56,9 +56,7 @@ export function SetupPassword({ theme, onToggleTheme }: { theme: string; onToggl
 
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2.5 mb-8 justify-center">
-          <div className="w-9 h-9 rounded-lg bg-accent flex items-center justify-center text-white">
-            <Icon name="layers" className="w-5 h-5" />
-          </div>
+          <img src="/icons/logo.svg?v=6" alt="" className="w-9 h-9 shrink-0" />
           <span className="font-semibold text-[17px] tracking-tight text-zinc-900 dark:text-white">Backoffice</span>
         </div>
 

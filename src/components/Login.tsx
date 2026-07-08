@@ -39,9 +39,7 @@ export function Login({ theme, onToggleTheme }: Props) {
         <div className="absolute right-10 bottom-10 w-72 h-72 rounded-full"
           style={{ background: 'radial-gradient(circle, var(--accent-hex)22, transparent 70%)' }} />
         <div className="relative flex items-center gap-2.5 text-white">
-          <div className="w-9 h-9 rounded-lg bg-accent flex items-center justify-center">
-            <Icon name="layers" className="w-5 h-5" />
-          </div>
+          <img src="/icons/logo.svg?v=6" alt="" className="w-9 h-9 shrink-0" />
           <span className="font-semibold text-lg tracking-tight">Backoffice</span>
         </div>
         <div className="relative">
@@ -68,9 +66,7 @@ export function Login({ theme, onToggleTheme }: Props) {
         <div className="flex-1 flex items-center justify-center px-6 pb-16">
           <div className="w-full max-w-sm">
             <div className="lg:hidden flex items-center gap-2.5 mb-8">
-              <div className="w-9 h-9 rounded-lg bg-accent flex items-center justify-center text-white">
-                <Icon name="layers" className="w-5 h-5" />
-              </div>
+              <img src="/icons/logo.svg?v=6" alt="" className="w-9 h-9 shrink-0" />
               <span className="font-semibold text-lg tracking-tight text-zinc-900 dark:text-white">Backoffice</span>
             </div>
             <h1 className="text-2xl font-semibold text-zinc-900 dark:text-white tracking-tight">Entrar</h1>

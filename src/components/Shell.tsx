@@ -414,7 +414,7 @@ function SidebarContent({ accessiblePaths, collapsed }: {
     <div className="flex flex-col h-full">
       <div className={`flex items-center gap-2.5 h-16 shrink-0 ${collapsed ? 'justify-center px-0' : 'px-5'}`}>
         {/* Logo RV — marca sem fundo, maior */}
-        <img src="/icons/logo.svg" alt="Backoffice" className={`${collapsed ? 'h-7' : 'h-8'} w-auto shrink-0`} />
+        <img src="/icons/logo.svg?v=6" alt="Backoffice" className={`${collapsed ? 'h-7' : 'h-8'} w-auto shrink-0`} />
         {!collapsed && <span className="font-semibold text-[17px] tracking-tight text-zinc-900 dark:text-white">Backoffice</span>}
       </div>
 

@@ -10,9 +10,11 @@ import { loginAs } from "./fixtures/login";
  *
  * O gating de UI é feito 100% pelo `Shell` (`src/components/Shell.tsx`):
  *  - a sidebar mostra `accessiblePaths` = /dashboard + módulos por permissão +
- *    CORE_PATHS (Clientes, Mensagens, Financeiro, Conteúdos, Estatísticas,
- *    Website, Faturação — acessíveis a QUALQUER tenant, sem permissão) +
- *    (/admin só para VIEW_ADMIN);
+ *    CORE_PATHS (Clientes, Mensagens, Financeiro, Conteúdos, Faturação —
+ *    acessíveis a QUALQUER tenant, sem permissão) +
+ *    (/admin + /estatisticas + /website só para VIEW_ADMIN — Estatísticas e
+ *    Website estão atrás de um gate TEMPORÁRIO de produto desde 2026-07-08,
+ *    `ADMIN_GATED_PATHS` no Shell; a API continua tenant-open);
  *  - o guard (useEffect) redireciona qualquer rota NÃO acessível para
  *    accessiblePaths[0] — que é sempre /dashboard (sempre acessível).
  *
@@ -64,9 +66,12 @@ async function expectBlockedRedirect(
 }
 
 // Itens CORE que TODOS os tenants (mesmo sem módulos) devem ver na sidebar.
-// Website é core desde 5e5d8d0 (deixou de ser VIEW_ADMIN) — qualquer tenant
-// configura o seu próprio site público.
-const CORE_ITEMS = ["Clientes", "Mensagens", "Financeiro", "Conteúdos", "Estatísticas", "Website"];
+const CORE_ITEMS = ["Clientes", "Mensagens", "Financeiro", "Conteúdos"];
+// Estatísticas e Website deixaram de ser core a 2026-07-08 (gate TEMPORÁRIO de
+// produto — `ADMIN_GATED_PATHS` no Shell.tsx): só visíveis/acessíveis com
+// VIEW_ADMIN, como o Admin. Reverter o gate = devolvê-los a CORE_ITEMS aqui.
+const ADMIN_GATED_ITEMS = ["Estatísticas", "Website"];
+const ADMIN_GATED_ROUTES = ["/estatisticas", "/website"];
 // Todos os itens de módulo (não-core, não-admin) — usados para verificar ocultação.
 const ALL_MODULE_ITEMS = ["Loja", "Agenda", "Ginásio"];
 // Rotas de módulo protegidas por permissão (o guard redireciona sem a permissão).
@@ -119,9 +124,10 @@ test.describe("RBAC matriz — sidebar por permissão (core + módulo próprio)"
         ).toBeVisible();
       }
 
-      // (3) NÃO vê os módulos que não são seus, nem o Admin.
+      // (3) NÃO vê os módulos que não são seus, nem o Admin, nem os itens do
+      // gate temporário de VIEW_ADMIN (Estatísticas/Website, 2026-07-08).
       const escondidos = ALL_MODULE_ITEMS.filter((i) => i !== m.moduloItem);
-      for (const item of [...escondidos, "Admin"]) {
+      for (const item of [...escondidos, "Admin", ...ADMIN_GATED_ITEMS]) {
         await expect(
           nav(page).getByRole("button", { name: item, exact: true }),
           `${m.user} NÃO devia ver o item "${item}"`,
@@ -141,9 +147,10 @@ test.describe("RBAC matriz — sidebar por permissão (core + módulo próprio)"
 
     test(`${m.user}: rotas de módulo alheias (URL directo) redirecionam para /dashboard`, async ({ page, context }) => {
       await loginAs(context, m.user);
-      // Rotas de módulo que não são suas → o guard redireciona (não fica lá).
+      // Rotas de módulo que não são suas + as rotas do gate temporário de
+      // VIEW_ADMIN (Estatísticas/Website) → o guard redireciona (não fica lá).
       const bloqueadas = ALL_MODULE_ROUTES.filter((r) => r !== m.moduloPath);
-      for (const route of [...bloqueadas, "/admin"]) {
+      for (const route of [...bloqueadas, "/admin", ...ADMIN_GATED_ROUTES]) {
         await expectBlockedRedirect(page, context, m.user, route);
       }
     });
@@ -152,8 +159,9 @@ test.describe("RBAC matriz — sidebar por permissão (core + módulo próprio)"
       await loginAs(context, m.user);
       // Core é acessível a todos os tenants — nenhuma destas rotas deve redirecionar
       // para /dashboard. (/despesas é deep-link do Financeiro, também permitido.
-      // /website é core desde 5e5d8d0.)
-      for (const route of ["/clientes", "/financeiro", "/conteudos", "/estatisticas", "/despesas", "/website"]) {
+      // /estatisticas e /website saíram daqui a 2026-07-08 — gate temporário
+      // VIEW_ADMIN, ver ADMIN_GATED_ROUTES acima.)
+      for (const route of ["/clientes", "/financeiro", "/conteudos", "/despesas"]) {
         await page.goto(route);
         await expect(page, `${m.user} devia poder ficar em ${route}`).toHaveURL(
           new RegExp(route.replace("/", "\\/")),
@@ -174,8 +182,9 @@ test.describe("RBAC matriz — noaccess@e2e (sem componentes)", () => {
     for (const item of CORE_ITEMS) {
       await expect(nav(page).getByRole("button", { name: item, exact: true })).toBeVisible({ timeout: 10_000 });
     }
-    // Nenhum módulo, nenhum Admin. (Website NÃO entra aqui — é core, ver acima.)
-    for (const item of [...ALL_MODULE_ITEMS, "Admin"]) {
+    // Nenhum módulo, nenhum Admin, nem os itens do gate temporário de
+    // VIEW_ADMIN (Estatísticas/Website, 2026-07-08).
+    for (const item of [...ALL_MODULE_ITEMS, "Admin", ...ADMIN_GATED_ITEMS]) {
       await expect(
         nav(page).getByRole("button", { name: item, exact: true }),
         `noaccess NÃO devia ver "${item}"`,
@@ -207,19 +216,23 @@ test.describe("RBAC matriz — noaccess@e2e (sem componentes)", () => {
     await expect(page.getByRole("heading", { name: "Clientes", level: 2 })).toBeVisible({ timeout: 10_000 });
   });
 
-  test("/website é core: acessível sem redirect mesmo sem qualquer permissão", async ({ page, context }) => {
+  // Gate temporário 2026-07-08 (ADMIN_GATED_PATHS no Shell.tsx): /website e
+  // /estatisticas deixaram de ser core — sem VIEW_ADMIN o guard redireciona
+  // para /dashboard, incluindo os SUBPATHS de /website (deep-link ao submenu),
+  // pelo mesmo mecanismo de prefixo do /admin/tokens acima.
+  test("gate temporário: /website, /website/paginas e /estatisticas redirecionam para /dashboard", async ({ page, context }) => {
     await loginAs(context, "noaccess@e2e");
-    await page.goto("/website");
-    await expect(page, "noaccess devia poder ficar em /website").toHaveURL(/\/website/, { timeout: 15_000 });
-    await expect(nav(page).getByRole("button", { name: "Website", exact: true })).toBeVisible({ timeout: 10_000 });
+    for (const route of [...ADMIN_GATED_ROUTES, "/website/paginas"]) {
+      await expectBlockedRedirect(page, context, "noaccess@e2e", route);
+    }
   });
 });
 
 test.describe("RBAC matriz — admin@e2e (acesso total)", () => {
-  test("sidebar mostra TODOS os módulos + Admin (Website já vem via CORE_ITEMS)", async ({ page, context }) => {
+  test("sidebar mostra TODOS os módulos + Admin + Estatísticas/Website (gate VIEW_ADMIN)", async ({ page, context }) => {
     await loginAs(context, "admin@e2e");
     await page.goto("/dashboard");
-    for (const name of [...CORE_ITEMS, ...ALL_MODULE_ITEMS, "Admin"]) {
+    for (const name of [...CORE_ITEMS, ...ADMIN_GATED_ITEMS, ...ALL_MODULE_ITEMS, "Admin"]) {
       await expect(
         nav(page).getByRole("button", { name, exact: true }),
         `admin devia ver "${name}"`,
@@ -227,9 +240,11 @@ test.describe("RBAC matriz — admin@e2e (acesso total)", () => {
     }
   });
 
-  test("acede a todas as rotas de módulo + /admin sem redirect", async ({ page, context }) => {
+  test("acede a todas as rotas de módulo + /admin + gate VIEW_ADMIN sem redirect", async ({ page, context }) => {
     await loginAs(context, "admin@e2e");
-    for (const route of ["/loja", "/agenda", "/ginasio", "/admin", "/website"]) {
+    // /website/paginas confirma que o guard de submenu continua a servir os
+    // subpaths de /website a quem tem VIEW_ADMIN (deep-link não expulsa).
+    for (const route of ["/loja", "/agenda", "/ginasio", "/admin", "/estatisticas", "/website", "/website/paginas"]) {
       await page.goto(route);
       await expect(page, `admin devia aceder a ${route}`).toHaveURL(
         new RegExp(route.replace("/", "\\/")),

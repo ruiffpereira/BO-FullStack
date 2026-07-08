@@ -16,7 +16,13 @@ import { useChatUnread } from '../hooks/useChat'
 import { SUBMENU, allowedSubitems, findRoot, type SubmenuItem } from '../lib/navigation'
 
 // Core: todos os tenants têm (sem permissão). Módulos: por permissão.
-const CORE_PATHS = ['/clientes', '/mensagens', '/financeiro', '/conteudos', '/estatisticas', '/faturacao', '/website']
+const CORE_PATHS = ['/clientes', '/mensagens', '/financeiro', '/conteudos', '/faturacao']
+// GATE TEMPORÁRIO (decisão de produto, 2026-07-08): /website e /estatisticas
+// só para VIEW_ADMIN — o editor de site ainda está em rollout e o Plausible não
+// está provisionado para todos os tenants. Gate SÓ de UI (a API continua
+// tenant-open, já auditada). Reverter = mover estes paths de volta para
+// CORE_PATHS e apagar esta constante.
+const ADMIN_GATED_PATHS = ['/estatisticas', '/website']
 const MODULE_PERM_TO_PATH: Record<string, string> = {
   VIEW_SCHEDULE:  '/agenda',
   VIEW_PRODUCTS:  '/loja',
@@ -652,12 +658,13 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   }
 
   const isAdmin = permissions.some((p) => p.name === 'VIEW_ADMIN')
-  // Conjunto de rotas acessíveis (dashboard + módulos por permissão + core + admin)…
+  // Conjunto de rotas acessíveis (dashboard + módulos por permissão + core + admin
+  // + gate temporário: /website e /estatisticas só com VIEW_ADMIN, ver ADMIN_GATED_PATHS)…
   const accessible = new Set<string>([
     '/dashboard',
     ...permissions.map((p) => MODULE_PERM_TO_PATH[p.name ?? '']).filter(Boolean),
     ...CORE_PATHS,
-    ...(isAdmin ? ['/admin'] : []),
+    ...(isAdmin ? ['/admin', ...ADMIN_GATED_PATHS] : []),
   ])
   // …apresentadas pela ordem fixa de MENU_ORDER (extras desconhecidos vão para o fim).
   const accessiblePaths = [

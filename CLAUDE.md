@@ -342,6 +342,10 @@ Quando o `kubb:refresh` busca o spec e a API está atrás da Cloudflare com Bot 
 
 ---
 
+## Layout — alturas SEMPRE por flex (regra obrigatória)
+
+**O Shell é o único dono da altura do viewport.** Nenhuma página/componente pode medir o viewport à mão: **proibido** `calc(100vh - Xpx)`, `h-screen`, `100dvh`/offsets fixos que "adivinham" a altura do chrome (topbar, títulos, banners). O padrão é a cadeia flex: Shell = coluna `h-dvh` (topbar/`BillingBanner` como filhos normais) → página recebe `flex-1 min-h-0` → tabelas/listas/threads fazem scroll **interno** (`overflow-auto`) dentro desse espaço. Porquê: qualquer px fixo codifica uma suposição sobre a altura dos irmãos, e essa altura **varia em runtime** (o `BillingBanner` aparece/desaparece consoante o estado de billing; tirar os títulos do corpo das páginas em `1f320cc` partiu tabelas e a página Mensagens exatamente por isso). ⚠ **Dívida em curso (roadmap 0.8):** ainda existem medições fixas herdadas por varrer — ao mexer numa página que as tenha, converter para flex em vez de reajustar o número.
+
 ## Segurança e Boas Práticas
 
 - Nunca expor `userId` ou dados de outros tenants nas queries

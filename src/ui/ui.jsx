@@ -89,7 +89,7 @@ function Select({ label, children, className = '', ...rest }) {
   );
 }
 
-function Toggle({ checked, onChange, size = 'md', disabled = false }) {
+function Toggle({ checked, onChange, size = 'md', disabled = false, label }) {
   // Track com padding fixo + knob centrado por flexbox; só translateX no knob.
   const d = size === 'sm'
     ? { track: 'w-9 h-5', knob: 'h-4 w-4', on: 'translate-x-4' }
@@ -99,6 +99,7 @@ function Toggle({ checked, onChange, size = 'md', disabled = false }) {
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={`${d.track} inline-flex items-center rounded-full p-0.5 shrink-0 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-50 disabled:cursor-not-allowed ${checked ? 'bg-accent' : 'bg-zinc-300 dark:bg-zinc-600'}`}

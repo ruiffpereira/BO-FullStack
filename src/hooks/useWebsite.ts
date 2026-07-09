@@ -31,11 +31,13 @@ export interface SiteTheme {
 }
 
 /**
- * Link do menu (legado): só usado como fallback quando NENHUMA página tem
- * `inNav: true` (ver `site-engine/lib/nav.ts::buildNavLinks`) — hoje a nav é
- * sobretudo derivada de `pages[].inNav` (editada na tab Páginas), por isso
- * este app não tem um editor de `nav.items` próprio. Os nomes de campo
- * espelham o que o renderer lê: `to`, não `href`.
+ * Link do menu. Por omissão a nav deriva-se de `pages[].inNav` (editada na tab
+ * Páginas) — `nav.items` ausente/vazio = automático. Quando presente E
+ * não-vazio, é um OVERRIDE MANUAL que GANHA SEMPRE (mesmo havendo páginas com
+ * `inNav: true`) — editável na tab "Rodapé & Nav" → "Itens do menu" (toggle
+ * Automático/Personalizado, `FooterNavTab` em `Website.tsx`; ver
+ * `site-engine/lib/nav.ts::buildNavLinks`). Os nomes de campo espelham o que
+ * o renderer lê: `to`, não `href`.
  */
 export interface NavItem {
   label?: string;

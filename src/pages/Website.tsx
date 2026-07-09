@@ -27,6 +27,7 @@ import {
   type SitePage,
   type SiteTheme,
   type SiteNav,
+  type NavItem,
   type SiteFooter,
   type FooterColumn,
   type SiteUpsert,
@@ -1295,6 +1296,25 @@ interface FooterColumnDraft {
 const footerInputCls =
   "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 px-3 py-2 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition";
 
+/**
+ * `site.nav.items` (formato solto vindo da API) → estado editável — MESMO
+ * formato de `FooterLinkDraft` (label/to), por isso o editor reaproveita
+ * literalmente o `FooterLinksEditor` já existente. Um `anchor` legado (sem
+ * `to`) aparece como `#âncora` no campo de endereço, editável na mesma.
+ */
+function toNavItemDrafts(items: unknown): FooterLinkDraft[] {
+  if (!Array.isArray(items)) return [];
+  return (items as NavItem[]).map((it) => ({
+    label: typeof it?.label === "string" ? it.label : "",
+    to:
+      typeof it?.to === "string"
+        ? it.to
+        : typeof it?.anchor === "string" && it.anchor
+          ? `#${it.anchor}`
+          : "",
+  }));
+}
+
 /** `site.footer.columns` (formato solto vindo da API) → estado editável, tudo string. */
 function toColumnDrafts(columns: unknown): FooterColumnDraft[] {
   if (!Array.isArray(columns)) return [];
@@ -1480,10 +1500,20 @@ function FooterColumnsEditor({
  * `nav.items` (+ outros campos futuros) — só substitui `nav.cta`. Desligar o
  * toggle grava `cta: null`, o que faz o renderer cair no default da vertical
  * (`resolveNavCta` em `site-engine/lib/nav.ts`).
+ *
+ * **Itens do menu** (override manual, task pendente do site-editor-complete):
+ * por omissão (`nav.items` ausente/vazio) o menu deriva-se das páginas com
+ * "Nav" ligado (tab Páginas, ordenadas por `order`) — `buildNavLinks` em
+ * `site-engine/lib/nav.ts`. O toggle "Personalizado" grava uma lista `items`
+ * própria que passa a ganhar SEMPRE (mesmo havendo páginas com Nav ligado);
+ * desligar volta ao automático gravando `items: undefined` (ausente, mesmo
+ * padrão do `cta: null` do D2 — o renderer volta a derivar das páginas).
+ * Reaproveita o `FooterLinksEditor` tal e qual (mesmo formato `{label,to}`).
  */
 function FooterNavTab({ site }: { site: Site }) {
   const saveFooter = useSaveSite();
   const saveNav = useSaveSite();
+  const saveNavItems = useSaveSite();
 
   const footerSrc = (site.footer ?? {}) as SiteFooter;
   const [name, setName] = useState(typeof footerSrc.name === "string" ? footerSrc.name : "");
@@ -1538,6 +1568,29 @@ function FooterNavTab({ site }: { site: Site }) {
     );
   };
 
+  const existingItems = navSrc?.items ?? [];
+  const [itemsMode, setItemsMode] = useState<"auto" | "custom">(
+    existingItems.length > 0 ? "custom" : "auto",
+  );
+  const [navItems, setNavItems] = useState<FooterLinkDraft[]>(() => toNavItemDrafts(existingItems));
+
+  const onSaveNavItems = () => {
+    const cleaned = navItems
+      .map((l) => ({ label: l.label.trim(), to: l.to.trim() }))
+      .filter((l) => l.label || l.to);
+    const nextNav: SiteNav = {
+      ...(navSrc ?? {}),
+      items: itemsMode === "custom" && cleaned.length > 0 ? cleaned : undefined,
+    };
+    saveNavItems.mutate(
+      { nav: nextNav },
+      {
+        onSuccess: () => toast.success("Itens do menu guardados."),
+        onError: () => toast.error("Não foi possível guardar os itens do menu."),
+      },
+    );
+  };
+
   return (
     <div className="grid gap-5 lg:grid-cols-3">
       <Card className="p-5 lg:col-span-2">
@@ -1580,7 +1633,12 @@ function FooterNavTab({ site }: { site: Site }) {
           nenhum).
         </p>
         <label className="flex items-center gap-2.5 cursor-pointer mb-3">
-          <Toggle checked={ctaEnabled} onChange={setCtaEnabled} size="sm" />
+          <Toggle
+            checked={ctaEnabled}
+            onChange={setCtaEnabled}
+            size="sm"
+            label="Mostrar botão personalizado"
+          />
           <span className="text-sm text-zinc-700 dark:text-zinc-200">Mostrar botão personalizado</span>
         </label>
         {ctaEnabled && (
@@ -1604,6 +1662,33 @@ function FooterNavTab({ site }: { site: Site }) {
         <div className="mt-4">
           <Button onClick={onSaveNav} isLoading={saveNav.isPending} icon="check">
             Guardar botão do menu
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="p-5 lg:col-span-3">
+        <SectionTitle>Itens do menu</SectionTitle>
+        <p className="text-[13px] text-zinc-500 mb-3">
+          Por omissão, o menu do cabeçalho usa as páginas com "Nav" ligado
+          (tab Páginas), pela ordem delas. Liga "Personalizado" para escolher
+          os itens do menu à mão — passam a substituir sempre a lista
+          automática.
+        </p>
+        <label className="flex items-center gap-2.5 cursor-pointer mb-3">
+          <Toggle
+            checked={itemsMode === "custom"}
+            onChange={(next: boolean) => setItemsMode(next ? "custom" : "auto")}
+            size="sm"
+            label="Personalizar itens do menu"
+          />
+          <span className="text-sm text-zinc-700 dark:text-zinc-200">Personalizado</span>
+        </label>
+        {itemsMode === "custom" && (
+          <FooterLinksEditor links={navItems} onChange={setNavItems} disabled={saveNavItems.isPending} />
+        )}
+        <div className="mt-4">
+          <Button onClick={onSaveNavItems} isLoading={saveNavItems.isPending} icon="check">
+            Guardar itens do menu
           </Button>
         </div>
       </Card>

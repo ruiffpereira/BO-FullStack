@@ -1148,10 +1148,13 @@ describe("Website — Rodapé & Nav (D1 footer + D2 nav CTA)", () => {
     });
     render(<Website view="footer" />);
 
-    await user.click(screen.getByRole("switch"));
+    // Duas toggles nesta vista (CTA + itens do menu) — desambiguar pelo nome.
+    await user.click(screen.getByRole("switch", { name: "Mostrar botão personalizado" }));
     await user.type(screen.getByLabelText("Texto do botão"), "Marcar");
-    // Tem hint (texto extra dentro do <label>) — regex de prefixo, como acima.
-    await user.type(screen.getByLabelText(/^Endereço/), "#marcar");
+    // O campo "Endereço" existe tanto no CTA como (com outro nome acessível,
+    // "Endereço do link N") no editor de itens do menu — regex específico do
+    // hint do CTA para não colidir.
+    await user.type(screen.getByLabelText(/Normalmente uma âncora/), "#marcar");
     await user.click(screen.getByRole("button", { name: /Guardar botão do menu/i }));
 
     expect(saveMutate).toHaveBeenCalledTimes(1);
@@ -1173,7 +1176,7 @@ describe("Website — Rodapé & Nav (D1 footer + D2 nav CTA)", () => {
     render(<Website view="footer" />);
 
     // O toggle começa ligado (já há CTA guardado) — desligar limpa o CTA.
-    await user.click(screen.getByRole("switch"));
+    await user.click(screen.getByRole("switch", { name: "Mostrar botão personalizado" }));
     await user.click(screen.getByRole("button", { name: /Guardar botão do menu/i }));
 
     expect(saveMutate).toHaveBeenCalledTimes(1);
@@ -1182,5 +1185,64 @@ describe("Website — Rodapé & Nav (D1 footer + D2 nav CTA)", () => {
       items: [{ label: "Início", to: "/" }],
       cta: null,
     });
+  });
+
+  it("(itens do menu) com nav.items já preenchido, mostra 'Personalizado' ativo e os itens existentes", async () => {
+    useSiteMock.mockReturnValue({
+      data: makeSite({
+        nav: { items: [{ label: "Serviços", to: "/servicos" }], cta: null },
+      }),
+      isLoading: false,
+    });
+    render(<Website view="footer" />);
+
+    expect(screen.getByRole("switch", { name: "Personalizar itens do menu" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByLabelText("Texto do link 1")).toHaveValue("Serviços");
+    expect(screen.getByLabelText("Endereço do link 1")).toHaveValue("/servicos");
+  });
+
+  it("(itens do menu) modo Personalizado: adicionar um item grava nav.items preservando o cta", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({
+      data: makeSite({ nav: { items: [], cta: { label: "Marcar", to: "#marcar" } } }),
+      isLoading: false,
+    });
+    render(<Website view="footer" />);
+
+    await user.click(screen.getByRole("switch", { name: "Personalizar itens do menu" }));
+    await user.click(screen.getByRole("button", { name: /Adicionar link/i }));
+    await user.type(screen.getByLabelText("Texto do link 1"), "Início");
+    await user.type(screen.getByLabelText("Endereço do link 1"), "/");
+    await user.click(screen.getByRole("button", { name: /Guardar itens do menu/i }));
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    const arg = saveMutate.mock.calls[0][0];
+    expect(arg.nav).toEqual({
+      items: [{ label: "Início", to: "/" }],
+      cta: { label: "Marcar", to: "#marcar" },
+    });
+  });
+
+  it("(itens do menu) voltar a Automático grava nav.items ausente (renderer volta a derivar das páginas)", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({
+      data: makeSite({
+        nav: { items: [{ label: "Início", to: "/" }], cta: { label: "Marcar", to: "#marcar" } },
+      }),
+      isLoading: false,
+    });
+    render(<Website view="footer" />);
+
+    // Já começa em "Personalizado" (há items) — desligar volta a Automático.
+    await user.click(screen.getByRole("switch", { name: "Personalizar itens do menu" }));
+    await user.click(screen.getByRole("button", { name: /Guardar itens do menu/i }));
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    const arg = saveMutate.mock.calls[0][0];
+    expect(arg.nav.items).toBeUndefined();
+    expect(arg.nav.cta).toEqual({ label: "Marcar", to: "#marcar" });
   });
 });

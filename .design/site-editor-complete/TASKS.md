@@ -51,7 +51,16 @@ Execução: agentes Sonnet + review adversarial por fatia; commits locais → pu
     `tests/unit/Website.test.tsx`.
 
 ## Polish (não bloqueante)
-- [ ] Empty-state nos blocos funcionais (explicar que puxam dados reais de Agenda/Loja/Ginásio).
+- [x] Empty-state nos blocos funcionais (explicar que puxam dados reais de Agenda/Loja/Ginásio) — verificado
+  2026-07-10: **já implementado** desde o build original (não ficou assinalado aqui na altura). `Booking.tsx`
+  (T13, `fd93848`) mostra `T.servicesUnavailable` ("De momento não é possível marcar online. Contacta-nos
+  diretamente.") quando o tenant tem 0 serviços OU o fetch falha; `Products.tsx` (T14, `7a7d471`) mostra
+  `unavailableMsg` ("De momento não há produtos disponíveis. Volta em breve.") no mesmo caso. Ambos seguem a
+  convenção de string do renderer (`str(content, "chave", fallback)` — override por locale via CMS,
+  fallback PT hardcoded) e usam classes com tokens (`.booking__notice`, `.products__unavailable` em
+  `app/blocks.css`) — discreto, sem grelha/card partido. `GymSignup` é só marketing (planos vêm de
+  `content.plans`, sem fetch); 0 planos já cai graciosamente na variante `cta` (nunca uma grelha vazia).
+  `Lead` é um form sem dependência de dados reais — não se aplica.
 
 ## Ordem/rondas (para não emaranhar o working tree do BO)
 1. **Ronda 1 (paralelo):** A-backend [API+renderer] · B [BO].

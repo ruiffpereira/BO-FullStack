@@ -6,7 +6,7 @@ Execução: agentes Sonnet + review adversarial por fatia; commits locais → pu
 
 ## Bloqueadores de produção
 
-- [ ] **A — Preview ao vivo do rascunho** [API+renderer+BO] (o maior; 0% feito):
+- [x] **A — Preview ao vivo do rascunho** [API+renderer+BO] — feito (BO `644272d`, 2026-07-04; renderer `27db7ac`/`6783d2d`, `/preview` + frame-ancestors):
   - [API] Endpoint que devolve o **Site do tenant independentemente de `published`**, autenticado. Abordagem:
     `POST /website/preview-token` (authenticateToken, req.user) → devolve URL/token de preview curto e assinado;
     `GET /websites/site/preview?token=` (público, verifica o token assinado → devolve o Site draft do userId).
@@ -15,12 +15,15 @@ Execução: agentes Sonnet + review adversarial por fatia; commits locais → pu
   - [BO] `<iframe>` do preview no editor (tab "O meu site" + idealmente nas outras tabs), **refresca ao Guardar**
     (após `useSaveSite`/save de bloco). Substitui a amostra estática `BrandPreview`.
   - Review de segurança (token assinado curto; só o próprio Site; sem fuga cross-tenant).
-- [ ] **B — Upload de imagens no editor** [BO] (API já feita — só ligar):
+- [x] **B — Upload de imagens no editor** [BO] (API já feita — só ligar) — feito (`ebcec1f`, 2026-07-04):
   - Ligar `FileUpload` (`uploadImage`→`POST /api/uploads`, já usado em Conteúdos/Loja/Ginásio/Chat) em TODOS os
     campos de imagem `url(...)` do `blockFields.tsx` (`PrimitiveFieldInput` + gallery do `ItemsArrayEditor`) e no
     **logo** do `BrandTab` (hoje é só um Input de URL). Upload diferido onde fizer sentido.
-- [ ] **C — Un-gate `/website` para tenants** [BO, 1 linha] — remover `isAdmin ? [...] : []` no `Shell.tsx:183`
-  + `/website` em `CORE_PATHS`. **FAZER POR ÚLTIMO** (só quando A+B+D estiverem prontos e revistos).
+- [x] **C — Un-gate `/website` para tenants** [BO, 1 linha] — remover `isAdmin ? [...] : []` no `Shell.tsx:183`
+  + `/website` em `CORE_PATHS`. **FAZER POR ÚLTIMO** (só quando A+B+D estiverem prontos e revistos). — feito (`5e5d8d0`,
+  2026-07-04). **Nota 2026-07-09:** revertido para gate temporário `VIEW_ADMIN` por decisão de produto (`ADMIN_GATED_PATHS`
+  no `Shell.tsx`, commit `3cc0f24`) — rollout do editor ainda em curso; a API mantém-se tenant-open, gate é só de UI.
+  Não é um "desfazer" do trabalho de C, é uma decisão de produto separada; reverter = devolver `/website` a `CORE_PATHS`.
 
 ## Para ficar "completo" (conteúdo que o tenant não consegue produzir de outra forma)
 

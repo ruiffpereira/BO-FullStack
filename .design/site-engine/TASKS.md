@@ -20,14 +20,14 @@ Gerado de: `.design/site-engine/` (DESIGN_BRIEF + INFORMATION_ARCHITECTURE + tok
 - [x] **T4 · ISR + revalidação** `[REND+API]`: cache por (tenant, página, locale); endpoint `POST /api/revalidate` (assinado, `REVALIDATE_SECRET`) que o backoffice chama no **publish** e no **put quando já publicado** (`revalidateRenderer(siteHosts(...))`, env-gated). **Testado:** renderer unit (auth/parse/tag, verde) + `siteHosts` (API). _Env: `RENDERER_URL`+`REVALIDATE_SECRET` na API; `REVALIDATE_SECRET` no renderer._
 
 ## Biblioteca de blocos (fan-out — cada um é uma fatia independente, com variantes)
-- [ ] **T5 · Nav** `[REND]`: dinâmica das páginas `inNav` (ordenadas) + CTA principal por vertical + seletor de língua; mobile = drawer; header fixo (lição do scroll: 100dvh/overflow). _Novo._
+- [x] **T5 · Nav** `[REND]`: dinâmica das páginas `inNav` (ordenadas) + CTA principal por vertical + seletor de língua; mobile = drawer; header fixo (lição do scroll: 100dvh/overflow). _Novo._ — feito (site-engine `866c72b`, 2026-07-03)
 - [x] **T6 · About/Statement + Stats** `[REND]`: texto+imagem / editorial; Stats com contadores. _Novo (base: winter `About/Statement/Stats`)._
 - [x] **T7 · Services/Features grid** `[REND]`: grelha/lista; fonte = CMS **ou** serviços da agenda. _Novo._
 - [x] **T8 · Gallery** `[REND]`: grelha/masonry/carrossel (swipe mobile). _Novo (base: winter `Obras`, tifas `Gallery`)._
 - [x] **T9 · Testimonials + CTA band + FAQ** `[REND]`: carrossel/grelha (+ opcional Google Reviews); CTA band; FAQ acordeão. _Novo._
 - [x] **T10 · Pricing/Planos** `[REND]`: cartões/tabela; fonte = CMS **ou** subscrições do ginásio. _Novo._
 - [x] **T11 · Contact + Mapa** `[REND]`: form + mapa + horários; ligado ao lead (T16). _Novo._
-- [ ] **T12 · Collection (portfolio/obras)** `[REND]`: bloco-lista + página `/{slug}` + detalhe `/{slug}/{item}` (paginação/filtro). _Novo (base: winter `Projetos/Projeto`)._
+- [x] **T12 · Collection (portfolio/obras)** `[REND]`: bloco-lista + página `/{slug}` + detalhe `/{slug}/{item}` (paginação/filtro). _Novo (base: winter `Projetos/Projeto`)._ — feito (site-engine `714d06e`, 2026-07-03)
 
 ## Blocos FUNCIONAIS (ligam às APIs reais — depois da máquina provada)
 - [x] **T13 · Booking** `[REND]`: **feito 2026-07-02** (site-engine `fd93848`, loop build→review→fix). Decisão do user: **marcação exige conta de cliente** (como a API já obriga; anónimo fica p/ avaliar depois). Auth inline no widget (Entrar/Criar conta, registo→login automático anti-enumeração), sessão por tenant em localStorage (sem refresh, v1), `POST /appointments` real com Bearer via proxy same-origin; sucesso com Google Calendar + subscrição webcal (o `cancelToken`/.ics one-time vai só no email — a API não o devolve no POST). Sucesso fingido removido; demo simula APENAS sem tenant real. 116 testes unit verdes; screenshots desktop+mobile ✓. **Por provar:** e2e contra API viva (dev MySQL estava em baixo) e o painel de auth só foi validado por código/markup (não é visível em modo demo). **⚠ Bloqueante de produção (API):** o login proxied concentra os visitantes no IP do renderer → `authRateLimit` (10/min por IP) precisa de aceitar IP real reencaminhado quando `x-renderer-key` é válido — mudança coordenada na API antes do rollout. _(variantes: inline/card; "modal/página" do brief ficam com T24/T19.)_
@@ -40,15 +40,17 @@ Gerado de: `.design/site-engine/` (DESIGN_BRIEF + INFORMATION_ARCHITECTURE + tok
 - [x] **T18 · sitemap.xml + robots.txt + RGPD** `[REND]`: _(feito: `app/sitemap.ts` + `app/robots.ts` per-host, `CookieConsent` + página `/privacidade`. Deploy: `Dockerfile` + `DEPLOY.md` no site-engine — Next standalone p/ Coolify, modelo wildcard.)_ por tenant; página `/privacidade` + cookie consent como blocos (portar dos sites atuais). _Novo (base: `cookies.*`/`privacy.*` no CMS)._
 
 ## Templates (compõem blocos em sites-arranque)
-- [ ] **T19 · 4 templates por vertical** `[API/seed]`: barbeiro, ginásio (wedge), loja, genérico → Site JSON seed + conteúdo CMS seed (estilo `content-import.csv`). Alimenta o "escolhe o teu site". _Novo._
+- [x] **T19 · 4 templates por vertical** `[API/seed]`: barbeiro, ginásio (wedge), loja, genérico → Site JSON seed + conteúdo CMS seed (estilo `content-import.csv`). Alimenta o "escolhe o teu site". _Novo._ — feito (API `fcb2b56` + BO `fce4da1`, 2026-07-04)
 
 ## Backoffice — área "Website" (v1, sem editor inline)
 > **2026-07-01:** T20/T21/T22/T25 **feitos** (página `/website` com 4 tabs, hook `useWebsite.ts`, 4 templates, 4 testes verdes). **Escondida dos tenants** (gated a `VIEW_ADMIN` no `Shell.tsx`, fora de `CORE_PATHS`) até estar pronta — falta T23 (gestor de páginas) + T24 (gestor de blocos) + preview iframe real. **Passar a core** quando completo.
+>
+> **Atualização 2026-07-09:** T23 (`3d263c2`) e T24 (`b11e4dc`) feitos em 2026-07-03; preview iframe feito no épico `.design/site-editor-complete/` (task A, `644272d`). `/website` passou a core em `5e5d8d0` (2026-07-04), mas voltou a gate temporário `VIEW_ADMIN` por decisão de produto em `3cc0f24` (2026-07-08/09) — ver `ADMIN_GATED_PATHS` no `Shell.tsx`.
 - [x] **T20 · Área Website (shell + estado)** `[BO]`: item na sidebar (`MENU_ORDER`) + rota `/website`; "O meu site" (rascunho/publicado, URL, Ver site, setup pendente). Reusa `ui/ui.jsx` (`Tabs`, `Card`). _Novo._
 - [x] **T21 · Escolher template** `[BO]`: galeria por vertical com preview → semeia o Site JSON. _Novo; depende de T19._
 - [x] **T22 · Marca (preset+accent+fontes+logo)** `[BO]`: escreve `theme` no Site JSON; **preview live em iframe** (aponta ao renderer com o rascunho). _Novo; depende de T3._
-- [ ] **T23 · Gestor de páginas** `[BO]`: add/remover/reordenar páginas, slug (gerado/editável, valida rotas reservadas), toggle "na nav", flag coleção → nav dinâmica. _Novo._
-- [ ] **T24 · Gestor de blocos por página** `[BO]`: add/remover/reordenar blocos + escolher variante + ligar conteúdo CMS (formulário), com preview iframe. _Novo; **v1** (o WYSIWYG inline é fase 2)._
+- [x] **T23 · Gestor de páginas** `[BO]`: add/remover/reordenar páginas, slug (gerado/editável, valida rotas reservadas), toggle "na nav", flag coleção → nav dinâmica. _Novo._ — feito (`3d263c2`, 2026-07-03)
+- [x] **T24 · Gestor de blocos por página** `[BO]`: add/remover/reordenar blocos + escolher variante + ligar conteúdo CMS (formulário), com preview iframe. _Novo; **v1** (o WYSIWYG inline é fase 2)._ — feito (`b11e4dc`, 2026-07-03)
 - [x] **T25 · Subdomínio + Publicar** `[BO+API]`: escolher subdomínio (verifica disponibilidade + provisiona) + Publicar → chama `POST /revalidate`. _Novo; depende de T4._
 
 ## Polish & Review

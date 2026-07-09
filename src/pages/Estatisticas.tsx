@@ -145,7 +145,7 @@ export function Estatisticas() {
           <EmptyState
             icon="trend"
             title="Estatísticas ainda não configuradas"
-            desc="O administrador da plataforma precisa de ligar o serviço de estatísticas (Plausible) antes de esta página mostrar dados. Fala com o suporte."
+            desc="O administrador da plataforma precisa de ligar o serviço de estatísticas antes de esta página mostrar dados. Fala com o suporte."
           />
         </Card>
       </div>
@@ -176,7 +176,7 @@ export function Estatisticas() {
           <Icon name="info" className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
           <div className="text-sm">
             <p className="font-medium text-zinc-800 dark:text-zinc-100">Não foi possível obter as estatísticas</p>
-            <p className="text-zinc-500 mt-0.5">{data?.error}. Confirma que o domínio está registado no Plausible.</p>
+            <p className="text-zinc-500 mt-0.5">{data?.error}. Confirma que as estatísticas estão configuradas para este domínio.</p>
           </div>
         </Card>
       )}

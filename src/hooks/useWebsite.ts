@@ -18,11 +18,15 @@ import { useAuth } from "../context/AuthContext";
 export type ThemePreset = "slate" | "sand" | "ink" | "mist";
 export type ThemeAccent = "blue" | "emerald" | "violet" | "amber" | "rose" | "teal" | "ink";
 export type ThemeFont = "grotesk" | "editorial" | "modern" | "warm" | "serifbody";
+/** Modo claro/escuro do site público (renderer: `lib/theme.ts::themeAttrs`,
+ *  fallback "light" quando ausente — sites antigos sem `mode` continuam claros). */
+export type ThemeMode = "light" | "dark";
 
 export interface SiteTheme {
   preset?: ThemePreset | null;
   accent?: ThemeAccent | null;
   font?: ThemeFont | null;
+  mode?: ThemeMode | null;
   logo?: string | null;
 }
 

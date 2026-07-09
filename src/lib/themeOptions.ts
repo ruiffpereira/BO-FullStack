@@ -1,4 +1,4 @@
-import type { ThemePreset, ThemeAccent, ThemeFont } from "../hooks/useWebsite";
+import type { ThemePreset, ThemeAccent, ThemeFont, ThemeMode } from "../hooks/useWebsite";
 
 /**
  * Opções de marca (preset/accent/tipografia) da tab "Marca" do Website —
@@ -59,6 +59,17 @@ export const ACCENT_LABEL: Record<ThemeAccent, string> = {
   teal: "Turquesa",
   ink: "Tinta",
 };
+
+/** Modo claro/escuro (ver `SiteTheme.mode`, `site-engine/lib/theme.ts::themeAttrs`). */
+export const MODE_LABEL: Record<ThemeMode, string> = {
+  light: "Claro",
+  dark: "Escuro",
+};
+export const MODE_ICON: Record<ThemeMode, string> = {
+  light: "sun",
+  dark: "moon",
+};
+export const THEME_MODES: ThemeMode[] = ["light", "dark"];
 
 export const THEME_PRESETS: ThemePreset[] = ["slate", "sand", "ink", "mist"];
 export const THEME_ACCENTS: ThemeAccent[] = [

@@ -836,6 +836,58 @@ describe("Website — Marca (upload do logótipo)", () => {
   });
 });
 
+// ── Marca: modo claro/escuro ────────────────────────────────────────────────
+
+describe("Website — Marca (modo claro/escuro)", () => {
+  it("por omissão (site sem `theme.mode`) o modo Claro está selecionado e guarda `mode: \"light\"`", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
+    render(<Website view="brand" />);
+
+    expect(screen.getByRole("button", { name: /Claro/i })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /Escuro/i })).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(screen.getByRole("button", { name: /Guardar marca/i }));
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    expect(saveMutate.mock.calls[0][0].theme.mode).toBe("light");
+  });
+
+  it("escolher Escuro guarda `mode: \"dark\"` no theme, preservando preset/accent/font/logo existentes", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({
+      data: makeSite({ theme: { preset: "ink", accent: "amber", font: "warm", logo: "https://x/logo.png" } }),
+      isLoading: false,
+    });
+    render(<Website view="brand" />);
+
+    await user.click(screen.getByRole("button", { name: /Escuro/i }));
+    await user.click(screen.getByRole("button", { name: /Guardar marca/i }));
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    expect(saveMutate.mock.calls[0][0].theme).toEqual(
+      expect.objectContaining({
+        preset: "ink",
+        accent: "amber",
+        font: "warm",
+        mode: "dark",
+        logo: "https://x/logo.png",
+      }),
+    );
+  });
+
+  it("um site já guardado com `theme.mode: \"dark\"` mostra Escuro selecionado ao entrar", () => {
+    useSiteMock.mockReturnValue({
+      data: makeSite({ theme: { mode: "dark" } }),
+      isLoading: false,
+    });
+    render(<Website view="brand" />);
+
+    expect(screen.getByRole("button", { name: /Escuro/i })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /Claro/i })).toHaveAttribute("aria-pressed", "false");
+  });
+});
+
 // ── Blocos: palete completa (site-editor-complete D3+D4) ─────────────────────
 
 describe("Website — Blocos (palete completa: Coleção + funcionais)", () => {

@@ -33,6 +33,7 @@ import {
   type ThemePreset,
   type ThemeAccent,
   type ThemeFont,
+  type ThemeMode,
   type SubdomainCheck,
 } from "../hooks/useWebsite";
 import {
@@ -41,9 +42,12 @@ import {
   PRESET_LABEL,
   FONT_LABEL,
   FONT_STACK,
+  MODE_LABEL,
+  MODE_ICON,
   THEME_PRESETS,
   THEME_ACCENTS,
   THEME_FONTS,
+  THEME_MODES,
   PRESET_BG,
   PRESET_FG,
 } from "../lib/themeOptions";
@@ -989,24 +993,43 @@ function PagesTab({ site }: { site: Site }) {
 
 // ── Tab: Marca ────────────────────────────────────────────────────────────────
 
+// Amostra aproximada de cada preset — não é 1:1 com os tokens reais do
+// renderer (`site-engine/app/site-tokens.css`), só uma "assinatura" visual
+// por preset para a pré-visualização local. O mapa `dark` usa os tons
+// realmente escuros de cada preset (`[data-preset][data-theme="dark"]` no
+// site-tokens.css) para que o toggle "Modo" mude visivelmente a amostra.
+const BRAND_PREVIEW_COLORS: Record<
+  ThemeMode,
+  Record<ThemePreset, { bg: string; fg: string; muted: string }>
+> = {
+  light: {
+    slate: { bg: "#0f172a", fg: "#e2e8f0", muted: "#94a3b8" },
+    sand: { bg: "#f5f0e6", fg: "#3b352b", muted: "#8a8172" },
+    ink: { bg: "#0a0a0a", fg: "#fafafa", muted: "#a1a1aa" },
+    mist: { bg: "#eef2f7", fg: "#1f2937", muted: "#6b7280" },
+  },
+  dark: {
+    slate: { bg: "#0b1120", fg: "#e6edf6", muted: "#9fb0c6" },
+    sand: { bg: "#1c1815", fg: "#f0e9de", muted: "#c2b4a3" },
+    ink: { bg: "#09090b", fg: "#fafafa", muted: "#a1a1aa" },
+    mist: { bg: "#101a1c", fg: "#e8f1f2", muted: "#a3babf" },
+  },
+};
+
 function BrandPreview({
   preset,
   accent,
   font,
+  mode,
   logo,
 }: {
   preset: ThemePreset;
   accent: ThemeAccent;
   font: ThemeFont;
+  mode: ThemeMode;
   logo: string;
 }) {
-  const bgByPreset: Record<ThemePreset, { bg: string; fg: string; muted: string }> = {
-    slate: { bg: "#0f172a", fg: "#e2e8f0", muted: "#94a3b8" },
-    sand: { bg: "#f5f0e6", fg: "#3b352b", muted: "#8a8172" },
-    ink: { bg: "#0a0a0a", fg: "#fafafa", muted: "#a1a1aa" },
-    mist: { bg: "#eef2f7", fg: "#1f2937", muted: "#6b7280" },
-  };
-  const c = bgByPreset[preset];
+  const c = BRAND_PREVIEW_COLORS[mode][preset];
   const accentHex = ACCENT_HEX[accent];
   return (
     <div
@@ -1056,11 +1079,13 @@ function Swatch({
   onClick,
   label,
   color,
+  icon,
 }: {
   active: boolean;
   onClick: () => void;
   label: string;
   color?: string;
+  icon?: string;
 }) {
   return (
     <button
@@ -1076,6 +1101,7 @@ function Swatch({
       {color && (
         <span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ background: color }} />
       )}
+      {icon && <Icon name={icon} className="w-4 h-4 shrink-0" />}
       {label}
     </button>
   );
@@ -1091,6 +1117,7 @@ function BrandTab({ site }: { site: Site }) {
     (theme.accent as ThemeAccent) ?? "blue",
   );
   const [font, setFont] = useState<ThemeFont>((theme.font as ThemeFont) ?? "grotesk");
+  const [mode, setMode] = useState<ThemeMode>((theme.mode as ThemeMode) ?? "light");
   const [logo, setLogo] = useState<string>(theme.logo ?? "");
   const [logoPasteMode, setLogoPasteMode] = useState(false);
   // Upload diferido (como o resto do editor de blocos): o ficheiro escolhido
@@ -1117,6 +1144,7 @@ function BrandTab({ site }: { site: Site }) {
       preset,
       accent,
       font,
+      mode,
       logo: logoUrl,
     };
     save.mutate(
@@ -1143,6 +1171,21 @@ function BrandTab({ site }: { site: Site }) {
                 active={preset === p}
                 onClick={() => setPreset(p)}
                 label={PRESET_LABEL[p]}
+              />
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <SectionTitle>Modo</SectionTitle>
+          <div className="flex flex-wrap gap-2">
+            {THEME_MODES.map((m) => (
+              <Swatch
+                key={m}
+                active={mode === m}
+                onClick={() => setMode(m)}
+                label={MODE_LABEL[m]}
+                icon={MODE_ICON[m]}
               />
             ))}
           </div>
@@ -1222,7 +1265,7 @@ function BrandTab({ site }: { site: Site }) {
 
       <div className="space-y-2">
         <SectionTitle>Pré-visualização</SectionTitle>
-        <BrandPreview preset={preset} accent={accent} font={font} logo={logo.trim()} />
+        <BrandPreview preset={preset} accent={accent} font={font} mode={mode} logo={logo.trim()} />
         <p className="text-xs text-zinc-400">
           Amostra aproximada das escolhas ainda não guardadas. Para veres o
           site real, usa a Pré-visualização em "O meu site" (depois de

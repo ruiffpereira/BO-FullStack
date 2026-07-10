@@ -406,13 +406,13 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     ],
     defaultVariant: "cta",
     dataHint:
-      "Este bloco é só marketing — os planos aqui são texto livre, não vêm das mensalidades reais (essas ficam em Financeiro → Ginásio). Aponta o botão para a tua página de inscrição/PWA.",
+      "Este bloco é só marketing — os planos aqui são texto livre, não vêm das mensalidades reais (essas ficam em Financeiro → Ginásio). O botão NÃO cria uma conta de sócio: podes apontá-lo para /inscrever (formulário de interesse — o ginásio entra em contacto depois) ou para #contacto. A inscrição efetiva continua a ser sempre por CONVITE teu (Financeiro → Ginásio → Convidar sócio), nunca self-serve.",
     fields: [
       text("eyebrow", "Eyebrow"),
       text("title", "Título"),
       text("subtitle", "Subtítulo"),
       text("ctaLabel", "Texto do botão"),
-      url("ctaHref", "Destino do botão", { hint: "Por omissão aponta para #contacto (o bloco de Captação de leads da página)" }),
+      url("ctaHref", "Destino do botão", { hint: "Por omissão aponta para #contacto (o bloco de Captação de leads da página); podes apontar para /inscrever (formulário de interesse do ginásio)" }),
       image("imageUrl", "Imagem", { hint: 'Só aparece na variante "Chamada à ação"' }),
       stringList("benefits", "Benefícios", "benefício"),
       items(
@@ -441,7 +441,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       { id: "stack", label: "Empilhado" },
     ],
     defaultVariant: "split",
-    dataHint: "Os envios criam clientes novos na tua base (visíveis em Clientes) — não é só texto de marketing.",
+    dataHint: "Os envios criam leads na tua inbox (Clientes → Leads, com notificação) — não é só texto de marketing.",
     fields: [
       text("eyebrow", "Eyebrow"),
       text("title", "Título"),

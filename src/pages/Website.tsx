@@ -601,21 +601,29 @@ function TemplateTab({ site }: { site: Site }) {
  * Endereços que o renderer do site-engine já usa para rotas próprias — uma
  * página do tenant NÃO pode reclamar nenhum destes (colidiria com uma rota
  * real do Next.js, que ganha sempre ao catch-all `app/[[...slug]]`).
- * Fonte: `site-engine/app/**` (lido em 2026-07-03):
+ * Fonte: `site-engine/app/**` (lido em 2026-07-03; atualizado em 2026-07-10 —
+ * T15/T16):
  *   carrinho    → app/carrinho/page.tsx (carrinho de compras)
  *   checkout    → app/checkout/page.tsx + app/checkout/sucesso/page.tsx
  *   loja        → app/loja/[produto]/page.tsx (ficha de produto)
+ *   inscrever   → app/inscrever/page.tsx (T15 — formulário de interesse de
+ *                 sócio do ginásio; NÃO cria conta, é um Lead — a inscrição
+ *                 real continua a ser só por convite do tenant)
+ *   entrar      → app/entrar/page.tsx (T16 — login/registo do cliente final,
+ *                 standalone; reusa o `CustomerAuthPanel`)
+ *   conta       → app/conta/page.tsx (T16 — perfil + marcações/encomendas do
+ *                 cliente final autenticado)
  *   api         → app/api/**  (todos os endpoints server-side do renderer)
  *   robots.txt  → app/robots.ts (rota especial do Next.js)
  *   sitemap.xml → app/sitemap.ts (rota especial do Next.js)
- * Nota: "conta"/"entrar" (login de clientes) NÃO existem como rotas — o painel
- * de autenticação (`CustomerAuthPanel`) vive embutido no carrinho/checkout, não
- * numa rota própria — por isso não entram na lista.
  */
 const RESERVED_SLUGS = new Set([
   "carrinho",
   "checkout",
   "loja",
+  "inscrever",
+  "entrar",
+  "conta",
   "api",
   "robots.txt",
   "sitemap.xml",

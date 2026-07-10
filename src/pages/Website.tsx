@@ -51,6 +51,9 @@ import {
   THEME_MODES,
   PRESET_BG,
   PRESET_FG,
+  isNamedAccent,
+  normalizeAccentHex,
+  resolveAccentHex,
 } from "../lib/themeOptions";
 import { useGetWebsiteTemplates } from "../gen/backoffice/hooks/useGetWebsiteTemplates";
 import type { SiteTemplate } from "../gen/backoffice/types/SiteTemplate";
@@ -1031,7 +1034,8 @@ function BrandPreview({
   logo: string;
 }) {
   const c = BRAND_PREVIEW_COLORS[mode][preset];
-  const accentHex = ACCENT_HEX[accent];
+  // Nomeado → cor curada; hex livre (color-picker) → usa-o diretamente.
+  const accentHex = resolveAccentHex(accent);
   return (
     <div
       className="rounded-xl overflow-hidden p-6"
@@ -1116,6 +1120,14 @@ function BrandTab({ site }: { site: Site }) {
   );
   const [accent, setAccent] = useState<ThemeAccent>(
     (theme.accent as ThemeAccent) ?? "blue",
+  );
+  const isCustomAccent = !isNamedAccent(accent);
+  // Texto livre do campo hex — desacoplado de `accent` para o user poder
+  // escrever sem cada tecla inválida apagar a última cor válida guardável
+  // (só sincroniza para `accent` quando o texto normaliza para um hex válido;
+  // "hex inválido não grava" = `accent` fica no último valor válido).
+  const [customHexInput, setCustomHexInput] = useState<string>(
+    isCustomAccent ? String(theme.accent) : "",
   );
   const [font, setFont] = useState<ThemeFont>((theme.font as ThemeFont) ?? "grotesk");
   const [mode, setMode] = useState<ThemeMode>((theme.mode as ThemeMode) ?? "light");
@@ -1204,7 +1216,48 @@ function BrandTab({ site }: { site: Site }) {
                 color={ACCENT_HEX[a]}
               />
             ))}
+            <Swatch
+              active={isCustomAccent}
+              onClick={() => {
+                // Ativa o modo personalizado a partir da última cor livre
+                // escolhida (se houver) ou da cor curada atual, para o
+                // color-picker nunca abrir "vazio".
+                const start = normalizeAccentHex(customHexInput) ?? resolveAccentHex(accent);
+                setAccent(start);
+                setCustomHexInput(start);
+              }}
+              label="Personalizada"
+              color={isCustomAccent ? resolveAccentHex(accent) : undefined}
+              icon={isCustomAccent ? undefined : "plus"}
+            />
           </div>
+          {isCustomAccent && (
+            <div className="flex items-center gap-2 mt-3">
+              <input
+                type="color"
+                aria-label="Cor de destaque personalizada"
+                value={resolveAccentHex(accent)}
+                onChange={(e) => {
+                  const v = e.target.value.toLowerCase();
+                  setAccent(v);
+                  setCustomHexInput(v);
+                }}
+                className="h-9 w-9 shrink-0 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-transparent p-0.5 cursor-pointer"
+              />
+              <Input
+                aria-label="Hex da cor de destaque"
+                value={customHexInput}
+                onChange={(e: any) => {
+                  const raw = e.target.value;
+                  setCustomHexInput(raw);
+                  const normalized = normalizeAccentHex(raw);
+                  if (normalized) setAccent(normalized);
+                }}
+                placeholder="#rrggbb"
+                className="w-32 font-mono"
+              />
+            </div>
+          )}
         </Card>
 
         <Card className="p-5">

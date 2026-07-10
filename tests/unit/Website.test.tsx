@@ -888,6 +888,61 @@ describe("Website — Marca (modo claro/escuro)", () => {
   });
 });
 
+// ── Marca: cor de destaque personalizada (color-picker, fatia 3.3) ───────────
+
+describe("Website — Marca (cor de destaque personalizada)", () => {
+  it("escolher a opção 'Personalizada' e digitar um hex válido grava-o em theme.accent", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
+    render(<Website view="brand" />);
+
+    await user.click(screen.getByRole("button", { name: /Personalizada/i }));
+
+    const hexInput = screen.getByLabelText("Hex da cor de destaque");
+    await user.clear(hexInput);
+    await user.type(hexInput, "#ff8800");
+
+    await user.click(screen.getByRole("button", { name: /Guardar marca/i }));
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    expect(saveMutate.mock.calls[0][0].theme.accent).toBe("#ff8800");
+  });
+
+  it("um hex inválido digitado não substitui a última cor válida (não grava lixo)", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
+    render(<Website view="brand" />);
+
+    await user.click(screen.getByRole("button", { name: /Personalizada/i }));
+    // Ao ativar sem cor prévia, cai no fallback da cor curada atual (azul).
+    const hexInput = screen.getByLabelText("Hex da cor de destaque") as HTMLInputElement;
+    expect(hexInput.value.toLowerCase()).toBe("#2a6fdb");
+
+    await user.clear(hexInput);
+    await user.type(hexInput, "zzzzzz");
+
+    await user.click(screen.getByRole("button", { name: /Guardar marca/i }));
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    expect(saveMutate.mock.calls[0][0].theme.accent).toBe("#2a6fdb");
+  });
+
+  it("um site gravado com theme.accent em hex mostra a pílula 'Personalizada' ativa com essa cor", () => {
+    useSiteMock.mockReturnValue({
+      data: makeSite({ theme: { accent: "#123abc" } }),
+      isLoading: false,
+    });
+    render(<Website view="brand" />);
+
+    const custom = screen.getByRole("button", { name: /Personalizada/i });
+    expect(custom).toHaveAttribute("aria-pressed", "true");
+    // O nomeado "Azul" (default quando não há accent) NÃO fica ativo — o
+    // accent guardado é o hex, não um nomeado.
+    expect(screen.getByRole("button", { name: /^Azul$/i })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByLabelText("Cor de destaque personalizada")).toHaveValue("#123abc");
+  });
+});
+
 // ── Blocos: palete completa (site-editor-complete D3+D4) ─────────────────────
 
 describe("Website — Blocos (palete completa: Coleção + funcionais)", () => {

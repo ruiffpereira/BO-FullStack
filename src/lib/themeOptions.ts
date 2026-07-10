@@ -88,3 +88,42 @@ export const THEME_FONTS: ThemeFont[] = [
   "warm",
   "serifbody",
 ];
+
+// ── Accent: 7 nomeados curados + hex livre (color-picker) ──────────────────
+// Fase 3.3 do roadmap: o accent aceita também uma cor livre, mantendo os
+// presets/fontes curados (sem cor por elemento, sem fonte livre). A mesma
+// regex dura corre no renderer (`site-engine/lib/theme.ts::accentStyle`) —
+// qualquer outro formato é tratado como ausente/inválido.
+
+/** Regex estrita `#rrggbb` (6 dígitos hex) — mesma validação do renderer. */
+export const ACCENT_HEX_RE = /^#[0-9a-f]{6}$/i;
+
+/** Normaliza um input de cor livre para `#rrggbb` minúsculas, ou `null` se inválido. */
+export function normalizeAccentHex(raw: string): string | null {
+  let v = raw.trim();
+  if (!v) return null;
+  if (!v.startsWith("#")) v = `#${v}`;
+  return ACCENT_HEX_RE.test(v) ? v.toLowerCase() : null;
+}
+
+/**
+ * Só os 7 literais nomeados — repetidos aqui (em vez de derivados de
+ * `ThemeAccent`/`THEME_ACCENTS`, ambos tipados como `ThemeAccent[]`) porque
+ * `ThemeAccent` inclui `(string & {})`: qualquer tipo derivado dele colapsa
+ * de volta a "qualquer string", e excluir esses literais no ramo negativo de
+ * `isNamedAccent` dava `never` em vez de `string`.
+ */
+type NamedAccent = "blue" | "emerald" | "violet" | "amber" | "rose" | "teal" | "ink";
+
+/** É um dos 7 accents nomeados curados (não uma cor livre)? */
+export function isNamedAccent(v: string | null | undefined): v is NamedAccent {
+  return !!v && (THEME_ACCENTS as readonly string[]).includes(v);
+}
+
+/** Hex a usar num preview/swatch para qualquer accent (nomeado OU livre) —
+ *  nunca falha: cai no "blue" curado se `v` não for nem um nome válido nem um hex válido. */
+export function resolveAccentHex(v: string | null | undefined): string {
+  if (!v) return ACCENT_HEX.blue;
+  if (isNamedAccent(v)) return ACCENT_HEX[v];
+  return ACCENT_HEX_RE.test(v) ? v.toLowerCase() : ACCENT_HEX.blue;
+}

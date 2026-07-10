@@ -16,7 +16,23 @@ import { useAuth } from "../context/AuthContext";
 // ── Tipos (espelham o Site da API) ───────────────────────────────────────────
 
 export type ThemePreset = "slate" | "sand" | "ink" | "mist";
-export type ThemeAccent = "blue" | "emerald" | "violet" | "amber" | "rose" | "teal" | "ink";
+/**
+ * 7 nomeados curados (`[data-accent]` no renderer) OU um hex livre `#rrggbb`
+ * (color-picker na tab Marca, `BrandTab` em `Website.tsx`) — validado com
+ * `/^#[0-9a-f]{6}$/i`, a MESMA regex do renderer
+ * (`site-engine/lib/theme.ts::accentStyle`); qualquer outro valor é inválido
+ * e cai no default "blue" na leitura. `(string & {})` mantém o autocomplete
+ * dos 7 nomeados sem colapsar o tipo para `string` pura.
+ */
+export type ThemeAccent =
+  | "blue"
+  | "emerald"
+  | "violet"
+  | "amber"
+  | "rose"
+  | "teal"
+  | "ink"
+  | (string & {});
 export type ThemeFont = "grotesk" | "editorial" | "modern" | "warm" | "serifbody";
 /** Modo claro/escuro do site público (renderer: `lib/theme.ts::themeAttrs`,
  *  fallback "light" quando ausente — sites antigos sem `mode` continuam claros). */

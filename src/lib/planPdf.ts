@@ -1,9 +1,10 @@
 /**
  * "PDF do plano" — ficha de cliente do Ginásio (Ginasio.tsx → ClienteProgresso).
  *
- * Gera um documento A4 horizontal, frente+verso, com o layout aprovado pelo
- * utilizador (maqueta em `.design/`), e imprime-o via CSS de impressão dentro
- * de um `<iframe>` escondido — sem dependências novas (nada de jspdf/react-pdf).
+ * Gera um documento A4 horizontal — **1 página se o plano couber, 2 (frente
+ * + verso) só se transbordar** — com o layout aprovado pelo utilizador
+ * (maqueta em `.design/`), e imprime-o via CSS de impressão dentro de um
+ * `<iframe>` escondido — sem dependências novas (nada de jspdf/react-pdf).
  * O utilizador usa "Guardar como PDF" no diálogo de impressão do browser.
  *
  * Fonte dos dados: o Programa ATIVO do cliente (`GymProgram`, já com
@@ -38,15 +39,17 @@ export type BuildPlanPrintHtmlOptions = {
   generatedAt?: Date;
 };
 
-// ── Densidade (garantir 2 páginas p/ até 7 dias) ─────────────────────────
+// ── Densidade (legibilidade automática pelo nº total de exercícios) ──────
 //
-// Calibrado contra a maqueta aprovada (7 dias, 24 exercícios no total,
-// 13 na frente/3 dias + 11 no verso/4 dias) — esse caso cabe exatamente no
-// tamanho "compacto" (= a maqueta tal como está, sem escala). Menos
-// exercícios no total → "normal" (maior, mais confortável). Mais do que a
-// maqueta (planos muito preenchidos) → "ultra" (mais pequeno, ainda legível).
-// Estes limiares são uma estimativa heurística (não medição real de altura
-// de página) — ver nota no relatório da tarefa.
+// Calibrado contra a maqueta aprovada (7 dias, 24 exercícios no total) —
+// esse caso cabe no tamanho "compacto" (= a maqueta tal como está, sem
+// escala). Menos exercícios no total → "normal" (maior, mais confortável).
+// Mais do que a maqueta (planos muito preenchidos) → "ultra" (mais pequeno,
+// ainda legível). Estes limiares são uma estimativa heurística (não medição
+// real de altura de página). Nota: `pickDensity` só escolhe o TAMANHO da
+// letra — quantas páginas o documento ocupa é decidido à parte por
+// `paginateWorkouts` (abaixo), que reutiliza esta MESMA escala para estimar
+// quanto cabe por página.
 export function pickDensity(totalExercises: number): PlanDensity {
   if (totalExercises <= 16) return "normal";
   if (totalExercises <= 30) return "compacto";
@@ -59,18 +62,71 @@ const DENSITY_SCALE: Record<PlanDensity, number> = {
   ultra: 0.84,
 };
 
-// ── Divisão frente/verso por dia (nunca corta um dia a meio) ─────────────
+// ── Paginação por capacidade (1 página se couber; nunca corta um dia) ────
 //
-// A frente tem mais "chrome" (cabeçalho completo + título + meta + legenda),
-// o verso é mais magro (barra de continuação) — por isso a frente fica com
-// floor(D/2) dias e o verso com o resto (mesma proporção da maqueta: 7 dias
-// → 3 na frente / 4 no verso). Com 0-1 dias, tudo fica na frente e o verso
-// mostra só as notas do coach (mantém sempre o formato de 2 páginas).
-export function splitFrontBack<T>(workouts: T[]): { front: T[]; back: T[] } {
-  const total = workouts.length;
-  if (total <= 1) return { front: workouts.slice(), back: [] };
-  const frontCount = Math.floor(total / 2);
-  return { front: workouts.slice(0, frontCount), back: workouts.slice(frontCount) };
+// BUG PRÉVIO (sempre 2 páginas): `buildPlanPrintHtml` renderizava sempre
+// dois `<article class="sheet">` (frente+verso), mesmo com 0-1 dias — e a
+// função anterior (`splitFrontBack`) dividia por `floor(D/2)` dias na
+// frente / resto no verso, **por CONTAGEM de dias, não por quanto conteúdo
+// cada dia tem**. Não havia hipótese de sair 1 página só, e um plano com um
+// dia enorme + vários dias pequenos ficava mal distribuído (metade/metade
+// em Nº DE DIAS, não em conteúdo).
+//
+// Modelo novo: cada dia tem um "custo" heurístico em linhas de exercício
+// equivalentes — as suas linhas de exercício mais o cabeçalho do dia (nome
+// do treino/dia + chips de grupo + cabeçalho da tabela), que juntos ocupam
+// ~1.6 linhas à mesma densidade (estimativa, não medição real de altura).
+// A capacidade de UMA página é calibrada contra a MESMA maqueta que o
+// `pickDensity` usa: 7 dias / 24 exercícios em densidade "compacto" enche
+// exatamente 2 páginas → custo total = 24 + 7×1.6 = 35.2, a repartir por 2
+// páginas ≈ 17.6/página; `normal`/`ultra` escalam pelo inverso do
+// `DENSITY_SCALE` (letra maior cabe menos, letra menor cabe mais).
+//
+// Os dias enchem a página 1 pela ordem do plano até à capacidade; o que
+// sobra transborda inteiro para a página 2 — nunca 3+ páginas (o documento
+// continua a ser "1 folha" ou "1 folha, frente e verso") e nunca um
+// balanceamento a meio. O 1.º dia de cada página entra sempre, mesmo que
+// sozinho já exceda a capacidade: preferimos transbordar/exceder a cortar
+// conteúdo ou encolher abaixo da densidade já escolhida.
+const DAY_HEADER_COST = 1.6;
+const COMPACTO_PAGE_CAPACITY = 17.6;
+
+function dayCost(workout: { exercises?: readonly unknown[] | null }): number {
+  const n = workout.exercises?.length ?? 0;
+  return Math.max(1, n) + DAY_HEADER_COST;
+}
+
+function pageCapacity(density: PlanDensity): number {
+  return COMPACTO_PAGE_CAPACITY / DENSITY_SCALE[density];
+}
+
+/**
+ * Distribui os dias do plano por 1 ou 2 páginas, nunca cortando um dia a
+ * meio. A página 1 recebe dias pela ordem do plano até esgotar a
+ * capacidade estimada; o resto (se houver) transborda inteiro para a
+ * página 2 — só existem 2 páginas se sobrar pelo menos 1 dia.
+ */
+export function paginateWorkouts<T extends { exercises?: readonly unknown[] | null }>(
+  workouts: T[],
+  density: PlanDensity,
+): T[][] {
+  if (workouts.length === 0) return [[]];
+  const capacity = pageCapacity(density);
+  const page1: T[] = [];
+  const page2: T[] = [];
+  let used = 0;
+  let overflowed = false;
+  for (const w of workouts) {
+    const cost = dayCost(w);
+    if (!overflowed && (page1.length === 0 || used + cost <= capacity)) {
+      page1.push(w);
+      used += cost;
+    } else {
+      overflowed = true;
+      page2.push(w);
+    }
+  }
+  return page2.length > 0 ? [page1, page2] : [page1];
 }
 
 // ── Helpers de formatação ─────────────────────────────────────────────────
@@ -260,7 +316,10 @@ export function buildPlanPrintHtml(opts: BuildPlanPrintHtmlOptions): string {
   const workouts = (program.workouts ?? []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const totalExercises = workouts.reduce((sum, w) => sum + (w.exercises?.length ?? 0), 0);
   const density = pickDensity(totalExercises);
-  const { front, back } = splitFrontBack(workouts);
+  const pages = paginateWorkouts(workouts, density);
+  const totalPages = pages.length; // 1 (cabe tudo numa folha) ou 2 (frente + verso)
+  const front = pages[0];
+  const back = pages[1] ?? [];
 
   const initials = gymName.trim().charAt(0).toUpperCase() || "G";
   const logoInner = tenant.logoUrl
@@ -270,13 +329,21 @@ export function buildPlanPrintHtml(opts: BuildPlanPrintHtmlOptions): string {
   const frontDaysHtml = front.length
     ? front.map((w) => daySectionHtml(w, colorOf)).join("")
     : '<p class="nodata">Sem treinos neste plano.</p>';
-  const backDaysHtml = back.length
-    ? back.map((w) => daySectionHtml(w, colorOf)).join("")
-    : '<p class="nodata">Sem mais treinos — bom trabalho!</p>';
+  // `back` só é não-vazio quando `totalPages === 2` (garantido por
+  // `paginateWorkouts`) — por isso não precisa de placeholder próprio.
+  const backDaysHtml = back.map((w) => daySectionHtml(w, colorOf)).join("");
 
   const notesText = program.note && program.note.trim()
     ? esc(program.note.trim())
     : "Dúvidas? Fala com o teu coach pelo chat da app.";
+
+  const legendCore = `<b>Como ler:</b> Séries × Reps × Peso · Descanso (s). &nbsp; <b>Série a série</b> = cada série com o seu peso·reps. &nbsp; <b>Dropset</b> (⭢) = baixar o peso sem descanso. &nbsp; <b>Sem 1–5</b>: escreve o peso que fizeste em cada semana.`;
+  // Com 1 página só não há verso para levar as notas do coach — juntam-se
+  // ao rodapé da própria (nunca perder conteúdo por o plano caber numa folha).
+  const frontLegendHtml = totalPages === 1
+    ? `<div class="legend">${legendCore} &nbsp; <b>Notas do coach:</b> ${notesText}</div>`
+    : `<div class="legend">${legendCore}</div>`;
+  const frontPageLabel = totalPages === 1 ? "Página 1 de 1" : "Página 1 de 2 · frente";
 
   const frontSheet = `<article class="sheet">
     <header class="mast">
@@ -293,19 +360,19 @@ export function buildPlanPrintHtml(opts: BuildPlanPrintHtmlOptions): string {
     </div>
     <div class="days">${frontDaysHtml}</div>
     <footer class="foot">
-      <div class="legend"><b>Como ler:</b> Séries × Reps × Peso · Descanso (s). &nbsp; <b>Série a série</b> = cada série com o seu peso·reps. &nbsp; <b>Dropset</b> (⭢) = baixar o peso sem descanso. &nbsp; <b>Sem 1–5</b>: escreve o peso que fizeste em cada semana.</div>
-      <div class="pg"><div class="brandline">${esc(gymName)}</div>Página 1 de 2 · frente</div>
+      ${frontLegendHtml}
+      <div class="pg"><div class="brandline">${esc(gymName)}</div>${frontPageLabel}</div>
     </footer>
   </article>`;
 
-  const backSheet = `<article class="sheet">
+  const backSheet = totalPages === 2 ? `<article class="sheet">
     <div class="contbar"><div class="l">${esc(program.name)} · <span>${esc(customerName)}</span></div><div class="r">Continuação · ${esc(generatedAtLabel)}</div></div>
     <div class="days">${backDaysHtml}</div>
     <footer class="foot">
       <div class="legend"><b>Notas do coach:</b> ${notesText}</div>
       <div class="pg"><div class="brandline">${esc(gymName)}</div>Página 2 de 2 · verso</div>
     </footer>
-  </article>`;
+  </article>` : "";
 
   const title = `Plano de Treino — ${program.name} — ${customerName}`;
 

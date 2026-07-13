@@ -96,13 +96,18 @@ function mockWebsiteTemplates(
   });
 }
 
-// AuthContext — não é usado diretamente pela página (os hooks estão mockados),
-// mas é importado transitivamente; stub simples.
+// AuthContext — `Website.tsx` usa `hasPermission` para calcular
+// `canEditStructure` (T3.8: VIEW_SITE_BUILDER OU VIEW_ADMIN). Por omissão
+// concede tudo (mesmo comportamento anterior, todos os testes já existentes
+// assumem o tenant "completo") — os testes de gating (describe "Website —
+// gate seletivo (T3.8)") reconfiguram este mock para simular um tenant SEM
+// a permissão.
+const hasPermissionMock = vi.fn((_name: string) => true);
 vi.mock("../../src/context/AuthContext", () => ({
   useAuth: () => ({
     authHeader: () => ({}),
     isAuthenticated: true,
-    hasPermission: () => true,
+    hasPermission: (name: string) => hasPermissionMock(name),
   }),
 }));
 
@@ -114,6 +119,7 @@ vi.mock("sonner", () => ({
 }));
 
 import { Website } from "../../src/pages/Website";
+import { allowedSubitems } from "../../src/lib/navigation";
 
 function makeSite(overrides: Partial<Site> = {}): Site {
   return {
@@ -134,6 +140,7 @@ function makeSite(overrides: Partial<Site> = {}): Site {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  hasPermissionMock.mockReturnValue(true);
   useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false, dataUpdatedAt: 0 });
   mockWebsiteTemplates(TEMPLATES);
 });
@@ -1299,5 +1306,152 @@ describe("Website — Rodapé & Nav (D1 footer + D2 nav CTA)", () => {
     const arg = saveMutate.mock.calls[0][0];
     expect(arg.nav.items).toBeUndefined();
     expect(arg.nav.cta).toEqual({ label: "Marcar", to: "#marcar" });
+  });
+});
+
+// ── Gate seletivo (T3.8, `.design/site-tenant-light/DESIGN_BRIEF.md` 3.8) ────
+//
+// Por omissão (`hasPermissionMock` → true, ver `beforeEach` global) o tenant
+// tem `canEditStructure` = true — é o comportamento coberto por TODOS os
+// testes acima (site montado/afinado livremente). Este bloco cobre o outro
+// lado: um tenant SEM `VIEW_SITE_BUILDER` nem `VIEW_ADMIN` (conta montada à
+// mão pelo dono, sem a permissão atribuída) — vê "O meu site" sem Publicar e
+// "Páginas" em modo conteúdo (read-only na estrutura, editor de blocos
+// continua acessível).
+
+describe("Website — gate seletivo (T3.8: sem VIEW_SITE_BUILDER/VIEW_ADMIN)", () => {
+  beforeEach(() => {
+    hasPermissionMock.mockReturnValue(false);
+  });
+
+  it("submenu (navigation.ts): esconde Template e Domínio, mantém os restantes subitens", () => {
+    // Sem nenhuma das duas permissões.
+    expect(allowedSubitems("/website", () => false).map((i) => i.id)).toEqual([
+      "site",
+      "pages",
+      "brand",
+      "footer",
+    ]);
+    // Com VIEW_SITE_BUILDER (self-serve) — mostra tudo.
+    expect(
+      allowedSubitems("/website", (name) => name === "VIEW_SITE_BUILDER").map((i) => i.id),
+    ).toEqual(["site", "template", "pages", "brand", "footer", "domain"]);
+    // Com VIEW_ADMIN (sem VIEW_SITE_BUILDER) — também mostra tudo (OR, T3.8).
+    expect(
+      allowedSubitems("/website", (name) => name === "VIEW_ADMIN").map((i) => i.id),
+    ).toEqual(["site", "template", "pages", "brand", "footer", "domain"]);
+  });
+
+  it("'O meu site': esconde o botão Publicar mesmo com o setup completo, mantém estado/URL", () => {
+    useSiteMock.mockReturnValue({
+      data: makeSite({
+        siteId: "s1",
+        template: "barber",
+        subdomain: "acme",
+        theme: { accent: "amber" },
+        pages: [{ id: "home", slug: "", blocks: [{ id: "b1", type: "hero" }] }],
+      }),
+      isLoading: false,
+      dataUpdatedAt: 0,
+    });
+    render(<Website view="site" />);
+
+    expect(screen.queryByRole("button", { name: /Publicar/i })).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/publicação deste site é feita pela equipa RufVision/i),
+    ).toBeInTheDocument();
+    // Estado/URL mantêm-se visíveis.
+    expect(screen.getByText("acme.localhost:3000")).toBeInTheDocument();
+  });
+
+  it("Páginas: esconde Nova página, mover e remover; título/slug ficam em texto (não input)", () => {
+    const HOME = {
+      id: "home",
+      slug: "",
+      title: "Página Principal",
+      inNav: true,
+      order: 0,
+      kind: "content",
+      blocks: [],
+    };
+    const SOBRE = {
+      id: "p2",
+      slug: "sobre",
+      title: "Sobre",
+      inNav: true,
+      order: 1,
+      kind: "content",
+      blocks: [],
+    };
+    useSiteMock.mockReturnValue({ data: makeSite({ pages: [HOME, SOBRE] }), isLoading: false });
+    render(<Website view="pages" />);
+
+    // Sem formulário "Nova página" (campo "Título", aria-label exato).
+    expect(screen.queryByLabelText("Título")).not.toBeInTheDocument();
+    // Sem botões estruturais em nenhuma linha.
+    expect(screen.queryByRole("button", { name: "Mover para cima" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mover para baixo" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remover página" })).not.toBeInTheDocument();
+    // Título/slug são texto simples — sem inputs editáveis.
+    expect(screen.queryByLabelText("Título da página")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Endereço da página")).not.toBeInTheDocument();
+    expect(screen.getByText("Página Principal")).toBeInTheDocument();
+    expect(screen.getByText("Sobre")).toBeInTheDocument();
+    // "Gerir blocos" continua acessível nas duas páginas.
+    expect(screen.getAllByRole("button", { name: "Gerir blocos" })).toHaveLength(2);
+  });
+
+  it("Páginas → Blocos: esconde adicionar/mover/remover/variante, mas Editar conteúdo continua a funcionar", async () => {
+    const user = userEvent.setup();
+    const HOME = {
+      id: "home",
+      slug: "",
+      title: "Início",
+      inNav: true,
+      order: 0,
+      kind: "content",
+      blocks: [
+        {
+          id: "b1",
+          type: "hero",
+          variant: "centered",
+          settings: { content: { pt: { title: "Título do hero" } } },
+        },
+        {
+          id: "b2",
+          type: "services",
+          variant: "grid",
+          settings: { content: { pt: { title: "Os nossos serviços" } } },
+        },
+      ],
+    };
+    useSiteMock.mockReturnValue({
+      data: makeSite({ pages: [HOME], activeLocales: ["pt"], defaultLocale: "pt" }),
+      isLoading: false,
+    });
+    render(<Website view="pages" />);
+
+    await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
+
+    expect(screen.queryByRole("button", { name: /Adicionar bloco/i })).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("button", { name: "Mover bloco para cima" })).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: "Mover bloco para baixo" })).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: "Remover bloco" })).toHaveLength(0);
+    // Variante mostrada como badge, não Combobox interativo.
+    expect(screen.queryByRole("button", { name: "Variante" })).not.toBeInTheDocument();
+
+    // "Editar conteúdo" continua a funcionar normalmente (textos/imagens).
+    const editButtons = screen.getAllByRole("button", { name: "Editar conteúdo" });
+    await user.click(editButtons[0]);
+    const dialog = within(screen.getByRole("dialog"));
+    const titleInput = dialog.getByLabelText("Título");
+    await user.clear(titleInput);
+    await user.type(titleInput, "Novo título");
+    await user.click(dialog.getByRole("button", { name: "Guardar" }));
+
+    expect(saveMutate).toHaveBeenCalledTimes(1);
+    const pages = saveMutate.mock.calls[0][0].pages;
+    const home = pages.find((p: any) => p.id === "home");
+    expect(home.blocks.find((b: any) => b.id === "b1").settings.content.pt.title).toBe("Novo título");
   });
 });

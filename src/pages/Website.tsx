@@ -12,6 +12,7 @@ import {
 } from "../ui/ui.jsx";
 import { Icon } from "../ui/icons.jsx";
 import { usePageSubtitle } from "../context/PageMetaContext";
+import { useAuth } from "../context/AuthContext";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { FileUpload } from "../components/FileUpload";
 import { PageBlocksSection } from "../components/website/PageBlocksSection";
@@ -73,6 +74,22 @@ import { usePostWebsitePreviewToken } from "../gen/backoffice/hooks/usePostWebsi
  * Páginas (gestor de páginas — título/slug/nav/tipo, T23), Marca
  * (preset/accent/fonte/logo) e Domínio (subdomínio com verificação). O editor
  * de blocos vive dentro da vista Páginas.
+ *
+ * **Gate seletivo (T3.8, `.design/site-tenant-light/DESIGN_BRIEF.md` secção
+ * 3.8 — "feito por mim, afinado por eles"):** por omissão o site é montado
+ * PELO DONO (templates + editor completo); o tenant fica com afinação leve.
+ * `canEditStructure` (`hasPermission("VIEW_SITE_BUILDER") || hasPermission("VIEW_ADMIN")`,
+ * calculado uma vez aqui e passado por props — nunca espalhar `hasPermission`
+ * pelas vistas) decide: sem ela, Template/Domínio ficam escondidos no
+ * submenu (`SUBMENU['/website']`, `navigation.ts`), o botão Publicar
+ * desaparece de "O meu site" (estado/URL/preview mantêm-se) e "Páginas" fica
+ * em MODO CONTEÚDO — lista read-only (sem criar/remover/reordenar página,
+ * sem editar título/slug/nav/tipo) mas o editor de conteúdo dos blocos
+ * (`BlockContentModal`, textos/imagens) continua acessível; só perde
+ * adicionar/remover/reordenar blocos e mudar variante. O self-serve
+ * (signup) concede `VIEW_SITE_BUILDER` automaticamente; contas montadas à
+ * mão pelo dono não a têm por defeito (ele atribui-a enquanto monta o site
+ * na conta do cliente e revoga na entrega).
  *
  * Env (OBRIGATÓRIA, sem default — erro se faltar, em qualquer ambiente):
  *   VITE_SITE_ROOT_URL — base pública dos sites dos tenants
@@ -147,7 +164,15 @@ function setupSteps(site: Site | undefined): SetupStep[] {
 
 // ── Tab: O meu site ───────────────────────────────────────────────────────────
 
-function SiteStatusTab({ site, siteUpdatedAt }: { site: Site; siteUpdatedAt: number }) {
+function SiteStatusTab({
+  site,
+  siteUpdatedAt,
+  canEditStructure,
+}: {
+  site: Site;
+  siteUpdatedAt: number;
+  canEditStructure: boolean;
+}) {
   const publish = usePublishSite();
   const steps = setupSteps(site);
   const pending = steps.filter((s) => !s.done);
@@ -226,22 +251,31 @@ function SiteStatusTab({ site, siteUpdatedAt }: { site: Site; siteUpdatedAt: num
           )}
         </div>
 
-        <div className="mt-5">
-          <Button
-            onClick={onPublish}
-            disabled={!canPublish}
-            isLoading={publish.isPending}
-            icon="upload"
-            title={canPublish ? undefined : publishReason}
-          >
-            {site.published ? "Republicar" : "Publicar"}
-          </Button>
-          {!canPublish && (
-            <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
-              {publishReason}
-            </p>
-          )}
-        </div>
+        {/* T3.8: sem VIEW_SITE_BUILDER/VIEW_ADMIN não há botão Publicar — o
+            site é montado e publicado pela equipa RufVision; o tenant só
+            afina conteúdo/marca (estado, URL e pré-visualização mantêm-se). */}
+        {canEditStructure ? (
+          <div className="mt-5">
+            <Button
+              onClick={onPublish}
+              disabled={!canPublish}
+              isLoading={publish.isPending}
+              icon="upload"
+              title={canPublish ? undefined : publishReason}
+            >
+              {site.published ? "Republicar" : "Publicar"}
+            </Button>
+            {!canPublish && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                {publishReason}
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="mt-5 text-xs text-zinc-400">
+            A publicação deste site é feita pela equipa RufVision.
+          </p>
+        )}
       </Card>
 
       {/* Checklist */}
@@ -704,6 +738,7 @@ function PageRow({
   onRemove,
   onToggleBlocks,
   disabled,
+  canEditStructure,
 }: {
   page: SitePage;
   index: number;
@@ -715,6 +750,8 @@ function PageRow({
   onRemove: (page: SitePage) => void;
   onToggleBlocks: (id: string) => void;
   disabled: boolean;
+  /** T3.8: sem esta permissão a linha fica read-only (só "Gerir blocos" fica ativo). */
+  canEditStructure: boolean;
 }) {
   const home = isHomePage(page);
   const kind: "content" | "collection" = page.kind === "collection" ? "collection" : "content";
@@ -760,33 +797,41 @@ function PageRow({
         selected ? "border-accent ring-1 ring-accent/40" : ""
       }`}
     >
-      <div className="flex sm:flex-col gap-1 shrink-0">
-        <IconButton
-          icon="arrowUp"
-          label="Mover para cima"
-          disabled={disabled || index === 0}
-          onClick={() => onMove(page.id, -1)}
-        />
-        <IconButton
-          icon="arrowDown"
-          label="Mover para baixo"
-          disabled={disabled || index === total - 1}
-          onClick={() => onMove(page.id, 1)}
-        />
-      </div>
+      {canEditStructure && (
+        <div className="flex sm:flex-col gap-1 shrink-0">
+          <IconButton
+            icon="arrowUp"
+            label="Mover para cima"
+            disabled={disabled || index === 0}
+            onClick={() => onMove(page.id, -1)}
+          />
+          <IconButton
+            icon="arrowDown"
+            label="Mover para baixo"
+            disabled={disabled || index === total - 1}
+            onClick={() => onMove(page.id, 1)}
+          />
+        </div>
+      )}
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <input
-            aria-label="Título da página"
-            value={titleDraft}
-            disabled={disabled}
-            onChange={(e) => setTitleDraft(e.target.value)}
-            onBlur={commitTitle}
-            onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
-            placeholder="Página sem título"
-            className="font-medium text-sm text-zinc-900 dark:text-zinc-100 bg-transparent border-b border-transparent hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-accent focus:outline-none px-0.5 min-w-0"
-          />
+          {canEditStructure ? (
+            <input
+              aria-label="Título da página"
+              value={titleDraft}
+              disabled={disabled}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={commitTitle}
+              onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
+              placeholder="Página sem título"
+              className="font-medium text-sm text-zinc-900 dark:text-zinc-100 bg-transparent border-b border-transparent hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-accent focus:outline-none px-0.5 min-w-0"
+            />
+          ) : (
+            <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100">
+              {page.title || "Página sem título"}
+            </span>
+          )}
           {home && (
             <Badge tone="blue" className="shrink-0">
               Início
@@ -797,7 +842,7 @@ function PageRow({
           <span>/</span>
           {home ? (
             <span className="text-zinc-400">(início)</span>
-          ) : (
+          ) : canEditStructure ? (
             <input
               aria-label="Endereço da página"
               value={slugDraft}
@@ -810,26 +855,38 @@ function PageRow({
               onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
               className="bg-transparent border-b border-dashed border-zinc-300 dark:border-zinc-700 focus:border-accent focus:outline-none px-0.5 w-36"
             />
+          ) : (
+            <span className="text-zinc-400">{page.slug}</span>
           )}
         </div>
-        {slugErr && <p className="text-xs text-red-500 mt-1">{slugErr}</p>}
+        {canEditStructure && slugErr && <p className="text-xs text-red-500 mt-1">{slugErr}</p>}
       </div>
 
       <div className="flex items-center gap-3 shrink-0">
-        <KindToggle
-          value={kind}
-          disabled={disabled}
-          onChange={(k) => onPatch(page.id, { kind: k })}
-        />
-        <label className="flex items-center gap-1.5 cursor-pointer">
-          <Toggle
-            checked={page.inNav !== false}
+        {canEditStructure ? (
+          <KindToggle
+            value={kind}
             disabled={disabled}
-            onChange={(next: boolean) => onPatch(page.id, { inNav: next })}
-            size="sm"
+            onChange={(k) => onPatch(page.id, { kind: k })}
           />
-          <span className="text-xs text-zinc-500">Nav</span>
-        </label>
+        ) : (
+          <Badge tone="neutral">{kind === "collection" ? "Coleção" : "Conteúdo"}</Badge>
+        )}
+        {canEditStructure ? (
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <Toggle
+              checked={page.inNav !== false}
+              disabled={disabled}
+              onChange={(next: boolean) => onPatch(page.id, { inNav: next })}
+              size="sm"
+            />
+            <span className="text-xs text-zinc-500">Nav</span>
+          </label>
+        ) : (
+          <Badge tone={page.inNav !== false ? "green" : "neutral"}>
+            {page.inNav !== false ? "No menu" : "Fora do menu"}
+          </Badge>
+        )}
         <IconButton
           icon="layers"
           label="Gerir blocos"
@@ -837,20 +894,22 @@ function PageRow({
           onClick={() => onToggleBlocks(page.id)}
           className={selected ? "text-accent bg-accent/10" : ""}
         />
-        <IconButton
-          icon="trash"
-          label="Remover página"
-          title={removeReason}
-          disabled={!canRemove || disabled}
-          onClick={() => onRemove(page)}
-          className={canRemove ? "hover:text-red-500" : "opacity-40"}
-        />
+        {canEditStructure && (
+          <IconButton
+            icon="trash"
+            label="Remover página"
+            title={removeReason}
+            disabled={!canRemove || disabled}
+            onClick={() => onRemove(page)}
+            className={canRemove ? "hover:text-red-500" : "opacity-40"}
+          />
+        )}
       </div>
     </Card>
   );
 }
 
-function PagesTab({ site }: { site: Site }) {
+function PagesTab({ site, canEditStructure }: { site: Site; canEditStructure: boolean }) {
   const save = useSaveSite();
   const pages = sortByOrder(site.pages ?? []);
   const [pendingRemove, setPendingRemove] = useState<SitePage | null>(null);
@@ -926,33 +985,47 @@ function PagesTab({ site }: { site: Site }) {
 
   return (
     <div>
-      <Card className="p-5 mb-5">
-        <SectionTitle>Nova página</SectionTitle>
-        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-          <Input
-            label="Título"
-            placeholder="Ex: Sobre nós"
-            value={newTitle}
-            onChange={(e: any) => setNewTitle(e.target.value)}
-          />
-          <Input
-            label="Endereço"
-            icon="link"
-            value={slugFieldValue}
-            onChange={(e: any) => {
-              setSlugTouched(true);
-              setNewSlug(e.target.value);
-            }}
-            hint="Gerado do título — podes editar."
-          />
-          <Button icon="plus" onClick={onAdd} disabled={!canAdd} isLoading={save.isPending}>
-            Adicionar
-          </Button>
-        </div>
-        {!addTitleMissing && addSlugIssue && (
-          <p className="text-xs text-red-500 mt-2">{addSlugIssue}</p>
-        )}
-      </Card>
+      {!canEditStructure && (
+        <Card className="p-4 mb-5 flex items-start gap-3 border-accent/20 bg-accent/5">
+          <Icon name="info" className="w-5 h-5 shrink-0 mt-0.5 text-accent" />
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">
+            Estas páginas foram montadas para ti pela equipa RufVision. Podes
+            editar os textos e imagens de cada bloco ("Gerir blocos" →
+            "Editar conteúdo") — a estrutura (criar/remover páginas, ordem,
+            tipo, blocos e variantes) não é editável aqui.
+          </p>
+        </Card>
+      )}
+
+      {canEditStructure && (
+        <Card className="p-5 mb-5">
+          <SectionTitle>Nova página</SectionTitle>
+          <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+            <Input
+              label="Título"
+              placeholder="Ex: Sobre nós"
+              value={newTitle}
+              onChange={(e: any) => setNewTitle(e.target.value)}
+            />
+            <Input
+              label="Endereço"
+              icon="link"
+              value={slugFieldValue}
+              onChange={(e: any) => {
+                setSlugTouched(true);
+                setNewSlug(e.target.value);
+              }}
+              hint="Gerado do título — podes editar."
+            />
+            <Button icon="plus" onClick={onAdd} disabled={!canAdd} isLoading={save.isPending}>
+              Adicionar
+            </Button>
+          </div>
+          {!addTitleMissing && addSlugIssue && (
+            <p className="text-xs text-red-500 mt-2">{addSlugIssue}</p>
+          )}
+        </Card>
+      )}
 
       <div className="space-y-3">
         {pages.map((p, i) => (
@@ -968,6 +1041,7 @@ function PagesTab({ site }: { site: Site }) {
             onRemove={setPendingRemove}
             onToggleBlocks={(id) => setSelectedPageId((cur) => (cur === id ? null : id))}
             disabled={save.isPending}
+            canEditStructure={canEditStructure}
           />
         ))}
       </div>
@@ -980,6 +1054,7 @@ function PagesTab({ site }: { site: Site }) {
           defaultLocale={site.defaultLocale}
           disabled={save.isPending}
           persist={persist}
+          canEditStructure={canEditStructure}
         />
       )}
 
@@ -1898,7 +1973,12 @@ function DomainTab({ site }: { site: Site }) {
 
 export function Website({ view }: { view: WebsiteView }) {
   const { data: site, isLoading, dataUpdatedAt } = useSite();
+  const { hasPermission } = useAuth();
   usePageSubtitle("Configura o teu site público — template, marca, domínio e publicação.");
+
+  // T3.8: booleano único computado aqui e passado por props — nunca espalhar
+  // `hasPermission` pelas vistas. Ver docstring do ficheiro.
+  const canEditStructure = hasPermission("VIEW_SITE_BUILDER") || hasPermission("VIEW_ADMIN");
 
   return (
     <div>
@@ -1922,9 +2002,11 @@ export function Website({ view }: { view: WebsiteView }) {
         </Card>
       ) : (
         <>
-          {view === "site" && <SiteStatusTab site={site} siteUpdatedAt={dataUpdatedAt} />}
+          {view === "site" && (
+            <SiteStatusTab site={site} siteUpdatedAt={dataUpdatedAt} canEditStructure={canEditStructure} />
+          )}
           {view === "template" && <TemplateTab site={site} />}
-          {view === "pages" && <PagesTab site={site} />}
+          {view === "pages" && <PagesTab site={site} canEditStructure={canEditStructure} />}
           {view === "brand" && <BrandTab site={site} />}
           {view === "footer" && <FooterNavTab site={site} />}
           {view === "domain" && <DomainTab site={site} />}

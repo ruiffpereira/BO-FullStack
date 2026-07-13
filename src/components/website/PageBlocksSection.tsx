@@ -19,6 +19,7 @@ function BlockRow({
   onEdit,
   onRemove,
   disabled,
+  canEditStructure,
 }: {
   block: SiteBlock;
   index: number;
@@ -30,6 +31,8 @@ function BlockRow({
   onEdit: (block: SiteBlock) => void;
   onRemove: (block: SiteBlock) => void;
   disabled: boolean;
+  /** T3.8: sem esta permissão só "Editar conteúdo" fica ativo (sem mover/variante/remover). */
+  canEditStructure: boolean;
 }) {
   const schema = getBlockSchema(block.type);
   const variant = block.variant || schema.defaultVariant;
@@ -39,25 +42,27 @@ function BlockRow({
 
   return (
     <Card className="p-3 flex flex-col sm:flex-row sm:items-center gap-3">
-      <div className="flex sm:flex-col gap-1 shrink-0">
-        <IconButton
-          icon="arrowUp"
-          label="Mover bloco para cima"
-          disabled={disabled || index === 0}
-          onClick={() => onMove(block.id, -1)}
-        />
-        <IconButton
-          icon="arrowDown"
-          label="Mover bloco para baixo"
-          disabled={disabled || index === total - 1}
-          onClick={() => onMove(block.id, 1)}
-        />
-      </div>
+      {canEditStructure && (
+        <div className="flex sm:flex-col gap-1 shrink-0">
+          <IconButton
+            icon="arrowUp"
+            label="Mover bloco para cima"
+            disabled={disabled || index === 0}
+            onClick={() => onMove(block.id, -1)}
+          />
+          <IconButton
+            icon="arrowDown"
+            label="Mover bloco para baixo"
+            disabled={disabled || index === total - 1}
+            onClick={() => onMove(block.id, 1)}
+          />
+        </div>
+      )}
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{schema.label}</span>
-          {hasVariantPicker ? (
+          {canEditStructure && hasVariantPicker ? (
             <Combobox
               className="w-40"
               value={variant}
@@ -75,13 +80,15 @@ function BlockRow({
 
       <div className="flex items-center gap-1 shrink-0">
         <IconButton icon="edit" label="Editar conteúdo" onClick={() => onEdit(block)} disabled={disabled} />
-        <IconButton
-          icon="trash"
-          label="Remover bloco"
-          onClick={() => onRemove(block)}
-          disabled={disabled}
-          className="hover:text-red-500"
-        />
+        {canEditStructure && (
+          <IconButton
+            icon="trash"
+            label="Remover bloco"
+            onClick={() => onRemove(block)}
+            disabled={disabled}
+            className="hover:text-red-500"
+          />
+        )}
       </div>
     </Card>
   );
@@ -101,6 +108,7 @@ export function PageBlocksSection({
   defaultLocale,
   disabled,
   persist,
+  canEditStructure,
 }: {
   page: SitePage;
   pages: SitePage[];
@@ -108,6 +116,10 @@ export function PageBlocksSection({
   defaultLocale: string;
   disabled: boolean;
   persist: (next: SitePage[], successMsg?: string) => void;
+  /** T3.8 (`.design/site-tenant-light/DESIGN_BRIEF.md` secção 3.8): sem
+   *  `VIEW_SITE_BUILDER`/`VIEW_ADMIN` só se pode abrir "Editar conteúdo"
+   *  (textos/imagens) — sem adicionar/remover/reordenar blocos nem variante. */
+  canEditStructure: boolean;
 }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState<SiteBlock | null>(null);
@@ -176,9 +188,11 @@ export function PageBlocksSection({
     <Card className="p-5 mt-5">
       <SectionTitle
         right={
-          <Button size="sm" icon="plus" onClick={() => setPaletteOpen(true)} disabled={disabled}>
-            Adicionar bloco
-          </Button>
+          canEditStructure ? (
+            <Button size="sm" icon="plus" onClick={() => setPaletteOpen(true)} disabled={disabled}>
+              Adicionar bloco
+            </Button>
+          ) : undefined
         }
       >
         Blocos — {page.title || "Página sem título"}
@@ -205,12 +219,15 @@ export function PageBlocksSection({
               onEdit={setEditingBlock}
               onRemove={setPendingRemove}
               disabled={disabled}
+              canEditStructure={canEditStructure}
             />
           ))}
         </div>
       )}
 
-      <BlockPaletteModal open={paletteOpen} onClose={() => setPaletteOpen(false)} onPick={onPick} />
+      {canEditStructure && (
+        <BlockPaletteModal open={paletteOpen} onClose={() => setPaletteOpen(false)} onPick={onPick} />
+      )}
 
       <ConfirmDialog
         open={!!pendingRemove}

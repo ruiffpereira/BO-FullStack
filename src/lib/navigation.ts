@@ -17,8 +17,12 @@ export interface SubmenuItem {
   id: string;
   label: string;
   path: string;
-  /** Permissão exigida para este subitem (ex.: VIEW_GYM). Sem perm = sempre visível. */
-  perm?: string;
+  /**
+   * Permissão(ões) exigida(s) para este subitem (ex.: VIEW_GYM). Sem perm =
+   * sempre visível. Um array é OR — basta UMA das permissões (ex.: Website
+   * "Template"/"Domínio", T3.8: `VIEW_SITE_BUILDER` OU `VIEW_ADMIN`).
+   */
+  perm?: string | string[];
 }
 
 export const SUBMENU: Record<string, SubmenuItem[]> = {
@@ -54,12 +58,25 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     // Label do âncora ("O meu site", não "Website") pelo mesmo motivo dos
     // outros grupos acima. A página nunca usou `?tab=` (sem deep-link legacy
     // a redirecionar aqui, T2.3).
+    //
+    // Gating por subitem (T3.8, `.design/site-tenant-light/DESIGN_BRIEF.md`
+    // secção 3.8 — "feito por mim, afinado por eles"): o site é montado PELO
+    // DONO por omissão; só quem tem `VIEW_SITE_BUILDER` (self-serve concede-a
+    // automaticamente; contas montadas à mão pelo dono NÃO a têm por defeito,
+    // ele atribui-a enquanto monta o site e revoga na entrega) OU
+    // `VIEW_ADMIN` (o dono, sempre) vê Template/Domínio. "Páginas" fica
+    // SEMPRE visível (sem `perm`) mas em MODO CONTEÚDO sem essa permissão —
+    // ver `canEditStructure`/`PagesTab` em `Website.tsx`: o tenant tem de
+    // conseguir editar textos/imagens dos blocos das páginas já montadas,
+    // só não pode mexer na estrutura (criar/remover/reordenar páginas ou
+    // blocos, mudar slug/variante). Mesmo padrão para o botão Publicar em
+    // "O meu site" (`SiteStatusTab`).
     { id: "site", label: "O meu site", path: "/website" },
-    { id: "template", label: "Template", path: "/website/template" },
+    { id: "template", label: "Template", path: "/website/template", perm: ["VIEW_SITE_BUILDER", "VIEW_ADMIN"] },
     { id: "pages", label: "Páginas", path: "/website/paginas" },
     { id: "brand", label: "Marca", path: "/website/marca" },
     { id: "footer", label: "Rodapé & Nav", path: "/website/rodape-nav" },
-    { id: "domain", label: "Domínio", path: "/website/dominio" },
+    { id: "domain", label: "Domínio", path: "/website/dominio", perm: ["VIEW_SITE_BUILDER", "VIEW_ADMIN"] },
   ],
   "/admin": [
     // Label do âncora ("Utilizadores", não "Admin") pelo mesmo motivo dos
@@ -92,7 +109,7 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     { id: "clientes", label: "Progresso de clientes", path: "/ginasio/clientes" },
   ],
   "/conteudos": [
-    // ÚNICA página com gating POR SUBITEM (T2.6): produtos/serviços/ginásio
+    // Página com gating POR SUBITEM (T2.6): produtos/serviços/ginásio
     // continuam atrás das mesmas permissões que as tabs antigas do
     // `CMS_TABS` em `Conteudos.tsx` (VIEW_PRODUCTS/VIEW_SCHEDULE/VIEW_GYM) —
     // o `allowedSubitems`/guard do `Shell.tsx` fazem exatamente o que
@@ -104,7 +121,9 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     // gate o subitem gate também o item de módulo, por isso a colisão era
     // garantida; para o site público, o item `/website` é core (sempre
     // visível a qualquer tenant). Mesmo problema e solução do "Progresso de
-    // clientes" no Ginásio (T2.5).
+    // clientes" no Ginásio (T2.5). (Deixou de ser a ÚNICA — `/website`
+    // também gate por subitem desde T3.8, só que Template/Domínio, ver
+    // `SUBMENU['/website']` acima.)
     { id: "website", label: "Site público", path: "/conteudos" },
     { id: "product", label: "Produtos", path: "/conteudos/produtos", perm: "VIEW_PRODUCTS" },
     { id: "service", label: "Serviços", path: "/conteudos/servicos", perm: "VIEW_SCHEDULE" },
@@ -119,7 +138,11 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
 export function allowedSubitems(root: string, hasPermission: (name: string) => boolean): SubmenuItem[] {
   const items = SUBMENU[root];
   if (!items) return [];
-  return items.filter((it) => !it.perm || hasPermission(it.perm));
+  return items.filter((it) => {
+    if (!it.perm) return true;
+    const perms = Array.isArray(it.perm) ? it.perm : [it.perm];
+    return perms.some((p) => hasPermission(p));
+  });
 }
 
 /**

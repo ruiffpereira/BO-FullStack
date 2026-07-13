@@ -10,17 +10,36 @@ import { loginAs } from "./fixtures/login";
  *
  * O gating de UI é feito 100% pelo `Shell` (`src/components/Shell.tsx`):
  *  - a sidebar mostra `accessiblePaths` = /dashboard + módulos por permissão +
- *    CORE_PATHS (Clientes, Mensagens, Financeiro, Conteúdos, Faturação —
- *    acessíveis a QUALQUER tenant, sem permissão) +
- *    (/admin + /estatisticas + /website só para VIEW_ADMIN — Estatísticas e
- *    Website estão atrás de um gate TEMPORÁRIO de produto desde 2026-07-08,
- *    `ADMIN_GATED_PATHS` no Shell; a API continua tenant-open);
+ *    CORE_PATHS (Clientes, Mensagens, Financeiro, Conteúdos, **Website**,
+ *    Faturação — acessíveis a QUALQUER tenant, sem permissão) +
+ *    (/admin + /estatisticas só para VIEW_ADMIN — Estatísticas está atrás de
+ *    um gate TEMPORÁRIO de produto desde 2026-07-08, `ADMIN_GATED_PATHS` no
+ *    Shell, à espera do Umami; a API continua tenant-open);
  *  - o guard (useEffect) redireciona qualquer rota NÃO acessível para
- *    accessiblePaths[0] — que é sempre /dashboard (sempre acessível).
+ *    accessiblePaths[0] — que é sempre /dashboard (sempre acessível);
+ *  - **T3.8 (2026-07-14, un-gate seletivo do `/website`):** `/website` voltou
+ *    a CORE_PATHS — todos os tenants acedem à página. O que continua gated
+ *    por permissão (`VIEW_SITE_BUILDER` OU `VIEW_ADMIN`) é só a SUPERFÍCIE
+ *    dentro dela: os subitens "Template"/"Domínio" (gating por SUBITEM,
+ *    `SUBMENU['/website']` em `navigation.ts` — mesmo mecanismo do
+ *    Conteúdos) redirecionam para o 1.º subitem permitido ("/website", não
+ *    "/dashboard") quando faltam as duas permissões. O botão Publicar e a
+ *    edição estrutural de páginas/blocos (`canEditStructure`) são gate DENTRO
+ *    da página (`Website.tsx`), cobertos em `tests/unit/Website.test.tsx`,
+ *    não aqui.
  *
  * NOTA: as páginas CORE não têm guard de rota — renderizam para todos; a proteção
  * dos DADOS é feita na API (isolamento). Por isso a matriz testa o que o Shell
  * garante: quais ITENS de módulo aparecem e quais ROTAS de módulo redirecionam.
+ *
+ * ⚠ NOTA HONESTA (T3.8, construído em paralelo com a API): a permissão
+ * `VIEW_SITE_BUILDER` é nova — se o `seedE2e.ts` ainda não a atribuir a
+ * nenhum dos utilizadores da matriz abaixo, os testes que dependem dela (ver
+ * bloco "Website — Template/Domínio atrás de VIEW_SITE_BUILDER") só ficam
+ * plenamente cobertos para `noaccess@e2e` (zero permissões, já hoje) e
+ * `admin@e2e` (VIEW_ADMIN, já hoje) — os dois não dependem do seed novo.
+ * Este ficheiro não foi corrido (precisa da API + BD de teste); confirmar ao
+ * correr `pnpm test:e2e` depois do seed atualizado.
  */
 
 // Cada teste autentica o seu próprio tenant — começa sem sessão.
@@ -66,12 +85,20 @@ async function expectBlockedRedirect(
 }
 
 // Itens CORE que TODOS os tenants (mesmo sem módulos) devem ver na sidebar.
-const CORE_ITEMS = ["Clientes", "Mensagens", "Financeiro", "Conteúdos"];
-// Estatísticas e Website deixaram de ser core a 2026-07-08 (gate TEMPORÁRIO de
-// produto — `ADMIN_GATED_PATHS` no Shell.tsx): só visíveis/acessíveis com
-// VIEW_ADMIN, como o Admin. Reverter o gate = devolvê-los a CORE_ITEMS aqui.
-const ADMIN_GATED_ITEMS = ["Estatísticas", "Website"];
-const ADMIN_GATED_ROUTES = ["/estatisticas", "/website"];
+// "Website" voltou a core a 2026-07-14 (T3.8, un-gate seletivo — ver
+// docstring do ficheiro): a página é sempre acessível, só a SUPERFÍCIE lá
+// dentro (Template/Domínio) é que gate por permissão.
+const CORE_ITEMS = ["Clientes", "Mensagens", "Financeiro", "Conteúdos", "Website"];
+// Estatísticas continua atrás do gate TEMPORÁRIO de produto (2026-07-08,
+// `ADMIN_GATED_PATHS` no Shell.tsx): só visível/acessível com VIEW_ADMIN, como
+// o Admin. Reverter o gate = devolvê-la a CORE_ITEMS aqui.
+const ADMIN_GATED_ITEMS = ["Estatísticas"];
+const ADMIN_GATED_ROUTES = ["/estatisticas"];
+// Subitens de /website que exigem VIEW_SITE_BUILDER OU VIEW_ADMIN (T3.8,
+// gating por SUBITEM — mesmo mecanismo do Conteúdos). Sem nenhuma das duas,
+// o guard redireciona para "/website" (1.º subitem permitido), NÃO para
+// "/dashboard" — a raiz é core, ao contrário de Estatísticas/Admin.
+const SITE_BUILDER_GATED_ROUTES = ["/website/template", "/website/dominio"];
 // Todos os itens de módulo (não-core, não-admin) — usados para verificar ocultação.
 const ALL_MODULE_ITEMS = ["Loja", "Agenda", "Ginásio"];
 // Rotas de módulo protegidas por permissão (o guard redireciona sem a permissão).
@@ -124,8 +151,9 @@ test.describe("RBAC matriz — sidebar por permissão (core + módulo próprio)"
         ).toBeVisible();
       }
 
-      // (3) NÃO vê os módulos que não são seus, nem o Admin, nem os itens do
-      // gate temporário de VIEW_ADMIN (Estatísticas/Website, 2026-07-08).
+      // (3) NÃO vê os módulos que não são seus, nem o Admin, nem o item do
+      // gate temporário de VIEW_ADMIN (Estatísticas, 2026-07-08). "Website" é
+      // core desde T3.8 — já coberto por CORE_ITEMS acima, não entra aqui.
       const escondidos = ALL_MODULE_ITEMS.filter((i) => i !== m.moduloItem);
       for (const item of [...escondidos, "Admin", ...ADMIN_GATED_ITEMS]) {
         await expect(
@@ -148,7 +176,7 @@ test.describe("RBAC matriz — sidebar por permissão (core + módulo próprio)"
     test(`${m.user}: rotas de módulo alheias (URL directo) redirecionam para /dashboard`, async ({ page, context }) => {
       await loginAs(context, m.user);
       // Rotas de módulo que não são suas + as rotas do gate temporário de
-      // VIEW_ADMIN (Estatísticas/Website) → o guard redireciona (não fica lá).
+      // VIEW_ADMIN (Estatísticas) → o guard redireciona (não fica lá).
       const bloqueadas = ALL_MODULE_ROUTES.filter((r) => r !== m.moduloPath);
       for (const route of [...bloqueadas, "/admin", ...ADMIN_GATED_ROUTES]) {
         await expectBlockedRedirect(page, context, m.user, route);
@@ -159,9 +187,12 @@ test.describe("RBAC matriz — sidebar por permissão (core + módulo próprio)"
       await loginAs(context, m.user);
       // Core é acessível a todos os tenants — nenhuma destas rotas deve redirecionar
       // para /dashboard. (/despesas é deep-link do Financeiro, também permitido.
-      // /estatisticas e /website saíram daqui a 2026-07-08 — gate temporário
-      // VIEW_ADMIN, ver ADMIN_GATED_ROUTES acima.)
-      for (const route of ["/clientes", "/financeiro", "/conteudos", "/despesas"]) {
+      // /website é core desde T3.8 (2026-07-14) — a raiz e "Páginas" (modo
+      // conteúdo) são sempre acessíveis, mesmo sem VIEW_SITE_BUILDER/VIEW_ADMIN;
+      // ver o describe "Website — Template/Domínio..." abaixo para o gating por
+      // SUBITEM. /estatisticas continua fora daqui — gate temporário VIEW_ADMIN,
+      // ver ADMIN_GATED_ROUTES acima.)
+      for (const route of ["/clientes", "/financeiro", "/conteudos", "/despesas", "/website", "/website/paginas"]) {
         await page.goto(route);
         await expect(page, `${m.user} devia poder ficar em ${route}`).toHaveURL(
           new RegExp(route.replace("/", "\\/")),
@@ -182,8 +213,8 @@ test.describe("RBAC matriz — noaccess@e2e (sem componentes)", () => {
     for (const item of CORE_ITEMS) {
       await expect(nav(page).getByRole("button", { name: item, exact: true })).toBeVisible({ timeout: 10_000 });
     }
-    // Nenhum módulo, nenhum Admin, nem os itens do gate temporário de
-    // VIEW_ADMIN (Estatísticas/Website, 2026-07-08).
+    // Nenhum módulo, nenhum Admin, nem o item do gate temporário de VIEW_ADMIN
+    // (Estatísticas, 2026-07-08). "Website" NÃO entra aqui — é core desde T3.8.
     for (const item of [...ALL_MODULE_ITEMS, "Admin", ...ADMIN_GATED_ITEMS]) {
       await expect(
         nav(page).getByRole("button", { name: item, exact: true }),
@@ -216,20 +247,82 @@ test.describe("RBAC matriz — noaccess@e2e (sem componentes)", () => {
     await expect(page.getByRole("heading", { name: "Clientes", level: 2 })).toBeVisible({ timeout: 10_000 });
   });
 
-  // Gate temporário 2026-07-08 (ADMIN_GATED_PATHS no Shell.tsx): /website e
-  // /estatisticas deixaram de ser core — sem VIEW_ADMIN o guard redireciona
-  // para /dashboard, incluindo os SUBPATHS de /website (deep-link ao submenu),
-  // pelo mesmo mecanismo de prefixo do /admin/tokens acima.
-  test("gate temporário: /website, /website/paginas e /estatisticas redirecionam para /dashboard", async ({ page, context }) => {
+  // Gate temporário 2026-07-08 (ADMIN_GATED_PATHS no Shell.tsx): só
+  // /estatisticas continua fora de CORE_PATHS — sem VIEW_ADMIN o guard
+  // redireciona para /dashboard, mesmo mecanismo de prefixo do /admin/tokens
+  // acima.
+  test("gate temporário: /estatisticas redireciona para /dashboard", async ({ page, context }) => {
     await loginAs(context, "noaccess@e2e");
-    for (const route of [...ADMIN_GATED_ROUTES, "/website/paginas"]) {
+    for (const route of ADMIN_GATED_ROUTES) {
       await expectBlockedRedirect(page, context, "noaccess@e2e", route);
+    }
+  });
+
+  // T3.8 (2026-07-14): /website voltou a core — /website e /website/paginas
+  // (mesmo o subpath, deep-link ao submenu) já NÃO redirecionam para
+  // /dashboard, ao contrário do gate temporário acima.
+  test("/website e /website/paginas são acessíveis mesmo sem VIEW_SITE_BUILDER/VIEW_ADMIN (core)", async ({ page, context }) => {
+    await loginAs(context, "noaccess@e2e");
+    for (const route of ["/website", "/website/paginas"]) {
+      await page.goto(route);
+      await expect(page, `noaccess devia poder ficar em ${route}`).toHaveURL(
+        new RegExp(route.replace("/", "\\/")),
+        { timeout: 15_000 },
+      );
+    }
+  });
+});
+
+// T3.8 (2026-07-14): gating por SUBITEM de /website — "Template"/"Domínio"
+// exigem VIEW_SITE_BUILDER OU VIEW_ADMIN (`SUBMENU['/website']`,
+// `navigation.ts`); sem nenhuma das duas o guard redireciona para "/website"
+// (1.º subitem permitido), NÃO para "/dashboard" (a raiz é core). Testado só
+// com `noaccess@e2e` (zero permissões) e `admin@e2e` (VIEW_ADMIN) — nenhum
+// dos dois depende do seed novo de VIEW_SITE_BUILDER (ver nota honesta no
+// topo do ficheiro).
+test.describe("RBAC matriz — Website: Template/Domínio atrás de VIEW_SITE_BUILDER/VIEW_ADMIN", () => {
+  test("noaccess@e2e: /website/template e /website/dominio redirecionam para /website (não /dashboard)", async ({
+    page,
+    context,
+  }) => {
+    await loginAs(context, "noaccess@e2e");
+    for (const route of SITE_BUILDER_GATED_ROUTES) {
+      await page.goto(route);
+      await expect(page, `noaccess devia ser redirecionado de ${route} para /website`).toHaveURL(
+        /\/website$/,
+        { timeout: 15_000 },
+      );
+    }
+  });
+
+  test("noaccess@e2e: submenu de Website esconde Template e Domínio", async ({ page, context }) => {
+    await loginAs(context, "noaccess@e2e");
+    await page.goto("/website");
+    await expect(page).toHaveURL(/\/website$/, { timeout: 15_000 });
+    for (const label of ["O meu site", "Páginas", "Marca", "Rodapé & Nav"]) {
+      await expect(nav(page).getByRole("button", { name: label, exact: true })).toBeVisible({ timeout: 10_000 });
+    }
+    for (const label of ["Template", "Domínio"]) {
+      await expect(nav(page).getByRole("button", { name: label, exact: true })).toHaveCount(0);
+    }
+  });
+
+  test("admin@e2e: acede a /website/template e /website/dominio sem redirect (VIEW_ADMIN cobre a OR)", async ({
+    page,
+    context,
+  }) => {
+    await loginAs(context, "admin@e2e");
+    for (const route of SITE_BUILDER_GATED_ROUTES) {
+      await page.goto(route);
+      await expect(page, `admin devia aceder a ${route}`).toHaveURL(new RegExp(route.replace("/", "\\/")), {
+        timeout: 15_000,
+      });
     }
   });
 });
 
 test.describe("RBAC matriz — admin@e2e (acesso total)", () => {
-  test("sidebar mostra TODOS os módulos + Admin + Estatísticas/Website (gate VIEW_ADMIN)", async ({ page, context }) => {
+  test("sidebar mostra TODOS os módulos + Admin + core (Website incl.) + Estatísticas (gate VIEW_ADMIN)", async ({ page, context }) => {
     await loginAs(context, "admin@e2e");
     await page.goto("/dashboard");
     for (const name of [...CORE_ITEMS, ...ADMIN_GATED_ITEMS, ...ALL_MODULE_ITEMS, "Admin"]) {

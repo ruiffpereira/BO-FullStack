@@ -1878,6 +1878,15 @@ function customDomainIssue(raw: string, rootHost: string): string | null {
   return null;
 }
 
+/**
+ * Domínio próprio (3.9) — UI DESATIVADA por decisão do dono (2026-07-14):
+ * sites são SEMPRE por subdomínio, nunca domínio próprio. A feature fica
+ * construída e testada (API `PUT /website/custom-domain` + `CustomDomainCard`
+ * abaixo) — reativar = pôr esta flag a `true`. Runbook em
+ * `.design/site-tenant-light/RUNBOOK-custom-domain.md`.
+ */
+const CUSTOM_DOMAIN_UI = false;
+
 function DomainTab({ site }: { site: Site }) {
   const check = useCheckSubdomain();
   const claim = useSetSubdomain();
@@ -1933,51 +1942,6 @@ function DomainTab({ site }: { site: Site }) {
         );
       },
     });
-  };
-
-  // ── Domínio próprio (3.9) ──────────────────────────────────────────────────
-  const setCustomDomain = useSetCustomDomain();
-  // `.hostname` (SEM porta) — um domínio próprio nunca tem porta; comparar
-  // com `.host` faria o dev (`localhost:3000`) rejeitar só "localhost:3000"
-  // exato, deixando passar "localhost" sozinho (a normalização remove sempre
-  // a porta de qualquer valor colado, ver `normalizeHostInput`).
-  const rootHost = siteRoot().hostname;
-  const [customValue, setCustomValue] = useState(site.customDomain ?? "");
-  const [pendingRemoveCustom, setPendingRemoveCustom] = useState(false);
-  const customIssue = customDomainIssue(customValue, rootHost);
-  const canSaveCustom = !customIssue && !setCustomDomain.isPending;
-
-  const customDomainErrorMsg = (err: any): string => {
-    const status = err?.response?.status;
-    const reason = err?.response?.data?.reason;
-    if (status === 409) return "Esse domínio já está a ser usado por outro cliente.";
-    if (reason === "root_domain") {
-      return "Esse é o domínio da plataforma — não pode ser usado como domínio próprio.";
-    }
-    if (reason === "invalid" || status === 400) return "Domínio inválido.";
-    return "Não foi possível guardar o domínio.";
-  };
-
-  const onSaveCustomDomain = () => {
-    if (customIssue) return;
-    setCustomDomain.mutate(normalizeHostInput(customValue), {
-      onSuccess: (data) => {
-        setCustomValue(data.customDomain ?? "");
-        toast.success("Domínio próprio guardado.");
-      },
-      onError: (err: any) => toast.error(customDomainErrorMsg(err)),
-    });
-  };
-
-  const onConfirmRemoveCustomDomain = () => {
-    setCustomDomain.mutate(null, {
-      onSuccess: () => {
-        setCustomValue("");
-        toast.success("Domínio próprio removido.");
-      },
-      onError: (err: any) => toast.error(customDomainErrorMsg(err)),
-    });
-    setPendingRemoveCustom(false);
   };
 
   return (
@@ -2050,6 +2014,63 @@ function DomainTab({ site }: { site: Site }) {
       </Card>
     </div>
 
+    {CUSTOM_DOMAIN_UI && <CustomDomainCard site={site} />}
+    </div>
+  );
+}
+
+/**
+ * Card "Domínio próprio" (3.9) — construído e testado (API + client), mas a
+ * UI está DESATIVADA por decisão do dono (ver `CUSTOM_DOMAIN_UI` acima).
+ * Exportado só para os testes unitários o renderarem diretamente, já que a
+ * `DomainTab` deixou de o montar enquanto a flag estiver `false`.
+ */
+export function CustomDomainCard({ site }: { site: Site }) {
+  const setCustomDomain = useSetCustomDomain();
+  // `.hostname` (SEM porta) — um domínio próprio nunca tem porta; comparar
+  // com `.host` faria o dev (`localhost:3000`) rejeitar só "localhost:3000"
+  // exato, deixando passar "localhost" sozinho (a normalização remove sempre
+  // a porta de qualquer valor colado, ver `normalizeHostInput`).
+  const rootHost = siteRoot().hostname;
+  const [customValue, setCustomValue] = useState(site.customDomain ?? "");
+  const [pendingRemoveCustom, setPendingRemoveCustom] = useState(false);
+  const customIssue = customDomainIssue(customValue, rootHost);
+  const canSaveCustom = !customIssue && !setCustomDomain.isPending;
+
+  const customDomainErrorMsg = (err: any): string => {
+    const status = err?.response?.status;
+    const reason = err?.response?.data?.reason;
+    if (status === 409) return "Esse domínio já está a ser usado por outro cliente.";
+    if (reason === "root_domain") {
+      return "Esse é o domínio da plataforma — não pode ser usado como domínio próprio.";
+    }
+    if (reason === "invalid" || status === 400) return "Domínio inválido.";
+    return "Não foi possível guardar o domínio.";
+  };
+
+  const onSaveCustomDomain = () => {
+    if (customIssue) return;
+    setCustomDomain.mutate(normalizeHostInput(customValue), {
+      onSuccess: (data) => {
+        setCustomValue(data.customDomain ?? "");
+        toast.success("Domínio próprio guardado.");
+      },
+      onError: (err: any) => toast.error(customDomainErrorMsg(err)),
+    });
+  };
+
+  const onConfirmRemoveCustomDomain = () => {
+    setCustomDomain.mutate(null, {
+      onSuccess: () => {
+        setCustomValue("");
+        toast.success("Domínio próprio removido.");
+      },
+      onError: (err: any) => toast.error(customDomainErrorMsg(err)),
+    });
+    setPendingRemoveCustom(false);
+  };
+
+  return (
     <Card className="p-5">
       <SectionTitle>Domínio próprio</SectionTitle>
       <p className="text-[13px] text-zinc-500 mb-3">
@@ -2133,7 +2154,6 @@ function DomainTab({ site }: { site: Site }) {
         isPending={setCustomDomain.isPending}
       />
     </Card>
-    </div>
   );
 }
 

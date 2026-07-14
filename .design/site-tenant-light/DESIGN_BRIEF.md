@@ -23,6 +23,11 @@ EXCETO: faturação (BILLING_LIVE fica false, Fase 6) e o container Umami (dono 
 
 ## 3.9 — Domínio próprio (confirmado 2026-07-14)
 
+**Estado (2026-07-14, mesma tarde): CONSTRUÍDO mas DESATIVADO na UI.** Decisão do dono: sites são
+SEMPRE por subdomínio, nunca domínio próprio — a feature fica pronta (API completa + testada, card do
+BO extraído e testado) atrás da flag `CUSTOM_DOMAIN_UI` (`false`) em `src/pages/Website.tsx`. Reativar =
+pôr a flag a `true` (zero mudanças de código extra necessárias). Ver `RUNBOOK-custom-domain.md`.
+
 - API: endpoint dedicado para definir `Site.customDomain` (o PUT /website tem whitelist anti-mass-assignment
   — customDomain fica FORA dela, endpoint próprio). Validações: hostname válido (regex conservadora,
   lowercase, sem esquema/porta/path), NUNCA o siteRootDomain nem subdomínio dele, único entre tenants

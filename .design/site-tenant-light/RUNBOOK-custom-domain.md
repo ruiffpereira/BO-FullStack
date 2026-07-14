@@ -1,5 +1,11 @@
 # RUNBOOK — Ligar um domínio próprio de um cliente (3.9)
 
+> **DESATIVADO (2026-07-14):** decisão do dono — sites são SEMPRE por subdomínio, nunca domínio
+> próprio. A UI do card "Domínio próprio" (tab Domínio) está escondida atrás da flag
+> `CUSTOM_DOMAIN_UI = false` em `src/pages/Website.tsx` (Backoffice); a API (`PUT
+> /website/custom-domain`) continua completa e testada. **Reativação = pôr `CUSTOM_DOMAIN_UI = true`**
+> — este runbook volta a aplicar-se tal e qual sem mais alterações.
+
 _Par do DESIGN_BRIEF.md (secção 3.9). Passos operacionais para o dono ligar `www.cliente.pt` ao site
 de um tenant, depois do BO já ter a secção "Domínio próprio" (tab Domínio) e a API o endpoint
 `PUT /website/custom-domain`._

@@ -129,7 +129,7 @@ vi.mock("sonner", () => ({
   toast: { success: (...a: unknown[]) => toastSuccess(...a), error: (...a: unknown[]) => toastError(...a) },
 }));
 
-import { Website } from "../../src/pages/Website";
+import { Website, CustomDomainCard } from "../../src/pages/Website";
 import { allowedSubitems } from "../../src/lib/navigation";
 
 function makeSite(overrides: Partial<Site> = {}): Site {
@@ -1672,23 +1672,28 @@ describe("Website — Definições (3.10 — afinação leve do tenant)", () => 
 });
 
 // ── Domínio próprio (3.9) ──────────────────────────────────────────────────────
+//
+// UI DESATIVADA por decisão do dono (2026-07-14: sites são sempre por
+// subdomínio, ver `CUSTOM_DOMAIN_UI` em `Website.tsx`) — a `DomainTab` já não
+// monta o card. Para não perder cobertura do código construído, os testes
+// abaixo renderam `CustomDomainCard` DIRETAMENTE (em vez de navegar até
+// `<Website view="domain" />`); o último teste confirma que, com a flag
+// desligada, a tab Domínio de facto não mostra o card.
 
-describe("Website — Domínio próprio (3.9)", () => {
+describe("Website — Domínio próprio (3.9) — construído, UI desativada", () => {
   function siteWithCustomDomain(customDomain: string | null, overrides: Partial<Site> = {}): Site {
     return makeSite({ customDomain, subdomain: "acme", ...overrides });
   }
 
   it("mostra 'Ainda sem domínio próprio' quando não há nenhum definido", () => {
-    useSiteMock.mockReturnValue({ data: siteWithCustomDomain(null), isLoading: false });
-    render(<Website view="domain" />);
+    render(<CustomDomainCard site={siteWithCustomDomain(null)} />);
 
     expect(screen.getByText("Ainda sem domínio próprio.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remover domínio" })).not.toBeInTheDocument();
   });
 
   it("mostra o domínio atual e o botão Remover quando já está definido", () => {
-    useSiteMock.mockReturnValue({ data: siteWithCustomDomain("www.acme.pt"), isLoading: false });
-    render(<Website view="domain" />);
+    render(<CustomDomainCard site={siteWithCustomDomain("www.acme.pt")} />);
 
     expect(screen.getAllByText("www.acme.pt").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Remover domínio" })).toBeInTheDocument();
@@ -1696,8 +1701,7 @@ describe("Website — Domínio próprio (3.9)", () => {
 
   it("Guardar chama useSetCustomDomain com o hostname normalizado (minúsculas, sem esquema/caminho)", async () => {
     const user = userEvent.setup();
-    useSiteMock.mockReturnValue({ data: siteWithCustomDomain(null), isLoading: false });
-    render(<Website view="domain" />);
+    render(<CustomDomainCard site={siteWithCustomDomain(null)} />);
 
     const input = screen.getByPlaceholderText("www.cliente.pt");
     await user.type(input, "HTTPS://WWW.ACME.PT/algures");
@@ -1709,8 +1713,7 @@ describe("Website — Domínio próprio (3.9)", () => {
 
   it("rejeita client-side um subdomínio da própria plataforma (mesmo host base de VITE_SITE_ROOT_URL) e mantém Guardar desativado", async () => {
     const user = userEvent.setup();
-    useSiteMock.mockReturnValue({ data: siteWithCustomDomain(null), isLoading: false });
-    render(<Website view="domain" />);
+    render(<CustomDomainCard site={siteWithCustomDomain(null)} />);
 
     // VITE_SITE_ROOT_URL nos testes é "http://localhost:3000" (vitest.config.ts)
     // → hostname "localhost". "test.localhost" é um subdomínio dele.
@@ -1724,8 +1727,7 @@ describe("Website — Domínio próprio (3.9)", () => {
 
   it("rejeita client-side um formato inválido", async () => {
     const user = userEvent.setup();
-    useSiteMock.mockReturnValue({ data: siteWithCustomDomain(null), isLoading: false });
-    render(<Website view="domain" />);
+    render(<CustomDomainCard site={siteWithCustomDomain(null)} />);
 
     const input = screen.getByPlaceholderText("www.cliente.pt");
     await user.type(input, "não é um dominio");
@@ -1736,8 +1738,7 @@ describe("Website — Domínio próprio (3.9)", () => {
 
   it("Remover: confirma e chama useSetCustomDomain com null", async () => {
     const user = userEvent.setup();
-    useSiteMock.mockReturnValue({ data: siteWithCustomDomain("www.acme.pt"), isLoading: false });
-    render(<Website view="domain" />);
+    render(<CustomDomainCard site={siteWithCustomDomain("www.acme.pt")} />);
 
     await user.click(screen.getByRole("button", { name: "Remover domínio" }));
     await user.click(screen.getByRole("button", { name: "Remover" }));
@@ -1748,8 +1749,7 @@ describe("Website — Domínio próprio (3.9)", () => {
 
   it("erro 409 ao guardar mostra a mensagem de domínio já usado por outro cliente", async () => {
     const user = userEvent.setup();
-    useSiteMock.mockReturnValue({ data: siteWithCustomDomain(null), isLoading: false });
-    render(<Website view="domain" />);
+    render(<CustomDomainCard site={siteWithCustomDomain(null)} />);
 
     const input = screen.getByPlaceholderText("www.cliente.pt");
     await user.type(input, "www.outro.pt");
@@ -1765,8 +1765,7 @@ describe("Website — Domínio próprio (3.9)", () => {
 
   it("erro 400 com reason 'root_domain' mostra a mensagem de domínio da plataforma", async () => {
     const user = userEvent.setup();
-    useSiteMock.mockReturnValue({ data: siteWithCustomDomain(null), isLoading: false });
-    render(<Website view="domain" />);
+    render(<CustomDomainCard site={siteWithCustomDomain(null)} />);
 
     const input = screen.getByPlaceholderText("www.cliente.pt");
     await user.type(input, "www.outro.pt");
@@ -1779,5 +1778,13 @@ describe("Website — Domínio próprio (3.9)", () => {
     expect(toastError).toHaveBeenCalledWith(
       "Esse é o domínio da plataforma — não pode ser usado como domínio próprio.",
     );
+  });
+
+  it("flag desligada: a tab Domínio NÃO mostra o card 'Domínio próprio'", () => {
+    useSiteMock.mockReturnValue({ data: siteWithCustomDomain("www.acme.pt"), isLoading: false });
+    render(<Website view="domain" />);
+
+    expect(screen.queryByText("Domínio próprio")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("www.cliente.pt")).not.toBeInTheDocument();
   });
 });

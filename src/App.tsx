@@ -173,6 +173,7 @@ function App() {
         <Route path="/website/marca" element={<Website view="brand" />} />
         <Route path="/website/rodape-nav" element={<Website view="footer" />} />
         <Route path="/website/dominio" element={<Website view="domain" />} />
+        <Route path="/website/definicoes" element={<Website view="settings" />} />
         <Route path="/admin" element={<AdminEntry />} />
         <Route path="/admin/permissoes" element={<Admin view="permissoes" />} />
         <Route path="/admin/componentes" element={<Admin view="componentes" />} />

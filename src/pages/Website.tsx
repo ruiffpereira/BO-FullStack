@@ -7,6 +7,7 @@ import {
   Badge,
   Input,
   Toggle,
+  Tabs,
   PageHeader,
   SectionTitle,
 } from "../ui/ui.jsx";
@@ -15,6 +16,7 @@ import { usePageSubtitle } from "../context/PageMetaContext";
 import { useAuth } from "../context/AuthContext";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { FileUpload } from "../components/FileUpload";
+import { GuardButton } from "../components/GuardButton";
 import { PageBlocksSection } from "../components/website/PageBlocksSection";
 import { uploadImage } from "../gen/backoffice/hooks/useUploadImage.js";
 import { SITE_ROOT_URL } from "../lib/env";
@@ -23,6 +25,7 @@ import {
   useSaveSite,
   useCheckSubdomain,
   useSetSubdomain,
+  useSetCustomDomain,
   usePublishSite,
   type Site,
   type SitePage,
@@ -32,6 +35,9 @@ import {
   type SiteFooter,
   type FooterColumn,
   type SiteUpsert,
+  type SiteSettings,
+  type LocalizedText,
+  type SiteRadius,
   type ThemePreset,
   type ThemeAccent,
   type ThemeFont,
@@ -105,7 +111,7 @@ function siteRoot(): URL {
   return new URL(SITE_ROOT_URL);
 }
 
-export type WebsiteView = "site" | "template" | "pages" | "brand" | "footer" | "domain";
+export type WebsiteView = "site" | "template" | "pages" | "brand" | "footer" | "domain" | "settings";
 
 /** URL público mostrado ao tenant ({subdomain}.{host da base}). */
 function siteUrl(subdomain: string | null): string {
@@ -1841,6 +1847,37 @@ const REASON_LABEL: Record<NonNullable<SubdomainCheck["reason"]>, string> = {
   invalid: "Formato inválido (usa letras, números e hífens).",
 };
 
+/** `www.cliente.pt` a partir de qualquer coisa colada (URL completo, com
+ *  porta, com caminho) — tolerante ao que o tenant possa colar do browser. */
+function normalizeHostInput(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "")
+    .replace(/:\d+$/, "");
+}
+
+/** Hostname minimamente plausível: ≥2 rótulos, [a-z0-9-], sem espaços/esquema. */
+const HOSTNAME_RE = /^(?!-)[a-z0-9-]+(\.[a-z0-9-]+)+$/;
+
+/**
+ * Validação client-side ANTES de bater na API (feedback imediato) — a API
+ * continua a ser a fonte de verdade (400/409, ver `REASON_LABEL`-like mapping
+ * em `onSaveCustomDomain`). `rootHost` é o host da base pública dos sites
+ * (`SITE_ROOT_URL`) — nunca aceitar o domínio da própria plataforma nem um
+ * subdomínio dele como domínio próprio (mesma regra do backend, 3.9).
+ */
+function customDomainIssue(raw: string, rootHost: string): string | null {
+  const value = normalizeHostInput(raw);
+  if (!value) return "Escreve um domínio.";
+  if (!HOSTNAME_RE.test(value)) return "Formato inválido (ex: www.cliente.pt).";
+  if (value === rootHost || value.endsWith(`.${rootHost}`)) {
+    return "Esse é o domínio da plataforma — usa o teu próprio domínio.";
+  }
+  return null;
+}
+
 function DomainTab({ site }: { site: Site }) {
   const check = useCheckSubdomain();
   const claim = useSetSubdomain();
@@ -1898,7 +1935,53 @@ function DomainTab({ site }: { site: Site }) {
     });
   };
 
+  // ── Domínio próprio (3.9) ──────────────────────────────────────────────────
+  const setCustomDomain = useSetCustomDomain();
+  // `.hostname` (SEM porta) — um domínio próprio nunca tem porta; comparar
+  // com `.host` faria o dev (`localhost:3000`) rejeitar só "localhost:3000"
+  // exato, deixando passar "localhost" sozinho (a normalização remove sempre
+  // a porta de qualquer valor colado, ver `normalizeHostInput`).
+  const rootHost = siteRoot().hostname;
+  const [customValue, setCustomValue] = useState(site.customDomain ?? "");
+  const [pendingRemoveCustom, setPendingRemoveCustom] = useState(false);
+  const customIssue = customDomainIssue(customValue, rootHost);
+  const canSaveCustom = !customIssue && !setCustomDomain.isPending;
+
+  const customDomainErrorMsg = (err: any): string => {
+    const status = err?.response?.status;
+    const reason = err?.response?.data?.reason;
+    if (status === 409) return "Esse domínio já está a ser usado por outro cliente.";
+    if (reason === "root_domain") {
+      return "Esse é o domínio da plataforma — não pode ser usado como domínio próprio.";
+    }
+    if (reason === "invalid" || status === 400) return "Domínio inválido.";
+    return "Não foi possível guardar o domínio.";
+  };
+
+  const onSaveCustomDomain = () => {
+    if (customIssue) return;
+    setCustomDomain.mutate(normalizeHostInput(customValue), {
+      onSuccess: (data) => {
+        setCustomValue(data.customDomain ?? "");
+        toast.success("Domínio próprio guardado.");
+      },
+      onError: (err: any) => toast.error(customDomainErrorMsg(err)),
+    });
+  };
+
+  const onConfirmRemoveCustomDomain = () => {
+    setCustomDomain.mutate(null, {
+      onSuccess: () => {
+        setCustomValue("");
+        toast.success("Domínio próprio removido.");
+      },
+      onError: (err: any) => toast.error(customDomainErrorMsg(err)),
+    });
+    setPendingRemoveCustom(false);
+  };
+
   return (
+    <div className="space-y-5">
     <div className="grid gap-5 lg:grid-cols-3">
       <Card className="p-5 lg:col-span-2">
         <SectionTitle>Subdomínio</SectionTitle>
@@ -1966,6 +2049,638 @@ function DomainTab({ site }: { site: Site }) {
         )}
       </Card>
     </div>
+
+    <Card className="p-5">
+      <SectionTitle>Domínio próprio</SectionTitle>
+      <p className="text-[13px] text-zinc-500 mb-3">
+        Usa o teu próprio domínio (ex: www.cliente.pt) em vez do subdomínio
+        RufVision — o site continua o mesmo, só o endereço muda.
+      </p>
+
+      <div className="flex items-end gap-2 flex-wrap">
+        <div className="flex-1 min-w-[200px]">
+          <Input
+            label="O teu domínio"
+            placeholder="www.cliente.pt"
+            value={customValue}
+            onChange={(e: any) => setCustomValue(e.target.value)}
+            icon="globe"
+          />
+        </div>
+        <GuardButton onClick={onSaveCustomDomain} disabled={!canSaveCustom} isLoading={setCustomDomain.isPending}>
+          Guardar
+        </GuardButton>
+        {site.customDomain && (
+          <GuardButton
+            variant="outline"
+            onClick={() => setPendingRemoveCustom(true)}
+            disabled={setCustomDomain.isPending}
+          >
+            Remover domínio
+          </GuardButton>
+        )}
+      </div>
+      {customIssue && customValue.trim() && (
+        <p className="text-xs text-red-500 mt-2">{customIssue}</p>
+      )}
+
+      <div className="mt-4 rounded-xl border border-zinc-200/80 dark:border-zinc-800 p-4">
+        <p className="text-[13px] text-zinc-500">Domínio atual</p>
+        {site.customDomain ? (
+          <div className="mt-1 flex items-center justify-between gap-3 flex-wrap">
+            <span className="font-mono text-sm text-zinc-900 dark:text-zinc-100 break-all">
+              {site.customDomain}
+            </span>
+            <a
+              href={`https://${site.customDomain}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            >
+              <Icon name="eye" className="w-4 h-4" />
+              Ver site
+            </a>
+          </div>
+        ) : (
+          <p className="mt-1 text-sm text-zinc-400">Ainda sem domínio próprio.</p>
+        )}
+      </div>
+
+      <div className="mt-4 text-xs text-zinc-500">
+        <p className="font-medium text-zinc-600 dark:text-zinc-300 mb-1">Como ligar:</p>
+        <ol className="list-decimal list-inside space-y-0.5">
+          <li>No registrador do domínio, cria um registo DNS (A ou CNAME) a apontar para o servidor do site.</li>
+          <li>Pede à equipa RufVision para adicionar o domínio à app do site (certificado SSL automático).</li>
+          <li>Volta aqui e guarda o domínio — a verificação é feita ao visitar o endereço.</li>
+        </ol>
+      </div>
+
+      <ConfirmDialog
+        open={pendingRemoveCustom}
+        onClose={() => setPendingRemoveCustom(false)}
+        onConfirm={onConfirmRemoveCustomDomain}
+        title="Remover o domínio próprio?"
+        description={
+          <>
+            O site volta a ficar disponível só em{" "}
+            <strong>{siteUrl(site.subdomain)}</strong>. O domínio próprio deixa
+            de apontar para o site — o registo DNS no registrador tem de ser
+            removido à parte.
+          </>
+        }
+        confirmLabel="Remover"
+        pendingLabel="A remover…"
+        isPending={setCustomDomain.isPending}
+      />
+    </Card>
+    </div>
+  );
+}
+
+// ── Tab: Definições (3.10 — afinação leve do tenant) ─────────────────────────
+//
+// `settings` (`.design/site-tenant-light/DESIGN_BRIEF.md` secção 3.10) é um
+// objeto de topo NOVO do Site JSON, inteiramente opcional — o renderer ignora
+// chaves desconhecidas e tolera qualquer campo em falta/malformado
+// (`site-engine/lib/settings.ts`, READ-ONLY, é o contrato pinado). Esta tab é
+// TENANT-OPEN (sem `perm` no submenu, ao contrário de Template/Domínio — ver
+// `SUBMENU['/website']` em `navigation.ts`) — é a casa da afinação leve que
+// qualquer tenant pode mexer, mesmo sem `VIEW_SITE_BUILDER`. Cada grupo grava
+// SÓ a sua chave de `settings` (spread do `settings` atual + substitui essa
+// chave) com o seu próprio "Guardar" — mesmo padrão de "Rodapé & Nav"
+// (`FooterNavTab`, 3 formulários independentes na mesma tab) — nunca um
+// "Guardar" único para a tab inteira, para uma falha num grupo não arriscar
+// desfazer outro.
+
+/** Só dígitos "+" plausíveis para `wa.me` — mesmo mínimo do renderer
+ *  (`site-engine/lib/settings.ts::sanitizeWhatsappNumber`, 8 dígitos). Vazio
+ *  é válido (campo opcional / toggle desligado). */
+function whatsappNumberIssue(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const digits = trimmed.replace(/\D+/g, "");
+  return digits.length >= 8
+    ? null
+    : "Número demasiado curto — inclui o indicativo do país (ex: +351...).";
+}
+
+/** URL http(s) — vazio é válido (campo opcional). Mesma regra do renderer
+ *  (`sanitizeHttpUrl`). */
+function httpUrlIssue(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  return /^https?:\/\//i.test(trimmed) ? null : "Tem de começar por http:// ou https://";
+}
+
+/** Endereço do anúncio: http(s) OU caminho interno (ex: /promocoes) — vazio é
+ *  válido. Mesma regra do renderer (`sanitizeHref`). */
+function announcementHrefIssue(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  return /^https?:\/\//i.test(trimmed) || trimmed.startsWith("/")
+    ? null
+    : "Usa um endereço a começar por http(s):// ou /";
+}
+
+/**
+ * Editor de um texto `Record<locale,string>` pelas línguas ativas do site —
+ * mesmo padrão de Tabs por língua do `BlockContentModal`. O `value` é sempre
+ * o objeto completo (linguagens desativadas incluídas, se as houver) — só a
+ * língua selecionada é escrita a cada tecla (`{ ...value, [locale]: v }`),
+ * por isso nada se perde ao gravar mesmo sem uma etapa de merge à parte
+ * (ao contrário do `BlockContentModal`, aqui não há um "draft" que descarte
+ * as línguas não visitadas).
+ */
+function LocaleTextEditor({
+  value,
+  onChange,
+  activeLocales,
+  defaultLocale,
+  disabled,
+  placeholder,
+  multiline,
+  ariaLabelPrefix,
+}: {
+  value: LocalizedText;
+  onChange: (next: LocalizedText) => void;
+  activeLocales: string[];
+  defaultLocale: string;
+  disabled?: boolean;
+  placeholder?: string;
+  multiline?: boolean;
+  ariaLabelPrefix: string;
+}) {
+  const locales = activeLocales.length > 0 ? activeLocales : [defaultLocale];
+  const [locale, setLocale] = useState(locales[0]);
+  const localeTabs = locales.map((loc) => ({ id: loc, label: loc.toUpperCase() }));
+  const current = value[locale] ?? "";
+  const setCurrent = (v: string) => onChange({ ...value, [locale]: v });
+  const inputCls =
+    "w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 px-3 py-2 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition";
+
+  return (
+    <div>
+      {localeTabs.length > 1 && (
+        <div className="mb-2">
+          <Tabs tabs={localeTabs} value={locale} onChange={(id: string) => setLocale(id)} size="sm" />
+        </div>
+      )}
+      {multiline ? (
+        <textarea
+          aria-label={ariaLabelPrefix}
+          value={current}
+          disabled={disabled}
+          onChange={(e) => setCurrent(e.target.value)}
+          placeholder={placeholder}
+          rows={3}
+          className={inputCls}
+        />
+      ) : (
+        <input
+          aria-label={ariaLabelPrefix}
+          value={current}
+          disabled={disabled}
+          onChange={(e) => setCurrent(e.target.value)}
+          placeholder={placeholder}
+          className={inputCls}
+        />
+      )}
+    </div>
+  );
+}
+
+function AnnouncementCard({ site }: { site: Site }) {
+  const save = useSaveSite();
+  const settingsSrc = site.settings ?? {};
+  const src = settingsSrc.announcement;
+  const [enabled, setEnabled] = useState(!!src?.enabled);
+  const [text, setText] = useState<LocalizedText>(src?.text ?? {});
+  const [href, setHref] = useState(src?.href ?? "");
+  const issue = announcementHrefIssue(href);
+
+  const onSave = () => {
+    if (issue) return;
+    const nextSettings: SiteSettings = {
+      ...settingsSrc,
+      announcement: { enabled, text, href: href.trim() || null },
+    };
+    save.mutate(
+      { settings: nextSettings },
+      {
+        onSuccess: () => toast.success("Anúncio guardado."),
+        onError: () => toast.error("Não foi possível guardar o anúncio."),
+      },
+    );
+  };
+
+  return (
+    <Card className="p-5">
+      <SectionTitle>Anúncio no site</SectionTitle>
+      <p className="text-[13px] text-zinc-500 mb-3">
+        Uma faixa no topo do site (promoções, avisos) — o visitante pode
+        dispensá-la por sessão.
+      </p>
+      <label className="flex items-center gap-2.5 cursor-pointer mb-3">
+        <Toggle checked={enabled} onChange={setEnabled} size="sm" label="Mostrar anúncio" />
+        <span className="text-sm text-zinc-700 dark:text-zinc-200">Mostrar anúncio</span>
+      </label>
+      <div className="space-y-3">
+        <div>
+          <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+            Texto
+          </span>
+          <LocaleTextEditor
+            value={text}
+            onChange={setText}
+            activeLocales={site.activeLocales}
+            defaultLocale={site.defaultLocale}
+            disabled={save.isPending}
+            placeholder="Ex: Aberto também aos domingos em julho"
+            ariaLabelPrefix="Texto do anúncio"
+          />
+        </div>
+        <Input
+          label="Link (opcional)"
+          placeholder="/promocoes ou https://…"
+          value={href}
+          onChange={(e: any) => setHref(e.target.value)}
+        />
+        {issue && href.trim() && <p className="text-xs text-red-500">{issue}</p>}
+      </div>
+      <div className="mt-4">
+        <GuardButton onClick={onSave} isLoading={save.isPending} disabled={!!issue} icon="check">
+          Guardar anúncio
+        </GuardButton>
+      </div>
+    </Card>
+  );
+}
+
+function WhatsappCard({ site }: { site: Site }) {
+  const save = useSaveSite();
+  const settingsSrc = site.settings ?? {};
+  const src = settingsSrc.whatsapp;
+  const [enabled, setEnabled] = useState(!!src?.enabled);
+  const [number, setNumber] = useState(src?.number ?? "");
+  const issue = whatsappNumberIssue(number);
+
+  const onSave = () => {
+    if (issue) return;
+    const nextSettings: SiteSettings = {
+      ...settingsSrc,
+      whatsapp: { enabled, number: number.trim() },
+    };
+    save.mutate(
+      { settings: nextSettings },
+      {
+        onSuccess: () => toast.success("WhatsApp guardado."),
+        onError: () => toast.error("Não foi possível guardar o WhatsApp."),
+      },
+    );
+  };
+
+  return (
+    <Card className="p-5">
+      <SectionTitle>WhatsApp</SectionTitle>
+      <p className="text-[13px] text-zinc-500 mb-3">
+        Botão flutuante no site que abre uma conversa de WhatsApp.
+      </p>
+      <label className="flex items-center gap-2.5 cursor-pointer mb-3">
+        <Toggle checked={enabled} onChange={setEnabled} size="sm" label="Mostrar botão de WhatsApp" />
+        <span className="text-sm text-zinc-700 dark:text-zinc-200">Mostrar botão</span>
+      </label>
+      <Input
+        label="Número"
+        icon="phone"
+        placeholder="+351912345678"
+        value={number}
+        onChange={(e: any) => setNumber(e.target.value)}
+        hint="Com indicativo do país (ex: +351...)."
+      />
+      {issue && number.trim() && <p className="text-xs text-red-500 mt-1">{issue}</p>}
+      <div className="mt-4">
+        <GuardButton onClick={onSave} isLoading={save.isPending} disabled={!!issue} icon="check">
+          Guardar WhatsApp
+        </GuardButton>
+      </div>
+    </Card>
+  );
+}
+
+function SocialCard({ site }: { site: Site }) {
+  const save = useSaveSite();
+  const settingsSrc = site.settings ?? {};
+  const src = settingsSrc.social ?? {};
+  const [instagram, setInstagram] = useState(src.instagram ?? "");
+  const [facebook, setFacebook] = useState(src.facebook ?? "");
+  const [tiktok, setTiktok] = useState(src.tiktok ?? "");
+  const issues = {
+    instagram: httpUrlIssue(instagram),
+    facebook: httpUrlIssue(facebook),
+    tiktok: httpUrlIssue(tiktok),
+  };
+  const hasIssue = !!(issues.instagram || issues.facebook || issues.tiktok);
+
+  const onSave = () => {
+    if (hasIssue) return;
+    const nextSettings: SiteSettings = {
+      ...settingsSrc,
+      social: {
+        instagram: instagram.trim(),
+        facebook: facebook.trim(),
+        tiktok: tiktok.trim(),
+      },
+    };
+    save.mutate(
+      { settings: nextSettings },
+      {
+        onSuccess: () => toast.success("Redes sociais guardadas."),
+        onError: () => toast.error("Não foi possível guardar as redes sociais."),
+      },
+    );
+  };
+
+  return (
+    <Card className="p-5">
+      <SectionTitle>Redes sociais</SectionTitle>
+      <p className="text-[13px] text-zinc-500 mb-3">
+        Ícones no rodapé do site — deixa em branco o que não usas.
+      </p>
+      <div className="space-y-3">
+        <div>
+          <Input
+            label="Instagram"
+            placeholder="https://instagram.com/…"
+            value={instagram}
+            onChange={(e: any) => setInstagram(e.target.value)}
+          />
+          {issues.instagram && instagram.trim() && (
+            <p className="text-xs text-red-500 mt-1">{issues.instagram}</p>
+          )}
+        </div>
+        <div>
+          <Input
+            label="Facebook"
+            placeholder="https://facebook.com/…"
+            value={facebook}
+            onChange={(e: any) => setFacebook(e.target.value)}
+          />
+          {issues.facebook && facebook.trim() && (
+            <p className="text-xs text-red-500 mt-1">{issues.facebook}</p>
+          )}
+        </div>
+        <div>
+          <Input
+            label="TikTok"
+            placeholder="https://tiktok.com/@…"
+            value={tiktok}
+            onChange={(e: any) => setTiktok(e.target.value)}
+          />
+          {issues.tiktok && tiktok.trim() && (
+            <p className="text-xs text-red-500 mt-1">{issues.tiktok}</p>
+          )}
+        </div>
+      </div>
+      <div className="mt-4">
+        <GuardButton onClick={onSave} isLoading={save.isPending} disabled={hasIssue} icon="check">
+          Guardar redes sociais
+        </GuardButton>
+      </div>
+    </Card>
+  );
+}
+
+function VacationCard({ site }: { site: Site }) {
+  const save = useSaveSite();
+  const settingsSrc = site.settings ?? {};
+  const src = settingsSrc.vacation;
+  const [enabled, setEnabled] = useState(!!src?.enabled);
+  const [message, setMessage] = useState<LocalizedText>(src?.message ?? {});
+
+  const onSave = () => {
+    const nextSettings: SiteSettings = {
+      ...settingsSrc,
+      vacation: { enabled, message },
+    };
+    save.mutate(
+      { settings: nextSettings },
+      {
+        onSuccess: () => toast.success("Modo férias guardado."),
+        onError: () => toast.error("Não foi possível guardar o modo férias."),
+      },
+    );
+  };
+
+  return (
+    <Card className="p-5">
+      <SectionTitle>Modo férias</SectionTitle>
+      <p className="text-[13px] text-zinc-500 mb-3">
+        Mostra uma faixa a avisar que estás de férias. O site continua no ar
+        e a funcionar normalmente — é só um aviso, não despublica nem bloqueia
+        marcações.
+      </p>
+      <label className="flex items-center gap-2.5 cursor-pointer mb-3">
+        <Toggle checked={enabled} onChange={setEnabled} size="sm" label="Ativar modo férias" />
+        <span className="text-sm text-zinc-700 dark:text-zinc-200">Ativar</span>
+      </label>
+      <div>
+        <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+          Mensagem
+        </span>
+        <LocaleTextEditor
+          value={message}
+          onChange={setMessage}
+          activeLocales={site.activeLocales}
+          defaultLocale={site.defaultLocale}
+          disabled={save.isPending}
+          placeholder="Ex: Estamos de férias até dia 20 de agosto."
+          ariaLabelPrefix="Mensagem de férias"
+        />
+      </div>
+      <div className="mt-4">
+        <GuardButton onClick={onSave} isLoading={save.isPending} icon="check">
+          Guardar modo férias
+        </GuardButton>
+      </div>
+    </Card>
+  );
+}
+
+function SeoCard({ site }: { site: Site }) {
+  const save = useSaveSite();
+  const settingsSrc = site.settings ?? {};
+  const src = settingsSrc.seo;
+  const [title, setTitle] = useState<LocalizedText>(src?.title ?? {});
+  const [description, setDescription] = useState<LocalizedText>(src?.description ?? {});
+  const [ogImage, setOgImage] = useState(src?.ogImage ?? "");
+  const [ogImagePasteMode, setOgImagePasteMode] = useState(false);
+  const [ogImageFile, setOgImageFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const onSave = async () => {
+    let ogImageUrl = ogImage.trim() || undefined;
+    if (ogImageFile) {
+      setUploading(true);
+      try {
+        const { fileUrl } = await uploadImage({ image: ogImageFile, module: "website" });
+        ogImageUrl = fileUrl;
+      } catch (err: any) {
+        toast.error(err?.message ?? "Erro ao carregar a imagem de partilha");
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    }
+    const nextSettings: SiteSettings = {
+      ...settingsSrc,
+      seo: { title, description, ogImage: ogImageUrl },
+    };
+    save.mutate(
+      { settings: nextSettings },
+      {
+        onSuccess: () => {
+          setOgImageFile(null);
+          toast.success("SEO guardado.");
+        },
+        onError: () => toast.error("Não foi possível guardar o SEO."),
+      },
+    );
+  };
+
+  const busy = save.isPending || uploading;
+
+  return (
+    <Card className="p-5 lg:col-span-2">
+      <SectionTitle>SEO</SectionTitle>
+      <p className="text-[13px] text-zinc-500 mb-3">
+        Título/descrição/imagem mostrados nos resultados de pesquisa e ao
+        partilhar o site — substitui campo a campo o que o site gera
+        automaticamente (deixa em branco o que queres manter automático).
+      </p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+            Título
+          </span>
+          <LocaleTextEditor
+            value={title}
+            onChange={setTitle}
+            activeLocales={site.activeLocales}
+            defaultLocale={site.defaultLocale}
+            disabled={busy}
+            placeholder="Título para partilhas/pesquisa"
+            ariaLabelPrefix="Título de SEO"
+          />
+        </div>
+        <div>
+          <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+            Descrição
+          </span>
+          <LocaleTextEditor
+            value={description}
+            onChange={setDescription}
+            activeLocales={site.activeLocales}
+            defaultLocale={site.defaultLocale}
+            disabled={busy}
+            placeholder="Descrição curta para partilhas/pesquisa"
+            ariaLabelPrefix="Descrição de SEO"
+            multiline
+          />
+        </div>
+      </div>
+      <div className="mt-4">
+        <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+          Imagem de partilha
+        </span>
+        <FileUpload
+          module="website"
+          currentUrl={ogImage.trim() || null}
+          deferred
+          disabled={busy}
+          onFileSelected={(file) => setOgImageFile(file)}
+          onDeleted={() => {
+            setOgImage("");
+            setOgImageFile(null);
+          }}
+          label="Carregar imagem"
+        />
+        {ogImagePasteMode ? (
+          <Input
+            className="mt-2"
+            placeholder="https://…/og.jpg"
+            icon="link"
+            value={ogImage}
+            onChange={(e: any) => {
+              setOgImage(e.target.value);
+              setOgImageFile(null);
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setOgImagePasteMode(true)}
+            className="mt-1.5 text-xs text-zinc-400 hover:text-accent underline underline-offset-2"
+          >
+            ou cola um URL
+          </button>
+        )}
+      </div>
+      <div className="mt-4">
+        <GuardButton onClick={onSave} isLoading={busy} icon="check">
+          Guardar SEO
+        </GuardButton>
+      </div>
+    </Card>
+  );
+}
+
+function RadiusCard({ site }: { site: Site }) {
+  const save = useSaveSite();
+  const settingsSrc = site.settings ?? {};
+  const [radius, setRadius] = useState<SiteRadius>(
+    settingsSrc.radius === "square" ? "square" : "rounded",
+  );
+
+  const onSave = () => {
+    const nextSettings: SiteSettings = { ...settingsSrc, radius };
+    save.mutate(
+      { settings: nextSettings },
+      {
+        onSuccess: () => toast.success("Cantos guardados."),
+        onError: () => toast.error("Não foi possível guardar os cantos."),
+      },
+    );
+  };
+
+  return (
+    <Card className="p-5">
+      <SectionTitle>Cantos</SectionTitle>
+      <p className="text-[13px] text-zinc-500 mb-3">
+        O estilo dos cantos (botões, cartões, imagens) em todo o site.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Swatch active={radius === "rounded"} onClick={() => setRadius("rounded")} label="Arredondado" />
+        <Swatch active={radius === "square"} onClick={() => setRadius("square")} label="Reto" />
+      </div>
+      <div className="mt-4">
+        <GuardButton onClick={onSave} isLoading={save.isPending} icon="check">
+          Guardar cantos
+        </GuardButton>
+      </div>
+    </Card>
+  );
+}
+
+function SettingsTab({ site }: { site: Site }) {
+  return (
+    <div className="grid gap-5 lg:grid-cols-2">
+      <AnnouncementCard site={site} />
+      <WhatsappCard site={site} />
+      <SocialCard site={site} />
+      <VacationCard site={site} />
+      <SeoCard site={site} />
+      <RadiusCard site={site} />
+    </div>
   );
 }
 
@@ -2010,6 +2725,7 @@ export function Website({ view }: { view: WebsiteView }) {
           {view === "brand" && <BrandTab site={site} />}
           {view === "footer" && <FooterNavTab site={site} />}
           {view === "domain" && <DomainTab site={site} />}
+          {view === "settings" && <SettingsTab site={site} />}
         </>
       )}
     </div>

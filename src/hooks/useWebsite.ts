@@ -117,9 +117,73 @@ export interface SiteFooter {
   [key: string]: unknown;
 }
 
+// ── Definições (3.10, `.design/site-tenant-light/DESIGN_BRIEF.md`) ──────────
+//
+// `settings` é um objeto de topo NOVO e inteiramente OPCIONAL do Site JSON —
+// o renderer IGNORA chaves desconhecidas (forward-compat) e cada resolver
+// tolera undefined/null/malformado em qualquer campo, nunca lançando
+// (`site-engine/lib/settings.ts`, READ-ONLY daqui — é o contrato PINADO,
+// espelhado 1:1 abaixo). Editado na tab "Definições" (`SettingsTab`,
+// `Website.tsx`), tenant-open (sem gate de `VIEW_SITE_BUILDER`/`VIEW_ADMIN`).
+
+/** Texto por língua — mesmo padrão de `block.settings.content[locale]`. */
+export type LocalizedText = Record<string, string>;
+
+export interface SiteSettingsAnnouncement {
+  enabled: boolean;
+  text?: LocalizedText;
+  href?: string | null;
+}
+
+/** Botão flutuante de WhatsApp — `number` é o texto tal como o tenant o
+ *  escreve (o renderer é que reduz a dígitos, `sanitizeWhatsappNumber`). */
+export interface SiteSettingsWhatsapp {
+  enabled: boolean;
+  number?: string;
+}
+
+/** URLs completos http(s) — allowlist aplicada pelo renderer na leitura. */
+export interface SiteSettingsSocial {
+  instagram?: string;
+  facebook?: string;
+  tiktok?: string;
+}
+
+export interface SiteSettingsVacation {
+  enabled: boolean;
+  message?: LocalizedText;
+}
+
+/** SEO de topo do site — override único (não por página) sobre o que o
+ *  renderer já deriva; cada campo é independente. */
+export interface SiteSettingsSeo {
+  title?: LocalizedText;
+  description?: LocalizedText;
+  ogImage?: string;
+}
+
+/** `data-radius` do `<html>` — ausente/inválido cai em "rounded" (visual atual). */
+export type SiteRadius = "rounded" | "square";
+
+export interface SiteSettings {
+  announcement?: SiteSettingsAnnouncement;
+  whatsapp?: SiteSettingsWhatsapp;
+  social?: SiteSettingsSocial;
+  vacation?: SiteSettingsVacation;
+  seo?: SiteSettingsSeo;
+  radius?: SiteRadius;
+}
+
 export interface Site {
   siteId: string | null;
   subdomain: string | null;
+  /**
+   * Domínio próprio do tenant (3.9), quando definido — editado na secção
+   * "Domínio próprio" da tab Domínio, via endpoint DEDICADO
+   * (`useSetCustomDomain`), NUNCA pelo `PUT /website` (whitelist anti
+   * mass-assignment exclui-o de propósito).
+   */
+  customDomain?: string | null;
   template: string | null;
   defaultLocale: string;
   activeLocales: string[];
@@ -127,6 +191,8 @@ export interface Site {
   nav: SiteNav | null;
   pages: SitePage[];
   footer: SiteFooter | null;
+  /** Afinação leve do tenant (3.10) — ver bloco de tipos acima. */
+  settings?: SiteSettings | null;
   published: boolean;
   publishedAt: string | null;
 }
@@ -137,6 +203,7 @@ export interface SiteUpsert {
   nav?: SiteNav | null;
   pages?: SitePage[];
   footer?: SiteFooter | null;
+  settings?: SiteSettings | null;
   defaultLocale?: string;
   activeLocales?: string[];
   template?: string | null;
@@ -211,6 +278,39 @@ export function useSetSubdomain() {
     mutationFn: async (value) => {
       const res = await axiosInstance.put<Site>(
         "/website/subdomain",
+        { value },
+        { headers: authHeader() },
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: websiteKeys.site });
+      qc.invalidateQueries({ queryKey: ["site-analytics"] });
+    },
+  });
+}
+
+export interface CustomDomainResult {
+  customDomain: string | null;
+}
+
+/**
+ * PUT /website/custom-domain — define (ou remove, `value: null`) o domínio
+ * próprio do tenant (3.9). Endpoint DEDICADO — fora do `PUT /website` de
+ * propósito (a whitelist anti mass-assignment exclui `customDomain`; ver
+ * DESIGN_BRIEF.md secção 3.9). Respostas: 200 `{ customDomain }` · 400
+ * `{ error, reason: "invalid" | "root_domain" }` · 409 quando o domínio já
+ * pertence a outro tenant. Ao definir, a API sincroniza também o domínio das
+ * Estatísticas (mesma regra do `useSetSubdomain`), por isso invalida também
+ * a cache `site-analytics`.
+ */
+export function useSetCustomDomain() {
+  const { authHeader } = useAuth();
+  const qc = useQueryClient();
+  return useMutation<CustomDomainResult, unknown, string | null>({
+    mutationFn: async (value) => {
+      const res = await axiosInstance.put<CustomDomainResult>(
+        "/website/custom-domain",
         { value },
         { headers: authHeader() },
       );

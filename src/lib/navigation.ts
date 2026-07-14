@@ -77,6 +77,11 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     { id: "brand", label: "Marca", path: "/website/marca" },
     { id: "footer", label: "Rodapé & Nav", path: "/website/rodape-nav" },
     { id: "domain", label: "Domínio", path: "/website/dominio", perm: ["VIEW_SITE_BUILDER", "VIEW_ADMIN"] },
+    // Definições (3.10, `.design/site-tenant-light/DESIGN_BRIEF.md`) — afinação
+    // leve (anúncio/WhatsApp/redes sociais/férias/SEO/cantos), SEM `perm`: é a
+    // casa da afinação leve, tenant-open mesmo sem VIEW_SITE_BUILDER/VIEW_ADMIN
+    // (ao contrário de Template/Domínio acima).
+    { id: "settings", label: "Definições", path: "/website/definicoes" },
   ],
   "/admin": [
     // Label do âncora ("Utilizadores", não "Admin") pelo mesmo motivo dos

@@ -3817,7 +3817,7 @@
     "/users/signup": {
       "post": {
         "summary": "Signup público self-serve (cria tenant em período experimental configurável, default 14 dias, sem cartão)",
-        "description": "Endpoint PÚBLICO (sem auth, sem CSRF — como o `/setup-password`), rate-limited\n(`authRateLimit`). Cria um `User` sem password (com `setupToken` de 24h), um\n`Permission` novo por-tenant com os componentes RBAC dos módulos escolhidos\n(+ os componentes \"core\" que o backend já exige), e uma `PlatformSubscription`\nlocal `trialing` (período experimental configurável, default 14 dias). Tudo\nnuma única transação.\n\nANTI-ENUMERAÇÃO: a resposta é SEMPRE `{ ok: true }` (200), mesmo que o email já\nexista — nesse caso nada é criado; só o email enviado difere.\n",
+        "description": "Endpoint PÚBLICO (sem auth, sem CSRF — como o `/setup-password`), rate-limited\n(`authRateLimit`). Cria um `User` sem password (com `setupToken` de 24h), um\n`Permission` novo por-tenant com os componentes RBAC dos módulos escolhidos\n(+ os componentes \"core\" que o backend já exige + `VIEW_SITE_BUILDER`, sempre\nconcedido — self-serve mantém poder total sobre a estrutura do site), e uma\n`PlatformSubscription` local `trialing` (período experimental configurável,\ndefault 14 dias). Tudo\nnuma única transação.\n\nANTI-ENUMERAÇÃO: a resposta é SEMPRE `{ ok: true }` (200), mesmo que o email já\nexista — nesse caso nada é criado; só o email enviado difere.\n",
         "tags": [
           "Users"
         ],
@@ -4459,7 +4459,7 @@
     },
     "/analytics/site": {
       "get": {
-        "summary": "Estatísticas do site do tenant (Plausible)",
+        "summary": "Estatísticas do site do tenant (Umami se provisionado; senão Plausible legado)",
         "tags": [
           "Analytics"
         ],
@@ -4488,7 +4488,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Dados agregados + série temporal + páginas + origens.\nSe o Plausible ou o domínio não estiverem configurados devolve\n`{ configured: false, reason }`.\n"
+            "description": "Dados agregados + série temporal + páginas + origens. O shape é o\nMESMO independentemente do provider (Umami ou Plausible) — o\nBackoffice não precisa de saber qual está por trás.\nSe nenhum provider estiver configurado/aplicável devolve\n`{ configured: false, reason }`.\n"
           }
         }
       }
@@ -11693,6 +11693,54 @@
         }
       }
     },
+    "/website/custom-domain": {
+      "put": {
+        "summary": "Define ou limpa o domínio próprio do tenant (Site.customDomain)",
+        "description": "`value: null` limpa o domínio. Um hostname válido é normalizado (minúsculas, sem esquema/porta/path) e não pode ser o domínio raiz da plataforma nem um subdomínio dele (esse espaço público é `PUT /website/subdomain`). Ao definir com sucesso, sincroniza o domínio das Estatísticas (`User.websiteDomain`, provisiona o site de estatísticas) e revalida o cache ISR do renderer (se o site já estiver publicado).\n",
+        "tags": [
+          "Website"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "value"
+                ],
+                "properties": {
+                  "value": {
+                    "type": "string",
+                    "nullable": true,
+                    "example": "minhabarbearia.pt"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Domínio definido/limpo"
+          },
+          "400": {
+            "description": "Hostname inválido, ou é o domínio raiz da plataforma (ou subdomínio dele)"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "409": {
+            "description": "Domínio já usado por outro tenant"
+          }
+        }
+      }
+    },
     "/website": {
       "get": {
         "summary": "Obtém o site do tenant autenticado (vazio se ainda não existe)",
@@ -12261,7 +12309,7 @@
     },
     {
       "name": "Analytics",
-      "description": "Estatísticas do site público do tenant (Plausible auto-hospedado)"
+      "description": "Estatísticas do site público do tenant (Umami/Plausible auto-hospedado)"
     },
     {
       "name": "Billing",

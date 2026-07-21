@@ -886,14 +886,17 @@ function CatalogoTab() {
 
       {grupoModal && <GrupoModal grupo={grupoModal.group} onClose={() => setGrupoModal(null)} />}
 
-      <Modal
+      <ConfirmDialog
         open={!!confirmDel}
         onClose={() => setConfirmDel(null)}
         title="Eliminar exercício?"
-        footer={<><Button variant="ghost" onClick={() => setConfirmDel(null)}>Cancelar</Button><Button variant="danger" isLoading={remove.isPending} onClick={() => { if (confirmDel) remove.mutate(confirmDel.exerciseId); setConfirmDel(null) }}>Eliminar</Button></>}
-      >
-        <p className="text-sm text-zinc-500">Tens a certeza que queres eliminar <strong className="text-zinc-800 dark:text-zinc-100">{confirmDel?.name}</strong>? Esta ação não pode ser revertida.</p>
-      </Modal>
+        description={<>Tens a certeza que queres eliminar <strong>{confirmDel?.name}</strong>? Esta ação não pode ser revertida.</>}
+        confirmLabel="Eliminar"
+        isPending={remove.isPending}
+        onConfirm={() => {
+          if (confirmDel) remove.mutate(confirmDel.exerciseId);
+        }}
+      />
     </>
   )
 }
@@ -1169,15 +1172,50 @@ function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved, onCre
   const [name, setName] = useState('')
   const [contentKey, setContentKey] = useState<string | null>(null)
   const [rows, setRows] = useState<DraftExercise[]>([])
+  const [dirty, setDirty] = useState(false)
+  const [confirmClose, setConfirmClose] = useState(false)
   const { data: langData } = useGetSettingsLanguages()
   const defaultLang = langData?.default ?? 'pt'
 
+  // Baseline do dirty: snapshot do MESMO estado seeded (nunca comparar drafts
+  // com DTOs da API — os uids/shapes nunca coincidem e dava dirty perpétuo).
+  const dirtyBaseline = useRef<string | null>(null)
   useEffect(() => {
     if (!open) return
-    setName(template?.name ?? '')
-    setContentKey(template?.contentKey ?? null)
-    setRows((template?.exercises ?? []).map(dtoToRow))
+    const seedName = template?.name ?? ''
+    const seedKey = template?.contentKey ?? null
+    const seedRows = (template?.exercises ?? []).map(dtoToRow)
+    setName(seedName)
+    setContentKey(seedKey)
+    setRows(seedRows)
+    dirtyBaseline.current = JSON.stringify({ n: seedName, k: seedKey, r: seedRows })
+    setDirty(false)
   }, [open, template?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Marcar dirty quando há mudanças face ao baseline
+  useEffect(() => {
+    if (!open || dirtyBaseline.current === null) return
+    setDirty(JSON.stringify({ n: name, k: contentKey, r: rows }) !== dirtyBaseline.current)
+  }, [name, contentKey, rows, open])
+
+  // beforeunload enquanto dirty
+  useEffect(() => {
+    if (!dirty) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [dirty])
+
+  const handleClose = () => {
+    if (dirty) {
+      setConfirmClose(true)
+    } else {
+      onClose()
+    }
+  }
 
   const qc = useQueryClient()
   const save = useMutation({
@@ -1204,12 +1242,13 @@ function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved, onCre
   const personalizadosCount = rows.filter((r) => isPersonalizado(catalog, r)).length
 
   return (
+    <>
     <div className="space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <button onClick={onClose} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"><Icon name="chevronLeft" className="w-4 h-4" />Voltar aos treinos</button>
+          <button onClick={handleClose} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"><Icon name="chevronLeft" className="w-4 h-4" />Voltar aos treinos</button>
           <div className="sm:ml-auto flex items-center gap-2">
-            <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-            <Button isLoading={save.isPending} disabled={!name.trim() || rows.length === 0} onClick={() => save.mutate()}>{template ? 'Guardar treino' : 'Criar treino'}</Button>
+            <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
+            <Button isLoading={save.isPending} disabled={!name.trim() || rows.length === 0} onClick={() => { save.mutate(); setDirty(false) }}>{template ? 'Guardar treino' : 'Criar treino'}</Button>
           </div>
         </div>
 
@@ -1241,6 +1280,20 @@ function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved, onCre
           </div>
         </div>
     </div>
+    <ConfirmDialog
+      open={confirmClose}
+      onClose={() => setConfirmClose(false)}
+      title="Descartar alterações?"
+      description="O que editaste aqui perde-se."
+      confirmLabel="Descartar"
+      variant="warning"
+      onConfirm={() => {
+        setConfirmClose(false)
+        setDirty(false)
+        onClose()
+      }}
+    />
+    </>
   )
 }
 
@@ -1307,7 +1360,7 @@ function TreinosTab() {
                 role="button"
                 tabIndex={0}
                 onClick={() => { setEditing(t); setOpen(true) }}
-                onKeyDown={(e) => { if (e.key === 'Enter') { setEditing(t); setOpen(true) } }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditing(t); setOpen(true) } }}
                 className="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 cursor-pointer"
               >
                 <span className="w-9 h-9 rounded-lg bg-accent/10 text-accent flex items-center justify-center shrink-0"><Icon name="layers" className="w-[18px] h-[18px]" /></span>
@@ -1329,14 +1382,17 @@ function TreinosTab() {
         </div>
       )}
 
-      <Modal
+      <ConfirmDialog
         open={!!confirmDel}
         onClose={() => setConfirmDel(null)}
         title="Eliminar treino?"
-        footer={<><Button variant="ghost" onClick={() => setConfirmDel(null)}>Cancelar</Button><Button variant="danger" isLoading={remove.isPending} onClick={() => { if (confirmDel) remove.mutate(confirmDel.id); setConfirmDel(null) }}>Eliminar</Button></>}
-      >
-        <p className="text-sm text-zinc-500">Tens a certeza que queres eliminar <strong className="text-zinc-800 dark:text-zinc-100">{confirmDel?.name}</strong>? Esta ação não pode ser revertida.</p>
-      </Modal>
+        description={<>Tens a certeza que queres eliminar <strong>{confirmDel?.name}</strong>? Esta ação não pode ser revertida.</>}
+        confirmLabel="Eliminar"
+        isPending={remove.isPending}
+        onConfirm={() => {
+          if (confirmDel) remove.mutate(confirmDel.id);
+        }}
+      />
     </div>
   )
 }
@@ -1709,6 +1765,8 @@ function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
   const [dias, setDias] = useState<DiaDraft[]>([])
   const [pickFor, setPickFor] = useState<string | null>(null)
   const [editTreino, setEditTreino] = useState<{ diaUid: string; seed?: { name: string; contentKey: string | null; rows: DraftExercise[] } } | null>(null)
+  const [dirty, setDirty] = useState(false)
+  const [confirmClose, setConfirmClose] = useState(false)
   const { data: langData } = useGetSettingsLanguages()
   const defaultLang = langData?.default ?? 'pt'
 
@@ -1724,26 +1782,57 @@ function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
       }
     })
 
+  // Baseline do dirty: snapshot do MESMO estado seeded (nunca comparar drafts
+  // com DTOs da API — os uids/shapes nunca coincidem e dava dirty perpétuo).
+  const dirtyBaseline = useRef<string | null>(null)
   useEffect(() => {
     if (!open) return
-    setName(plano?.name ?? '')
-    setContentKey(plano?.contentKey ?? null)
-    setNote(plano?.note ?? '')
+    const seedName = plano?.name ?? ''
+    const seedKey = plano?.contentKey ?? null
+    const seedNote = plano?.note ?? ''
     const m: 'weekly' | 'free' = plano?.mode === 'free' ? 'free' : 'weekly'
-    setMode(m)
+    let seedDias: DiaDraft[]
     if (!plano) {
-      setDias(buildWeeklyDays([]))
+      seedDias = buildWeeklyDays([])
     } else if (m === 'free') {
-      setDias((plano.workouts ?? []).map((w, i) => ({
+      seedDias = (plano.workouts ?? []).map((w, i) => ({
         uid: newUid(), label: w.dayLabel || `Dia ${i + 1}`, dayIndex: null,
         treinoId: null, treinoName: w.name, treinoContentKey: w.contentKey ?? null,
         rows: snapshotRows(w.exercises ?? []),
-      })))
+      }))
     } else {
-      setDias(buildWeeklyDays(plano.workouts ?? []))
+      seedDias = buildWeeklyDays(plano.workouts ?? [])
     }
+    setName(seedName); setContentKey(seedKey); setNote(seedNote); setMode(m); setDias(seedDias)
     setPickFor(null); setEditTreino(null)
+    dirtyBaseline.current = JSON.stringify({ n: seedName, k: seedKey, t: seedNote, m, d: seedDias })
+    setDirty(false)
   }, [open, plano?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Marcar dirty quando há mudanças face ao baseline
+  useEffect(() => {
+    if (!open || dirtyBaseline.current === null) return
+    setDirty(JSON.stringify({ n: name, k: contentKey, t: note, m: mode, d: dias }) !== dirtyBaseline.current)
+  }, [name, contentKey, note, mode, dias, open])
+
+  // beforeunload enquanto dirty
+  useEffect(() => {
+    if (!dirty) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [dirty])
+
+  const handleClose = () => {
+    if (dirty) {
+      setConfirmClose(true)
+    } else {
+      onClose()
+    }
+  }
 
   // Trocar Semana ↔ Dias livres preservando os treinos já atribuídos.
   const mudarTipo = (novo: 'weekly' | 'free') => {
@@ -1822,12 +1911,13 @@ function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
   }
 
   return (
+    <>
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <button onClick={onClose} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"><Icon name="chevronLeft" className="w-4 h-4" />Voltar aos planos</button>
+        <button onClick={handleClose} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"><Icon name="chevronLeft" className="w-4 h-4" />Voltar aos planos</button>
         <div className="sm:ml-auto flex items-center gap-2">
-          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <Button isLoading={save.isPending} disabled={!canSave} onClick={() => save.mutate()}>{plano ? 'Guardar plano' : 'Criar plano'}</Button>
+          <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
+          <Button isLoading={save.isPending} disabled={!canSave} onClick={() => { save.mutate(); setDirty(false) }}>{plano ? 'Guardar plano' : 'Criar plano'}</Button>
         </div>
       </div>
 
@@ -1904,6 +1994,20 @@ function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
         onCriarNovo={() => { if (pickFor) setEditTreino({ diaUid: pickFor, seed: { name: '', contentKey: null, rows: [] } }); setPickFor(null) }}
       />
     </div>
+    <ConfirmDialog
+      open={confirmClose}
+      onClose={() => setConfirmClose(false)}
+      title="Descartar alterações?"
+      description="O que editaste aqui perde-se."
+      confirmLabel="Descartar"
+      variant="warning"
+      onConfirm={() => {
+        setConfirmClose(false)
+        setDirty(false)
+        onClose()
+      }}
+    />
+    </>
   )
 }
 
@@ -1972,7 +2076,7 @@ function PlanosTab() {
                   role="button"
                   tabIndex={0}
                   onClick={() => { setEditing(p); setOpen(true) }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { setEditing(p); setOpen(true) } }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditing(p); setOpen(true) } }}
                   className="p-3.5 group hover:shadow-md transition-all cursor-pointer"
                 >
                   <div className="flex items-start justify-between">
@@ -2013,14 +2117,17 @@ function PlanosTab() {
         </div>
       )}
 
-      <Modal
+      <ConfirmDialog
         open={!!confirmDel}
         onClose={() => setConfirmDel(null)}
         title="Eliminar plano?"
-        footer={<><Button variant="ghost" onClick={() => setConfirmDel(null)}>Cancelar</Button><Button variant="danger" isLoading={remove.isPending} onClick={() => { if (confirmDel) remove.mutate(confirmDel.id); setConfirmDel(null) }}>Eliminar</Button></>}
-      >
-        <p className="text-sm text-zinc-500">Tens a certeza que queres eliminar <strong className="text-zinc-800 dark:text-zinc-100">{confirmDel?.name}</strong>? Esta ação não pode ser revertida.</p>
-      </Modal>
+        description={<>Tens a certeza que queres eliminar <strong>{confirmDel?.name}</strong>? Esta ação não pode ser revertida.</>}
+        confirmLabel="Eliminar"
+        isPending={remove.isPending}
+        onConfirm={() => {
+          if (confirmDel) remove.mutate(confirmDel.id);
+        }}
+      />
     </div>
   )
 }
@@ -2041,18 +2148,46 @@ function DiaTreinoEditor({ initialName, initialContentKey, initialRows, catalog,
   const [name, setName] = useState(initialName)
   const [contentKey, setContentKey] = useState<string | null>(initialContentKey)
   const [rows, setRows] = useState<DraftExercise[]>(initialRows)
+  const [dirty, setDirty] = useState(false)
+  const [confirmClose, setConfirmClose] = useState(false)
+
+  // Marcar dirty quando há mudanças
+  useEffect(() => {
+    const changed = name !== initialName || contentKey !== initialContentKey || rows.length !== initialRows.length || rows.some((r, i) => JSON.stringify(r) !== JSON.stringify(initialRows[i]))
+    setDirty(changed)
+  }, [name, contentKey, rows, initialName, initialContentKey, initialRows])
+
+  // beforeunload enquanto dirty
+  useEffect(() => {
+    if (!dirty) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [dirty])
+
+  const handleClose = () => {
+    if (dirty) {
+      setConfirmClose(true)
+    } else {
+      onClose()
+    }
+  }
 
   const totalSeries = rows.reduce((s, r) => s + (r.type === 'time' ? 0 : (r.sets || 0)), 0)
   const gruposUsados = [...new Set(rows.map((r) => r.group))].filter(Boolean)
   const personalizadosCount = rows.filter((r) => isPersonalizado(catalog, r)).length
 
   return (
+    <>
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <button onClick={onClose} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"><Icon name="chevronLeft" className="w-4 h-4" />Voltar ao plano</button>
+        <button onClick={handleClose} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"><Icon name="chevronLeft" className="w-4 h-4" />Voltar ao plano</button>
         <div className="sm:ml-auto flex items-center gap-2">
-          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <Button disabled={!name.trim() || rows.length === 0} onClick={() => onSave(name, contentKey, rows)}>Guardar treino</Button>
+          <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
+          <Button disabled={!name.trim() || rows.length === 0} onClick={() => { onSave(name, contentKey, rows); setDirty(false) }}>Guardar treino</Button>
         </div>
       </div>
 
@@ -2084,6 +2219,20 @@ function DiaTreinoEditor({ initialName, initialContentKey, initialRows, catalog,
         </div>
       </div>
     </div>
+    <ConfirmDialog
+      open={confirmClose}
+      onClose={() => setConfirmClose(false)}
+      title="Descartar alterações?"
+      description="O que editaste aqui perde-se."
+      confirmLabel="Descartar"
+      variant="warning"
+      onConfirm={() => {
+        setConfirmClose(false)
+        setDirty(false)
+        onClose()
+      }}
+    />
+    </>
   )
 }
 
@@ -2110,6 +2259,8 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
   const [dias, setDias] = useState<DiaDraft[]>([])
   const [pickFor, setPickFor] = useState<string | null>(null)
   const [editTreino, setEditTreino] = useState<{ diaUid: string; seed?: { name: string; contentKey: string | null; rows: DraftExercise[] } } | null>(null)
+  const [dirty, setDirty] = useState(false)
+  const [confirmClose, setConfirmClose] = useState(false)
   const { data: langData } = useGetSettingsLanguages()
   const defaultLang = langData?.default ?? 'pt'
 
@@ -2152,11 +2303,15 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
     return result
   }
 
+  // Baseline do dirty: snapshot do MESMO estado seeded (nunca comparar drafts
+  // com DTOs da API — os uids/shapes nunca coincidem e dava dirty perpétuo).
+  const dirtyBaseline = useRef<string | null>(null)
   useEffect(() => {
     const m = program.mode === 'free' ? 'free' : 'weekly'
+    let seedDias: DiaDraft[]
     if (m === 'free') {
       const loaded = new Set<string>()
-      const dias = (program.workouts ?? []).map((w, i) => {
+      seedDias = (program.workouts ?? []).map((w, i) => {
         loaded.add(w.id)
         originalDaysRef.current[w.id] = (w.daysOfWeek ?? []).slice()
         return {
@@ -2167,11 +2322,41 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
       })
       setLoadedWorkoutIds(loaded)
       setNaoMostrados([])
-      setDias(dias)
     } else {
-      setDias(buildWeeklyDays(program.workouts ?? []))
+      seedDias = buildWeeklyDays(program.workouts ?? [])
     }
+    setDias(seedDias)
+    dirtyBaseline.current = JSON.stringify({
+      n: program.name ?? '', k: program.contentKey ?? null, t: program.note ?? '',
+      m, i: program.startDate || '', f: program.endDate || '', d: seedDias,
+    })
+    setDirty(false)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Marcar dirty quando há mudanças face ao baseline
+  useEffect(() => {
+    if (dirtyBaseline.current === null) return
+    setDirty(JSON.stringify({ n: name, k: contentKey, t: note, m: mode, i: inicio, f: fim, d: dias }) !== dirtyBaseline.current)
+  }, [name, contentKey, note, mode, inicio, fim, dias])
+
+  // beforeunload enquanto dirty
+  useEffect(() => {
+    if (!dirty) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [dirty])
+
+  const handleClose = () => {
+    if (dirty) {
+      setConfirmClose(true)
+    } else {
+      onClose()
+    }
+  }
 
   const mudarTipo = (novo: 'weekly' | 'free') => {
     if (novo === mode) return
@@ -2269,12 +2454,13 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
   }
 
   return (
+    <>
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <button onClick={onClose} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"><Icon name="chevronLeft" className="w-4 h-4" />Voltar</button>
+        <button onClick={handleClose} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"><Icon name="chevronLeft" className="w-4 h-4" />Voltar</button>
         <div className="sm:ml-auto flex items-center gap-2">
-          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <Button isLoading={save.isPending} disabled={!canSave} onClick={() => save.mutate()}>Guardar plano do cliente</Button>
+          <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
+          <Button isLoading={save.isPending} disabled={!canSave} onClick={() => { save.mutate(); setDirty(false) }}>Guardar plano do cliente</Button>
         </div>
       </div>
 
@@ -2363,6 +2549,20 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
         onCriarNovo={() => { if (pickFor) setEditTreino({ diaUid: pickFor, seed: { name: '', contentKey: null, rows: [] } }); setPickFor(null) }}
       />
     </div>
+    <ConfirmDialog
+      open={confirmClose}
+      onClose={() => setConfirmClose(false)}
+      title="Descartar alterações?"
+      description="O que editaste aqui perde-se."
+      confirmLabel="Descartar"
+      variant="warning"
+      onConfirm={() => {
+        setConfirmClose(false)
+        setDirty(false)
+        onClose()
+      }}
+    />
+    </>
   )
 }
 
@@ -2657,7 +2857,7 @@ function ClientesTab({ customers }: { customers: Cliente[] }) {
                 role="button"
                 tabIndex={0}
                 onClick={() => setSel(c)}
-                onKeyDown={(e) => { if (e.key === 'Enter') setSel(c) }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSel(c) } }}
                 className="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 cursor-pointer"
               >
                 <Avatar name={c.name} size={36} />

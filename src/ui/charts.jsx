@@ -72,7 +72,7 @@ function AreaChart({ data, height = 180, valueKey = 'v', labelKey = 'm', format 
 // `values` alinhado com `labels` (x). Cada linha tem área preenchida (cor da série) para
 // ser legível. Com 1 só treino o ponto fica na ponta esquerda e o nível estende-se em
 // banda; com mais treinos os pontos dividem-se ao longo da largura.
-function LineChart({ labels, series, height = 220, format = (n) => n, refLine = null, refColor = '#1F8A5B', refLabel = '' }) {
+function LineChart({ labels, series, height = 220, format = (n) => n, refLine = null, refColor = '#1F8A5B', refLabel = '', label = 'Gráfico de linhas' }) {
   const accent = useAccent();
   const [hover, setHover] = useStateC(null);
   const w = 560, h = height, pad = { t: 16, r: 12, b: 28, l: 40 };
@@ -104,7 +104,7 @@ function LineChart({ labels, series, height = 220, format = (n) => n, refLine = 
     return { line: line.trim(), area: `${line} L${pts[pts.length - 1][0]},${baseline} L${pts[0][0]},${baseline} Z`, dots: pts };
   };
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height }} onMouseLeave={() => setHover(null)}>
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height }} onMouseLeave={() => setHover(null)} role="img" aria-label={label}>
       {[0.25, 0.5, 0.75, 1].map((g, i) => (
         <line key={i} x1={pad.l} x2={w - pad.r} y1={pad.t + ih * g} y2={pad.t + ih * g} className="stroke-zinc-100 dark:stroke-zinc-800" strokeWidth="1" />
       ))}
@@ -173,14 +173,14 @@ function BarChart({ data, height = 180, valueKey = 'v', labelKey = 'd', format =
 }
 
 // Donut chart with legend
-function DonutChart({ data, size = 150 }) {
+function DonutChart({ data, size = 150, label = 'Gráfico em donut' }) {
   const total = data.reduce((s, d) => s + d.v, 0);
   const r = size / 2 - 12, cx = size / 2, cy = size / 2, sw = 18;
   const C = 2 * Math.PI * r;
   let acc = 0;
   return (
     <div className="flex items-center gap-5">
-      <svg viewBox={`0 0 ${size} ${size}`} style={{ width: size, height: size }} className="-rotate-90">
+      <svg viewBox={`0 0 ${size} ${size}`} style={{ width: size, height: size }} className="-rotate-90" role="img" aria-label={label}>
         <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth={sw} className="stroke-zinc-100 dark:stroke-zinc-800" />
         {data.map((d, i) => {
           const len = (d.v / total) * C;

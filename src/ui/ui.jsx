@@ -118,18 +118,74 @@ function Avatar({ name, color = '#2A6FDB', size = 36 }) {
   );
 }
 
+// ── Modal stack: gerencia Esc e focus quando múltiplos modais estão abertos ──
+const modalStack = [];
+let modalSeq = 0;
+
 function Modal({ open, onClose, title, subtitle, children, footer, width = 'max-w-lg' }) {
+  const modalIdRef = useRefUI(null);
+  const panelRef = useRefUI(null);
+  const savedActiveElementRef = useRefUI(null);
+
+  // Gera um ID único para este modal ao montar (open -> true).
+  if (open && !modalIdRef.current) {
+    modalIdRef.current = `modal-${++modalSeq}`;
+  }
+
   useEffectUI(() => {
-    if (!open) return;
-    const h = (e) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
+    if (!open || !modalIdRef.current) return;
+
+    const modalId = modalIdRef.current;
+
+    // 1. Guarda o elemento ativo do DOM (para restaurar no close).
+    savedActiveElementRef.current = document.activeElement;
+
+    // 2. Adiciona o modal à stack.
+    modalStack.push(modalId);
+
+    // 3. Focus no painel do modal.
+    if (panelRef.current) {
+      panelRef.current.focus();
+    }
+
+    // 4. Handler de keydown: só o modal do topo reage.
+    const handleKeyDown = (e) => {
+      if (modalStack[modalStack.length - 1] !== modalId) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+      if (e.key === 'Tab') {
+        trapTabFocus(e, panelRef.current);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      const idx = modalStack.indexOf(modalId);
+      if (idx !== -1) modalStack.splice(idx, 1);
+      // Restaura o foco ao elemento que estava ativo antes (se ainda existe no DOM).
+      if (savedActiveElementRef.current && document.contains(savedActiveElementRef.current)) {
+        savedActiveElementRef.current.focus();
+      }
+    };
   }, [open, onClose]);
+
   if (!open) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-zinc-900/40 backdrop-blur-[2px] animate-[fade_.15s_ease]" onClick={onClose} />
-      <div role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined} className={`relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 w-full ${width} rounded-t-2xl sm:rounded-2xl shadow-xl animate-[pop_.18s_cubic-bezier(.2,.8,.2,1)] max-h-[92vh] flex flex-col`}>
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={typeof title === 'string' ? title : undefined}
+        tabIndex={-1}
+        className={`relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 w-full ${width} rounded-t-2xl sm:rounded-2xl shadow-xl animate-[pop_.18s_cubic-bezier(.2,.8,.2,1)] max-h-[92vh] flex flex-col`}
+      >
         <div className="flex items-start justify-between gap-4 px-5 sm:px-6 py-4 border-b border-zinc-100 dark:border-zinc-800">
           <div>
             <h3 className="text-base font-semibold text-zinc-900 dark:text-white">{title}</h3>
@@ -142,6 +198,29 @@ function Modal({ open, onClose, title, subtitle, children, footer, width = 'max-
       </div>
     </div>
   );
+}
+
+// Helper: trap Tab (cicla dentro do modal)
+function trapTabFocus(e, panel) {
+  if (e.key !== 'Tab' || !panel) return;
+  const focusables = panel.querySelectorAll(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  );
+  if (!focusables.length) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const active = document.activeElement;
+  if (e.shiftKey) {
+    if (active === first) {
+      e.preventDefault();
+      last.focus();
+    }
+  } else {
+    if (active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
 }
 
 // Striped image placeholder (per design guidance — no fake imagery)

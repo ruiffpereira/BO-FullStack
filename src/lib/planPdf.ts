@@ -37,6 +37,8 @@ export type BuildPlanPrintHtmlOptions = {
   colorOf?: (groupName?: string | null) => string;
   /** Data de "Gerado a" — default: agora. Parametrizável para testes. */
   generatedAt?: Date;
+  /** Resolvedor de strings via CMS (contexto `gym`, prefixo `gym.pdf.*`). Se não fornecido, usam-se fallbacks PT. */
+  t?: (key: string) => string;
 };
 
 // ── Densidade (legibilidade automática pelo nº total de exercícios) ──────
@@ -177,11 +179,26 @@ function fallbackColorOf(name?: string | null): string {
   return MOCKUP_GROUP_COLORS[name.trim().toLowerCase()] ?? DEFAULT_DOT_COLOR;
 }
 
-const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const WEEKDAY_LABELS_PT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+/** Calcula o número de semanas do programa baseado em datas. Clamp 4–8, fallback 5 sem datas. */
+function calculateWeekCount(startDate?: string | null, endDate?: string | null): number {
+  if (!startDate || !endDate) return 5;
+  try {
+    const start = new Date(`${startDate}T00:00:00`);
+    const end = new Date(`${endDate}T00:00:00`);
+    const diffMs = end.getTime() - start.getTime();
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    const weeks = Math.ceil(diffDays / 7);
+    return Math.max(4, Math.min(8, weeks));
+  } catch {
+    return 5;
+  }
+}
 
 function dayLabelFor(workout: GymWorkout): string {
   if (workout.daysOfWeek && workout.daysOfWeek.length > 0) {
-    return workout.daysOfWeek.map((d) => WEEKDAY_LABELS[d] ?? "?").join("/");
+    return workout.daysOfWeek.map((d) => WEEKDAY_LABELS_PT[d] ?? "?").join("/");
   }
   return workout.dayLabel || "—";
 }
@@ -229,8 +246,11 @@ function alvoHtml(ex: GymWorkoutExercise): string {
 function sublineHtml(ex: GymWorkoutExercise): string {
   const parts: string[] = [];
   if (ex.type === "time") {
+    // TODO(locale-cliente): nomes de exercícios continuam na língua padrão do tenant
+    // Exercícios de tempo: reps=rounds (não sets), duração em segundos
+    const rounds = ex.reps ?? ex.sets ?? 0;
     parts.push(
-      `<div class="exsub"><span class="k">Tempo:</span> ${fmtNum(ex.sets)} × ${fmtNum(ex.duration)}s · ${fmtNum(ex.rest)}s descanso</div>`,
+      `<div class="exsub"><span class="k">Tempo:</span> ${fmtNum(rounds)}× ${fmtNum(ex.duration)}s · ${fmtNum(ex.rest)}s descanso</div>`,
     );
   } else if (ex.mode === "perSet" && ex.setRows && ex.setRows.length > 0) {
     const rows: GymSetRow[] = ex.setRows;
@@ -250,31 +270,39 @@ function sublineHtml(ex: GymWorkoutExercise): string {
   return parts.join("");
 }
 
-function exerciseRowHtml(ex: GymWorkoutExercise, num: number, colorOf: (name?: string | null) => string): string {
+function exerciseRowHtml(ex: GymWorkoutExercise, num: number, colorOf: (name?: string | null) => string, weekCount: number): string {
   const dot = `<span class="dot" style="background:${colorOf(ex.group)}"></span>`;
   const setsHtml = `<span class="num">${fmtNum(ex.sets)}</span>`;
   const restHtml =
     ex.rest !== undefined && ex.rest !== null
       ? `<span class="num">${fmtNum(ex.rest)}</span><span class="unit">s</span>`
       : '<span class="dash">—</span>';
+  const logCells = Array.from({ length: weekCount }, (_, i) =>
+    `<td class="logcell${i === 0 ? " first" : ""}"></td>`
+  ).join("");
   return `<tr>
     <td class="c-num">${num}</td>
     <td class="c-ex"><div class="exname">${dot}${esc(ex.name)}</div>${sublineHtml(ex)}</td>
     <td class="col c-sets">${setsHtml}</td>
     <td class="col c-alvo">${alvoHtml(ex)}</td>
     <td class="col c-rest">${restHtml}</td>
-    <td class="logcell first"></td><td class="logcell"></td><td class="logcell"></td><td class="logcell"></td><td class="logcell"></td>
+    ${logCells}
   </tr>`;
 }
 
-function theadHtml(): string {
+function theadHtml(t: (key: string) => string, weekCount: number): string {
+  const weekHeaders = Array.from({ length: weekCount }, (_, i) => {
+    const isFirst = i === 0;
+    return `<th class="logcol${isFirst ? " first" : ""}">Sem ${i + 1}</th>`;
+  }).join("");
+
   return `<thead><tr>
-    <th class="c-num"></th><th class="ex">Exercício</th><th class="col c-sets">Séries</th><th class="col c-alvo">Alvo (reps × peso)</th><th class="col c-rest">Desc.</th>
-    <th class="logcol first">Sem 1</th><th class="logcol">Sem 2</th><th class="logcol">Sem 3</th><th class="logcol">Sem 4</th><th class="logcol">Sem 5</th>
+    <th class="c-num"></th><th class="ex">${t("gym.pdf.table.exercise")}</th><th class="col c-sets">${t("gym.pdf.table.sets")}</th><th class="col c-alvo">${t("gym.pdf.table.target")}</th><th class="col c-rest">${t("gym.pdf.table.rest")}</th>
+    ${weekHeaders}
   </tr></thead>`;
 }
 
-function daySectionHtml(workout: GymWorkout, colorOf: (name?: string | null) => string): string {
+function daySectionHtml(workout: GymWorkout, colorOf: (name?: string | null) => string, t: (key: string) => string, weekCount: number): string {
   const groups = groupsForWorkout(workout);
   const titleSuffix = groups.length ? ` · ${groups.map((g) => esc(g)).join(", ")}` : "";
   const chips = groups
@@ -282,25 +310,25 @@ function daySectionHtml(workout: GymWorkout, colorOf: (name?: string | null) => 
     .join("");
   const exercises = (workout.exercises ?? []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const rows = exercises.length
-    ? exercises.map((ex, i) => exerciseRowHtml(ex, i + 1, colorOf)).join("")
-    : '<tr><td colspan="10" class="nodata">Sem exercícios.</td></tr>';
+    ? exercises.map((ex, i) => exerciseRowHtml(ex, i + 1, colorOf, weekCount)).join("")
+    : `<tr><td colspan="${5 + weekCount}" class="nodata">${t("gym.pdf.no_exercises")}</td></tr>`;
   return `<section class="day">
     <div class="day-head">
       <div class="left"><span class="daylabel">${esc(dayLabelFor(workout))}</span><h2>${esc(workout.name)}${titleSuffix}</h2></div>
       <div class="chips">${chips}</div>
     </div>
-    <table>${theadHtml()}<tbody>${rows}</tbody></table>
+    <table>${theadHtml(t, weekCount)}<tbody>${rows}</tbody></table>
   </section>`;
 }
 
-function metaPillsHtml(program: GymProgram, totalDays: number, coachName: string): string {
+function metaPillsHtml(program: GymProgram, totalDays: number, coachName: string, t: (key: string) => string): string {
   const pills: string[] = [];
   pills.push(`<span class="pill"><b>${totalDays}</b> dia${totalDays === 1 ? "" : "s"} / semana</span>`);
   const inicio = fmtDateIso(program.startDate);
   const fim = fmtDateIso(program.endDate);
-  if (inicio) pills.push(`<span class="pill">Início <b>${esc(inicio)}</b></span>`);
-  if (fim) pills.push(`<span class="pill">Fim <b>${esc(fim)}</b></span>`);
-  pills.push(`<span class="pill">Coach <b>${esc(coachName)}</b></span>`);
+  if (inicio) pills.push(`<span class="pill">${t("gym.pdf.start")} <b>${esc(inicio)}</b></span>`);
+  if (fim) pills.push(`<span class="pill">${t("gym.pdf.end")} <b>${esc(fim)}</b></span>`);
+  pills.push(`<span class="pill">${t("gym.pdf.coach")} <b>${esc(coachName)}</b></span>`);
   return pills.join("");
 }
 
@@ -313,6 +341,38 @@ export function buildPlanPrintHtml(opts: BuildPlanPrintHtmlOptions): string {
   const generatedAtLabel = format(generatedAt, "d MMM yyyy", { locale: pt });
   const gymName = (tenant.name && tenant.name.trim()) || "Ginásio";
 
+  // Resolvedor de traduções com fallbacks PT
+  const fallbacks: Record<string, string> = {
+    "gym.pdf.title": "Plano de Treino",
+    "gym.pdf.coach": "Coach",
+    "gym.pdf.start": "Início",
+    "gym.pdf.end": "Fim",
+    "gym.pdf.table.exercise": "Exercício",
+    "gym.pdf.table.sets": "Séries",
+    "gym.pdf.table.target": "Alvo (reps × peso)",
+    "gym.pdf.table.rest": "Desc.",
+    "gym.pdf.table.week": "Sem",
+    "gym.pdf.no_exercises": "Sem exercícios.",
+    "gym.pdf.no_plan": "Sem treinos neste plano.",
+    "gym.pdf.legend.title": "Como ler",
+    "gym.pdf.legend.uniform": "Séries × Reps × Peso · Descanso (s)",
+    "gym.pdf.legend.perset": "Série a série = cada série com o seu peso·reps",
+    "gym.pdf.legend.dropset": "Dropset (⭢) = baixar o peso sem descanso",
+    "gym.pdf.legend.weeks": "escreve o peso que fizeste em cada semana",
+    "gym.pdf.notes.title": "Notas do coach",
+    "gym.pdf.notes.default": "Dúvidas? Fala com o teu coach pelo chat da app.",
+    "gym.pdf.page.single": "Página 1 de 1",
+    "gym.pdf.page.front": "Página 1 de 2 · frente",
+    "gym.pdf.page.back": "Página 2 de 2 · verso",
+    "gym.pdf.continuation": "Continuação",
+    "gym.pdf.custom": "Treino personalizado",
+  };
+  const t = (key: string): string => {
+    const custom = opts.t?.(key);
+    // Se o t customizado retornar algo, usa; senão, fallback PT
+    return (custom && custom.trim()) ? custom : fallbacks[key] ?? key;
+  };
+
   const workouts = (program.workouts ?? []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const totalExercises = workouts.reduce((sum, w) => sum + (w.exercises?.length ?? 0), 0);
   const density = pickDensity(totalExercises);
@@ -321,42 +381,46 @@ export function buildPlanPrintHtml(opts: BuildPlanPrintHtmlOptions): string {
   const front = pages[0];
   const back = pages[1] ?? [];
 
+  // Calcular o nº de semanas do programa baseado em datas
+  const weekCount = calculateWeekCount(program.startDate, program.endDate);
+
   const initials = gymName.trim().charAt(0).toUpperCase() || "G";
   const logoInner = tenant.logoUrl
     ? `<img src="${esc(tenant.logoUrl)}" alt="" />`
     : `<span class="logo-initial">${esc(initials)}</span>`;
 
   const frontDaysHtml = front.length
-    ? front.map((w) => daySectionHtml(w, colorOf)).join("")
-    : '<p class="nodata">Sem treinos neste plano.</p>';
+    ? front.map((w) => daySectionHtml(w, colorOf, t, weekCount)).join("")
+    : `<p class="nodata">${t("gym.pdf.no_plan")}</p>`;
   // `back` só é não-vazio quando `totalPages === 2` (garantido por
   // `paginateWorkouts`) — por isso não precisa de placeholder próprio.
-  const backDaysHtml = back.map((w) => daySectionHtml(w, colorOf)).join("");
+  const backDaysHtml = back.map((w) => daySectionHtml(w, colorOf, t, weekCount)).join("");
 
   const notesText = program.note && program.note.trim()
     ? esc(program.note.trim())
-    : "Dúvidas? Fala com o teu coach pelo chat da app.";
+    : t("gym.pdf.notes.default");
 
-  const legendCore = `<b>Como ler:</b> Séries × Reps × Peso · Descanso (s). &nbsp; <b>Série a série</b> = cada série com o seu peso·reps. &nbsp; <b>Dropset</b> (⭢) = baixar o peso sem descanso. &nbsp; <b>Sem 1–5</b>: escreve o peso que fizeste em cada semana.`;
+  const weekRangeLabel = Array.from({ length: weekCount }, (_, i) => `Sem ${i + 1}`).join("–");
+  const legendCore = `<b>${t("gym.pdf.legend.title")}:</b> ${t("gym.pdf.legend.uniform")}. &nbsp; <b>${t("gym.pdf.legend.perset")}</b> &nbsp; <b>${t("gym.pdf.legend.dropset")}</b> &nbsp; <b>${weekRangeLabel}</b>: ${t("gym.pdf.legend.weeks")}.`;
   // Com 1 página só não há verso para levar as notas do coach — juntam-se
   // ao rodapé da própria (nunca perder conteúdo por o plano caber numa folha).
   const frontLegendHtml = totalPages === 1
-    ? `<div class="legend">${legendCore} &nbsp; <b>Notas do coach:</b> ${notesText}</div>`
+    ? `<div class="legend">${legendCore} &nbsp; <b>${t("gym.pdf.notes.title")}:</b> ${notesText}</div>`
     : `<div class="legend">${legendCore}</div>`;
-  const frontPageLabel = totalPages === 1 ? "Página 1 de 1" : "Página 1 de 2 · frente";
+  const frontPageLabel = totalPages === 1 ? t("gym.pdf.page.single") : t("gym.pdf.page.front");
 
   const frontSheet = `<article class="sheet">
     <header class="mast">
       <div class="brandmark">
         <span class="logo">${logoInner}</span>
-        <span><div class="name">${esc(gymName)}</div><div class="sub">Treino personalizado</div></span>
+        <span><div class="name">${esc(gymName)}</div><div class="sub">${t("gym.pdf.custom")}</div></span>
       </div>
-      <div class="doc-tag"><div class="eyebrow">Plano de Treino</div><div class="gen">Gerado a ${esc(generatedAtLabel)}</div></div>
+      <div class="doc-tag"><div class="eyebrow">${t("gym.pdf.title")}</div><div class="gen">Gerado a ${esc(generatedAtLabel)}</div></div>
     </header>
     <div class="rule"></div>
     <div class="titleblock">
       <div><h1>${esc(program.name)}</h1><div class="client">${esc(customerName)}</div></div>
-      <div class="meta">${metaPillsHtml(program, workouts.length, gymName)}</div>
+      <div class="meta">${metaPillsHtml(program, workouts.length, gymName, t)}</div>
     </div>
     <div class="days">${frontDaysHtml}</div>
     <footer class="foot">
@@ -366,15 +430,15 @@ export function buildPlanPrintHtml(opts: BuildPlanPrintHtmlOptions): string {
   </article>`;
 
   const backSheet = totalPages === 2 ? `<article class="sheet">
-    <div class="contbar"><div class="l">${esc(program.name)} · <span>${esc(customerName)}</span></div><div class="r">Continuação · ${esc(generatedAtLabel)}</div></div>
+    <div class="contbar"><div class="l">${esc(program.name)} · <span>${esc(customerName)}</span></div><div class="r">${t("gym.pdf.continuation")} · ${esc(generatedAtLabel)}</div></div>
     <div class="days">${backDaysHtml}</div>
     <footer class="foot">
-      <div class="legend"><b>Notas do coach:</b> ${notesText}</div>
-      <div class="pg"><div class="brandline">${esc(gymName)}</div>Página 2 de 2 · verso</div>
+      <div class="legend"><b>${t("gym.pdf.notes.title")}:</b> ${notesText}</div>
+      <div class="pg"><div class="brandline">${esc(gymName)}</div>${t("gym.pdf.page.back")}</div>
     </footer>
   </article>` : "";
 
-  const title = `Plano de Treino — ${program.name} — ${customerName}`;
+  const title = `${t("gym.pdf.title")} — ${program.name} — ${customerName}`;
 
   return `<!doctype html>
 <html lang="pt">
@@ -543,6 +607,39 @@ export function printPlan(html: string): void {
     }
   };
 
-  // Espera o load do documento (fontes/logo) antes de abrir o diálogo.
-  window.setTimeout(triggerPrint, 150);
+  // Espera o load do documento + decodificação de imagens (logo) antes de
+  // abrir o diálogo. Max 2s de timeout.
+  let waitCompleted = false;
+  const markComplete = () => {
+    if (!waitCompleted) {
+      waitCompleted = true;
+      triggerPrint();
+    }
+  };
+
+  const timeoutId = window.setTimeout(markComplete, 2000);
+
+  win.addEventListener("load", () => {
+    // Decodificar as imagens no documento (logo) com promise.all
+    const images = win.document?.querySelectorAll("img") ?? [];
+    if (images.length === 0) {
+      window.clearTimeout(timeoutId);
+      markComplete();
+    } else {
+      Promise.all(
+        Array.from(images).map((img) =>
+          (img as HTMLImageElement).decode?.()
+            .catch(() => undefined) ?? Promise.resolve()
+        )
+      )
+        .then(() => {
+          window.clearTimeout(timeoutId);
+          markComplete();
+        })
+        .catch(() => {
+          window.clearTimeout(timeoutId);
+          markComplete();
+        });
+    }
+  });
 }

@@ -67,6 +67,7 @@ import { Combobox } from '../components/Combobox'
 import { DatePicker } from '../components/DatePicker'
 import { format } from 'date-fns'
 import { useGetUsersMe } from '../gen/backoffice/hooks/useGetUsersMe.js'
+import { getCmsEntries } from '../gen/backoffice/hooks/useGetCmsEntries.js'
 import { buildPlanPrintHtml, printPlan } from '../lib/planPdf'
 
 // Paleta de cores sugeridas para grupos/subgrupos — usada para dar uma cor
@@ -2633,6 +2634,9 @@ function ClienteProgresso({ customer, onBack, onAtribuir, onEditar }: { customer
   const active = programs.find((p) => p.active)
   const { data: me } = useGetUsersMe()
   const { colorOf } = useGymGroups()
+  // Entradas CMS do PDF: carregadas LAZY no clique (nunca no mount — seria
+  // puxar o CMS inteiro do tenant a cada abertura de perfil de cliente).
+  const cmsEntriesRef = useRef<Awaited<ReturnType<typeof getCmsEntries>> | null>(null)
 
   const [deleteConfirm, setDeleteConfirm] = useState<GymProgram | null>(null)
 
@@ -2655,13 +2659,21 @@ function ClienteProgresso({ customer, onBack, onAtribuir, onEditar }: { customer
     onError: (e) => toast.error(getApiError(e)),
   })
 
-  const handlePdf = () => {
+  const handlePdf = async () => {
     if (!active) return
+    // Busca única e cacheada das entradas CMS (para as chaves gym.pdf.*);
+    // se a rede falhar, o PDF sai com os fallbacks PT — nunca bloqueia.
+    if (cmsEntriesRef.current === null) {
+      try { cmsEntriesRef.current = await getCmsEntries() } catch { cmsEntriesRef.current = [] }
+    }
+    const entries = cmsEntriesRef.current ?? []
+    const t = (key: string): string => entries.find((e) => e.key === key)?.value ?? ''
     const html = buildPlanPrintHtml({
       program: active,
       customerName: customer.name,
       tenant: { name: me?.name, logoUrl: me?.logoUrl },
       colorOf,
+      t,
     })
     printPlan(html)
   }

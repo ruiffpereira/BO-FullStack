@@ -222,17 +222,29 @@ describe("buildPlanPrintHtml", () => {
     expect(html).toContain("25·12 ⭢ 17,5·10 ⭢ 12,5·8");
   });
 
-  it("tempo → Alvo em segundos + sub-linha 'Tempo: N × Ds · Rs descanso'", () => {
+  it("tempo → Alvo em segundos + sub-linha 'Tempo: N × Ds · Rs descanso' (reps=rounds)", () => {
     const p = program({
       id: "p1", name: "Plano", customerId: "c1",
       workouts: [workout({
         id: "w1", name: "Core", daysOfWeek: [0],
-        exercises: [ex({ id: "e1", name: "Prancha isométrica", group: "Abdómen", sets: 3, reps: 0, type: "time", duration: 45, rest: 30 })],
+        exercises: [ex({ id: "e1", name: "Prancha isométrica", group: "Abdómen", sets: 3, reps: 5, type: "time", duration: 45, rest: 30 })],
       })],
     });
     const html = buildPlanPrintHtml({ program: p, customerName: "Cliente", tenant: {}, colorOf });
     expect(html).toContain('<span class="num">45</span><span class="unit">s</span>');
-    expect(html).toContain('<span class="k">Tempo:</span> 3 × 45s · 30s descanso');
+    expect(html).toContain('<span class="k">Tempo:</span> 5× 45s · 30s descanso');
+  });
+
+  it("tempo sem reps → fallback a sets para rounds", () => {
+    const p = program({
+      id: "p1", name: "Plano", customerId: "c1",
+      workouts: [workout({
+        id: "w1", name: "Core", daysOfWeek: [0],
+        exercises: [ex({ id: "e1", name: "Mobilidade", group: "Abdómen", sets: 4, reps: undefined, type: "time", duration: 30, rest: 20 })],
+      })],
+    });
+    const html = buildPlanPrintHtml({ program: p, customerName: "Cliente", tenant: {}, colorOf });
+    expect(html).toContain('<span class="k">Tempo:</span> 4× 30s · 20s descanso');
   });
 
   it("notas do exercício aparecem em itálico (exnote)", () => {
@@ -247,18 +259,24 @@ describe("buildPlanPrintHtml", () => {
     expect(html).toContain('<div class="exnote">Cadência 2-0-1.</div>');
   });
 
-  it("sem startDate/endDate → pills Início/Fim omitidas; com datas → aparecem", () => {
+  it("sem startDate/endDate → pills Início/Fim omitidas; com datas → aparecem; week count derivado de datas", () => {
     const base = { id: "p1", name: "Plano", customerId: "c1", workouts: [workout({ id: "w1", name: "Push", daysOfWeek: [1], exercises: [] })] };
     const semDatas = buildPlanPrintHtml({ program: program(base), customerName: "Cliente", tenant: {}, colorOf });
     expect(semDatas).not.toContain(">Início ");
     expect(semDatas).not.toContain(">Fim ");
+    // Sem datas, default 5 semanas
+    expect(semDatas).toContain("Sem 5");
+    expect(semDatas).not.toContain("Sem 6");
 
+    // 2026-07-07 até 2026-09-01 = 56 dias = 8 semanas (clamped to max 8)
     const comDatas = buildPlanPrintHtml({
       program: program({ ...base, startDate: "2026-07-07", endDate: "2026-09-01" }),
       customerName: "Cliente", tenant: {}, colorOf,
     });
     expect(comDatas).toContain(">Início ");
     expect(comDatas).toContain(">Fim ");
+    expect(comDatas).toContain("Sem 8");
+    expect(comDatas).not.toContain("Sem 9");
   });
 
   it("não rebenta sem campos opcionais (mínimo viável)", () => {

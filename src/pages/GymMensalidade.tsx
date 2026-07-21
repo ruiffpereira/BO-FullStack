@@ -20,6 +20,7 @@ import { gymBulkMarkPaid, gymRemind, gymSetPayOnly } from '../hooks/useFinanceir
 import { InfoDot } from '../components/financeiro/kit'
 import { INFO } from '../components/financeiro/info'
 import { usePagination, Pagination } from '../components/Pagination'
+import { PAY_METHODS, payMethodLabel, type PayMethod } from '../lib/gymPayMethod'
 import { useGetGymSubscriptions } from '../gen/backoffice/hooks/useGetGymSubscriptions.js'
 import { postGymSubscriptions } from '../gen/backoffice/hooks/usePostGymSubscriptions.js'
 import { putGymSubscriptionsId } from '../gen/backoffice/hooks/usePutGymSubscriptionsId.js'
@@ -60,7 +61,6 @@ const STATUS_VIEW: Record<'paid' | 'debt' | 'unpaid' | 'overdue', {
   overdue: { label: 'Em atraso', tone: 'red', icon: 'alertTriangle', tint: 'bg-red-50 dark:bg-red-500/10', fg: 'text-red-600 dark:text-red-400', bar: 'bg-red-500' },
   unpaid: { label: 'Não pago', tone: 'neutral', icon: 'euro', tint: 'bg-zinc-100 dark:bg-zinc-800', fg: 'text-zinc-500 dark:text-zinc-400', bar: 'bg-zinc-300 dark:bg-zinc-600' },
 }
-const METODOS = ['Numerário', 'MB Way', 'Transferência', 'Multibanco', 'Cartão']
 const MES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 const fmtPeriodo = (p?: string) => { if (!p) return '—'; const [y, m] = p.split('-'); return `${MES[+m - 1]} ${y}` }
 const MES_LONG = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -275,7 +275,7 @@ function PagamentoModal({ customerId, period, amount, onClose, onSaved, status, 
   const falta = Math.max(0, (amount || 0) - (paidAmount || 0))
   const defaultValor = isDebt ? falta : amount
   const [valor, setValor] = useState(String(defaultValor ?? ''))
-  const [metodo, setMetodo] = useState(METODOS[1])
+  const [metodo, setMetodo] = useState<PayMethod>(PAY_METHODS[1].value)
   const [pagoEm, setPagoEm] = useState(new Date().toISOString().slice(0, 10))
   const [notas, setNotas] = useState('')
   const pagoFloat = parseFloat(valor) || 0
@@ -308,7 +308,7 @@ function PagamentoModal({ customerId, period, amount, onClose, onSaved, status, 
           </div>
           <label className="block"><span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Data</span><DatePicker value={pagoEm} onChange={setPagoEm} max={new Date().toISOString().slice(0, 10)} /></label>
         </div>
-        <Combobox label="Método" value={metodo} onChange={(v) => { setMetodo(v) }} options={METODOS.map((m) => ({ value: m, label: m }))} />
+        <Combobox label="Método" value={metodo} onChange={(v: string) => { setMetodo(v as PayMethod) }} options={PAY_METHODS} />
         <Input label="Notas (opcional)" value={notas} onChange={(e: any) => setNotas(e.target.value)} />
       </div>
     </Modal>
@@ -412,7 +412,7 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
         {estado === 'paid' && (
           <div className="flex items-center justify-between gap-2 text-sm">
             <span className="text-zinc-500">Pago</span>
-            <span className="text-zinc-700 dark:text-zinc-200">{fmtData(eff.paidAt)}{eff.method ? ` · ${eff.method}` : ''}</span>
+            <span className="text-zinc-700 dark:text-zinc-200">{fmtData(eff.paidAt)}{eff.method ? ` · ${payMethodLabel(eff.method)}` : ''}</span>
           </div>
         )}
         {estado === 'debt' && (
@@ -514,7 +514,7 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${pv.bar}`} aria-hidden />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-zinc-900 dark:text-white">{fmtPeriodo(p.period)}</p>
-                      <p className="text-xs text-zinc-400 truncate">{p.status === 'paid' ? (p.method || 'Pago') : p.overdue ? `Venceu ${fmtData(p.dueDate)}` : 'Por pagar'}</p>
+                      <p className="text-xs text-zinc-400 truncate">{p.status === 'paid' ? (p.method ? payMethodLabel(p.method) : 'Pago') : p.overdue ? `Venceu ${fmtData(p.dueDate)}` : 'Por pagar'}</p>
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-sm text-zinc-700 dark:text-zinc-200 tabular-nums">{fmtEur(p.amount)}</p>
@@ -540,7 +540,7 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
                       <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300 tabular-nums">{fmtEur(p.amount)}</td>
                       <td className={`px-4 py-3 tabular-nums hidden sm:table-cell ${p.overdue ? 'text-red-500 font-medium' : 'text-zinc-400'}`}>{fmtData(p.dueDate)}</td>
                       <td className="px-4 py-3"><Badge tone={p.overdue ? 'red' : EST[p.status].tone} dot>{p.overdue ? 'Em atraso' : EST[p.status].t}</Badge></td>
-                      <td className="px-4 py-3 text-zinc-400 hidden md:table-cell">{p.status === 'paid' ? (p.method || '—') : '—'}</td>
+                      <td className="px-4 py-3 text-zinc-400 hidden md:table-cell">{p.status === 'paid' ? (p.method ? payMethodLabel(p.method) : '—') : '—'}</td>
                       <td className="px-4 py-3 text-zinc-400 hidden lg:table-cell whitespace-nowrap">{fmtDateTime(p.updatedAt)}</td>
                     </tr>
                   ))}
@@ -622,7 +622,7 @@ function CobrancasView({ period, filter, q, onPeriodChange, onFilterChange, onQC
   const pct = mrr > 0 ? Math.min(100, Math.round((recebido / mrr) * 100)) : 0
 
   const dueInfo = (r: FinanceRow): { text: string; fg: string } => {
-    if (r.status === 'paid') return { text: r.payment?.method ? `Pago · ${r.payment.method}` : 'Pago', fg: 'text-emerald-600 dark:text-emerald-400' }
+    if (r.status === 'paid') return { text: r.payment?.method ? `Pago · ${payMethodLabel(r.payment.method)}` : 'Pago', fg: 'text-emerald-600 dark:text-emerald-400' }
     if (r.status === 'debt') return { text: `Falta ${fmtEur(Math.max(0, (r.payment?.amount ?? 0) - (r.payment?.paidAmount ?? 0)))}`, fg: 'text-amber-600 dark:text-amber-400' }
     const dd = r.payment?.dueDate ?? dueForPeriod(period, r.subscription?.dueDay ?? 8)
     const d = daysUntil(dd, fin.today)

@@ -9672,12 +9672,19 @@
                   "startDate": {
                     "type": "string",
                     "format": "date",
-                    "nullable": true
+                    "nullable": true,
+                    "description": "yyyy-MM-dd"
                   },
                   "endDate": {
                     "type": "string",
                     "format": "date",
-                    "nullable": true
+                    "nullable": true,
+                    "description": "yyyy-MM-dd; deve ser >= startDate"
+                  },
+                  "activate": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "true (default) ativa este programa e desativa os outros; false mantém o ativo atual"
                   }
                 }
               }
@@ -9693,7 +9700,8 @@
                   "type": "object",
                   "required": [
                     "message",
-                    "programId"
+                    "programId",
+                    "active"
                   ],
                   "properties": {
                     "message": {
@@ -9702,11 +9710,17 @@
                     "programId": {
                       "type": "string",
                       "format": "uuid"
+                    },
+                    "active": {
+                      "type": "boolean"
                     }
                   }
                 }
               }
             }
+          },
+          "400": {
+            "description": "Dados inválidos ou data fora do intervalo\""
           },
           "404": {
             "description": "Plano ou cliente não encontrado"
@@ -10778,7 +10792,8 @@
     },
     "/gym/workout-templates/{id}/assign": {
       "post": {
-        "summary": "Atribuir (copiar) um template para o programa de um cliente",
+        "summary": "Atribuir (copiar) um template para o programa de um cliente, com dias",
+        "description": "Se o programa é weekly (dias da semana), daysOfWeek é obrigatório. Se o programa é free (dias numerados), dayLabel é opcional.",
         "tags": [
           "GymWorkoutTemplates"
         ],
@@ -10810,6 +10825,20 @@
                   "programId": {
                     "type": "string",
                     "format": "uuid"
+                  },
+                  "daysOfWeek": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 6
+                    },
+                    "description": "Obrigatório para programas semanais (0=Dom…6=Sáb)"
+                  },
+                  "dayLabel": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Rótulo do dia no modo free (ex: 'Dia 1')"
                   }
                 }
               }
@@ -10839,6 +10868,10 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "daysOfWeek obrigatório para programas semanais",
+            "ou dados inválidos": null
           },
           "404": {
             "description": "Template ou programa não encontrado"

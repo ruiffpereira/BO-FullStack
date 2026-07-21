@@ -30,8 +30,12 @@ import { deleteGymExercisesId } from '../gen/backoffice/hooks/useDeleteGymExerci
 import { useGetGymPrograms } from '../gen/backoffice/hooks/useGetGymPrograms.js'
 import { postGymProgramsProgramidWorkouts } from '../gen/backoffice/hooks/usePostGymProgramsProgramidWorkouts.js'
 import { putGymProgramsId } from '../gen/backoffice/hooks/usePutGymProgramsId.js'
+import { patchGymProgramsIdActive } from '../gen/backoffice/hooks/usePatchGymProgramsIdActive.js'
+import { deleteGymProgramsId } from '../gen/backoffice/hooks/useDeleteGymProgramsId.js'
 import { CmsCombo } from '../components/CmsCombo'
 import { CmsTranslationsModal } from '../components/CmsTranslationsModal'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+import { GuardButton } from '../components/GuardButton'
 import { ensureCmsName } from '../lib/gymCms'
 import { useGetSettingsLanguages } from '../hooks/useSettingsLanguages'
 import { putGymWorkoutsId } from '../gen/backoffice/hooks/usePutGymWorkoutsId.js'
@@ -2290,12 +2294,39 @@ function AtribuirPlanoModal({ open, customer, planos, onClose, onSaved }: {
   )
 }
 
+// Helper para formatar datas em dd/MM/yy
+const formatDate = (iso?: string) => iso ? format(new Date(iso + 'T00:00:00'), 'dd/MM/yy') : '—'
+
 // Detalhe do cliente: cabeçalho com ações + dashboard de progresso.
 function ClienteProgresso({ customer, onBack, onAtribuir, onEditar }: { customer: Cliente; onBack: () => void; onAtribuir: () => void; onEditar: () => void }) {
-  const { data: programsData } = useGetGymPrograms({ customerId: customer.customerId }, { query: { enabled: !!customer.customerId } })
-  const active = ((programsData ?? []) as GymProgram[]).find((p) => p.active)
+  const { data: programsData, isLoading } = useGetGymPrograms({ customerId: customer.customerId }, { query: { enabled: !!customer.customerId } })
+  const qc = useQueryClient()
+  const programs = ((programsData ?? []) as GymProgram[])
+  const active = programs.find((p) => p.active)
   const { data: me } = useGetUsersMe()
   const { colorOf } = useGymGroups()
+
+  const [deleteConfirm, setDeleteConfirm] = useState<GymProgram | null>(null)
+
+  const patchActive = useMutation({
+    mutationFn: (id: string) => patchGymProgramsIdActive(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [{ url: '/gym/programs' }] })
+      toast.success('Plano ativado')
+    },
+    onError: (e) => toast.error(getApiError(e)),
+  })
+
+  const deleteProgram = useMutation({
+    mutationFn: (id: string) => deleteGymProgramsId(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [{ url: '/gym/programs' }] })
+      setDeleteConfirm(null)
+      toast.success('Programa eliminado')
+    },
+    onError: (e) => toast.error(getApiError(e)),
+  })
+
   const handlePdf = () => {
     if (!active) return
     const html = buildPlanPrintHtml({
@@ -2317,7 +2348,7 @@ function ClienteProgresso({ customer, onBack, onAtribuir, onEditar }: { customer
             <h2 className="text-xl font-semibold text-zinc-900 dark:text-white truncate">{customer.name}</h2>
             <p className="text-sm text-zinc-500">
               {active && active.startDate
-                ? `Plano ${active.startDate} → ${active.endDate || 'atual'}`
+                ? `Plano ${formatDate(active.startDate)} → ${formatDate(active.endDate) || 'atual'}`
                 : 'Plano e progresso do cliente'}
             </p>
           </div>
@@ -2330,13 +2361,78 @@ function ClienteProgresso({ customer, onBack, onAtribuir, onEditar }: { customer
         </div>
       </Card>
 
+      {/* Secção Programas */}
+      <Card>
+        <div className="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800">
+          <h3 className="text-[13px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">Programas</h3>
+        </div>
+        <div>
+          {isLoading ? (
+            <div className="p-5 text-center text-sm text-zinc-400">A carregar programas…</div>
+          ) : programs.length === 0 ? (
+            <div className="p-5 text-sm text-zinc-400">Nenhum programa atribuído ainda.</div>
+          ) : (
+            <div className="divide-y divide-zinc-50 dark:divide-zinc-800/50">
+              {programs.map((prog) => (
+                <div key={prog.id} className="flex items-center justify-between px-5 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-zinc-900 dark:text-white">{prog.name}</p>
+                      {prog.active && <Badge tone="blue" dot>Ativo</Badge>}
+                    </div>
+                    <p className="text-xs text-zinc-400">{formatDate(prog.startDate)} → {formatDate(prog.endDate)}</p>
+                  </div>
+                  <div className="flex items-center gap-2 ml-2">
+                    {!prog.active && (
+                      <GuardButton
+                        size="sm"
+                        variant="ghost"
+                        icon="check"
+                        onClick={() => patchActive.mutate(prog.id)}
+                        isLoading={patchActive.isPending}
+                        title="Tornar este programa ativo"
+                      >
+                        Tornar ativo
+                      </GuardButton>
+                    )}
+                    {!prog.active && (
+                      <IconButton
+                        icon="trash"
+                        label="Eliminar programa"
+                        className="hover:text-red-500"
+                        onClick={() => setDeleteConfirm(prog)}
+                      />
+                    )}
+                    {prog.active && (
+                      <span title="Primeiro torna outro programa ativo para podes eliminar este" className="text-xs text-zinc-400">Não é possível eliminar o programa ativo</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Card>
+
       <ProgressoTab customerId={customer.customerId} />
+
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        title="Eliminar programa?"
+        description={`Queres eliminar o programa "${deleteConfirm?.name}"? O histórico de treinos registados mantém-se, mas o programa e os seus treinos prescritos desaparecem.`}
+        confirmLabel="Eliminar"
+        isPending={deleteProgram.isPending}
+        onConfirm={() => {
+          if (deleteConfirm) deleteProgram.mutate(deleteConfirm.id)
+        }}
+      />
     </div>
   )
 }
 
 // Busca o programa ativo do cliente e abre o editor de plano em ecrã cheio.
-function ClientePlanoEditorLoader({ customer, onClose }: { customer: Cliente; onClose: () => void }) {
+function ClientePlanoEditorLoader({ customer, onClose, onAtribuir }: { customer: Cliente; onClose: () => void; onAtribuir?: () => void }) {
   const { data: programsData, isLoading } = useGetGymPrograms({ customerId: customer.customerId }, { query: { enabled: !!customer.customerId } })
   const { data: templatesData } = useGetGymWorkoutTemplates()
   const { data: catalogData } = useGetGymExercises()
@@ -2347,7 +2443,12 @@ function ClientePlanoEditorLoader({ customer, onClose }: { customer: Cliente; on
     return (
       <div className="space-y-4">
         <button onClick={onClose} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"><Icon name="chevronLeft" className="w-4 h-4" />Voltar ao cliente</button>
-        <Card><EmptyState icon="calendar" title="Sem plano ativo" desc="Atribui um plano ao cliente antes de o editares." /></Card>
+        <Card><EmptyState
+          icon="calendar"
+          title="Sem plano ativo"
+          desc="Atribui um plano ao cliente antes de o editares."
+          action={onAtribuir ? <Button icon="plus" onClick={onAtribuir}>Atribuir plano</Button> : undefined}
+        /></Card>
       </div>
     )
   }
@@ -2387,7 +2488,7 @@ function ClientesTab({ customers }: { customers: Cliente[] }) {
 
   // "Editar plano" → editor do programa ativo do cliente em ecrã cheio.
   if (editing) {
-    return <ClientePlanoEditorLoader customer={editing} onClose={() => setEditing(null)} />
+    return <ClientePlanoEditorLoader customer={editing} onClose={() => setEditing(null)} onAtribuir={() => { setEditing(null); setAtribuir(editing) }} />
   }
 
   if (sel) {

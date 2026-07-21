@@ -41,6 +41,7 @@ import {
   getScheduleAppointmentsQueryKey,
 } from "../gen/backoffice/hooks/useGetScheduleAppointments.js";
 import { usePostScheduleAppointments } from "../gen/backoffice/hooks/usePostScheduleAppointments.js";
+import { colorFromName } from "../lib/avatarColor";
 import { usePutScheduleAppointmentsId } from "../gen/backoffice/hooks/usePutScheduleAppointmentsId.js";
 import {
   useGetScheduleServices,
@@ -262,19 +263,6 @@ function computeColumns(appts: Appointment[], services: Service[]) {
 }
 
 // ─── New appointment modal ────────────────────────────────────────────────────
-function colorFromName(name: string) {
-  const cols = [
-    "#2A6FDB",
-    "#1F8A5B",
-    "#D97757",
-    "#7C5CDB",
-    "#E6B450",
-    "#0EA5A4",
-  ];
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
-  return cols[Math.abs(h) % cols.length];
-}
 
 type HistoryAppt = {
   appointmentId: string;

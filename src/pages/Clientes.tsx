@@ -23,14 +23,9 @@ import { ClienteMensalidade } from './GymMensalidade'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { LeadsInbox } from './clientes/LeadsInbox'
 import { axiosInstance } from '@kubb/plugin-client/clients/axios'
+import { colorFromName } from '../lib/avatarColor'
 import { apptStatusView } from '../lib/apptStatus'
 
-function colorFromName(name: string) {
-  const colors = ['#2A6FDB', '#1F8A5B', '#D97757', '#7C5CDB', '#E6B450', '#0EA5A4']
-  let hash = 0
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
-  return colors[Math.abs(hash) % colors.length]
-}
 
 function SkeletonRow() {
   return (

@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react'
-import { useQueryClient, useMutation, type QueryClient } from '@tanstack/react-query'
+import { useQueryClient, useMutation, keepPreviousData, type QueryClient } from '@tanstack/react-query'
+import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
+import { fmtEur } from '../lib/money'
+import { colorFromName } from '../lib/avatarColor'
 import { Icon } from '../ui/icons.jsx'
-import { Card, Button, IconButton, Badge, Input, Select, Toggle, Modal, EmptyState, Avatar, BADGE_TONES } from '../ui/ui.jsx'
+import { Card, Button, IconButton, Badge, Input, Toggle, Modal, EmptyState, Avatar, BADGE_TONES } from '../ui/ui.jsx'
 import { GuardButton } from '../components/GuardButton'
 import { Combobox } from '../components/Combobox'
 import { DatePicker } from '../components/DatePicker'
@@ -12,6 +15,7 @@ import { PriceFillChip } from '../components/PriceFillChip'
 import { LineChart, Waterfall } from '../ui/charts.jsx'
 import { useGymAnalytics } from '../hooks/useGymAnalytics'
 import { useAuth } from '../context/AuthContext'
+import { useWriteGuard } from '../hooks/useWriteGuard'
 import { gymBulkMarkPaid, gymRemind, gymSetPayOnly } from '../hooks/useFinanceiro'
 import { InfoDot } from '../components/financeiro/kit'
 import { INFO } from '../components/financeiro/info'
@@ -47,7 +51,7 @@ const EST: Record<Status, { t: string; tone: keyof typeof BADGE_TONES }> = {
   debt: { t: 'Em dívida', tone: 'amber' },
   unpaid: { t: 'Não pago', tone: 'neutral' },
 }
-// Tema visual por estado do mês (inclui "overdue", que é derivado e não persistido).
+// Tema visual por estado do mês (inclui "overdue", que é derivado na API e não persistido).
 const STATUS_VIEW: Record<'paid' | 'debt' | 'unpaid' | 'overdue', {
   label: string; tone: keyof typeof BADGE_TONES; icon: string; tint: string; fg: string; bar: string
 }> = {
@@ -57,8 +61,6 @@ const STATUS_VIEW: Record<'paid' | 'debt' | 'unpaid' | 'overdue', {
   unpaid: { label: 'Não pago', tone: 'neutral', icon: 'euro', tint: 'bg-zinc-100 dark:bg-zinc-800', fg: 'text-zinc-500 dark:text-zinc-400', bar: 'bg-zinc-300 dark:bg-zinc-600' },
 }
 const METODOS = ['Numerário', 'MB Way', 'Transferência', 'Multibanco', 'Cartão']
-const eur = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' })
-const fmtEur = (n: number) => eur.format(n ?? 0)
 const MES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 const fmtPeriodo = (p?: string) => { if (!p) return '—'; const [y, m] = p.split('-'); return `${MES[+m - 1]} ${y}` }
 const MES_LONG = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -69,16 +71,14 @@ const shiftPeriod = (period: string, delta: number) => { const [y, m] = period.s
 const dueForPeriod = (period: string, dueDay = 8) => `${period}-${pad2(Math.min(28, Math.max(1, dueDay)))}`
 const daysUntil = (iso: string, today: string) => Math.round((Date.parse(iso) - Date.parse(today)) / 86400000)
 const fmtDateTime = (iso?: string | null) => { if (!iso) return '—'; return new Date(iso).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }
-const currentPeriod = () => new Date().toISOString().slice(0, 7)
-const AV_COLORS = ['#2A6FDB', '#1F8A5B', '#D97757', '#E6B450', '#7C5CDB', '#0EA5A4', '#DB2777']
-const colorFromName = (name: string) => { let h = 0; for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h); return AV_COLORS[Math.abs(h) % AV_COLORS.length] }
+const currentPeriod = () => format(new Date(), 'yyyy-MM')
 
-// Invalida tudo o que depende de mensalidades/subscrições.
+// Invalida tudo o que depende de mensalidades/subscrições + agregados do dashboard e financeiro.
 const invalidateMens = (qc: QueryClient) =>
   qc.invalidateQueries({
     predicate: (q) => {
       const k = JSON.stringify(q.queryKey)
-      return k.includes('/gym/mensalidade') || k.includes('/gym/subscriptions')
+      return k.includes('/gym/mensalidade') || k.includes('/gym/subscriptions') || k.includes('dashboard') || k.includes('financeiro')
     },
   })
 const dueInput = 'bg-white dark:bg-zinc-900 border rounded-lg px-2 py-1 text-[13px] tabular-nums'
@@ -104,11 +104,7 @@ function SubscricaoModal({ subscricao, onClose, onSaved }: { subscricao: Sub | n
         <Input label="Nome" placeholder="Ex: 2x / semana" value={name} onChange={(e: any) => setName(e.target.value)} />
         <div className="grid grid-cols-2 gap-3">
           <Input label="Preço (€/mês)" type="number" placeholder="28" value={price} onChange={(e: any) => setPrice(e.target.value)} />
-          <label className="block"><span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Dia de vencimento</span>
-            <Select value={String(dueDay)} onChange={(e: any) => setDueDay(+e.target.value)}>
-              {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>Dia {d}</option>)}
-            </Select>
-          </label>
+          <Combobox label="Dia de vencimento" value={String(dueDay)} onChange={(v) => { setDueDay(Number(v)) }} options={Array.from({ length: 28 }, (_, i) => i + 1).map((d) => ({ value: String(d), label: `Dia ${d}` }))} />
         </div>
         <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50">
           <div><p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">Ativa</p><p className="text-xs text-zinc-400">Disponível para atribuir a clientes.</p></div>
@@ -177,10 +173,16 @@ export function SubscricoesModal({ onClose }: { onClose: () => void }) {
       </div>
 
       {modal && <SubscricaoModal subscricao={modal.sub} onClose={() => setModal(null)} onSaved={() => invalidateMens(qc)} />}
-      <Modal open={!!confirmDel} onClose={() => setConfirmDel(null)} title="Eliminar subscrição?"
-        footer={<><Button variant="ghost" onClick={() => setConfirmDel(null)}>Cancelar</Button><Button variant="danger" isLoading={del.isPending} onClick={() => { if (confirmDel) del.mutate(confirmDel.subscriptionId); setConfirmDel(null) }}>Eliminar</Button></>}>
-        <p className="text-sm text-zinc-500">Os clientes ligados ficam sem subscrição; os pagamentos mantêm-se. Continuar?</p>
-      </Modal>
+      <ConfirmDialog
+        open={!!confirmDel}
+        onClose={() => setConfirmDel(null)}
+        onConfirm={() => { if (confirmDel) del.mutate(confirmDel.subscriptionId); setConfirmDel(null) }}
+        variant="danger"
+        title="Eliminar subscrição?"
+        description="Os clientes ligados ficam sem subscrição; os pagamentos mantêm-se. Continuar?"
+        confirmLabel="Eliminar"
+        pendingLabel="A eliminar…"
+      />
     </Modal>
   )
 }
@@ -200,6 +202,8 @@ export function ConvidarSocioModal({ onClose, onInvited }: { onClose: () => void
     if (!subscriptionId && defaultSub) setSubscriptionId(defaultSub.subscriptionId)
   }, [defaultSub, subscriptionId])
 
+  const isEmailValid = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())
+
   const invite = useMutation({
     mutationFn: () => {
       const body: PostGymMembersInviteMutationRequest = { name: name.trim(), email: email.trim() }
@@ -208,7 +212,11 @@ export function ConvidarSocioModal({ onClose, onInvited }: { onClose: () => void
     },
     onSuccess: (res) => {
       onInvited()
-      toast.success(res?.alreadyInvited ? 'Sócio já tinha sido convidado' : 'Convite enviado por email')
+      if (res?.emailSent === false) {
+        toast.warning('Conta criada, mas o email não seguiu. Verifica a configuração de email.')
+      } else {
+        toast.success(res?.alreadyInvited ? 'Sócio já tinha sido convidado' : 'Convite enviado por email')
+      }
       onClose()
     },
     onError: (e) => toast.error(getApiError(e)),
@@ -218,10 +226,10 @@ export function ConvidarSocioModal({ onClose, onInvited }: { onClose: () => void
 
   return (
     <Modal open onClose={onClose} width="max-w-md" title="Convidar sócio" subtitle="Cria a ficha e envia um email para o sócio definir a palavra-passe."
-      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><GuardButton icon="mail" isLoading={invite.isPending} disabled={!name.trim() || !email.trim() || !activeSubs.length} onClick={() => invite.mutate()}>Convidar</GuardButton></>}>
+      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><GuardButton icon="mail" isLoading={invite.isPending} disabled={!name.trim() || !isEmailValid(email) || !activeSubs.length} onClick={() => invite.mutate()}>Convidar</GuardButton></>}>
       <div className="space-y-4">
         <Input label="Nome" value={name} onChange={(e: any) => setName(e.target.value)} placeholder="Nome do sócio" />
-        <Input label="Email" type="email" value={email} onChange={(e: any) => setEmail(e.target.value)} placeholder="email@exemplo.pt" />
+        <Input label="Email" type="email" value={email} onChange={(e: any) => setEmail(e.target.value)} placeholder="email@exemplo.pt" aria-invalid={email.trim() && !isEmailValid(email) ? 'true' : 'false'} />
         <Combobox label="Plano" value={subscriptionId} onChange={setSubscriptionId} options={options}
           placeholder={activeSubs.length ? 'Selecionar plano…' : 'Sem planos ativos'} disabled={!activeSubs.length} />
         {!activeSubs.length && <p className="text-xs text-amber-600 dark:text-amber-400">Cria uma subscrição ativa primeiro (em Subscrições).</p>}
@@ -262,32 +270,45 @@ function AtribuirSubModal({ customerId, current, onClose, onSaved }: { customerI
 }
 
 // ── Registar pagamento (marcar paga) ─────────────────────────────────────────
-function PagamentoModal({ customerId, period, amount, onClose, onSaved }: { customerId: string; period: string; amount: number; onClose: () => void; onSaved: () => void }) {
-  const [valor, setValor] = useState(String(amount ?? ''))
+function PagamentoModal({ customerId, period, amount, onClose, onSaved, status, paidAmount }: { customerId: string; period: string; amount: number; status?: Status; paidAmount?: number; onClose: () => void; onSaved: () => void }) {
+  const isDebt = status === 'debt'
+  const falta = Math.max(0, (amount || 0) - (paidAmount || 0))
+  const defaultValor = isDebt ? falta : amount
+  const [valor, setValor] = useState(String(defaultValor ?? ''))
   const [metodo, setMetodo] = useState(METODOS[1])
   const [pagoEm, setPagoEm] = useState(new Date().toISOString().slice(0, 10))
   const [notas, setNotas] = useState('')
+  const pagoFloat = parseFloat(valor) || 0
+  const isValidValue = pagoFloat > 0
+  const isAbaixoEsperado = pagoFloat > 0 && pagoFloat < (amount || 0)
+
   const save = useMutation({
-    mutationFn: () => postGymMensalidadeCustomersCustomeridPayments(customerId, { period, status: 'paid', amount: parseFloat(valor) || 0, paidAt: pagoEm, method: metodo, notes: notas.trim() || null }),
+    mutationFn: () => postGymMensalidadeCustomersCustomeridPayments(customerId, { period, status: 'paid', amount: pagoFloat, paidAt: pagoEm, method: metodo, notes: notas.trim() || null }),
     onSuccess: () => { onSaved(); toast.success('Pagamento registado'); onClose() },
     onError: (e) => toast.error(getApiError(e)),
   })
   return (
     <Modal open onClose={onClose} width="max-w-sm" title="Registar pagamento" subtitle={fmtPeriodo(period)}
-      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><GuardButton icon="check" isLoading={save.isPending} onClick={() => save.mutate()}>Marcar paga</GuardButton></>}>
+      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><GuardButton icon="check" isLoading={save.isPending} disabled={!isValidValue} onClick={() => save.mutate()}>Marcar paga</GuardButton></>}>
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Input label="Valor (€)" type="number" value={valor} onChange={(e: any) => setValor(e.target.value)} />
-            {amount > 0 && (
-              <div className="mt-1.5">
-                <PriceFillChip amount={amount} label="Subscrição" active={(parseFloat(valor) || 0) === amount} onClick={() => setValor(String(amount))} />
-              </div>
+            <Input label="Valor (€)" type="number" value={valor} onChange={(e: any) => setValor(e.target.value)} autoFocus />
+            <div className="mt-1.5 space-y-1.5">
+              {isDebt && falta > 0 && (
+                <PriceFillChip amount={falta} label="Em falta" active={pagoFloat === falta} onClick={() => setValor(String(falta))} />
+              )}
+              {amount > 0 && (
+                <PriceFillChip amount={amount} label="Subscrição" active={pagoFloat === amount} onClick={() => setValor(String(amount))} />
+              )}
+            </div>
+            {isAbaixoEsperado && (
+              <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">Valor abaixo do esperado — fica registado como pago por {fmtEur(pagoFloat)}. Para dívida parcial usa 'Em dívida'.</p>
             )}
           </div>
           <label className="block"><span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Data</span><DatePicker value={pagoEm} onChange={setPagoEm} max={new Date().toISOString().slice(0, 10)} /></label>
         </div>
-        <Select label="Método" value={metodo} onChange={(e: any) => setMetodo(e.target.value)}>{METODOS.map((m) => <option key={m}>{m}</option>)}</Select>
+        <Combobox label="Método" value={metodo} onChange={(v) => { setMetodo(v) }} options={METODOS.map((m) => ({ value: m, label: m }))} />
         <Input label="Notas (opcional)" value={notas} onChange={(e: any) => setNotas(e.target.value)} />
       </div>
     </Modal>
@@ -300,11 +321,13 @@ function PagamentoModal({ customerId, period, amount, onClose, onSaved }: { cust
 export function ClienteMensalidade({ customerId, dense = false }: { customerId: string; dense?: boolean }) {
   const qc = useQueryClient()
   const { authHeader } = useAuth()
-  const { data, isLoading } = useGetGymMensalidadeCustomersCustomerid(customerId, { query: { enabled: !!customerId } })
+  const writeGuard = useWriteGuard()
+  const { data, isLoading, isError, refetch } = useGetGymMensalidadeCustomersCustomerid(customerId, { query: { enabled: !!customerId } })
   const mem: Membership | undefined = data
   const [atribuir, setAtribuir] = useState(false)
-  const [pagModal, setPagModal] = useState<{ period: string; amount: number } | null>(null)
+  const [pagModal, setPagModal] = useState<{ period: string; amount: number; status?: Status; paidAmount?: number } | null>(null)
   const [downgrade, setDowngrade] = useState<Exclude<Status, 'paid'> | null>(null)
+  const [paidAmountLocal, setPaidAmountLocal] = useState<Record<string, number>>({})
 
   const onSaved = () => invalidateMens(qc)
   const upsert = useMutation({
@@ -320,6 +343,12 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
     onSuccess: onSaved, onError: (e) => toast.error(getApiError(e)),
   })
 
+  if (isError) return (
+    <Card className="p-6 text-center space-y-3">
+      <p className="text-sm text-red-600 dark:text-red-400">Erro ao carregar mensalidade</p>
+      <Button size="sm" variant="outline" onClick={() => refetch()}>Tentar de novo</Button>
+    </Card>
+  )
   if (isLoading || !mem) return <Card className="p-6 text-center text-sm text-zinc-400">A carregar mensalidade…</Card>
   const sub = mem.subscription
   const period = mem.currentPeriod
@@ -348,11 +377,15 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div><p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">Bloqueado</p><p className="text-xs text-zinc-400">Suspende o acesso à app do ginásio.</p></div>
-        <Toggle checked={mem.blocked} onChange={(v: boolean) => block.mutate(v)} />
+        <span title={writeGuard.readOnly ? writeGuard.message : undefined} className={writeGuard.readOnly ? 'opacity-50 cursor-not-allowed' : ''}>
+          <Toggle checked={mem.blocked} onChange={(v: boolean) => !writeGuard.readOnly && block.mutate(v)} disabled={block.isPending || writeGuard.readOnly} />
+        </span>
       </div>
       <div className="flex items-center justify-between gap-3">
         <div><p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">Só paga (sem app)</p><p className="text-xs text-zinc-400">Cliente presencial que não usa a app — fora das estatísticas de assiduidade.</p></div>
-        <Toggle checked={!!mem.payOnly} onChange={(v: boolean) => payOnlyMut.mutate(v)} />
+        <span title={writeGuard.readOnly ? writeGuard.message : undefined} className={writeGuard.readOnly ? 'opacity-50 cursor-not-allowed' : ''}>
+          <Toggle checked={!!mem.payOnly} onChange={(v: boolean) => !writeGuard.readOnly && payOnlyMut.mutate(v)} disabled={payOnlyMut.isPending || writeGuard.readOnly} />
+        </span>
       </div>
     </div>
   )
@@ -386,11 +419,11 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
           <>
             <div className="flex items-center justify-between gap-2 text-sm">
               <span className="text-zinc-500">Em dívida desde</span>
-              <div className="w-40 shrink-0"><DatePicker value={eff.debtSince ?? mem.today} onChange={(iso) => upsert.mutate({ period, debtSince: iso })} /></div>
+              <div className="w-40 shrink-0"><DatePicker value={eff.debtSince ?? mem.today} onChange={(iso) => !writeGuard.readOnly && upsert.mutate({ period, debtSince: iso })} /></div>
             </div>
             <div className="flex items-center justify-between gap-2 text-sm">
               <span className="text-zinc-500">Já pagou</span>
-              <div className="relative"><span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-400 text-[13px]">€</span><input type="number" defaultValue={eff.paidAmount ?? 0} onBlur={(e) => upsert.mutate({ period, paidAmount: e.target.value === '' ? 0 : +e.target.value })} className={`w-24 ${dueInput} pl-5 border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-100`} /></div>
+              <div className="relative"><span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-400 text-[13px]">€</span><input type="number" min="0" value={paidAmountLocal[period] ?? eff.paidAmount ?? 0} onChange={(e) => setPaidAmountLocal({ ...paidAmountLocal, [period]: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })} onBlur={(e) => { const newVal = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0; if (newVal !== (eff.paidAmount ?? 0) && !writeGuard.readOnly) upsert.mutate({ period, paidAmount: newVal }) }} disabled={upsert.isPending || writeGuard.readOnly} className={`w-24 ${dueInput} pl-5 border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-100 disabled:opacity-50`} /></div>
             </div>
             <div className="flex items-center justify-between text-sm pt-2.5 border-t border-zinc-100 dark:border-zinc-800">
               <span className="text-zinc-500">Em falta</span>
@@ -404,9 +437,9 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-1.5">
-        <button onClick={() => setEstado('paid')} className={`py-2 rounded-lg text-[13px] font-medium border transition ${estado === 'paid' ? 'bg-emerald-500 text-white border-emerald-500' : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-emerald-400 hover:text-emerald-600'}`}>Paga</button>
-        <button onClick={() => setEstado('debt')} className={`py-2 rounded-lg text-[13px] font-medium border transition ${estado === 'debt' ? 'bg-amber-500 text-white border-amber-500' : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-amber-400 hover:text-amber-600'}`}>Em dívida</button>
-        <button onClick={() => setEstado('unpaid')} className={`py-2 rounded-lg text-[13px] font-medium border transition ${estado === 'unpaid' ? 'bg-zinc-700 text-white border-zinc-700' : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-zinc-400'}`}>Não pago</button>
+        <button onClick={() => setEstado('paid')} disabled={upsert.isPending || writeGuard.readOnly} title={writeGuard.readOnly ? writeGuard.message : undefined} className={`py-2 rounded-lg text-[13px] font-medium border transition disabled:opacity-50 disabled:cursor-not-allowed ${estado === 'paid' ? 'bg-emerald-500 text-white border-emerald-500' : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-emerald-400 hover:text-emerald-600'}`}>Paga</button>
+        <button onClick={() => setEstado('debt')} disabled={upsert.isPending || writeGuard.readOnly} title={writeGuard.readOnly ? writeGuard.message : undefined} className={`py-2 rounded-lg text-[13px] font-medium border transition disabled:opacity-50 disabled:cursor-not-allowed ${estado === 'debt' ? 'bg-amber-500 text-white border-amber-500' : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-amber-400 hover:text-amber-600'}`}>Em dívida</button>
+        <button onClick={() => setEstado('unpaid')} disabled={upsert.isPending || writeGuard.readOnly} title={writeGuard.readOnly ? writeGuard.message : undefined} className={`py-2 rounded-lg text-[13px] font-medium border transition disabled:opacity-50 disabled:cursor-not-allowed ${estado === 'unpaid' ? 'bg-zinc-700 text-white border-zinc-700' : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-zinc-400'}`}>Não pago</button>
       </div>
     </div>
   )
@@ -519,7 +552,7 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
       )}
 
       {atribuir && <AtribuirSubModal customerId={customerId} current={sub?.subscriptionId ?? null} onClose={() => setAtribuir(false)} onSaved={onSaved} />}
-      {pagModal && <PagamentoModal customerId={customerId} period={pagModal.period} amount={pagModal.amount} onClose={() => setPagModal(null)} onSaved={onSaved} />}
+      {pagModal && <PagamentoModal customerId={customerId} period={pagModal.period} amount={pagModal.amount} status={pagModal.status} paidAmount={pagModal.paidAmount} onClose={() => setPagModal(null)} onSaved={onSaved} />}
       <ConfirmDialog
         open={!!downgrade}
         onClose={() => setDowngrade(null)}
@@ -535,46 +568,58 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
 }
 
 // ── Cockpit de Cobranças: "quem falta cobrar este mês", cobra num clique ──────
-function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) => void }) {
+function CobrancasView({ period, filter, q, onPeriodChange, onFilterChange, onQChange, onOpen, onOpenConfirmBulk }: { period: string; filter: 'cobrar' | 'pago' | 'todos'; q: string; onPeriodChange: (p: string) => void; onFilterChange: (f: 'cobrar' | 'pago' | 'todos') => void; onQChange: (q: string) => void; onOpen: (c: { id: string; name: string }) => void; onOpenConfirmBulk?: () => void }) {
   const qc = useQueryClient()
-  const [period, setPeriod] = useState(currentPeriod())
-  const [filter, setFilter] = useState<'cobrar' | 'pago' | 'todos'>('cobrar')
-  const [q, setQ] = useState('')
-  const [pag, setPag] = useState<{ customerId: string; period: string; amount: number } | null>(null)
-  const { data, isLoading } = useGetGymMensalidadeFinance({ period })
+  const [pag, setPag] = useState<{ customerId: string; period: string; amount: number; status?: Status; paidAmount?: number } | null>(null)
+  const { data, isLoading, isError, refetch } = useGetGymMensalidadeFinance({ period }, { query: { placeholderData: keepPreviousData } })
   const fin: Finance | undefined = data
   const { authHeader } = useAuth()
   const [sel, setSel] = useState<Set<string>>(new Set())
-  const [busy, setBusy] = useState(false)
+  const [confirmBulk, setConfirmBulk] = useState(false)
+
+  // Limpar seleção quando period/filter/q mudam
+  useEffect(() => { setSel(new Set()) }, [period, filter, q])
+
   const toggleSel = (id: string) => { const n = new Set(sel); n.has(id) ? n.delete(id) : n.add(id); setSel(n) }
+
   const onLembrar = async (ids?: string[]) => {
     try { const r = await gymRemind(authHeader, ids?.length ? { customerIds: ids, period } : { period }); toast.success(`${r.sent} lembrete${r.sent === 1 ? '' : 's'} enviado${r.sent === 1 ? '' : 's'}`) }
     catch (e) { toast.error(getApiError(e)) }
   }
+
   const onBulkPay = async () => {
-    setBusy(true)
-    try { const r = await gymBulkMarkPaid(authHeader, { customerIds: [...sel], period }); toast.success(`${r.paid} marcado${r.paid === 1 ? '' : 's'} pago${r.paid === 1 ? '' : 's'}`); setSel(new Set()); invalidateMens(qc) }
-    catch (e) { toast.error(getApiError(e)) } finally { setBusy(false) }
+    try {
+      const r = await gymBulkMarkPaid(authHeader, { customerIds: [...sel], period })
+      toast.success(`${r.paid} marcado${r.paid === 1 ? '' : 's'} pago${r.paid === 1 ? '' : 's'}`)
+      setSel(new Set())
+      setConfirmBulk(false)
+      invalidateMens(qc)
+    } catch (e) {
+      toast.error(getApiError(e))
+    }
   }
 
-  // Lista filtrada/ordenada (null-safe) + paginação — os hooks têm de vir ANTES do guard de loading.
+  // Lista filtrada/ordenada (null-safe) + paginação
   const isPaid = (r: FinanceRow) => r.status === 'paid'
-  const billable = (fin?.rows ?? []).filter((r) => r.subscription)
+  const billable = (fin?.rows ?? []).filter((r) => r.subscription || r.payment)  // Incluir órfãos
   const base = filter === 'cobrar' ? billable.filter((r) => !isPaid(r)) : filter === 'pago' ? billable.filter(isPaid) : billable
   const list = base
     .filter((r) => r.name.toLowerCase().includes(q.toLowerCase()))
     .sort((a, b) => (Number(b.overdue) - Number(a.overdue)) || a.name.localeCompare(b.name))
   const pg = usePagination(list, { resetKey: `${filter}|${q}|${period}` })
 
+  if (isError) return (
+    <Card className="p-8 text-center space-y-3">
+      <p className="text-sm text-red-600 dark:text-red-400">Erro ao carregar cobranças</p>
+      <Button size="sm" variant="outline" onClick={() => refetch()}>Tentar de novo</Button>
+    </Card>
+  )
   if (isLoading || !fin) return <Card className="p-8 text-center text-sm text-zinc-400">A carregar…</Card>
 
   const counts = { cobrar: billable.filter((r) => !isPaid(r)).length, pago: billable.filter(isPaid).length, todos: billable.length }
-  const previsto = fin.kpis.mrr
   const recebido = fin.kpis.recebido
-  const pct = previsto > 0 ? Math.min(100, Math.round((recebido / previsto) * 100)) : 0
-  const porCobrarValor = billable
-    .filter((r) => !isPaid(r))
-    .reduce((s, r) => s + (r.payment ? Math.max(0, (r.payment.amount ?? 0) - (r.payment.paidAmount ?? 0)) : (r.subscription?.price ?? 0)), 0)
+  const mrr = fin.kpis.mrr
+  const pct = mrr > 0 ? Math.min(100, Math.round((recebido / mrr) * 100)) : 0
 
   const dueInfo = (r: FinanceRow): { text: string; fg: string } => {
     if (r.status === 'paid') return { text: r.payment?.method ? `Pago · ${r.payment.method}` : 'Pago', fg: 'text-emerald-600 dark:text-emerald-400' }
@@ -592,22 +637,22 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
       <Card className="p-5">
         <div className="flex items-center justify-between gap-3 mb-4">
           <div className="inline-flex items-center gap-1">
-            <IconButton icon="chevronLeft" label="Mês anterior" onClick={() => setPeriod((p) => shiftPeriod(p, -1))} />
+            <IconButton icon="chevronLeft" label="Mês anterior" onClick={() => onPeriodChange(shiftPeriod(period, -1))} />
             <span className="text-sm font-semibold text-zinc-900 dark:text-white capitalize min-w-[130px] text-center">{fmtPeriodoLong(period)}</span>
-            <IconButton icon="chevronRight" label="Mês seguinte" onClick={() => setPeriod((p) => shiftPeriod(p, 1))} />
+            <IconButton icon="chevronRight" label="Mês seguinte" onClick={() => onPeriodChange(shiftPeriod(period, 1))} />
           </div>
-          {period !== currentPeriod() && <Button variant="ghost" size="sm" onClick={() => setPeriod(currentPeriod())}>Mês atual</Button>}
+          {period !== currentPeriod() && <Button variant="ghost" size="sm" onClick={() => onPeriodChange(currentPeriod())}>Mês atual</Button>}
         </div>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Recebido</p>
-            <p className="text-3xl font-semibold text-zinc-900 dark:text-white tabular-nums leading-tight">{fmtEur(recebido)} <span className="text-base font-normal text-zinc-400">/ {fmtEur(previsto)}</span></p>
+            <p className="text-3xl font-semibold text-zinc-900 dark:text-white tabular-nums leading-tight">{fmtEur(recebido)} <span className="text-base font-normal text-zinc-400">/ {fmtEur(mrr)}</span></p>
           </div>
           <div className="flex gap-6 text-sm">
             <div><p className="text-zinc-400 text-xs">Cobrança</p><p className={`font-semibold tabular-nums ${pct >= 80 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>{pct}%</p></div>
-            <div><p className="text-zinc-400 text-xs">Por cobrar</p><p className="font-semibold text-zinc-800 dark:text-zinc-100 tabular-nums">{fmtEur(porCobrarValor)}</p></div>
+            <div><p className="text-zinc-400 text-xs">Em dívida</p><p className="font-semibold text-zinc-800 dark:text-zinc-100 tabular-nums">{fmtEur(fin.kpis.emDivida)}</p></div>
             <div><p className="text-zinc-400 text-xs">Em atraso</p><p className={`font-semibold tabular-nums ${fin.kpis.emAtraso ? 'text-red-600 dark:text-red-400' : 'text-zinc-800 dark:text-zinc-100'}`}>{fin.kpis.emAtraso}</p></div>
-            <div><p className="text-zinc-400 text-xs">MRR</p><p className="font-semibold text-zinc-800 dark:text-zinc-100 tabular-nums">{fmtEur(fin.kpis.mrr)}</p></div>
+            <div><p className="text-zinc-400 text-xs">MRR</p><p className="font-semibold text-zinc-800 dark:text-zinc-100 tabular-nums">{fmtEur(mrr)}</p></div>
           </div>
         </div>
         <div className="mt-3 h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
@@ -619,20 +664,20 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
         <div className="inline-flex rounded-lg border border-zinc-200 dark:border-zinc-700 p-0.5 bg-white dark:bg-zinc-900">
           {([['cobrar', 'Por cobrar'], ['pago', 'Pagos'], ['todos', 'Todos']] as const).map(([id, label]) => (
-            <button key={id} onClick={() => setFilter(id)} className={`px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors ${filter === id ? 'bg-accent text-white' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}>
+            <button key={id} onClick={() => onFilterChange(id)} className={`px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors ${filter === id ? 'bg-accent text-white' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}>
               {label} <span className={filter === id ? 'opacity-80' : 'text-zinc-400'}>{counts[id]}</span>
             </button>
           ))}
         </div>
         <div className="relative sm:ml-auto sm:max-w-xs flex-1">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"><Icon name="search" className="w-[18px] h-[18px]" /></span>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Procurar cliente…" className="w-full bg-zinc-50 dark:bg-zinc-800/60 border border-transparent rounded-lg text-sm pl-10 pr-3 py-2 focus:bg-white dark:focus:bg-zinc-900 focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none text-zinc-800 dark:text-zinc-100" />
+          <input value={q} onChange={(e) => onQChange(e.target.value)} placeholder="Procurar cliente…" className="w-full bg-zinc-50 dark:bg-zinc-800/60 border border-transparent rounded-lg text-sm pl-10 pr-3 py-2 focus:bg-white dark:focus:bg-zinc-900 focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none text-zinc-800 dark:text-zinc-100" />
         </div>
       </div>
 
       {/* Lista de cobrança */}
       {billable.length === 0 ? (
-        <Card><EmptyState icon="euro" title="Sem clientes com plano" desc="Atribui uma subscrição a um cliente (na ficha do cliente ou na tab Subscrições) para começar a cobrar." /></Card>
+        <Card><EmptyState icon="euro" title="Sem clientes com plano" desc="Convida um sócio ou atribui uma subscrição na ficha do cliente para começar a cobrar." action={<Button icon="mail" size="sm" onClick={() => onOpenConfirmBulk?.()}>Convidar sócio</Button>} /></Card>
       ) : list.length === 0 ? (
         <Card className="p-10 text-center text-sm text-zinc-400">{filter === 'cobrar' ? 'Tudo cobrado neste mês. 🎉' : 'Nada a mostrar.'}</Card>
       ) : (
@@ -642,7 +687,7 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
             const di = dueInfo(r)
             const amount = r.payment?.amount ?? r.subscription?.price ?? 0
             return (
-              <div key={r.customerId} onClick={() => onOpen({ id: r.customerId, name: r.name })} className="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 cursor-pointer">
+              <button key={r.customerId} onClick={() => onOpen({ id: r.customerId, name: r.name })} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onOpen({ id: r.customerId, name: r.name })} className="w-full flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 text-left cursor-pointer">
                 {!isPaid(r) && <input type="checkbox" checked={sel.has(r.customerId)} onClick={(e) => e.stopPropagation()} onChange={(e) => { e.stopPropagation(); toggleSel(r.customerId) }} className="w-4 h-4 accent-accent shrink-0" aria-label={`Selecionar ${r.name}`} />}
                 <Avatar name={r.name} color={colorFromName(r.name)} size={36} />
                 <div className="min-w-0 flex-1">
@@ -650,16 +695,17 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
                     <p className="font-medium text-zinc-900 dark:text-white truncate">{r.name}</p>
                     {r.membershipStatus === 'pending' && <Badge tone="blue">Convidado</Badge>}
                     {r.blocked && <Badge tone="red">Bloqueado</Badge>}
+                    {!r.subscription && <Badge tone="amber">Sem plano</Badge>}
                   </div>
-                  <p className="text-xs text-zinc-400 truncate">{r.subscription?.name} · {fmtEur(r.subscription?.price ?? 0)} · <span className={di.fg}>{di.text}</span></p>
+                  <p className="text-xs text-zinc-400 truncate">{r.subscription?.name || '—'} · {fmtEur(r.subscription?.price ?? 0)} · <span className={di.fg}>{di.text}</span></p>
                 </div>
                 {isPaid(r) ? (
                   <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums shrink-0">{fmtEur(amount)}</span>
                 ) : (
-                  <GuardButton size="sm" icon="check" onClick={(e?: any) => { e?.stopPropagation(); setPag({ customerId: r.customerId, period, amount }) }}>Marcar pago</GuardButton>
+                  <GuardButton size="sm" icon="check" onClick={(e?: any) => { e?.stopPropagation(); setPag({ customerId: r.customerId, period, amount, status: r.status as Status, paidAmount: r.payment?.paidAmount }) }}>Marcar pago</GuardButton>
                 )}
                 <Icon name="chevronRight" className="w-4 h-4 text-zinc-300 shrink-0" />
-              </div>
+              </button>
             )
           })}
           </Card>
@@ -673,12 +719,22 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
           <button onClick={() => setSel(new Set())} className="text-xs text-zinc-400 hover:text-white">Limpar</button>
           <div className="ml-auto flex gap-2">
             <button onClick={() => onLembrar([...sel])} className="text-sm px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20">Lembrar</button>
-            <button onClick={onBulkPay} disabled={busy} className="text-sm px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 font-medium disabled:opacity-50">Marcar pagos</button>
+            <GuardButton onClick={() => setConfirmBulk(true)} className="text-sm px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-medium">Marcar pagos</GuardButton>
           </div>
         </div>
       )}
 
-      {pag && <PagamentoModal customerId={pag.customerId} period={pag.period} amount={pag.amount} onClose={() => setPag(null)} onSaved={() => invalidateMens(qc)} />}
+      {pag && <PagamentoModal customerId={pag.customerId} period={pag.period} amount={pag.amount} status={pag.status} paidAmount={pag.paidAmount} onClose={() => setPag(null)} onSaved={() => invalidateMens(qc)} />}
+      <ConfirmDialog
+        open={confirmBulk}
+        onClose={() => setConfirmBulk(false)}
+        onConfirm={onBulkPay}
+        variant="warning"
+        title="Marcar como pagos?"
+        description={`Vai marcar ${sel.size} cliente${sel.size > 1 ? 's' : ''} como pagos em ${fmtPeriodo(period)}.`}
+        confirmLabel="Marcar pagos"
+        pendingLabel="A marcar…"
+      />
     </div>
   )
 }
@@ -702,10 +758,17 @@ function KpiCard({ label, value, hint, tone, info }: { label: string; value: str
 }
 
 function AnaliseView() {
-  const { data, isLoading } = useGymAnalytics()
+  const { data, isLoading, isError, refetch } = useGymAnalytics()
+  if (isError) return (
+    <Card className="p-8 text-center space-y-3">
+      <p className="text-sm text-red-600 dark:text-red-400">Erro ao carregar análise</p>
+      <Button size="sm" variant="outline" onClick={() => refetch()}>Tentar de novo</Button>
+    </Card>
+  )
   if (isLoading || !data) return <Card className="p-8 text-center text-sm text-zinc-400">A carregar análise…</Card>
 
   const churnTone = data.churn.rate > 10 ? 'red' : data.churn.rate > 0 ? 'amber' : 'green'
+  const retentionTone = data.retentionRate >= 70 ? 'green' : data.retentionRate >= 40 ? 'amber' : 'red'
   const trendLabels = data.mrrTrend.map((t) => fmtPeriodo(t.period))
   const trendSeries = [{ name: 'Recebido', color: '#1F8A5B', values: data.mrrTrend.map((t) => t.recebido) }]
   const hasTrend = data.mrrTrend.some((t) => t.recebido > 0)
@@ -719,7 +782,7 @@ function AnaliseView() {
         <KpiCard label="Membros ativos" value={String(data.activeMembers)} hint={data.blockedMembers ? `${data.blockedMembers} bloqueado${data.blockedMembers !== 1 ? 's' : ''}` : 'Com subscrição'} info={INFO.activeMembers} />
         <KpiCard label="Inativos" value={String(data.inactiveMembers)} hint={`sem treinar há +${data.inactiveAfterDays}d`} tone={data.inactiveMembers > 0 ? 'amber' : 'green'} info={INFO.inactive} />
         <KpiCard label="Churn" value={`${data.churn.rate}%`} hint={`${data.churn.count} de ${data.churn.base} no último mês`} tone={churnTone} info={INFO.churn} />
-        <KpiCard label="Retenção" value={`${data.retentionRate}%`} hint="Mês anterior → atual" tone="green" info={INFO.retention} />
+        <KpiCard label="Retenção" value={`${data.retentionRate}%`} hint="Mês anterior → atual" tone={retentionTone} info={INFO.retention} />
         <KpiCard label="LTV" value={fmtEur(data.ltv)} hint={`~${data.avgLifetimeMonths} meses pagos`} info={INFO.ltv} />
       </div>
 
@@ -760,6 +823,9 @@ function AnaliseView() {
 export function MensalidadesTab() {
   const qc = useQueryClient()
   const [sel, setSel] = useState<{ id: string; name: string } | null>(null)
+  const [period, setPeriod] = useState(currentPeriod())
+  const [filter, setFilter] = useState<'cobrar' | 'pago' | 'todos'>('cobrar')
+  const [q, setQ] = useState('')
   const [subsOpen, setSubsOpen] = useState(false)
   const [analiseOpen, setAnaliseOpen] = useState(false)
   const [conviteOpen, setConviteOpen] = useState(false)
@@ -790,7 +856,7 @@ export function MensalidadesTab() {
         </div>
       </div>
 
-      <CobrancasView onOpen={setSel} />
+      <CobrancasView period={period} filter={filter} q={q} onPeriodChange={setPeriod} onFilterChange={setFilter} onQChange={setQ} onOpen={setSel} onOpenConfirmBulk={() => setConviteOpen(true)} />
 
       {conviteOpen && <ConvidarSocioModal onClose={() => setConviteOpen(false)} onInvited={() => invalidateMens(qc)} />}
       {subsOpen && <SubscricoesModal onClose={() => setSubsOpen(false)} />}

@@ -1,4 +1,5 @@
 import { Icon } from '../ui/icons.jsx'
+import { fmtEur } from '../lib/money'
 
 /**
  * Pílula para preencher um campo de valor com um preço de referência (preço do
@@ -22,7 +23,7 @@ export function PriceFillChip({
     <button
       type="button"
       onClick={onClick}
-      title={`Preencher com ${amount.toFixed(2)} €`}
+      title={`Preencher com ${fmtEur(amount)}`}
       aria-pressed={active}
       className={`group inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition active:scale-[.97] ${
         active
@@ -32,7 +33,7 @@ export function PriceFillChip({
     >
       <Icon name="euro" className="h-3 w-3 opacity-70 group-hover:opacity-100" />
       <span>{label}</span>
-      <span className="tabular-nums font-semibold">{amount.toFixed(2)}€</span>
+      <span className="tabular-nums font-semibold">{fmtEur(amount)}</span>
     </button>
   )
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, createContext, useContext, type ReactNode, type HTMLAttributes } from 'react'
+import { useState, useMemo, useEffect, useRef, createContext, useContext, type ReactNode, type HTMLAttributes } from 'react'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
@@ -62,7 +62,7 @@ import type { GymMuscleGroup } from '../gen/backoffice/types/GymMuscleGroup.js'
 import type { GymProgram } from '../gen/backoffice/types/GymProgram.js'
 import type { GymWorkoutTemplate } from '../gen/backoffice/types/GymWorkoutTemplate.js'
 import type { GymWorkoutExercise } from '../gen/backoffice/types/GymWorkoutExercise.js'
-import { type MediaItem } from '../components/MediaGallery'
+import { type MediaItem, MediaGallery, uploadPendingMedia } from '../components/MediaGallery'
 import { Combobox } from '../components/Combobox'
 import { DatePicker } from '../components/DatePicker'
 import { format } from 'date-fns'
@@ -387,6 +387,7 @@ function GrupoModal({ grupo, onClose }: { grupo: Group | null; onClose: () => vo
   const [removedIds, setRemovedIds] = useState<string[]>([])
   const [novoSubName, setNovoSubName] = useState('')
   const [novoSubKey, setNovoSubKey] = useState<string | null>(null)
+  const [editingSub, setEditingSub] = useState<string | null>(null)
 
   const invalidate = () => qc.invalidateQueries({ queryKey: [{ url: '/gym/muscle-groups' }] })
   const addSub = () => { if (!novoSubName.trim()) return; setSubs((s) => [...s, { uid: newUid(), name: novoSubName.trim(), contentKey: novoSubKey }]); setNovoSubName(''); setNovoSubKey(null) }
@@ -394,10 +395,16 @@ function GrupoModal({ grupo, onClose }: { grupo: Group | null; onClose: () => vo
     if (sd.muscleGroupId) setRemovedIds((r) => [...r, sd.muscleGroupId!])
     setSubs((s) => s.filter((x) => x.uid !== sd.uid))
   }
+  const renameSub = (uid: string, newName: string) => {
+    setSubs((s) => s.map((x) => x.uid === uid ? { ...x, name: newName.trim() || x.name } : x))
+    setEditingSub(null)
+  }
 
   const save = useMutation({
     mutationFn: async () => {
       const key = await ensureCmsName(contentKey, 'gym', name, defaultLang)
+      setContentKey(key) // Gravar key de imediato para evitar duplicados em retry
+
       let groupId = grupo?.muscleGroupId
       if (grupo) {
         await putGymMuscleGroupsId(grupo.muscleGroupId, { name: name.trim(), color, contentKey: key })
@@ -405,10 +412,19 @@ function GrupoModal({ grupo, onClose }: { grupo: Group | null; onClose: () => vo
         const created = await postGymMuscleGroups({ name: name.trim(), color, contentKey: key })
         groupId = created.muscleGroupId
       }
-      // Cria os subgrupos novos (nome via CMS) com parentId do grupo.
-      for (const sd of subs.filter((x) => !x.muscleGroupId)) {
-        const sk = await ensureCmsName(sd.contentKey ?? null, 'gym', sd.name, defaultLang)
-        await postGymMuscleGroups({ name: sd.name.trim(), color, parentId: groupId, contentKey: sk })
+      // Atualiza subgrupos existentes + cria novos.
+      for (const sd of subs) {
+        if (sd.muscleGroupId) {
+          // Subgrupo existente: permitir renomear
+          const sk = await ensureCmsName(sd.contentKey ?? null, 'gym', sd.name, defaultLang)
+          setSubs((s) => s.map((x) => x.uid === sd.uid ? { ...x, contentKey: sk } : x)) // Gravar key
+          await putGymMuscleGroupsId(sd.muscleGroupId, { name: sd.name.trim(), color, contentKey: sk })
+        } else {
+          // Novo subgrupo: criar
+          const sk = await ensureCmsName(sd.contentKey ?? null, 'gym', sd.name, defaultLang)
+          setSubs((s) => s.map((x) => x.uid === sd.uid ? { ...x, contentKey: sk } : x)) // Gravar key
+          await postGymMuscleGroups({ name: sd.name.trim(), color, parentId: groupId, contentKey: sk })
+        }
       }
       // Apaga os subgrupos removidos.
       for (const id of removedIds) await deleteGymMuscleGroupsId(id)
@@ -417,38 +433,79 @@ function GrupoModal({ grupo, onClose }: { grupo: Group | null; onClose: () => vo
     onError: (e) => toast.error(getApiError(e)),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!grupo?.muscleGroupId) return
+      await deleteGymMuscleGroupsId(grupo.muscleGroupId)
+    },
+    onSuccess: () => { invalidate(); onClose(); toast.success('Grupo eliminado') },
+    onError: (e) => toast.error(getApiError(e)),
+  })
+
+  const [confirmDelGrupo, setConfirmDelGrupo] = useState(false)
+
   return (
-    <Modal open onClose={onClose} width="max-w-md" title={grupo ? 'Editar grupo muscular' : 'Novo grupo muscular'} subtitle="Define o grupo, a cor e os subgrupos."
-      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><Button icon="check" isLoading={save.isPending} disabled={!name.trim()} onClick={() => save.mutate()}>{grupo ? 'Guardar' : 'Criar'}</Button></>}>
-      <div className="space-y-4">
-        <div className="flex items-end gap-2">
-          <div className="flex-1"><CmsCombo label="Nome do grupo" context="gym" value={contentKey} name={name} onChange={(k, nm) => { setContentKey(k); setName(nm) }} placeholder="Ex: Peito" /></div>
+    <>
+      <Modal open onClose={onClose} width="max-w-md" title={grupo ? 'Editar grupo muscular' : 'Novo grupo muscular'} subtitle="Define o grupo, a cor e os subgrupos."
+        footer={
+          <>
+            <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+            {grupo && <Button variant="danger" icon="trash" onClick={() => setConfirmDelGrupo(true)}>Eliminar grupo</Button>}
+            <Button icon="check" isLoading={save.isPending} disabled={!name.trim()} onClick={() => save.mutate()}>{grupo ? 'Guardar' : 'Criar'}</Button>
+          </>
+        }>
+        <div className="space-y-4">
+          <div className="flex items-end gap-2">
+            <div className="flex-1"><CmsCombo label="Nome do grupo" context="gym" value={contentKey} name={name} onChange={(k, nm) => { setContentKey(k); setName(nm) }} placeholder="Ex: Peito" /></div>
+            <div>
+              <span className="block text-[11px] font-medium text-zinc-500 mb-1">Cor</span>
+              <label className="relative inline-flex w-9 h-9 cursor-pointer" title="Cor do grupo (à escolha)">
+                <span className="w-9 h-9 rounded-full border-2 border-white dark:border-zinc-900 shadow ring-1 ring-zinc-200 dark:ring-zinc-700" style={{ background: color }} />
+                <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+              </label>
+            </div>
+          </div>
           <div>
-            <span className="block text-[11px] font-medium text-zinc-500 mb-1">Cor</span>
-            <label className="relative inline-flex w-9 h-9 cursor-pointer" title="Cor do grupo (à escolha)">
-              <span className="w-9 h-9 rounded-full border-2 border-white dark:border-zinc-900 shadow ring-1 ring-zinc-200 dark:ring-zinc-700" style={{ background: color }} />
-              <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-            </label>
+            <span className="block text-[11px] font-medium text-zinc-500 mb-2">Subgrupos <span className="text-zinc-400 font-normal">(opcional)</span></span>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {subs.map((s) => (
+                <div key={s.uid} className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800">
+                  {editingSub === s.uid ? (
+                    <input
+                      autoFocus
+                      value={s.name}
+                      onChange={(e) => setSubs((ss) => ss.map((x) => x.uid === s.uid ? { ...x, name: e.target.value } : x))}
+                      onBlur={() => renameSub(s.uid, s.name)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') renameSub(s.uid, s.name); if (e.key === 'Escape') setEditingSub(null) }}
+                      className="text-sm bg-transparent text-zinc-700 dark:text-zinc-200 focus:outline-none border-b border-zinc-300 dark:border-zinc-600"
+                    />
+                  ) : (
+                    <button type="button" onClick={() => setEditingSub(s.uid)} className="text-sm text-zinc-700 dark:text-zinc-200 hover:opacity-70">
+                      {s.name}
+                    </button>
+                  )}
+                  <button type="button" onClick={() => delSub(s)} className="text-zinc-400 hover:text-red-500 text-base leading-none">×</button>
+                </div>
+              ))}
+              {subs.length === 0 && <span className="text-sm text-zinc-400">Sem subgrupos.</span>}
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1"><CmsCombo context="gym" value={novoSubKey} name={novoSubName} onChange={(k, nm) => { setNovoSubKey(k); setNovoSubName(nm) }} placeholder="Ex: Superior" onSubmit={addSub} /></div>
+              <Button variant="secondary" icon="plus" onClick={addSub}>Adicionar</Button>
+            </div>
           </div>
         </div>
-        <div>
-          <span className="block text-[11px] font-medium text-zinc-500 mb-2">Subgrupos <span className="text-zinc-400 font-normal">(opcional)</span></span>
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {subs.map((s) => (
-              <span key={s.uid} className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-sm text-zinc-700 dark:text-zinc-200">
-                {s.name}
-                <button type="button" onClick={() => delSub(s)} className="text-zinc-400 hover:text-red-500 text-base leading-none">×</button>
-              </span>
-            ))}
-            {subs.length === 0 && <span className="text-sm text-zinc-400">Sem subgrupos.</span>}
-          </div>
-          <div className="flex gap-2">
-            <div className="flex-1"><CmsCombo context="gym" value={novoSubKey} name={novoSubName} onChange={(k, nm) => { setNovoSubKey(k); setNovoSubName(nm) }} placeholder="Ex: Superior" onSubmit={addSub} /></div>
-            <Button variant="secondary" icon="plus" onClick={addSub}>Adicionar</Button>
-          </div>
-        </div>
-      </div>
-    </Modal>
+      </Modal>
+
+      <ConfirmDialog
+        open={confirmDelGrupo}
+        onClose={() => setConfirmDelGrupo(false)}
+        title="Eliminar grupo muscular?"
+        description={`Tens a certeza que queres eliminar "${grupo?.name}"? Os subgrupos também serão eliminados, mas os exercícios mantêm o nome em snapshot.`}
+        onConfirm={() => { deleteMutation.mutate(); setConfirmDelGrupo(false) }}
+        isPending={deleteMutation.isPending}
+      />
+    </>
   )
 }
 
@@ -468,6 +525,7 @@ function CatalogoTab() {
   const [groupId, setGroupId] = useState<string>('')
   const [subGroupId, setSubGroupId] = useState<string>('')
   const [presets, setPresets] = useState<PresetDraft[]>([])
+  const [media, setMedia] = useState<MediaItem[]>([])
   // Layout do protótipo: sidebar de grupos (filtro) + pesquisa + cards expansíveis.
   const [grupoSel, setGrupoSel] = useState<string>('todos')
   const [q, setQ] = useState('')
@@ -534,7 +592,7 @@ function CatalogoTab() {
     // Abre já com um rascunho de preset vazio (em vez de null) — ao criar um
     // exercício de raiz o utilizador vai precisar de pelo menos um preset de
     // qualquer forma, por isso o form já vem pronto a preencher.
-    setPresets([]); setPresetEdit({ form: emptyPreset(), isNew: true }); setOpen(true)
+    setPresets([]); setMedia([]); setPresetEdit({ form: emptyPreset(), isNew: true }); setOpen(true)
   }
   const startEdit = (e: GymExercise) => {
     // Fallback p/ legados sem id: resolve pelo nome guardado.
@@ -554,6 +612,8 @@ function CatalogoTab() {
           ? [toPresetDraft({ id: newUid(), name: 'Padrão', sets: e.defaultSets ?? null, reps: e.defaultReps ?? null, weight: e.defaultWeight ?? null, rest: e.defaultRest ?? null })]
           : [],
     )
+    // Carregar media do exercício (não é editável em linha, só visual).
+    setMedia((e.media as MediaItem[]) ?? [])
     setOpen(true)
   }
 
@@ -570,6 +630,7 @@ function CatalogoTab() {
       const cleanPresets = await Promise.all(
         activePresets.filter((p) => p.name.trim()).map(async (p): Promise<GymExercisePreset> => {
           const pk = await ensureCmsName(p.contentKey, 'gym', p.name, defaultLang)
+          setPresets((ps) => ps.map((x) => x.id === p.id ? { ...x, contentKey: pk } : x)) // Gravar key no estado
           const perSet = p.type === 'strength' && p.mode === 'perSet' && p.setRows.length > 0
           return {
             id: p.id, name: p.name.trim(), contentKey: pk, type: p.type,
@@ -582,9 +643,15 @@ function CatalogoTab() {
         }),
       )
       const key = await ensureCmsName(contentKey, 'gym', name, defaultLang)
+      setContentKey(key) // Gravar key de imediato para evitar duplicados em retry
+
+      // Upload de media pendente (upload diferido).
+      const finalMedia = await uploadPendingMedia(media, 'gym')
+      setMedia(finalMedia) // Gravar media finais no estado
+
       const body = {
         // O exercício fica sempre visível na app do cliente (sem toggle de ativo/inativo).
-        name: name.trim(), contentKey: key, muscleGroupId: groupId, subGroupId: subGroupId || null, active: true, media: [],
+        name: name.trim(), contentKey: key, muscleGroupId: groupId, subGroupId: subGroupId || null, active: true, media: finalMedia,
         presets: cleanPresets,
       }
       if (editing) return putGymExercisesId(editing.exerciseId, body)
@@ -625,14 +692,14 @@ function CatalogoTab() {
               <span className="ml-auto text-xs text-zinc-400 tabular-nums">{exercises.length}</span>
             </button>
             {topGroups.map((g) => (
-              <div key={g.muscleGroupId} className={`group/grp flex items-center gap-1 rounded-lg transition ${grupoSel === g.muscleGroupId ? 'bg-zinc-100 dark:bg-zinc-800' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}>
+              <div key={g.muscleGroupId} className={`flex items-center gap-1 rounded-lg transition ${grupoSel === g.muscleGroupId ? 'bg-zinc-100 dark:bg-zinc-800' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}>
                 <button onClick={() => setGrupoSel(g.muscleGroupId)} className={`flex items-center gap-2.5 px-3 py-2 text-sm font-medium flex-1 min-w-0 text-left ${grupoSel === g.muscleGroupId ? 'text-zinc-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-300'}`}>
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: colorOf(g.name) }} />
                   <span className="truncate">{g.name}</span>
                 </button>
-                <span className="opacity-0 group-hover/grp:opacity-100 transition" onClick={(e) => e.stopPropagation()}>
+                <div onClick={(e) => e.stopPropagation()} className="opacity-60 hover:opacity-100 transition">
                   <IconButton icon="edit" label="Editar grupo" onClick={() => setGrupoModal({ group: g })} className="w-6 h-6" />
-                </span>
+                </div>
                 <span className="text-xs text-zinc-400 tabular-nums pr-2">{countByGroup(g.name)}</span>
               </div>
             ))}
@@ -811,6 +878,9 @@ function CatalogoTab() {
               </div>
             )}
           </div>
+
+          {/* Media (imagens/vídeos) com upload diferido */}
+          <MediaGallery value={media} onChange={setMedia} />
         </div>
       </Modal>
 
@@ -1113,6 +1183,7 @@ function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved, onCre
   const save = useMutation({
     mutationFn: async () => {
       const key = await ensureCmsName(contentKey, 'gym', name, defaultLang)
+      setContentKey(key) // Gravar key de imediato para evitar duplicados em retry
       const body = { name: name.trim(), contentKey: key, exercises: rows.map(rowToPayload) }
       if (template) return putGymWorkoutTemplatesId(template.id, body)
       return postGymWorkoutTemplates(body)
@@ -1710,8 +1781,11 @@ function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
   const save = useMutation({
     mutationFn: async () => {
       const planoKey = await ensureCmsName(contentKey, 'gym', name, defaultLang)
+      setContentKey(planoKey) // Gravar key de imediato para evitar duplicados em retry
+
       const workouts = await Promise.all(diasComTreino.map(async (d) => {
         const wkey = await ensureCmsName(d.treinoContentKey, 'gym', d.treinoName?.trim() || 'Treino', defaultLang)
+        setDias((dias) => dias.map((x) => x.uid === d.uid ? { ...x, treinoContentKey: wkey } : x)) // Gravar key no estado
         return {
           name: d.treinoName?.trim() || 'Treino', contentKey: wkey,
           daysOfWeek: mode === 'weekly' && d.dayIndex !== null ? [d.dayIndex] : [],
@@ -2031,17 +2105,36 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
   const [contentKey, setContentKey] = useState<string | null>(program.contentKey ?? null)
   const [note, setNote] = useState(program.note ?? '')
   const [mode, setMode] = useState<'weekly' | 'free'>(program.mode === 'free' ? 'free' : 'weekly')
-  const [inicio, setInicio] = useState<string>(program.startDate || todayISO())
-  const [fim, setFim] = useState<string>(program.endDate || addDaysISO(todayISO(), 84))
+  const [inicio, setInicio] = useState<string>(program.startDate || '')
+  const [fim, setFim] = useState<string>(program.endDate || '')
   const [dias, setDias] = useState<DiaDraft[]>([])
   const [pickFor, setPickFor] = useState<string | null>(null)
   const [editTreino, setEditTreino] = useState<{ diaUid: string; seed?: { name: string; contentKey: string | null; rows: DraftExercise[] } } | null>(null)
   const { data: langData } = useGetSettingsLanguages()
   const defaultLang = langData?.default ?? 'pt'
 
-  const buildWeeklyDays = (workouts: GymProgram['workouts']): DiaDraft[] =>
-    WEEK_DAYS.map((wd) => {
-      const w = (workouts ?? []).find((x) => (x.daysOfWeek ?? []).includes(wd.value))
+  // Carregados da API: id dos treinos mostrados no editor (para não apagar os não-mostrados no save).
+  const [loadedWorkoutIds, setLoadedWorkoutIds] = useState<Set<string>>(new Set())
+  // daysOfWeek ORIGINAIS de cada treino carregado — um treino multi-dia mostrado
+  // num só dia mantém os seus dias intactos ao guardar (nunca se esmaga o array).
+  const originalDaysRef = useRef<Record<string, number[]>>({})
+  // Treinos legados não-mostrados (>1 por dia, multi-dia). Mostra-se um aviso ao utilizador.
+  const [naoMostrados, setNaoMostrados] = useState<{ id: string; name?: string; reason: string }[]>([])
+
+  const buildWeeklyDays = (workouts: GymProgram['workouts']): DiaDraft[] => {
+    // `loaded` = treinos DE FACTO mostrados no editor. O save só pode apagar
+    // treinos deste set (loaded && removido pelo utilizador). Tudo o que não
+    // couber no editor (2º+ do mesmo dia) fica FORA do set → nunca é apagado.
+    const loaded = new Set<string>()
+    const result = WEEK_DAYS.map((wd) => {
+      const wForDay = (workouts ?? []).filter((x) => (x.daysOfWeek ?? []).includes(wd.value))
+      // Um treino multi-dia ocupa só o seu 1.º dia livre; nos dias seguintes o
+      // slot fica disponível para o próximo treino ainda não mostrado.
+      const w = wForDay.find((x) => !loaded.has(x.id))
+      if (w) {
+        loaded.add(w.id)
+        originalDaysRef.current[w.id] = (w.daysOfWeek ?? []).slice()
+      }
       return {
         uid: newUid(), label: wd.label, dayIndex: wd.value, treinoId: null,
         workoutId: w?.id ?? null,
@@ -2050,15 +2143,31 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
         rows: w ? snapshotRows(w.exercises ?? []) : [],
       }
     })
+    // O que sobrou (2º+ treino num dia já ocupado em toda a semana): avisar e proteger.
+    const notShown = (workouts ?? [])
+      .filter((x) => !loaded.has(x.id))
+      .map((x) => ({ id: x.id, name: x.name, reason: 'não coube no editor (dia partilhado)' }))
+    setLoadedWorkoutIds(loaded)
+    setNaoMostrados(notShown)
+    return result
+  }
 
   useEffect(() => {
     const m = program.mode === 'free' ? 'free' : 'weekly'
     if (m === 'free') {
-      setDias((program.workouts ?? []).map((w, i) => ({
-        uid: newUid(), label: w.dayLabel || `Dia ${i + 1}`, dayIndex: null,
-        treinoId: null, workoutId: w.id, treinoName: w.name, treinoContentKey: w.contentKey ?? null,
-        rows: snapshotRows(w.exercises ?? []),
-      })))
+      const loaded = new Set<string>()
+      const dias = (program.workouts ?? []).map((w, i) => {
+        loaded.add(w.id)
+        originalDaysRef.current[w.id] = (w.daysOfWeek ?? []).slice()
+        return {
+          uid: newUid(), label: w.dayLabel || `Dia ${i + 1}`, dayIndex: null,
+          treinoId: null, workoutId: w.id, treinoName: w.name, treinoContentKey: w.contentKey ?? null,
+          rows: snapshotRows(w.exercises ?? []),
+        }
+      })
+      setLoadedWorkoutIds(loaded)
+      setNaoMostrados([])
+      setDias(dias)
     } else {
       setDias(buildWeeklyDays(program.workouts ?? []))
     }
@@ -2095,17 +2204,32 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
   const save = useMutation({
     mutationFn: async () => {
       const planoKey = await ensureCmsName(contentKey, 'gym', name, defaultLang)
-      await putGymProgramsId(program.id, { name: name.trim(), contentKey: planoKey, note: note || null, mode, startDate: inicio || null, endDate: fim || null })
+      setContentKey(planoKey) // Gravar key de imediato para evitar duplicados em retry
+
+      // Sem defaults silenciosos: o estado arranca das datas reais do programa
+      // (ou vazio) — o que estiver nos campos é exatamente o que se grava.
+      const startDate = inicio || null
+      const endDate = fim || null
+
+      await putGymProgramsId(program.id, { name: name.trim(), contentKey: planoKey, note: note || null, mode, startDate, endDate })
 
       // Preserva os ids dos treinos que já existem (PATCH), cria os novos (POST)
-      // e apaga os removidos (DELETE). Assim o histórico do cliente (logs por
-      // workoutId) e o "treino de hoje" continuam a bater certo após editar.
+      // e apaga APENAS os treinos carregados que deixaram de existir. Os treinos
+      // não-mostrados (legados) são respeitados e nunca apagados.
       const kept = new Set<string>()
       for (const d of diasComTreino) {
+        if (d.workoutId && kept.has(d.workoutId)) continue // nunca 2 PUTs ao mesmo treino
         const wkey = await ensureCmsName(d.treinoContentKey, 'gym', d.treinoName?.trim() || 'Treino', defaultLang)
+        setDias((dias) => dias.map((x) => x.uid === d.uid ? { ...x, treinoContentKey: wkey } : x)) // Gravar key no estado
+        // Um treino multi-dia mostrado num só slot mantém os daysOfWeek ORIGINAIS
+        // (editar o conteúdo não mexe nos dias); treinos de um dia seguem o slot.
+        const orig = d.workoutId ? originalDaysRef.current[d.workoutId] : undefined
+        const daysOfWeek = mode !== 'weekly' ? []
+          : (orig && orig.length > 1) ? orig
+          : d.dayIndex !== null ? [d.dayIndex] : []
         const body = {
           name: d.treinoName?.trim() || 'Treino', contentKey: wkey,
-          daysOfWeek: mode === 'weekly' && d.dayIndex !== null ? [d.dayIndex] : [],
+          daysOfWeek,
           dayLabel: mode === 'free' ? (d.label.trim() || 'Dia') : null,
           exercises: d.rows.map(rowToPayload),
         }
@@ -2116,8 +2240,12 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
           await postGymProgramsProgramidWorkouts(program.id, body)
         }
       }
+      // Apagar APENAS os treinos que foram carregados no editor E deixaram de existir.
+      // Os treinos em `naoMostrados` (não-carregados) são sempre respeitados.
       for (const w of (program.workouts ?? [])) {
-        if (!kept.has(w.id)) await deleteGymWorkoutsId(w.id)
+        if (loadedWorkoutIds.has(w.id) && !kept.has(w.id)) {
+          await deleteGymWorkoutsId(w.id)
+        }
       }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: [{ url: '/gym/programs' }] }); toast.success('Plano do cliente atualizado'); onSaved(); onClose() },

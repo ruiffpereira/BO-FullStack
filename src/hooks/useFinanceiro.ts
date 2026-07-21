@@ -99,11 +99,7 @@ export const useAgendaFinance = (period: DashboardPeriod = 'month', iva: VatMode
 export const useLojaFinance = (period: DashboardPeriod = 'month', iva: VatMode = 'com', s?: string, e?: string) =>
   useFinanceQuery<LojaFinance>('loja', period, iva, s, e)
 
-// ── Mutations do ginásio (gerar mês / cobrança em massa / lembretes) ──
-export async function gymGenerateMonth(authHeader: () => Record<string, string>, period?: string) {
-  const res = await axiosInstance.post('/gym/mensalidade/generate', null, { params: period ? { period } : {}, headers: authHeader(), withCredentials: true })
-  return res.data as { period: string; created: number }
-}
+// ── Mutations do ginásio (cobrança em massa / lembretes) ──
 export async function gymBulkMarkPaid(authHeader: () => Record<string, string>, body: { customerIds: string[]; period?: string; method?: string }) {
   const res = await axiosInstance.post('/gym/mensalidade/bulk-pay', body, { headers: authHeader(), withCredentials: true })
   return res.data as { period: string; paid: number }

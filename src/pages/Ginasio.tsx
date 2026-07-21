@@ -13,7 +13,6 @@ import {
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
-  rectSortingStrategy,
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -29,14 +28,8 @@ import { postGymExercises } from '../gen/backoffice/hooks/usePostGymExercises.js
 import { putGymExercisesId } from '../gen/backoffice/hooks/usePutGymExercisesId.js'
 import { deleteGymExercisesId } from '../gen/backoffice/hooks/useDeleteGymExercisesId.js'
 import { useGetGymPrograms } from '../gen/backoffice/hooks/useGetGymPrograms.js'
-import { postGymPrograms } from '../gen/backoffice/hooks/usePostGymPrograms.js'
-import { deleteGymProgramsId } from '../gen/backoffice/hooks/useDeleteGymProgramsId.js'
 import { postGymProgramsProgramidWorkouts } from '../gen/backoffice/hooks/usePostGymProgramsProgramidWorkouts.js'
 import { putGymProgramsId } from '../gen/backoffice/hooks/usePutGymProgramsId.js'
-import { patchGymProgramsReorder } from '../gen/backoffice/hooks/usePatchGymProgramsReorder.js'
-import { patchGymProgramsProgramidWorkoutsReorder } from '../gen/backoffice/hooks/usePatchGymProgramsProgramidWorkoutsReorder.js'
-import { axiosInstance } from '@kubb/plugin-client/clients/axios'
-import { useAuth } from '../context/AuthContext'
 import { CmsCombo } from '../components/CmsCombo'
 import { CmsTranslationsModal } from '../components/CmsTranslationsModal'
 import { ensureCmsName } from '../lib/gymCms'
@@ -58,18 +51,15 @@ import { useGetGymMuscleGroups } from '../gen/backoffice/hooks/useGetGymMuscleGr
 import { postGymMuscleGroups } from '../gen/backoffice/hooks/usePostGymMuscleGroups.js'
 import { putGymMuscleGroupsId } from '../gen/backoffice/hooks/usePutGymMuscleGroupsId.js'
 import { deleteGymMuscleGroupsId } from '../gen/backoffice/hooks/useDeleteGymMuscleGroupsId.js'
-import { useGetGymMensalidadeFinance } from '../gen/backoffice/hooks/useGetGymMensalidadeFinance.js'
-import { useGetGymSubscriptions } from '../gen/backoffice/hooks/useGetGymSubscriptions.js'
-import { usePostGymSubscriptions } from '../gen/backoffice/hooks/usePostGymSubscriptions.js'
 import type { GymExercise } from '../gen/backoffice/types/GymExercise.js'
 import type { GymExercisePreset } from '../gen/backoffice/types/GymExercisePreset.js'
 import type { GymSetRow } from '../gen/backoffice/types/GymSetRow.js'
 import type { GymMuscleGroup } from '../gen/backoffice/types/GymMuscleGroup.js'
 import type { GymProgram } from '../gen/backoffice/types/GymProgram.js'
-import type { GymWorkout } from '../gen/backoffice/types/GymWorkout.js'
+import type { GymWorkoutTemplate } from '../gen/backoffice/types/GymWorkoutTemplate.js'
+import type { GymWorkoutExercise } from '../gen/backoffice/types/GymWorkoutExercise.js'
 import { type MediaItem } from '../components/MediaGallery'
 import { Combobox } from '../components/Combobox'
-import { DateRangePicker, type DateRange } from '../components/DateRangePicker'
 import { DatePicker } from '../components/DatePicker'
 import { format } from 'date-fns'
 import { useGetUsersMe } from '../gen/backoffice/hooks/useGetUsersMe.js'
@@ -222,43 +212,6 @@ const WEEK_DAYS: { value: number; short: string; label: string }[] = [
   { value: 6, short: 'Sáb', label: 'Sábado' },
   { value: 0, short: 'Dom', label: 'Domingo' },
 ]
-const sortDays = (days: number[]) => {
-  const order = (d: number) => (d === 0 ? 7 : d) // Domingo no fim
-  return [...days].sort((a, b) => order(a) - order(b))
-}
-
-// Selector de dias (toggle) usado no editor de treino
-function DaySelector({ value, onChange }: { value: number[]; onChange: (days: number[]) => void }) {
-  const toggle = (d: number) =>
-    onChange(value.includes(d) ? value.filter((x) => x !== d) : [...value, d])
-  return (
-    <div>
-      <span className="block text-[11px] font-medium text-zinc-500 mb-1.5">Dias da semana</span>
-      <div className="flex flex-wrap gap-1.5">
-        {WEEK_DAYS.map((d) => {
-          const on = value.includes(d.value)
-          return (
-            <button
-              key={d.value}
-              type="button"
-              onClick={() => toggle(d.value)}
-              className={
-                'px-2.5 py-1 rounded-lg text-xs font-semibold transition border ' +
-                (on
-                  ? 'bg-accent text-white border-accent'
-                  : 'bg-white dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-zinc-700 hover:border-accent')
-              }
-              title={d.label}
-            >
-              {d.short}
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 // Wrapper genérico de item arrastável (render-prop para posicionar a pega)
 function Sortable({
   id,
@@ -292,29 +245,6 @@ const DragHandle = (props: HTMLAttributes<HTMLElement>) => (
   </button>
 )
 
-// Chips só-leitura dos dias atribuídos a um treino
-function DayChips({ days }: { days: number[] }) {
-  if (!days || days.length === 0) return null
-  return (
-    <div className="flex flex-wrap gap-1">
-      {sortDays(days).map((d) => {
-        const day = WEEK_DAYS.find((x) => x.value === d)
-        if (!day) return null
-        return (
-          <span
-            key={d}
-            className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-accent/10 text-accent"
-          >
-            {day.short}
-          </span>
-        )
-      })}
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Group chip
 // Campo numérico opcional (vazio = não se aplica, ex: alongamentos)
 function NumField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
@@ -433,19 +363,6 @@ function StrengthFields({
   )
 }
 
-function GroupChip({ group }: { group: string }) {
-  const { colorOf } = useGymGroups()
-  const c = colorOf(group)
-  return (
-    <span
-      className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold"
-      style={{ background: `${c}22`, color: c }}
-    >
-      {group}
-    </span>
-  )
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Exercise catalog tab
 // Modal de UM grupo muscular (nome + cor livre + subgrupos como chips) — estilo
@@ -457,11 +374,11 @@ function GrupoModal({ grupo, onClose }: { grupo: Group | null; onClose: () => vo
   const defaultLang = langData?.default ?? 'pt'
 
   const [name, setName] = useState(grupo?.name ?? '')
-  const [contentKey, setContentKey] = useState<string | null>((grupo as any)?.contentKey ?? null)
+  const [contentKey, setContentKey] = useState<string | null>(grupo?.contentKey ?? null)
   const [color, setColor] = useState(grupo?.color ?? randomColor())
   type SubDraft = { uid: string; muscleGroupId?: string; name: string; contentKey: string | null }
   const [subs, setSubs] = useState<SubDraft[]>(() =>
-    grupo ? subGroupsOf(grupo.name).map((s) => ({ uid: newUid(), muscleGroupId: s.muscleGroupId, name: s.name, contentKey: (s as any).contentKey ?? null })) : [],
+    grupo ? subGroupsOf(grupo.name).map((s) => ({ uid: newUid(), muscleGroupId: s.muscleGroupId, name: s.name, contentKey: s.contentKey ?? null })) : [],
   )
   const [removedIds, setRemovedIds] = useState<string[]>([])
   const [novoSubName, setNovoSubName] = useState('')
@@ -479,15 +396,15 @@ function GrupoModal({ grupo, onClose }: { grupo: Group | null; onClose: () => vo
       const key = await ensureCmsName(contentKey, 'gym', name, defaultLang)
       let groupId = grupo?.muscleGroupId
       if (grupo) {
-        await putGymMuscleGroupsId(grupo.muscleGroupId, { name: name.trim(), color, contentKey: key } as any)
+        await putGymMuscleGroupsId(grupo.muscleGroupId, { name: name.trim(), color, contentKey: key })
       } else {
-        const created = await postGymMuscleGroups({ name: name.trim(), color, contentKey: key } as any)
-        groupId = (created as any).muscleGroupId
+        const created = await postGymMuscleGroups({ name: name.trim(), color, contentKey: key })
+        groupId = created.muscleGroupId
       }
       // Cria os subgrupos novos (nome via CMS) com parentId do grupo.
       for (const sd of subs.filter((x) => !x.muscleGroupId)) {
         const sk = await ensureCmsName(sd.contentKey ?? null, 'gym', sd.name, defaultLang)
-        await postGymMuscleGroups({ name: sd.name.trim(), color, parentId: groupId, contentKey: sk } as any)
+        await postGymMuscleGroups({ name: sd.name.trim(), color, parentId: groupId, contentKey: sk })
       }
       // Apaga os subgrupos removidos.
       for (const id of removedIds) await deleteGymMuscleGroupsId(id)
@@ -556,9 +473,9 @@ function CatalogoTab() {
   const defaultLang = langData?.default ?? 'pt'
 
   const presetResumo = (p: GymExercisePreset) =>
-    (p as any).type === 'time'
-      ? `${p.reps ? `${p.reps}× ` : ''}${(p as any).duration ?? 0}s${p.rest ? ` · ${p.rest}s desc.` : ''}`
-      : (p as any).mode === 'perSet' && (p.setRows?.length)
+    p.type === 'time'
+      ? `${p.reps ? `${p.reps}× ` : ''}${p.duration ?? 0}s${p.rest ? ` · ${p.rest}s desc.` : ''}`
+      : p.mode === 'perSet' && (p.setRows?.length)
         ? setRowsResumo(p.setRows)
         : `${p.sets ?? '–'}×${p.reps ?? '–'}${p.weight ? ` · ${p.weight}kg` : ''}${p.rest ? ` · ${p.rest}s` : ''}`
   const draftResumo = (p: PresetDraft) =>
@@ -596,15 +513,15 @@ function CatalogoTab() {
   const toPresetDraft = (p: GymExercisePreset): PresetDraft => ({
     id: p.id || newUid(),
     name: p.name,
-    contentKey: (p as any).contentKey ?? null,
-    type: (p as any).type === 'time' ? 'time' : 'strength',
-    mode: (p as any).mode === 'perSet' && p.setRows?.length ? 'perSet' : 'uniform',
+    contentKey: p.contentKey ?? null,
+    type: p.type === 'time' ? 'time' : 'strength',
+    mode: p.mode === 'perSet' && p.setRows?.length ? 'perSet' : 'uniform',
     sets: p.sets != null ? String(p.sets) : '',
     reps: p.reps != null ? String(p.reps) : '',
     weight: p.weight != null ? String(p.weight) : '',
     rest: p.rest != null ? String(p.rest) : '',
-    duration: (p as any).duration != null ? String((p as any).duration) : '',
-    notes: (p as any).notes ?? '',
+    duration: p.duration != null ? String(p.duration) : '',
+    notes: p.notes ?? '',
     setRows: apiToSetRowDrafts(p.setRows),
   })
 
@@ -617,8 +534,8 @@ function CatalogoTab() {
   }
   const startEdit = (e: GymExercise) => {
     // Fallback p/ legados sem id: resolve pelo nome guardado.
-    const gid = (e as any).muscleGroupId ?? topGroups.find((g) => g.name === e.muscleGroup)?.muscleGroupId ?? ''
-    setEditing(e); setName(e.name); setContentKey((e as any).contentKey ?? null); setGroupId(gid); setSubGroupId((e as any).subGroupId ?? '')
+    const gid = e.muscleGroupId ?? topGroups.find((g) => g.name === e.muscleGroup)?.muscleGroupId ?? ''
+    setEditing(e); setName(e.name); setContentKey(e.contentKey ?? null); setGroupId(gid); setSubGroupId(e.subGroupId ?? '')
     // Limpa qualquer rascunho de preset que tenha ficado aberto (ex: de um
     // "Novo exercício" cancelado sem fechar o form) — editar carrega sempre os
     // presets reais da API, nunca deve herdar um rascunho de outra sessão do modal.
@@ -647,7 +564,7 @@ function CatalogoTab() {
       const activePresets = overridePresets ?? presets
       // O nome de cada preset é traduzível (CMS): garante a chave ao Guardar.
       const cleanPresets = await Promise.all(
-        activePresets.filter((p) => p.name.trim()).map(async (p) => {
+        activePresets.filter((p) => p.name.trim()).map(async (p): Promise<GymExercisePreset> => {
           const pk = await ensureCmsName(p.contentKey, 'gym', p.name, defaultLang)
           const perSet = p.type === 'strength' && p.mode === 'perSet' && p.setRows.length > 0
           return {
@@ -665,7 +582,7 @@ function CatalogoTab() {
         // O exercício fica sempre visível na app do cliente (sem toggle de ativo/inativo).
         name: name.trim(), contentKey: key, muscleGroupId: groupId, subGroupId: subGroupId || null, active: true, media: [],
         presets: cleanPresets,
-      } as any
+      }
       if (editing) return putGymExercisesId(editing.exerciseId, body)
       return postGymExercises(body)
     },
@@ -752,7 +669,7 @@ function CatalogoTab() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
                         {e.presets!.map((p) => (
                           <div key={p.id} className="flex items-center gap-2.5 p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/40">
-                            <span className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 text-[10px] font-bold ${(p as any).type === 'time' ? 'bg-teal-100 text-teal-600 dark:bg-teal-500/20 dark:text-teal-300' : 'bg-accent/10 text-accent'}`}>{(p as any).type === 'time' ? 'T' : 'F'}</span>
+                            <span className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 text-[10px] font-bold ${p.type === 'time' ? 'bg-teal-100 text-teal-600 dark:bg-teal-500/20 dark:text-teal-300' : 'bg-accent/10 text-accent'}`}>{p.type === 'time' ? 'T' : 'F'}</span>
                             <div className="min-w-0"><p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{p.name}</p><p className="text-xs text-zinc-400 tabular-nums">{presetResumo(p)}</p></div>
                           </div>
                         ))}
@@ -910,23 +827,23 @@ function CatalogoTab() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Valores prescritos a partir de um preset (com fallbacks). Mantém-se editável.
 const presetValues = (p?: GymExercisePreset): Partial<DraftExercise> => {
-  const perSet = (p as any)?.mode === 'perSet' && !!p?.setRows?.length
+  const perSet = p?.mode === 'perSet' && !!p?.setRows?.length
   return {
-    type: (p as any)?.type === 'time' ? 'time' : 'strength',
+    type: p?.type === 'time' ? 'time' : 'strength',
     mode: perSet ? 'perSet' : 'uniform',
     sets: p?.sets ?? 3,
     reps: p?.reps ?? 10,
     weight: p?.weight ?? 0,
     rest: p?.rest ?? 60,
-    duration: (p as any)?.duration ?? 0,
-    notes: (p as any)?.notes ?? null,
-    setRows: perSet ? (p!.setRows as GymSetRow[]) : null,
+    duration: p?.duration ?? 0,
+    notes: p?.notes ?? null,
+    setRows: perSet ? (p!.setRows ?? null) : null,
   }
 }
 
 // Mapeia um exercício de um DTO (treino/template/plano) para uma linha editável,
 // preservando type/mode/setRows (snapshot completo — tudo é registado).
-const dtoToRow = (e: any): DraftExercise => ({
+const dtoToRow = (e: GymWorkoutExercise): DraftExercise => ({
   uid: newUid(), exerciseId: e.exerciseId ?? null, name: e.name, group: e.group, subGroup: e.subGroup ?? null,
   type: e.type === 'time' ? 'time' : 'strength',
   mode: e.mode === 'perSet' ? 'perSet' : 'uniform',
@@ -1122,131 +1039,6 @@ function ExerciseRowsEditor({ rows, setRows, catalog }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Workout editor modal (create/edit a workout with exercises)
-function WorkoutModal({ open, onClose, programId, workout, mode = 'weekly', catalog, templates, onSaved }: {
-  open: boolean
-  onClose: () => void
-  programId: string
-  workout: GymWorkout | null
-  mode?: 'weekly' | 'free'
-  catalog: GymExercise[]
-  templates: GymWorkout[]
-  onSaved: () => void
-}) {
-  const { colorOf } = useGymGroups()
-  const [name, setName] = useState('')
-  const [contentKey, setContentKey] = useState<string | null>(null)
-  const [days, setDays] = useState<number[]>([])
-  const [dayLabel, setDayLabel] = useState('')
-  const [rows, setRows] = useState<DraftExercise[]>([])
-  const { data: langData } = useGetSettingsLanguages()
-  const defaultLang = langData?.default ?? 'pt'
-
-  // Reset when (re)opened or when editing a different workout
-  useEffect(() => {
-    if (!open) return
-    setName(workout?.name ?? '')
-    setContentKey((workout as any)?.contentKey ?? null)
-    setDays(workout?.daysOfWeek ?? [])
-    setDayLabel((workout as any)?.dayLabel ?? '')
-    setRows((workout?.exercises ?? []).map(dtoToRow))
-  }, [open, workout?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Associa um treino existente: copia exercícios (snapshot) + nome/chave se vazio.
-  const associateTemplate = (templateId: string) => {
-    const t = templates.find((x) => x.id === templateId)
-    if (!t) return
-    const copied: DraftExercise[] = t.exercises.map(dtoToRow)
-    setRows((r) => [...r, ...copied])
-    if (!name.trim()) {
-      setName(t.name)
-      setContentKey((t as any).contentKey ?? null)
-    }
-  }
-
-  const qc = useQueryClient()
-  const save = useMutation({
-    mutationFn: async () => {
-      const key = await ensureCmsName(contentKey, 'gym', name, defaultLang)
-      const body = {
-        name: name.trim(), contentKey: key,
-        daysOfWeek: mode === 'weekly' ? days : [],
-        dayLabel: mode === 'free' ? (dayLabel.trim() || 'Dia') : null,
-        exercises: rows,
-      } as any
-      if (workout) return putGymWorkoutsId(workout.id, body)
-      return postGymProgramsProgramidWorkouts(programId, body)
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [{ url: '/gym/programs' }] })
-      onSaved(); onClose()
-      toast.success(workout ? 'Treino atualizado' : 'Treino criado')
-    },
-    onError: (e) => toast.error(getApiError(e)),
-  })
-
-  // Modo "weekly": treino precisa de dia(s) da semana. Modo "free": basta o rótulo.
-  const canSave = !!name.trim() && rows.length > 0 && (mode === 'weekly' ? days.length > 0 : !!dayLabel.trim())
-
-  if (!open) return null
-
-  const totalSeries = rows.reduce((s, r) => s + (r.type === 'time' ? 0 : (r.sets || 0)), 0)
-  const gruposUsados = [...new Set(rows.map((r) => r.group))].filter(Boolean)
-  const personalizadosCount = rows.filter((r) => isPersonalizado(catalog, r)).length
-
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <button onClick={onClose} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"><Icon name="chevronLeft" className="w-4 h-4" />Voltar</button>
-        <div className="sm:ml-auto flex items-center gap-2">
-          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <Button isLoading={save.isPending} disabled={!canSave} onClick={() => save.mutate()}>{workout ? 'Guardar treino' : 'Criar treino'}</Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4">
-        <div>
-          <Card className="p-4 mb-4 space-y-3">
-            <CmsCombo label="Nome do treino" context="gym" value={contentKey} name={name} onChange={(key, nm) => { setContentKey(key); setName(nm) }} placeholder="Escrever nome…" />
-            {templates.length > 0 && (
-              <Combobox label="Associar treino existente (copia exercícios)" value="" onChange={associateTemplate} options={templates.map((t) => ({ value: t.id, label: `${t.name} · ${t.exercises.length} ex.` }))} placeholder="Escolher treino…" searchPlaceholder="Pesquisar treino…" />
-            )}
-            {mode === 'weekly' ? (
-              <div>
-                <DaySelector value={days} onChange={setDays} />
-                {days.length === 0 && <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-1">Escolhe pelo menos um dia da semana.</p>}
-              </div>
-            ) : (
-              <Input label="Rótulo do dia" value={dayLabel} onChange={(ev: any) => setDayLabel(ev.target.value)} placeholder="Ex: Dia 1" />
-            )}
-          </Card>
-
-          <ExerciseRowsEditor rows={rows} setRows={setRows} catalog={catalog} />
-        </div>
-
-        <div>
-          <Card className="p-4 lg:sticky lg:top-4">
-            <h3 className="font-semibold text-zinc-900 dark:text-white text-sm mb-3">Resumo</h3>
-            <div className="space-y-2.5 text-sm">
-              <div className="flex justify-between"><span className="text-zinc-500">Exercícios</span><span className="font-medium text-zinc-800 dark:text-zinc-100 tabular-nums">{rows.length}</span></div>
-              <div className="flex justify-between"><span className="text-zinc-500">Séries totais</span><span className="font-medium text-zinc-800 dark:text-zinc-100 tabular-nums">{totalSeries}</span></div>
-              <div className="flex justify-between"><span className="text-zinc-500">Personalizados</span><span className="font-medium text-zinc-800 dark:text-zinc-100 tabular-nums">{personalizadosCount}</span></div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-              <p className="text-xs text-zinc-400 mb-2">Grupos trabalhados</p>
-              <div className="flex flex-wrap gap-1.5">
-                {gruposUsados.map((g) => <span key={g} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs text-white" style={{ background: colorOf(g) }}>{g}</span>)}
-                {gruposUsados.length === 0 && <span className="text-sm text-zinc-400">—</span>}
-              </div>
-            </div>
-          </Card>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Modal de "Adicionar exercício" (pesquisa + filtro por grupo) — só exercícios
 // já criados na biblioteca. Usado no builder de treino/plano.
 function AddExercicioModal({ open, catalog, onClose, onAdd }: {
@@ -1294,10 +1086,10 @@ function AddExercicioModal({ open, catalog, onClose, onAdd }: {
 function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved, onCreated }: {
   open: boolean
   onClose: () => void
-  template: GymWorkout | null
+  template: GymWorkoutTemplate | null
   catalog: GymExercise[]
   onSaved: () => void
-  onCreated?: (t: GymWorkout) => void
+  onCreated?: (t: GymWorkoutTemplate) => void
 }) {
   const { colorOf } = useGymGroups()
   const [name, setName] = useState('')
@@ -1309,7 +1101,7 @@ function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved, onCre
   useEffect(() => {
     if (!open) return
     setName(template?.name ?? '')
-    setContentKey((template as any)?.contentKey ?? null)
+    setContentKey(template?.contentKey ?? null)
     setRows((template?.exercises ?? []).map(dtoToRow))
   }, [open, template?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1317,13 +1109,13 @@ function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved, onCre
   const save = useMutation({
     mutationFn: async () => {
       const key = await ensureCmsName(contentKey, 'gym', name, defaultLang)
-      const body = { name: name.trim(), contentKey: key, exercises: rows } as any
+      const body = { name: name.trim(), contentKey: key, exercises: rows.map(rowToPayload) }
       if (template) return putGymWorkoutTemplatesId(template.id, body)
       return postGymWorkoutTemplates(body)
     },
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: [{ url: '/gym/workout-templates' }] })
-      if (!template && onCreated && result) onCreated(result as unknown as GymWorkout)
+      if (!template && onCreated && result) onCreated(result)
       onSaved(); onClose()
       toast.success(template ? 'Treino atualizado' : 'Treino criado')
     },
@@ -1383,13 +1175,13 @@ function TreinosTab() {
   const qc = useQueryClient()
   const { colorOf } = useGymGroups()
   const { data, isLoading } = useGetGymWorkoutTemplates()
-  const templates = (data ?? []) as GymWorkout[]
+  const templates = (data ?? []) as GymWorkoutTemplate[]
   const { data: catalogData } = useGetGymExercises()
   const catalog = (catalogData ?? []) as GymExercise[]
 
   const [open, setOpen] = useState(false)
-  const [editing, setEditing] = useState<GymWorkout | null>(null)
-  const [confirmDel, setConfirmDel] = useState<GymWorkout | null>(null)
+  const [editing, setEditing] = useState<GymWorkoutTemplate | null>(null)
+  const [confirmDel, setConfirmDel] = useState<GymWorkoutTemplate | null>(null)
   const [q, setQ] = useState('')
 
   const remove = useMutation({
@@ -1469,295 +1261,6 @@ function TreinosTab() {
         footer={<><Button variant="ghost" onClick={() => setConfirmDel(null)}>Cancelar</Button><Button variant="danger" isLoading={remove.isPending} onClick={() => { if (confirmDel) remove.mutate(confirmDel.id); setConfirmDel(null) }}>Eliminar</Button></>}
       >
         <p className="text-sm text-zinc-500">Tens a certeza que queres eliminar <strong className="text-zinc-800 dark:text-zinc-100">{confirmDel?.name}</strong>? Esta ação não pode ser revertida.</p>
-      </Modal>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Programs tab (per selected client)
-function ProgramasTab({ customerId }: { customerId: string }) {
-  const qc = useQueryClient()
-  const { data: programsData, isLoading } = useGetGymPrograms({ customerId }, { query: { enabled: !!customerId } })
-  const { data: catalogData } = useGetGymExercises()
-  const programs = (programsData ?? []) as GymProgram[]
-  const catalog = (catalogData ?? []) as GymExercise[]
-
-  const { data: templatesData } = useGetGymWorkoutTemplates()
-  const templates = (templatesData ?? []) as GymWorkout[]
-  const { data: planosData } = useGetGymPlanos()
-  const planos = (planosData ?? []) as GymPlano[]
-
-  const [newProgOpen, setNewProgOpen] = useState(false)
-  const [progName, setProgName] = useState('')
-  const [progRange, setProgRange] = useState<DateRange | undefined>(undefined)
-  const openNewProg = () => { setProgName(''); setProgRange(undefined); setNewProgOpen(true) }
-  const [workoutModal, setWorkoutModal] = useState<{ programId: string; workout: GymWorkout | null; mode: 'weekly' | 'free' } | null>(null)
-  const [assignPlanoProgramId, setAssignPlanoProgramId] = useState<string | null>(null)
-  const [assignPlanoId, setAssignPlanoId] = useState('')
-
-  const { authHeader } = useAuth()
-  const invalidate = () => qc.invalidateQueries({ queryKey: [{ url: '/gym/programs' }] })
-  // Adiciona os treinos de um Plano (com dias) ao programa do cliente.
-  const assignPlano = useMutation({
-    mutationFn: async () => {
-      const plano = planos.find((p) => p.id === assignPlanoId)
-      if (!plano || !assignPlanoProgramId) return
-      for (const w of plano.workouts) {
-        await postGymProgramsProgramidWorkouts(assignPlanoProgramId, {
-          name: w.name,
-          contentKey: (w as any).contentKey ?? null,
-          daysOfWeek: w.daysOfWeek ?? [],
-          dayLabel: (w as any).dayLabel ?? null,
-          exercises: (w.exercises ?? []).map((e) => rowToPayload(dtoToRow(e))),
-        } as any)
-      }
-    },
-    onSuccess: () => { invalidate(); setAssignPlanoProgramId(null); setAssignPlanoId(''); toast.success('Plano adicionado ao programa') },
-    onError: (e) => toast.error(getApiError(e)),
-  })
-
-  // Programa ativo do cliente — o que aparece na app dele para fazer.
-  // Marcar um como ativo desativa os outros (regra na API).
-  const setActive = useMutation({
-    mutationFn: (programId: string) =>
-      axiosInstance.patch(`/gym/programs/${programId}/active`, { active: true }, { headers: authHeader(), withCredentials: true }),
-    onSuccess: () => { invalidate(); toast.success('Programa ativo definido') },
-    onError: (e) => toast.error(getApiError(e)),
-  })
-
-  const createProgram = useMutation({
-    mutationFn: () => postGymPrograms({
-      name: progName.trim(),
-      customerId,
-      owner: 'coach',
-      startDate: progRange?.from ? format(progRange.from, 'yyyy-MM-dd') : null,
-      endDate: progRange?.to ? format(progRange.to, 'yyyy-MM-dd') : null,
-    } as any),
-    onSuccess: () => { invalidate(); setNewProgOpen(false); setProgName(''); setProgRange(undefined); toast.success('Programa criado') },
-    onError: (e) => toast.error(getApiError(e)),
-  })
-  const removeProgram = useMutation({
-    mutationFn: (id: string) => deleteGymProgramsId(id),
-    onSuccess: () => { invalidate(); toast.success('Programa eliminado') },
-    onError: (e) => toast.error(getApiError(e)),
-  })
-  const removeWorkout = useMutation({
-    mutationFn: (id: string) => deleteGymWorkoutsId(id),
-    onSuccess: () => { invalidate(); toast.success('Treino eliminado') },
-    onError: (e) => toast.error(getApiError(e)),
-  })
-  const [confirmDel, setConfirmDel] = useState<{ kind: 'program' | 'workout'; id: string; name: string } | null>(null)
-
-  // Ordem local para reordenar (drag & drop) com feedback imediato
-  const [ordered, setOrdered] = useState<GymProgram[]>([])
-  useEffect(() => { setOrdered((programsData ?? []) as GymProgram[]) }, [programsData])
-
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
-
-  const reorderProgramsMut = useMutation({
-    mutationFn: (order: string[]) => patchGymProgramsReorder({ order }),
-    onError: (e) => { toast.error(getApiError(e)); invalidate() },
-  })
-  const reorderWorkoutsMut = useMutation({
-    mutationFn: (v: { programId: string; order: string[] }) =>
-      patchGymProgramsProgramidWorkoutsReorder(v.programId, { order: v.order }),
-    onError: (e) => { toast.error(getApiError(e)); invalidate() },
-  })
-
-  const onProgramDragEnd = (e: DragEndEvent) => {
-    const { active, over } = e
-    if (!over || active.id === over.id) return
-    const oldIdx = ordered.findIndex((p) => p.id === active.id)
-    const newIdx = ordered.findIndex((p) => p.id === over.id)
-    if (oldIdx < 0 || newIdx < 0) return
-    const next = arrayMove(ordered, oldIdx, newIdx)
-    setOrdered(next)
-    reorderProgramsMut.mutate(next.map((p) => p.id))
-  }
-  const onWorkoutDragEnd = (programId: string) => (e: DragEndEvent) => {
-    const { active, over } = e
-    if (!over || active.id === over.id) return
-    const prog = ordered.find((p) => p.id === programId)
-    if (!prog) return
-    const oldIdx = prog.workouts.findIndex((w) => w.id === active.id)
-    const newIdx = prog.workouts.findIndex((w) => w.id === over.id)
-    if (oldIdx < 0 || newIdx < 0) return
-    const workouts = arrayMove(prog.workouts, oldIdx, newIdx)
-    setOrdered(ordered.map((p) => (p.id === programId ? { ...p, workouts } : p)))
-    reorderWorkoutsMut.mutate({ programId, order: workouts.map((w) => w.id) })
-  }
-
-  if (isLoading) return <Card className="p-8 text-center text-zinc-400">A carregar programas…</Card>
-
-  if (workoutModal) {
-    return (
-      <WorkoutModal
-        open
-        onClose={() => setWorkoutModal(null)}
-        programId={workoutModal.programId}
-        workout={workoutModal.workout}
-        mode={workoutModal.mode}
-        catalog={catalog}
-        templates={templates}
-        onSaved={invalidate}
-      />
-    )
-  }
-
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-zinc-500">{programs.length} programa{programs.length === 1 ? '' : 's'}</p>
-        <Button icon="plus" onClick={openNewProg}>Atribuir programa</Button>
-      </div>
-
-      {ordered.length === 0 ? (
-        <EmptyState icon="folder" title="Sem programas" desc="Cria um programa de treino e atribui-o a este cliente." action={<Button icon="plus" onClick={openNewProg}>Atribuir programa</Button>} />
-      ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onProgramDragEnd}>
-          <SortableContext items={ordered.map((p) => p.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-5">
-              {ordered.map((p) => (
-                <Sortable key={p.id} id={p.id}>
-                  {(handle) => (
-                    <Card className="p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <DragHandle {...handle} />
-                        <Icon name="folder" className="w-4 h-4 text-accent" />
-                        <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{p.name}</h3>
-                        <Badge tone={p.owner === 'coach' ? 'green' : 'neutral'}>{p.owner === 'coach' ? 'Coach' : 'Cliente'}</Badge>
-                        {(p as any).active && <Badge tone="green">★ Ativo</Badge>}
-                        {(p as any).startDate && (p as any).endDate && (
-                          <span className="inline-flex items-center gap-1 text-xs text-zinc-500">
-                            <Icon name="calendar" className="w-3.5 h-3.5" />
-                            {format(new Date((p as any).startDate), 'dd/MM/yy')} → {format(new Date((p as any).endDate), 'dd/MM/yy')}
-                          </span>
-                        )}
-                        <span className="text-xs text-zinc-400">{p.workouts.length} treino{p.workouts.length === 1 ? '' : 's'}</span>
-                        <div className="ml-auto flex items-center gap-1">
-                          {!(p as any).active && (
-                            <Button size="sm" variant="ghost" icon="check" onClick={() => setActive.mutate(p.id)}>Tornar ativo</Button>
-                          )}
-                          {p.owner === 'coach' && (
-                            <>
-                              <Button size="sm" variant="ghost" icon="calendar" onClick={() => { setAssignPlanoProgramId(p.id); setAssignPlanoId('') }}>Plano</Button>
-                              <Button size="sm" variant="secondary" icon="plus" onClick={() => setWorkoutModal({ programId: p.id, workout: null, mode: (p as any).mode === 'free' ? 'free' : 'weekly' })}>Treino</Button>
-                            </>
-                          )}
-                          <IconButton icon="trash" label="Eliminar programa" onClick={() => setConfirmDel({ kind: 'program', id: p.id, name: p.name })} />
-                        </div>
-                      </div>
-
-                      {p.workouts.length === 0 ? (
-                        <p className="text-sm text-zinc-400 py-2">Sem treinos neste programa.</p>
-                      ) : (
-                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onWorkoutDragEnd(p.id)}>
-                          <SortableContext items={p.workouts.map((w) => w.id)} strategy={rectSortingStrategy}>
-                            <div className="grid gap-2 sm:grid-cols-2">
-                              {p.workouts.map((w) => (
-                                <Sortable key={w.id} id={w.id} className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 bg-white dark:bg-zinc-900">
-                                  {(wHandle) => (
-                                    <>
-                                      <div className="flex items-center gap-2 mb-1.5">
-                                        {p.owner === 'coach' && <DragHandle {...wHandle} />}
-                                        <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100 flex-1 truncate">{w.name}</span>
-                                        {p.owner === 'coach' && (
-                                          <>
-                                            <IconButton icon="edit" label="Editar" onClick={() => setWorkoutModal({ programId: p.id, workout: w, mode: (p as any).mode === 'free' ? 'free' : 'weekly' })} />
-                                            <IconButton icon="trash" label="Eliminar" onClick={() => setConfirmDel({ kind: 'workout', id: w.id, name: w.name })} />
-                                          </>
-                                        )}
-                                      </div>
-                                      {(w as any).dayLabel ? (
-                                        <div className="mb-2"><span className="text-[11px] font-semibold text-accent">{(w as any).dayLabel}</span></div>
-                                      ) : (w.daysOfWeek ?? []).length > 0 ? (
-                                        <div className="mb-2"><DayChips days={w.daysOfWeek ?? []} /></div>
-                                      ) : null}
-                                      <div className="flex flex-wrap gap-1 mb-2">
-                                        {(w.muscleGroups ?? []).map((g) => <GroupChip key={g} group={g} />)}
-                                      </div>
-                                      <ul className="text-xs text-zinc-500 space-y-0.5">
-                                        {w.exercises.slice(0, 4).map((e) => (
-                                          <li key={e.id} className="truncate">{e.name} · {(e as any).type === 'time' ? `${(e as any).duration ?? 0}s` : `${e.sets}×${e.reps}${e.weight ? ` · ${e.weight}kg` : ''}`}</li>
-                                        ))}
-                                        {w.exercises.length > 4 && <li className="text-zinc-400">+{w.exercises.length - 4} mais…</li>}
-                                      </ul>
-                                    </>
-                                  )}
-                                </Sortable>
-                              ))}
-                            </div>
-                          </SortableContext>
-                        </DndContext>
-                      )}
-                    </Card>
-                  )}
-                </Sortable>
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-      )}
-
-      <Modal
-        open={newProgOpen}
-        onClose={() => setNewProgOpen(false)}
-        title="Atribuir programa"
-        subtitle="Cria um programa de treino para este cliente (só leitura na app dele)."
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setNewProgOpen(false)}>Cancelar</Button>
-            <Button isLoading={createProgram.isPending} disabled={!progName.trim() || !progRange?.from || !progRange?.to} onClick={() => createProgram.mutate()}>Criar</Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <Input label="Nome do programa" value={progName} onChange={(ev: any) => setProgName(ev.target.value)} placeholder="Ex: Treino 1" />
-          <div>
-            <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Período (início → fim)</span>
-            <DateRangePicker value={progRange} onChange={setProgRange} />
-            <p className="text-xs text-zinc-400 mt-1.5">
-              {progRange?.from && progRange?.to
-                ? `${format(progRange.from, 'dd/MM/yyyy')} → ${format(progRange.to, 'dd/MM/yyyy')}`
-                : 'Escolhe a data de início e de fim no calendário.'}
-            </p>
-          </div>
-        </div>
-      </Modal>
-
-      <Modal
-        open={!!confirmDel}
-        onClose={() => setConfirmDel(null)}
-        title={confirmDel?.kind === 'program' ? 'Eliminar programa?' : 'Eliminar treino?'}
-        footer={<><Button variant="ghost" onClick={() => setConfirmDel(null)}>Cancelar</Button><Button variant="danger" isLoading={removeProgram.isPending || removeWorkout.isPending} onClick={() => { if (confirmDel) { if (confirmDel.kind === 'program') removeProgram.mutate(confirmDel.id); else removeWorkout.mutate(confirmDel.id) } setConfirmDel(null) }}>Eliminar</Button></>}
-      >
-        <p className="text-sm text-zinc-500">Tens a certeza que queres eliminar <strong className="text-zinc-800 dark:text-zinc-100">{confirmDel?.name}</strong>? Esta ação não pode ser revertida.</p>
-      </Modal>
-
-      <Modal
-        open={assignPlanoProgramId !== null}
-        onClose={() => setAssignPlanoProgramId(null)}
-        title="Adicionar plano ao programa"
-        subtitle="Copia os treinos do plano (com os dias) para este programa do cliente."
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setAssignPlanoProgramId(null)}>Cancelar</Button>
-            <Button isLoading={assignPlano.isPending} disabled={!assignPlanoId} onClick={() => assignPlano.mutate()}>Adicionar</Button>
-          </>
-        }
-      >
-        {planos.length === 0 ? (
-          <p className="text-sm text-zinc-400">Ainda não há planos. Cria um na tab “Planos”.</p>
-        ) : (
-          <Combobox
-            value={assignPlanoId}
-            onChange={setAssignPlanoId}
-            options={planos.map((p) => ({ value: p.id, label: `${p.name} · ${p.workouts.length} treino${p.workouts.length === 1 ? '' : 's'}` }))}
-            placeholder="Escolher plano…"
-            searchPlaceholder="Pesquisar plano…"
-          />
-        )}
       </Modal>
     </div>
   )
@@ -2064,7 +1567,7 @@ type DiaDraft = {
   rows: DraftExercise[]           // snapshot do treino; [] = descanso
 }
 
-const snapshotRows = (exs: any[]): DraftExercise[] => (exs ?? []).map(dtoToRow)
+const snapshotRows = (exs: GymWorkoutExercise[]): DraftExercise[] => (exs ?? []).map(dtoToRow)
 
 // Datas (período do plano do cliente) — dois inputs nativos (início/fim), estilo da app.
 const todayISO = () => format(new Date(), 'yyyy-MM-dd')
@@ -2076,10 +1579,10 @@ const fmtBR = (iso: string) => { if (!iso) return ''; const [y, m, d] = iso.spli
 function PickTreinoModal({ open, title, templates, onClose, onPick, onEdit, onCriarNovo }: {
   open: boolean
   title?: string
-  templates: GymWorkout[]
+  templates: GymWorkoutTemplate[]
   onClose: () => void
-  onPick: (t: GymWorkout) => void
-  onEdit: (t: GymWorkout) => void
+  onPick: (t: GymWorkoutTemplate) => void
+  onEdit: (t: GymWorkoutTemplate) => void
   onCriarNovo: () => void
 }) {
   const { colorOf } = useGymGroups()
@@ -2119,7 +1622,7 @@ function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
   onClose: () => void
   plano: GymPlano | null
   catalog: GymExercise[]
-  templates: GymWorkout[]
+  templates: GymWorkoutTemplate[]
   onSaved: () => void
 }) {
   const qc = useQueryClient()
@@ -2141,7 +1644,7 @@ function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
         uid: newUid(), label: wd.label, dayIndex: wd.value, treinoId: null,
         workoutId: w?.id ?? null,
         treinoName: w?.name ?? null,
-        treinoContentKey: w ? ((w as any).contentKey ?? null) : null,
+        treinoContentKey: w ? (w.contentKey ?? null) : null,
         rows: w ? snapshotRows(w.exercises ?? []) : [],
       }
     })
@@ -2149,16 +1652,16 @@ function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
   useEffect(() => {
     if (!open) return
     setName(plano?.name ?? '')
-    setContentKey((plano as any)?.contentKey ?? null)
+    setContentKey(plano?.contentKey ?? null)
     setNote(plano?.note ?? '')
-    const m = (plano as any)?.mode === 'free' ? 'free' : 'weekly'
+    const m: 'weekly' | 'free' = plano?.mode === 'free' ? 'free' : 'weekly'
     setMode(m)
     if (!plano) {
       setDias(buildWeeklyDays([]))
     } else if (m === 'free') {
       setDias((plano.workouts ?? []).map((w, i) => ({
-        uid: newUid(), label: (w as any).dayLabel || `Dia ${i + 1}`, dayIndex: null,
-        treinoId: null, treinoName: w.name, treinoContentKey: (w as any).contentKey ?? null,
+        uid: newUid(), label: w.dayLabel || `Dia ${i + 1}`, dayIndex: null,
+        treinoId: null, treinoName: w.name, treinoContentKey: w.contentKey ?? null,
         rows: snapshotRows(w.exercises ?? []),
       })))
     } else {
@@ -2184,9 +1687,9 @@ function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
       })
     })
   }
-  const assignTreino = (diaUid: string, t: GymWorkout) =>
+  const assignTreino = (diaUid: string, t: GymWorkoutTemplate) =>
     setDias((d) => d.map((x) => x.uid === diaUid ? {
-      ...x, treinoId: t.id, treinoName: t.name, treinoContentKey: (t as any).contentKey ?? null, rows: snapshotRows(t.exercises ?? []),
+      ...x, treinoId: t.id, treinoName: t.name, treinoContentKey: t.contentKey ?? null, rows: snapshotRows(t.exercises ?? []),
     } : x))
   const clearTreino = (diaUid: string) =>
     setDias((d) => d.map((x) => x.uid === diaUid ? { ...x, treinoId: null, treinoName: null, treinoContentKey: null, rows: [] } : x))
@@ -2212,7 +1715,7 @@ function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
           exercises: d.rows.map(rowToPayload),
         }
       }))
-      const body = { name: name.trim(), contentKey: planoKey, note: note || null, mode, workouts } as any
+      const body = { name: name.trim(), contentKey: planoKey, note: note || null, mode, workouts }
       if (plano) return putGymPlanosId(plano.id, body)
       return postGymPlanos(body)
     },
@@ -2319,7 +1822,7 @@ function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
         templates={templates}
         onClose={() => setPickFor(null)}
         onPick={(t) => { if (pickFor) assignTreino(pickFor, t); setPickFor(null) }}
-        onEdit={(t) => { if (pickFor) setEditTreino({ diaUid: pickFor, seed: { name: t.name, contentKey: (t as any).contentKey ?? null, rows: snapshotRows(t.exercises ?? []) } }); setPickFor(null) }}
+        onEdit={(t) => { if (pickFor) setEditTreino({ diaUid: pickFor, seed: { name: t.name, contentKey: t.contentKey ?? null, rows: snapshotRows(t.exercises ?? []) } }); setPickFor(null) }}
         onCriarNovo={() => { if (pickFor) setEditTreino({ diaUid: pickFor, seed: { name: '', contentKey: null, rows: [] } }); setPickFor(null) }}
       />
     </div>
@@ -2333,7 +1836,7 @@ function PlanosTab() {
   const { data: catalogData } = useGetGymExercises()
   const catalog = (catalogData ?? []) as GymExercise[]
   const { data: templatesData } = useGetGymWorkoutTemplates()
-  const templates = (templatesData ?? []) as GymWorkout[]
+  const templates = (templatesData ?? []) as GymWorkoutTemplate[]
 
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<GymPlano | null>(null)
@@ -2384,7 +1887,7 @@ function PlanosTab() {
         <div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {pg.pageItems.map((p) => {
-              const livre = (p as any).mode === 'free'
+              const livre = p.mode === 'free'
               return (
                 <Card
                   key={p.id}
@@ -2410,7 +1913,7 @@ function PlanosTab() {
                     {livre
                       ? p.workouts.map((w, i) => (
                           <div key={w.id} className="flex-1 min-w-[32px] rounded-md px-1 py-1 text-center bg-accent/[0.07]" title={w.name}>
-                            <p className="text-[9px] font-semibold text-zinc-400 uppercase truncate">{(w as any).dayLabel || `D${i + 1}`}</p>
+                            <p className="text-[9px] font-semibold text-zinc-400 uppercase truncate">{w.dayLabel || `D${i + 1}`}</p>
                             <Icon name="layers" className="w-3 h-3 text-accent mx-auto mt-0.5" />
                           </div>
                         ))
@@ -2513,7 +2016,7 @@ function DiaTreinoEditor({ initialName, initialContentKey, initialRows, catalog,
 function ClientePlanoEditor({ program, customer, templates, catalog, onClose, onSaved }: {
   program: GymProgram
   customer: { customerId: string; name: string }
-  templates: GymWorkout[]
+  templates: GymWorkoutTemplate[]
   catalog: GymExercise[]
   onClose: () => void
   onSaved: () => void
@@ -2521,11 +2024,11 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
   const qc = useQueryClient()
   const { colorOf } = useGymGroups()
   const [name, setName] = useState(program.name ?? '')
-  const [contentKey, setContentKey] = useState<string | null>((program as any).contentKey ?? null)
-  const [note, setNote] = useState((program as any).note ?? '')
-  const [mode, setMode] = useState<'weekly' | 'free'>((program as any).mode === 'free' ? 'free' : 'weekly')
-  const [inicio, setInicio] = useState<string>(((program as any).startDate as string) || todayISO())
-  const [fim, setFim] = useState<string>(((program as any).endDate as string) || addDaysISO(todayISO(), 84))
+  const [contentKey, setContentKey] = useState<string | null>(program.contentKey ?? null)
+  const [note, setNote] = useState(program.note ?? '')
+  const [mode, setMode] = useState<'weekly' | 'free'>(program.mode === 'free' ? 'free' : 'weekly')
+  const [inicio, setInicio] = useState<string>(program.startDate || todayISO())
+  const [fim, setFim] = useState<string>(program.endDate || addDaysISO(todayISO(), 84))
   const [dias, setDias] = useState<DiaDraft[]>([])
   const [pickFor, setPickFor] = useState<string | null>(null)
   const [editTreino, setEditTreino] = useState<{ diaUid: string; seed?: { name: string; contentKey: string | null; rows: DraftExercise[] } } | null>(null)
@@ -2539,17 +2042,17 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
         uid: newUid(), label: wd.label, dayIndex: wd.value, treinoId: null,
         workoutId: w?.id ?? null,
         treinoName: w?.name ?? null,
-        treinoContentKey: w ? ((w as any).contentKey ?? null) : null,
+        treinoContentKey: w ? (w.contentKey ?? null) : null,
         rows: w ? snapshotRows(w.exercises ?? []) : [],
       }
     })
 
   useEffect(() => {
-    const m = (program as any).mode === 'free' ? 'free' : 'weekly'
+    const m = program.mode === 'free' ? 'free' : 'weekly'
     if (m === 'free') {
       setDias((program.workouts ?? []).map((w, i) => ({
-        uid: newUid(), label: (w as any).dayLabel || `Dia ${i + 1}`, dayIndex: null,
-        treinoId: null, workoutId: w.id, treinoName: w.name, treinoContentKey: (w as any).contentKey ?? null,
+        uid: newUid(), label: w.dayLabel || `Dia ${i + 1}`, dayIndex: null,
+        treinoId: null, workoutId: w.id, treinoName: w.name, treinoContentKey: w.contentKey ?? null,
         rows: snapshotRows(w.exercises ?? []),
       })))
     } else {
@@ -2572,8 +2075,8 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
       })
     })
   }
-  const assignTreino = (diaUid: string, t: GymWorkout) =>
-    setDias((d) => d.map((x) => x.uid === diaUid ? { ...x, treinoId: t.id, treinoName: t.name, treinoContentKey: (t as any).contentKey ?? null, rows: snapshotRows(t.exercises ?? []) } : x))
+  const assignTreino = (diaUid: string, t: GymWorkoutTemplate) =>
+    setDias((d) => d.map((x) => x.uid === diaUid ? { ...x, treinoId: t.id, treinoName: t.name, treinoContentKey: t.contentKey ?? null, rows: snapshotRows(t.exercises ?? []) } : x))
   const clearTreino = (diaUid: string) => setDias((d) => d.map((x) => x.uid === diaUid ? { ...x, treinoId: null, treinoName: null, treinoContentKey: null, rows: [] } : x))
   const renameDia = (diaUid: string, label: string) => setDias((d) => d.map((x) => x.uid === diaUid ? { ...x, label } : x))
   const addDiaLivre = () => setDias((d) => [...d, { uid: newUid(), label: `Dia ${d.length + 1}`, dayIndex: null, treinoId: null, treinoName: null, treinoContentKey: null, rows: [] }])
@@ -2588,7 +2091,7 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
   const save = useMutation({
     mutationFn: async () => {
       const planoKey = await ensureCmsName(contentKey, 'gym', name, defaultLang)
-      await putGymProgramsId(program.id, { name: name.trim(), contentKey: planoKey, note: note || null, mode, startDate: inicio || null, endDate: fim || null } as any)
+      await putGymProgramsId(program.id, { name: name.trim(), contentKey: planoKey, note: note || null, mode, startDate: inicio || null, endDate: fim || null })
 
       // Preserva os ids dos treinos que já existem (PATCH), cria os novos (POST)
       // e apaga os removidos (DELETE). Assim o histórico do cliente (logs por
@@ -2603,10 +2106,10 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
           exercises: d.rows.map(rowToPayload),
         }
         if (d.workoutId) {
-          await putGymWorkoutsId(d.workoutId, body as any)
+          await putGymWorkoutsId(d.workoutId, body)
           kept.add(d.workoutId)
         } else {
-          await postGymProgramsProgramidWorkouts(program.id, body as any)
+          await postGymProgramsProgramidWorkouts(program.id, body)
         }
       }
       for (const w of (program.workouts ?? [])) {
@@ -2724,7 +2227,7 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
         templates={templates}
         onClose={() => setPickFor(null)}
         onPick={(t) => { if (pickFor) assignTreino(pickFor, t); setPickFor(null) }}
-        onEdit={(t) => { if (pickFor) setEditTreino({ diaUid: pickFor, seed: { name: t.name, contentKey: (t as any).contentKey ?? null, rows: snapshotRows(t.exercises ?? []) } }); setPickFor(null) }}
+        onEdit={(t) => { if (pickFor) setEditTreino({ diaUid: pickFor, seed: { name: t.name, contentKey: t.contentKey ?? null, rows: snapshotRows(t.exercises ?? []) } }); setPickFor(null) }}
         onCriarNovo={() => { if (pickFor) setEditTreino({ diaUid: pickFor, seed: { name: '', contentKey: null, rows: [] } }); setPickFor(null) }}
       />
     </div>
@@ -2752,7 +2255,7 @@ function AtribuirPlanoModal({ open, customer, planos, onClose, onSaved }: {
   useEffect(() => { if (open) { setSel(null); setDe(todayISO()); setAte(addDaysISO(todayISO(), 84)) } }, [open])
   const erroData = ate < de
   const assign = useMutation({
-    mutationFn: () => postGymPlanosIdAssign(sel!, { customerId: customer!.customerId, startDate: de || null, endDate: ate || null } as any),
+    mutationFn: () => postGymPlanosIdAssign(sel!, { customerId: customer!.customerId, startDate: de || null, endDate: ate || null }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: [{ url: '/gym/programs' }] }); toast.success('Plano atribuído ao cliente'); onSaved(); onClose() },
     onError: (e) => toast.error(getApiError(e)),
   })
@@ -2762,7 +2265,7 @@ function AtribuirPlanoModal({ open, customer, planos, onClose, onSaved }: {
       <div className="space-y-2 max-h-[42vh] overflow-y-auto -mx-1 px-1">
         {planos.length === 0 && <p className="text-sm text-zinc-400 text-center py-6">Sem planos. Cria um plano primeiro na tab “Planos”.</p>}
         {planos.map((p) => {
-          const livre = (p as any).mode === 'free'
+          const livre = p.mode === 'free'
           const dias = (p.workouts ?? []).length
           return (
             <button key={p.id} onClick={() => setSel(p.id)} className={`w-full flex items-center gap-3 p-3 rounded-lg border text-left transition ${sel === p.id ? 'border-accent bg-accent/[0.04]' : 'border-zinc-100 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-600'}`}>
@@ -2790,7 +2293,7 @@ function AtribuirPlanoModal({ open, customer, planos, onClose, onSaved }: {
 // Detalhe do cliente: cabeçalho com ações + dashboard de progresso.
 function ClienteProgresso({ customer, onBack, onAtribuir, onEditar }: { customer: Cliente; onBack: () => void; onAtribuir: () => void; onEditar: () => void }) {
   const { data: programsData } = useGetGymPrograms({ customerId: customer.customerId }, { query: { enabled: !!customer.customerId } })
-  const active = ((programsData ?? []) as GymProgram[]).find((p) => (p as any).active)
+  const active = ((programsData ?? []) as GymProgram[]).find((p) => p.active)
   const { data: me } = useGetUsersMe()
   const { colorOf } = useGymGroups()
   const handlePdf = () => {
@@ -2813,8 +2316,8 @@ function ClienteProgresso({ customer, onBack, onAtribuir, onEditar }: { customer
           <div className="min-w-0">
             <h2 className="text-xl font-semibold text-zinc-900 dark:text-white truncate">{customer.name}</h2>
             <p className="text-sm text-zinc-500">
-              {active && (active as any).startDate
-                ? `Plano ${(active as any).startDate} → ${(active as any).endDate || 'atual'}`
+              {active && active.startDate
+                ? `Plano ${active.startDate} → ${active.endDate || 'atual'}`
                 : 'Plano e progresso do cliente'}
             </p>
           </div>
@@ -2837,7 +2340,7 @@ function ClientePlanoEditorLoader({ customer, onClose }: { customer: Cliente; on
   const { data: programsData, isLoading } = useGetGymPrograms({ customerId: customer.customerId }, { query: { enabled: !!customer.customerId } })
   const { data: templatesData } = useGetGymWorkoutTemplates()
   const { data: catalogData } = useGetGymExercises()
-  const active = ((programsData ?? []) as GymProgram[]).find((p) => (p as any).active)
+  const active = ((programsData ?? []) as GymProgram[]).find((p) => p.active)
 
   if (isLoading) return <Card className="p-8 text-center text-zinc-400">A carregar plano…</Card>
   if (!active) {
@@ -2852,7 +2355,7 @@ function ClientePlanoEditorLoader({ customer, onClose }: { customer: Cliente; on
     <ClientePlanoEditor
       program={active}
       customer={customer}
-      templates={(templatesData ?? []) as GymWorkout[]}
+      templates={(templatesData ?? []) as GymWorkoutTemplate[]}
       catalog={(catalogData ?? []) as GymExercise[]}
       onClose={onClose}
       onSaved={() => {}}
@@ -2943,85 +2446,6 @@ function ClientesTab({ customers }: { customers: Cliente[] }) {
   )
 }
 
-// ── Mensalidades (subscrições + KPIs financeiros) ──
-function MensalidadesTab() {
-  const [sub, setSub] = useState<'visao' | 'subscricoes'>('visao')
-  const { data: finance } = useGetGymMensalidadeFinance()
-  const kpis = ((finance as any)?.kpis ?? {}) as { recebido?: number; emDivida?: number; emAtraso?: number; mrr?: number }
-  const { data: subsData, refetch } = useGetGymSubscriptions()
-  const subs = (subsData ?? []) as { subscriptionId: string; name: string; price: number }[]
-
-  const [modalOpen, setModalOpen] = useState(false)
-  const [name, setName] = useState('')
-  const [price, setPrice] = useState('')
-  const createMut = usePostGymSubscriptions({
-    mutation: {
-      onSuccess: () => { void refetch(); setModalOpen(false); setName(''); setPrice('') },
-      onError: (e) => toast.error(getApiError(e)),
-    },
-  })
-
-  const eur = (n?: number) => new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(Number(n ?? 0))
-  const subtabs = [
-    { key: 'visao' as const, label: 'Visão geral' },
-    { key: 'subscricoes' as const, label: 'Subscrições' },
-  ]
-
-  return (
-    <div className="space-y-6">
-      <div className="flex gap-1 p-1 rounded-lg bg-zinc-100 dark:bg-zinc-800/60 w-fit">
-        {subtabs.map((s) => (
-          <button key={s.key} onClick={() => setSub(s.key)}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${sub === s.key ? 'bg-white dark:bg-zinc-900 text-accent shadow-sm' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}>
-            {s.label}
-          </button>
-        ))}
-      </div>
-
-      {sub === 'visao' && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="p-4"><p className="text-[13px] text-zinc-500">Recebido este mês</p><p className="mt-1 text-lg font-semibold">{eur(kpis.recebido)}</p></Card>
-          <Card className="p-4"><p className="text-[13px] text-zinc-500">Em dívida</p><p className="mt-1 text-lg font-semibold text-red-600 dark:text-red-400">{eur(kpis.emDivida)}</p></Card>
-          <Card className="p-4"><p className="text-[13px] text-zinc-500">Em atraso</p><p className="mt-1 text-lg font-semibold">{kpis.emAtraso ?? 0}</p></Card>
-          <Card className="p-4"><p className="text-[13px] text-zinc-500">MRR</p><p className="mt-1 text-lg font-semibold">{eur(kpis.mrr)}</p></Card>
-        </div>
-      )}
-
-      {sub === 'subscricoes' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Catálogo de subscrições</h2>
-            <Button icon="plus" size="sm" onClick={() => setModalOpen(true)}>Nova subscrição</Button>
-          </div>
-          {subs.length === 0 ? (
-            <EmptyState icon="euro" title="Sem subscrições" desc="Cria a primeira subscrição (mensalidade) para os teus clientes." action={<Button icon="plus" onClick={() => setModalOpen(true)}>Nova subscrição</Button>} />
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {subs.map((s) => (
-                <Card key={s.subscriptionId} className="p-4">
-                  <h3 className="font-semibold text-zinc-900 dark:text-white">{s.name}</h3>
-                  <p className="text-sm text-zinc-500 mt-1">{eur(s.price)}/mês</p>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Nova subscrição" width="max-w-md"
-        footer={<>
-          <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
-          <Button isLoading={createMut.isPending} disabled={!name.trim()} onClick={() => createMut.mutate({ data: { name: name.trim(), price: Number(price) || 0 } as any })}>Criar</Button>
-        </>}>
-        <div className="space-y-3">
-          <Input label="Nome" value={name} onChange={(e: any) => setName(e.target.value)} placeholder="Ex: Mensalidade Base" />
-          <Input label="Preço (€)" type="number" step={0.01} min={0} value={price} onChange={(e: any) => setPrice(e.target.value)} placeholder="25" />
-        </div>
-      </Modal>
-    </div>
-  )
-}
-
 /**
  * "Ginásio" — cada separador vive na sua própria rota (`/ginasio`,
  * `/ginasio/treinos`, `/ginasio/planos`, `/ginasio/clientes` — T2.5, Fase 2
@@ -3029,10 +2453,9 @@ function MensalidadesTab() {
  * `Tabs` de topo, é a sidebar (`NavItemGroup`/`Shell.tsx`); a página só
  * recebe a vista pedida via `view`. A página nunca usou `?tab=` (sem
  * redirect de deep-link legacy a fazer aqui, ao contrário de
- * Loja/Clientes/Financeiro). O sub-toggle interno "Visão geral"/"Subscrições"
- * da tab Mensalidades (`MensalidadesTab`, código morto — não ligado a esta
- * rota, ver nota no CLAUDE.md) NÃO migra: é interno a um componente, não uma
- * tab de topo de página.
+ * Loja/Clientes/Financeiro). As mensalidades vivem no Financeiro
+ * (`MensalidadesTab` de `GymMensalidade.tsx`, via `FinanceiroPage.tsx`) —
+ * o antigo `MensalidadesTab` local (código morto) foi removido em 2026-07-21.
  *
  * Nota do subitem "clientes": o rótulo na sidebar é "Progresso de clientes",
  * não "Clientes" — ver o comentário em `src/lib/navigation.ts` (colisão de

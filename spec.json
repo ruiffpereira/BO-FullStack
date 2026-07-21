@@ -1028,6 +1028,11 @@
           "name": {
             "type": "string"
           },
+          "contentKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Chave CMS do nome (traduções)"
+          },
           "color": {
             "type": "string",
             "example": "#3B82F6"
@@ -1045,7 +1050,10 @@
         "required": [
           "muscleGroupId",
           "name",
-          "color"
+          "contentKey",
+          "color",
+          "position",
+          "parentId"
         ]
       },
       "GymMedia": {
@@ -1111,7 +1119,7 @@
       },
       "GymSubscription": {
         "type": "object",
-        "description": "Subscrição (mensalidade) do catálogo do tenant.",
+        "description": "Subscrição (mensalidade) do catálogo do tenant. A forma embutida em GymMembership/GymFinance devolve só subscriptionId/name/price/dueDay/active; vatRate/isDefault/position/clientCount aparecem apenas no catálogo (/gym/subscriptions).",
         "properties": {
           "subscriptionId": {
             "type": "string",
@@ -1125,6 +1133,11 @@
             "type": "number",
             "example": 28
           },
+          "vatRate": {
+            "type": "number",
+            "nullable": true,
+            "description": "IVA em % (ex. 23). null = sem IVA. Só no catálogo (/gym/subscriptions)"
+          },
           "dueDay": {
             "type": "integer",
             "minimum": 1,
@@ -1136,10 +1149,11 @@
           },
           "isDefault": {
             "type": "boolean",
-            "description": "Plano atribuído automaticamente aos novos convites de sócio (exatamente 1 por tenant)"
+            "description": "Plano atribuído automaticamente aos novos convites de sócio (exatamente 1 por tenant). Só no catálogo"
           },
           "position": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Só no catálogo"
           },
           "clientCount": {
             "type": "integer",
@@ -1149,7 +1163,9 @@
         "required": [
           "subscriptionId",
           "name",
-          "price"
+          "price",
+          "dueDay",
+          "active"
         ]
       },
       "GymPayment": {
@@ -1202,6 +1218,18 @@
             "format": "date",
             "nullable": true
           },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Quando o registo foi criado (carimbo 'Registado a')"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Última alteração do registo"
+          },
           "overdue": {
             "type": "boolean",
             "description": "Derivado: não pago e passou o vencimento"
@@ -1212,7 +1240,15 @@
           "period",
           "amount",
           "dueDate",
-          "status"
+          "status",
+          "paidAt",
+          "method",
+          "notes",
+          "paidAmount",
+          "debtSince",
+          "createdAt",
+          "updatedAt",
+          "overdue"
         ]
       },
       "GymMembership": {
@@ -1228,6 +1264,10 @@
           },
           "blocked": {
             "type": "boolean"
+          },
+          "payOnly": {
+            "type": "boolean",
+            "description": "Cliente 'só paga' (sem app) — fora das estatísticas de assiduidade"
           },
           "status": {
             "type": "string",
@@ -1262,8 +1302,14 @@
         },
         "required": [
           "customerId",
+          "name",
           "blocked",
-          "payments"
+          "payOnly",
+          "status",
+          "subscription",
+          "payments",
+          "currentPeriod",
+          "today"
         ]
       },
       "GymFinance": {
@@ -1296,7 +1342,14 @@
               "blocked": {
                 "type": "integer"
               }
-            }
+            },
+            "required": [
+              "recebido",
+              "emDivida",
+              "emAtraso",
+              "mrr",
+              "blocked"
+            ]
           },
           "rows": {
             "type": "array",
@@ -1312,6 +1365,18 @@
                 },
                 "blocked": {
                   "type": "boolean"
+                },
+                "payOnly": {
+                  "type": "boolean",
+                  "description": "Cliente 'só paga' (sem app) — fora das estatísticas de assiduidade"
+                },
+                "membershipStatus": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "active"
+                  ],
+                  "description": "Estado da MEMBERSHIP (pending = convidado sem palavra-passe) — distinto do status do pagamento"
                 },
                 "subscription": {
                   "allOf": [
@@ -1335,15 +1400,33 @@
                     "paid",
                     "debt",
                     "unpaid"
-                  ]
+                  ],
+                  "description": "Estado do PAGAMENTO do período"
                 },
                 "overdue": {
                   "type": "boolean"
                 }
-              }
+              },
+              "required": [
+                "customerId",
+                "name",
+                "blocked",
+                "payOnly",
+                "membershipStatus",
+                "subscription",
+                "payment",
+                "status",
+                "overdue"
+              ]
             }
           }
-        }
+        },
+        "required": [
+          "period",
+          "today",
+          "kpis",
+          "rows"
+        ]
       },
       "GymInviteResult": {
         "type": "object",
@@ -1477,7 +1560,16 @@
         "required": [
           "exerciseId",
           "name",
-          "muscleGroup"
+          "contentKey",
+          "muscleGroupId",
+          "subGroupId",
+          "muscleGroup",
+          "subGroup",
+          "mediaUrl",
+          "media",
+          "presets",
+          "active",
+          "position"
         ]
       },
       "GymExercisePreset": {
@@ -1636,10 +1728,22 @@
         },
         "required": [
           "id",
+          "exerciseId",
           "name",
           "group",
+          "subGroup",
+          "type",
+          "mode",
           "sets",
-          "reps"
+          "reps",
+          "weight",
+          "rest",
+          "duration",
+          "notes",
+          "setRows",
+          "mediaUrl",
+          "media",
+          "order"
         ]
       },
       "GymWorkoutExerciseInput": {
@@ -1730,6 +1834,11 @@
           "name": {
             "type": "string"
           },
+          "contentKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Chave CMS do nome (traduções)"
+          },
           "muscleGroups": {
             "type": "array",
             "items": {
@@ -1768,7 +1877,55 @@
         "required": [
           "id",
           "name",
-          "exercises"
+          "contentKey",
+          "muscleGroups",
+          "daysOfWeek",
+          "dayLabel",
+          "exercises",
+          "lastDone",
+          "order"
+        ]
+      },
+      "GymWorkoutTemplate": {
+        "type": "object",
+        "description": "Template de treino reutilizável (biblioteca; sem dias — os dias definem-se no plano/programa ao associar).",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "templateId"
+          },
+          "name": {
+            "type": "string"
+          },
+          "contentKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Chave CMS do nome (traduções)"
+          },
+          "muscleGroups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "exercises": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GymWorkoutExercise"
+            }
+          },
+          "order": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "contentKey",
+          "muscleGroups",
+          "exercises",
+          "order"
         ]
       },
       "GymProgram": {
@@ -1782,6 +1939,11 @@
           },
           "name": {
             "type": "string"
+          },
+          "contentKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Chave CMS do nome (traduções)"
           },
           "owner": {
             "type": "string",
@@ -1835,9 +1997,16 @@
         "required": [
           "id",
           "name",
+          "contentKey",
           "owner",
+          "note",
+          "mode",
+          "active",
+          "startDate",
+          "endDate",
           "customerId",
-          "workouts"
+          "workouts",
+          "order"
         ]
       },
       "GymPlanoWorkout": {
@@ -1851,6 +2020,11 @@
           },
           "name": {
             "type": "string"
+          },
+          "contentKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Chave CMS do nome (traduções)"
           },
           "muscleGroups": {
             "type": "array",
@@ -1884,7 +2058,12 @@
         "required": [
           "id",
           "name",
-          "exercises"
+          "contentKey",
+          "muscleGroups",
+          "daysOfWeek",
+          "dayLabel",
+          "exercises",
+          "order"
         ]
       },
       "GymPlanoWorkoutInput": {
@@ -1893,6 +2072,11 @@
         "properties": {
           "name": {
             "type": "string"
+          },
+          "contentKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Chave CMS do nome (traduções)"
           },
           "daysOfWeek": {
             "type": "array",
@@ -1929,6 +2113,11 @@
           "name": {
             "type": "string"
           },
+          "contentKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Chave CMS do nome (traduções)"
+          },
           "note": {
             "type": "string",
             "nullable": true
@@ -1954,7 +2143,11 @@
         "required": [
           "id",
           "name",
-          "workouts"
+          "contentKey",
+          "note",
+          "mode",
+          "workouts",
+          "order"
         ]
       },
       "ChatAttachment": {
@@ -8210,6 +8403,22 @@
                   "name": {
                     "type": "string"
                   },
+                  "contentKey": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Chave CMS do nome"
+                  },
+                  "muscleGroupId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "FK do grupo de topo (preferido)"
+                  },
+                  "subGroupId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true,
+                    "description": "FK do subgrupo (opcional)"
+                  },
                   "muscleGroup": {
                     "type": "string"
                   },
@@ -8974,6 +9183,11 @@
                   "name": {
                     "type": "string"
                   },
+                  "contentKey": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Chave CMS do nome (traduções)"
+                  },
                   "color": {
                     "type": "string",
                     "example": "#3B82F6"
@@ -9081,6 +9295,11 @@
                 "properties": {
                   "name": {
                     "type": "string"
+                  },
+                  "contentKey": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Chave CMS do nome (traduções)"
                   },
                   "color": {
                     "type": "string"
@@ -9192,9 +9411,21 @@
                   "name": {
                     "type": "string"
                   },
+                  "contentKey": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Chave CMS do nome (traduções)"
+                  },
                   "note": {
                     "type": "string",
                     "nullable": true
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "weekly",
+                      "free"
+                    ]
                   },
                   "workouts": {
                     "type": "array",
@@ -9330,9 +9561,21 @@
                   "name": {
                     "type": "string"
                   },
+                  "contentKey": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Chave CMS do nome (traduções)"
+                  },
                   "note": {
                     "type": "string",
                     "nullable": true
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "weekly",
+                      "free"
+                    ]
                   },
                   "workouts": {
                     "type": "array",
@@ -9443,7 +9686,27 @@
         },
         "responses": {
           "201": {
-            "description": "Programa criado no cliente"
+            "description": "Programa criado no cliente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "message",
+                    "programId"
+                  ],
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "programId": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                }
+              }
+            }
           },
           "404": {
             "description": "Plano ou cliente não encontrado"
@@ -9513,6 +9776,11 @@
                   "name": {
                     "type": "string"
                   },
+                  "contentKey": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Chave CMS do nome (traduções)"
+                  },
                   "customerId": {
                     "type": "string",
                     "format": "uuid"
@@ -9526,6 +9794,13 @@
                     "enum": [
                       "coach",
                       "client"
+                    ]
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "weekly",
+                      "free"
                     ]
                   },
                   "startDate": {
@@ -9683,6 +9958,16 @@
                       "weekly",
                       "free"
                     ]
+                  },
+                  "startDate": {
+                    "type": "string",
+                    "format": "date",
+                    "nullable": true
+                  },
+                  "endDate": {
+                    "type": "string",
+                    "format": "date",
+                    "nullable": true
                   }
                 }
               }
@@ -9808,6 +10093,11 @@
                   "name": {
                     "type": "string"
                   },
+                  "contentKey": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Chave CMS do nome (traduções)"
+                  },
                   "daysOfWeek": {
                     "type": "array",
                     "description": "Dias da semana do treino (0=Dom … 6=Sáb)",
@@ -9817,43 +10107,15 @@
                       "maximum": 6
                     }
                   },
+                  "dayLabel": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Rótulo do dia no modo 'free' (ex: 'Dia 1')"
+                  },
                   "exercises": {
                     "type": "array",
                     "items": {
-                      "type": "object",
-                      "required": [
-                        "name",
-                        "group"
-                      ],
-                      "properties": {
-                        "exerciseId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "nullable": true
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "group": {
-                          "type": "string"
-                        },
-                        "sets": {
-                          "type": "integer"
-                        },
-                        "reps": {
-                          "type": "integer"
-                        },
-                        "weight": {
-                          "type": "number"
-                        },
-                        "rest": {
-                          "type": "integer"
-                        },
-                        "mediaUrl": {
-                          "type": "string",
-                          "nullable": true
-                        }
-                      }
+                      "$ref": "#/components/schemas/GymWorkoutExerciseInput"
                     }
                   }
                 }
@@ -10186,6 +10448,11 @@
                   "name": {
                     "type": "string"
                   },
+                  "contentKey": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Chave CMS do nome (traduções)"
+                  },
                   "daysOfWeek": {
                     "type": "array",
                     "description": "Se presente, substitui os dias do treino (0=Dom … 6=Sáb)",
@@ -10195,44 +10462,16 @@
                       "maximum": 6
                     }
                   },
+                  "dayLabel": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Rótulo do dia no modo 'free' (ex: 'Dia 1')"
+                  },
                   "exercises": {
                     "type": "array",
                     "description": "Se presente, substitui TODOS os exercícios do treino",
                     "items": {
-                      "type": "object",
-                      "required": [
-                        "name",
-                        "group"
-                      ],
-                      "properties": {
-                        "exerciseId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "nullable": true
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "group": {
-                          "type": "string"
-                        },
-                        "sets": {
-                          "type": "integer"
-                        },
-                        "reps": {
-                          "type": "integer"
-                        },
-                        "weight": {
-                          "type": "number"
-                        },
-                        "rest": {
-                          "type": "integer"
-                        },
-                        "mediaUrl": {
-                          "type": "string",
-                          "nullable": true
-                        }
-                      }
+                      "$ref": "#/components/schemas/GymWorkoutExerciseInput"
                     }
                   }
                 }
@@ -10305,7 +10544,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/GymWorkout"
+                    "$ref": "#/components/schemas/GymWorkoutTemplate"
                   }
                 }
               }
@@ -10336,6 +10575,11 @@
                   "name": {
                     "type": "string"
                   },
+                  "contentKey": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Chave CMS do nome (traduções)"
+                  },
                   "exercises": {
                     "type": "array",
                     "items": {
@@ -10353,7 +10597,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GymWorkout"
+                  "$ref": "#/components/schemas/GymWorkoutTemplate"
                 }
               }
             }
@@ -10431,7 +10675,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GymWorkout"
+                  "$ref": "#/components/schemas/GymWorkoutTemplate"
                 }
               }
             }
@@ -10470,6 +10714,11 @@
                   "name": {
                     "type": "string"
                   },
+                  "contentKey": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Chave CMS do nome (traduções)"
+                  },
                   "exercises": {
                     "type": "array",
                     "items": {
@@ -10487,7 +10736,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GymWorkout"
+                  "$ref": "#/components/schemas/GymWorkoutTemplate"
                 }
               }
             }
@@ -10569,7 +10818,27 @@
         },
         "responses": {
           "201": {
-            "description": "Treino criado no programa do cliente"
+            "description": "Treino criado no programa do cliente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "message",
+                    "workoutId"
+                  ],
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "workoutId": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                }
+              }
+            }
           },
           "404": {
             "description": "Template ou programa não encontrado"

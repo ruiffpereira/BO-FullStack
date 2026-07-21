@@ -26,15 +26,20 @@ import { useGetGymMensalidadeCustomersCustomerid } from '../gen/backoffice/hooks
 import { putGymMensalidadeCustomersCustomeridSubscription } from '../gen/backoffice/hooks/usePutGymMensalidadeCustomersCustomeridSubscription.js'
 import { patchGymMensalidadeCustomersCustomeridBlock } from '../gen/backoffice/hooks/usePatchGymMensalidadeCustomersCustomeridBlock.js'
 import { postGymMensalidadeCustomersCustomeridPayments } from '../gen/backoffice/hooks/usePostGymMensalidadeCustomersCustomeridPayments.js'
-import { deleteGymMensalidadePaymentsPaymentid } from '../gen/backoffice/hooks/useDeleteGymMensalidadePaymentsPaymentid.js'
+import type { GymSubscription } from '../gen/backoffice/types/GymSubscription.js'
+import type { GymPayment } from '../gen/backoffice/types/GymPayment.js'
+import type { GymMembership } from '../gen/backoffice/types/GymMembership.js'
+import type { GymFinance } from '../gen/backoffice/types/GymFinance.js'
+import type { PostGymMensalidadeCustomersCustomeridPaymentsMutationRequest } from '../gen/backoffice/types/PostGymMensalidadeCustomersCustomeridPayments.js'
+import type { PostGymMembersInviteMutationRequest } from '../gen/backoffice/types/PostGymMembersInvite.js'
 
-// ── Tipos (espelham a API; PT só na UI) ──────────────────────────────────────
-type Status = 'paid' | 'debt' | 'unpaid'
-export type Sub = { subscriptionId: string; name: string; price: number; dueDay: number; active: boolean; isDefault?: boolean; clientCount?: number }
-export type Payment = { paymentId: string; period: string; amount: number; dueDate: string; status: Status; paidAt: string | null; method: string | null; notes: string | null; paidAmount: number | null; debtSince: string | null; overdue: boolean; updatedAt?: string | null; createdAt?: string | null }
-export type Membership = { customerId: string; name: string; blocked: boolean; payOnly?: boolean; status?: 'pending' | 'active'; subscription: Sub | null; payments: Payment[]; currentPeriod: string; today: string }
-type FinanceRow = { customerId: string; name: string; blocked: boolean; membershipStatus?: 'pending' | 'active'; subscription: Sub | null; payment: Payment | null; status: Status; overdue: boolean }
-type Finance = { period: string; today: string; kpis: { recebido: number; emDivida: number; emAtraso: number; mrr: number; blocked: number }; rows: FinanceRow[] }
+// ── Tipos: gerados pelo Kubb a partir do spec (fim dos contratos à mão) ──────
+type Status = GymPayment['status']
+export type Sub = GymSubscription
+export type Payment = GymPayment
+export type Membership = GymMembership
+type FinanceRow = GymFinance['rows'][number]
+type Finance = GymFinance
 
 // ── Helpers de apresentação ──────────────────────────────────────────────────
 const EST: Record<Status, { t: string; tone: keyof typeof BADGE_TONES }> = {
@@ -86,7 +91,7 @@ function SubscricaoModal({ subscricao, onClose, onSaved }: { subscricao: Sub | n
   const [active, setActive] = useState(subscricao?.active ?? true)
   const save = useMutation({
     mutationFn: () => {
-      const body = { name: name.trim(), price: parseFloat(price) || 0, dueDay: +dueDay || 8, active } as any
+      const body = { name: name.trim(), price: parseFloat(price) || 0, dueDay: +dueDay || 8, active }
       return subscricao ? putGymSubscriptionsId(subscricao.subscriptionId, body) : postGymSubscriptions(body)
     },
     onSuccess: () => { onSaved(); toast.success(subscricao ? 'Subscrição atualizada' : 'Subscrição criada'); onClose() },
@@ -197,7 +202,7 @@ export function ConvidarSocioModal({ onClose, onInvited }: { onClose: () => void
 
   const invite = useMutation({
     mutationFn: () => {
-      const body: any = { name: name.trim(), email: email.trim() }
+      const body: PostGymMembersInviteMutationRequest = { name: name.trim(), email: email.trim() }
       if (subscriptionId) body.subscriptionId = subscriptionId
       return postGymMembersInvite(body)
     },
@@ -231,7 +236,7 @@ function AtribuirSubModal({ customerId, current, onClose, onSaved }: { customerI
   const subs = ((data ?? []) as Sub[]).filter((s) => s.active || s.subscriptionId === current)
   const [sel, setSel] = useState<string | null>(current)
   const save = useMutation({
-    mutationFn: () => putGymMensalidadeCustomersCustomeridSubscription(customerId, { subscriptionId: sel } as any),
+    mutationFn: () => putGymMensalidadeCustomersCustomeridSubscription(customerId, { subscriptionId: sel }),
     onSuccess: () => { onSaved(); toast.success('Subscrição atualizada'); onClose() },
     onError: (e) => toast.error(getApiError(e)),
   })
@@ -263,7 +268,7 @@ function PagamentoModal({ customerId, period, amount, onClose, onSaved }: { cust
   const [pagoEm, setPagoEm] = useState(new Date().toISOString().slice(0, 10))
   const [notas, setNotas] = useState('')
   const save = useMutation({
-    mutationFn: () => postGymMensalidadeCustomersCustomeridPayments(customerId, { period, status: 'paid', amount: parseFloat(valor) || 0, paidAt: pagoEm, method: metodo, notes: notas.trim() || null } as any),
+    mutationFn: () => postGymMensalidadeCustomersCustomeridPayments(customerId, { period, status: 'paid', amount: parseFloat(valor) || 0, paidAt: pagoEm, method: metodo, notes: notas.trim() || null }),
     onSuccess: () => { onSaved(); toast.success('Pagamento registado'); onClose() },
     onError: (e) => toast.error(getApiError(e)),
   })
@@ -296,18 +301,18 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
   const qc = useQueryClient()
   const { authHeader } = useAuth()
   const { data, isLoading } = useGetGymMensalidadeCustomersCustomerid(customerId, { query: { enabled: !!customerId } })
-  const mem = data as Membership | undefined
+  const mem: Membership | undefined = data
   const [atribuir, setAtribuir] = useState(false)
   const [pagModal, setPagModal] = useState<{ period: string; amount: number } | null>(null)
   const [downgrade, setDowngrade] = useState<Exclude<Status, 'paid'> | null>(null)
 
   const onSaved = () => invalidateMens(qc)
   const upsert = useMutation({
-    mutationFn: (body: any) => postGymMensalidadeCustomersCustomeridPayments(customerId, body),
+    mutationFn: (body: PostGymMensalidadeCustomersCustomeridPaymentsMutationRequest) => postGymMensalidadeCustomersCustomeridPayments(customerId, body),
     onSuccess: onSaved, onError: (e) => toast.error(getApiError(e)),
   })
   const block = useMutation({
-    mutationFn: (v: boolean) => patchGymMensalidadeCustomersCustomeridBlock(customerId, { blocked: v } as any),
+    mutationFn: (v: boolean) => patchGymMensalidadeCustomersCustomeridBlock(customerId, { blocked: v }),
     onSuccess: onSaved, onError: (e) => toast.error(getApiError(e)),
   })
   const payOnlyMut = useMutation({
@@ -537,7 +542,7 @@ function CobrancasView({ onOpen }: { onOpen: (c: { id: string; name: string }) =
   const [q, setQ] = useState('')
   const [pag, setPag] = useState<{ customerId: string; period: string; amount: number } | null>(null)
   const { data, isLoading } = useGetGymMensalidadeFinance({ period })
-  const fin = data as Finance | undefined
+  const fin: Finance | undefined = data
   const { authHeader } = useAuth()
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)

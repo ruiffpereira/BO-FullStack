@@ -619,7 +619,10 @@ function CobrancasView({ period, filter, q, onPeriodChange, onFilterChange, onQC
   const counts = { cobrar: billable.filter((r) => !isPaid(r)).length, pago: billable.filter(isPaid).length, todos: billable.length }
   const recebido = fin.kpis.recebido
   const mrr = fin.kpis.mrr
-  const pct = mrr > 0 ? Math.min(100, Math.round((recebido / mrr) * 100)) : 0
+  // Previsto (recebido + por cobrar do mês) é a régua certa da barra de
+  // cobrança — o MRR diverge com parciais, overrides e subscrições alteradas.
+  const previsto = fin.kpis.previsto
+  const pct = previsto > 0 ? Math.min(100, Math.round((recebido / previsto) * 100)) : 100
 
   const dueInfo = (r: FinanceRow): { text: string; fg: string } => {
     if (r.status === 'paid') return { text: r.payment?.method ? `Pago · ${payMethodLabel(r.payment.method)}` : 'Pago', fg: 'text-emerald-600 dark:text-emerald-400' }
@@ -646,11 +649,11 @@ function CobrancasView({ period, filter, q, onPeriodChange, onFilterChange, onQC
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Recebido</p>
-            <p className="text-3xl font-semibold text-zinc-900 dark:text-white tabular-nums leading-tight">{fmtEur(recebido)} <span className="text-base font-normal text-zinc-400">/ {fmtEur(mrr)}</span></p>
+            <p className="text-3xl font-semibold text-zinc-900 dark:text-white tabular-nums leading-tight">{fmtEur(recebido)} <span className="text-base font-normal text-zinc-400">/ {fmtEur(previsto)} previsto</span></p>
           </div>
           <div className="flex gap-6 text-sm">
             <div><p className="text-zinc-400 text-xs">Cobrança</p><p className={`font-semibold tabular-nums ${pct >= 80 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>{pct}%</p></div>
-            <div><p className="text-zinc-400 text-xs">Em dívida</p><p className="font-semibold text-zinc-800 dark:text-zinc-100 tabular-nums">{fmtEur(fin.kpis.emDivida)}</p></div>
+            <div><p className="text-zinc-400 text-xs">Por cobrar</p><p className="font-semibold text-zinc-800 dark:text-zinc-100 tabular-nums">{fmtEur(fin.kpis.porCobrar)}</p></div>
             <div><p className="text-zinc-400 text-xs">Em atraso</p><p className={`font-semibold tabular-nums ${fin.kpis.emAtraso ? 'text-red-600 dark:text-red-400' : 'text-zinc-800 dark:text-zinc-100'}`}>{fin.kpis.emAtraso}</p></div>
             <div><p className="text-zinc-400 text-xs">MRR</p><p className="font-semibold text-zinc-800 dark:text-zinc-100 tabular-nums">{fmtEur(mrr)}</p></div>
           </div>

@@ -1327,14 +1327,24 @@
           "kpis": {
             "type": "object",
             "properties": {
+              "previsto": {
+                "type": "number",
+                "description": "recebido + porCobrar (fonte única no servidor)"
+              },
               "recebido": {
-                "type": "number"
+                "type": "number",
+                "description": "inclui paidAmount de dívidas parciais"
+              },
+              "porCobrar": {
+                "type": "number",
+                "description": "Σ por linha do que falta cobrar (incl. mês automático)"
               },
               "emDivida": {
                 "type": "number"
               },
               "emAtraso": {
-                "type": "integer"
+                "type": "integer",
+                "description": "conta também o mês automático vencido"
               },
               "mrr": {
                 "type": "number"
@@ -1344,7 +1354,9 @@
               }
             },
             "required": [
+              "previsto",
               "recebido",
+              "porCobrar",
               "emDivida",
               "emAtraso",
               "mrr",
@@ -1405,6 +1417,10 @@
                 },
                 "overdue": {
                   "type": "boolean"
+                },
+                "orphaned": {
+                  "type": "boolean",
+                  "description": "tem pagamento mas a subscrição foi eliminada — a dívida continua visível"
                 }
               },
               "required": [

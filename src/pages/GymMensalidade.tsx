@@ -217,6 +217,11 @@ export function ConvidarSocioModal({ onClose, onInvited }: { onClose: () => void
       } else {
         toast.success(res?.alreadyInvited ? 'Sócio já tinha sido convidado' : 'Convite enviado por email')
       }
+      // TODO(spec): appUrl pode estar ausente no tipo gerado até agora; cast se necessário.
+      const appUrl = (res as any)?.appUrl
+      if (appUrl === null) {
+        toast.warning('O tenant ainda não tem subdomínio — o convite foi enviado com o endereço antigo. Reclama o subdomínio em Website → Domínio.')
+      }
       onClose()
     },
     onError: (e) => toast.error(getApiError(e)),

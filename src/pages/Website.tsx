@@ -658,6 +658,7 @@ function TemplateTab({ site }: { site: Site }) {
  *   sitemap.xml → app/sitemap.ts (rota especial do Next.js)
  */
 const RESERVED_SLUGS = new Set([
+  "app",
   "carrinho",
   "checkout",
   "loja",

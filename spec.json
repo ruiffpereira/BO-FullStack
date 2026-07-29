@@ -1,4 +1,4 @@
-{
+﻿{
   "openapi": "3.0.0",
   "info": {
     "title": "API BackOffice Documentation",
@@ -1494,6 +1494,11 @@
           },
           "emailSent": {
             "type": "boolean"
+          },
+          "appUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "URL público da app do tenant (https://<subdomínio>.<domínio raiz>), se o Site tiver subdomínio reclamado. null = o BO deve avisar que falta o subdomínio."
           }
         }
       },

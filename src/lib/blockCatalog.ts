@@ -477,6 +477,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     variants: [
       { id: "grid", label: "Grelha" },
       { id: "featured", label: "Destaque" },
+      { id: "tifas", label: "Tifas (Loja)" },
     ],
     defaultVariant: "grid",
     dataHint: "Os produtos vêm da tua Loja — este bloco mostra o catálogo real, não uma lista editável aqui.",
@@ -486,6 +487,15 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       text("ctaLabel", "Texto do botão de cada produto"),
       text("unavailableMsg", "Mensagem sem produtos disponíveis"),
     ],
+    variantFields: {
+      "tifas": [
+        text("label", "Eyebrow/Badge", { hint: "ex: PRODUTOS" }),
+        text("title", "Título"),
+        text("subtitle", "Subtítulo"),
+        text("ctaLabel", "Texto do botão"),
+        text("unavailableMsg", "Mensagem sem produtos"),
+      ],
+    },
   },
   {
     type: "gym",
@@ -495,6 +505,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     variants: [
       { id: "cta", label: "Chamada à ação" },
       { id: "plans", label: "Planos" },
+      { id: "tifas", label: "Tifas (Ginásio)" },
     ],
     defaultVariant: "cta",
     dataHint:
@@ -522,6 +533,16 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
         "plano",
       ),
     ],
+    variantFields: {
+      "tifas": [
+        text("label", "Eyebrow/Badge", { hint: "ex: GINÁSIO" }),
+        text("title", "Título"),
+        text("subtitle", "Subtítulo"),
+        text("ctaLabel", "Texto do botão"),
+        url("ctaHref", "Destino do botão"),
+        stringList("benefits", "Benefícios", "benefício"),
+      ],
+    },
   },
   {
     type: "lead",
@@ -531,6 +552,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     variants: [
       { id: "split", label: "Dividido" },
       { id: "stack", label: "Empilhado" },
+      { id: "tifas", label: "Tifas (Barbearia)" },
     ],
     defaultVariant: "split",
     dataHint: "Os envios criam leads na tua inbox (Clientes → Leads, com notificação) — não é só texto de marketing.",
@@ -550,6 +572,21 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
         hint: "Só precisas de mudar se tiveres mais do que um formulário de contacto nesta página",
       }),
     ],
+    variantFields: {
+      "tifas": [
+        text("label", "Eyebrow/Badge", { hint: "ex: CONTACTO" }),
+        text("title", "Título"),
+        text("subtitle", "Subtítulo"),
+        boolean("withMessage", "Mostrar campo de mensagem"),
+        text("labelName", "Etiqueta do campo Nome"),
+        text("labelEmail", "Etiqueta do campo Email"),
+        text("labelPhone", "Etiqueta do campo Telefone"),
+        text("labelMessage", "Etiqueta do campo Mensagem"),
+        text("submitLabel", "Texto do botão de enviar"),
+        text("thanks", "Mensagem de agradecimento"),
+        text("anchorId", "Identificador da âncora"),
+      ],
+    },
   },
 ];
 

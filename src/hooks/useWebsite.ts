@@ -185,6 +185,8 @@ export interface Site {
    */
   customDomain?: string | null;
   template: string | null;
+  /** Skin variante de bloco (ex.: "tifas") — define a aparência visual global. */
+  skin?: string | null;
   defaultLocale: string;
   activeLocales: string[];
   theme: SiteTheme | null;
@@ -207,6 +209,7 @@ export interface SiteUpsert {
   defaultLocale?: string;
   activeLocales?: string[];
   template?: string | null;
+  skin?: string | null;
 }
 
 export interface SubdomainCheck {

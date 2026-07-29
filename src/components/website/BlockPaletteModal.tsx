@@ -25,7 +25,7 @@ export function BlockPaletteModal({
     >
       <div className="space-y-6">
         {BLOCK_GROUPS.map((group) => {
-          const schemas = BLOCK_SCHEMAS.filter((s) => s.group === group.id);
+          const schemas = BLOCK_SCHEMAS.filter((s) => s.group === group.id && !s.legacy);
           if (schemas.length === 0) return null;
           return (
             <div key={group.id}>

@@ -554,12 +554,12 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
       {
         id: "b1",
         type: "hero",
-        variant: "centered",
+        variant: "tifas-split",
         settings: { content: { pt: { title: "Título do hero" } } },
       },
       {
         id: "b2",
-        type: "services",
+        type: "services", // legacy (sem design tifas) — continua editável
         variant: "grid",
         settings: { content: { pt: { title: "Os nossos serviços" } } },
       },
@@ -609,8 +609,10 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
     const pages = saveMutate.mock.calls[0][0].pages;
     const home = pages.find((p: any) => p.id === "home");
     expect(home.blocks).toHaveLength(1);
+    // U3 (opção A, 2026-07-29): as variantes genéricas saíram do catálogo — a
+    // default de cada tipo é a tifas (o design da plataforma).
     expect(home.blocks[0]).toEqual(
-      expect.objectContaining({ type: "hero", variant: "centered" }),
+      expect.objectContaining({ type: "hero", variant: "tifas-split" }),
     );
   });
 
@@ -647,24 +649,23 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
     expect(home.blocks[0].id).toBe("b2");
   });
 
-  it("muda a variante de um bloco via Combobox e persiste-a", async () => {
+  it("com uma unica variante por tipo, o seletor de variante nao aparece (mostra Badge)", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_TWO_BLOCKS]), isLoading: false });
     render(<Website view="pages" />);
     await openBlocksFor(user);
 
-    const variantButtons = screen.getAllByRole("button", { name: "Variante" });
-    await user.click(variantButtons[1]); // bloco "services" (b2)
-    await user.click(screen.getByRole("button", { name: "Lista" }));
-
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const pages = saveMutate.mock.calls[0][0].pages;
-    const home = pages.find((p: any) => p.id === "home");
-    const services = home.blocks.find((b: any) => b.id === "b2");
-    expect(services.variant).toBe("list");
+    // U3 (opção A, 2026-07-29): os tipos com design tifas passaram a ter UMA
+    // variante, por isso o seletor desaparece nesses (`hasVariantPicker =
+    // variants.length > 1`) e mostra-se o Badge. O `services` (legacy, sem
+    // equivalente tifas) mantém as suas variantes — blocos antigos continuam
+    // editáveis. Aqui: 2 blocos, mas só o legacy tem seletor.
+    expect(screen.queryAllByRole("button", { name: "Variante" })).toHaveLength(1);
+    expect(screen.getAllByText(/Tifas/i).length).toBeGreaterThan(0);
+    expect(saveMutate).not.toHaveBeenCalled();
   });
 
-  it("edita o título (formulário rico) na língua padrão e guarda em settings.content.pt.title", async () => {
+  it("edita o título (formulário rico tifas) na língua padrão e guarda em settings.content.pt.titulo", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_TWO_BLOCKS]), isLoading: false });
     render(<Website view="pages" />);
@@ -674,7 +675,7 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
     await user.click(editButtons[0]); // bloco "hero" (b1)
 
     const dialog = within(screen.getByRole("dialog"));
-    const titleInput = dialog.getByLabelText("Título");
+    const titleInput = dialog.getByLabelText("Título do negócio");
     await user.clear(titleInput);
     await user.type(titleInput, "Novo título");
     await user.click(dialog.getByRole("button", { name: "Guardar" }));
@@ -683,7 +684,7 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
     const pages = saveMutate.mock.calls[0][0].pages;
     const home = pages.find((p: any) => p.id === "home");
     const hero = home.blocks.find((b: any) => b.id === "b1");
-    expect(hero.settings.content.pt.title).toBe("Novo título");
+    expect(hero.settings.content.pt.titulo).toBe("Novo título");
   });
 
   it("muda de separador de língua no modal de conteúdo e mostra os campos dessa língua", async () => {

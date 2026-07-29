@@ -53,6 +53,12 @@ export interface BlockTypeSchema {
   label: string;
   description: string;
   group: "content" | "functional";
+  /**
+   * Legacy (U3 do port tifas, 2026-07-29): tipo sem equivalente tifas — sai da
+   * palete (não é adicionável) mas continua editável em páginas antigas que já
+   * o tenham. Quando ganhar versão tifas, remover a flag.
+   */
+  legacy?: boolean;
   variants: BlockVariantOption[];
   defaultVariant: string;
   /** Ausente = editor genérico chave/valor (fallback só para tipos desconhecidos). */
@@ -113,13 +119,11 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     label: "Hero",
     description: "Destaque principal — título, subtítulo e botão",
     group: "content",
-    variants: [
-      { id: "centered", label: "Centrado" },
-      { id: "split", label: "Dividido" },
-      { id: "full", label: "Ecrã inteiro" },
-      { id: "tifas-split", label: "Tifas Split (Barbearia)" },
-    ],
-    defaultVariant: "centered",
+    // U3 (opção A): as variantes genéricas foram removidas do renderer — a
+    // tifas é O design da plataforma (qualquer variante desconhecida rende
+    // tifas no engine, por isso blocos antigos continuam a abrir).
+    variants: [{ id: "tifas-split", label: "Split com widget (tifas)" }],
+    defaultVariant: "tifas-split",
     fields: [
       text("eyebrow", "Eyebrow", { hint: "Texto pequeno acima do título" }),
       text("title", "Título"),
@@ -162,12 +166,8 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     label: "Sobre",
     description: "Texto sobre o negócio, com imagem",
     group: "content",
-    variants: [
-      { id: "text-image", label: "Texto + imagem" },
-      { id: "text", label: "Só texto" },
-      { id: "tifas", label: "Tifas (Barbearia)" },
-    ],
-    defaultVariant: "text-image",
+    variants: [{ id: "tifas", label: "Tifas" }],
+    defaultVariant: "tifas",
     fields: [
       text("eyebrow", "Eyebrow"),
       text("title", "Título"),
@@ -187,6 +187,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
   },
   {
     type: "stats",
+    legacy: true,
     label: "Estatísticas",
     description: "Números em destaque (ex.: anos de experiência, clientes)",
     group: "content",
@@ -201,6 +202,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
   },
   {
     type: "services",
+    legacy: true,
     label: "Serviços",
     description: "Lista de serviços ou produtos com preço",
     group: "content",
@@ -229,13 +231,8 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     label: "Galeria",
     description: "Grelha de imagens",
     group: "content",
-    variants: [
-      { id: "grid", label: "Grelha" },
-      { id: "masonry", label: "Mosaico" },
-      { id: "carousel", label: "Carrossel" },
-      { id: "tifas", label: "Tifas (Barbearia)" },
-    ],
-    defaultVariant: "grid",
+    variants: [{ id: "tifas", label: "Tifas" }],
+    defaultVariant: "tifas",
     fields: [
       items(
         "images",
@@ -261,6 +258,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
   },
   {
     type: "testimonials",
+    legacy: true,
     label: "Testemunhos",
     description: "Opiniões e avaliações de clientes",
     group: "content",
@@ -286,6 +284,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
   },
   {
     type: "cta",
+    legacy: true,
     label: "Chamada à ação",
     description: "Bloco de destaque com botão — normalmente no fim da página",
     group: "content",
@@ -304,6 +303,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
   },
   {
     type: "faq",
+    legacy: true,
     label: "Perguntas frequentes",
     description: "Perguntas e respostas em acordeão",
     group: "content",
@@ -323,6 +323,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
   },
   {
     type: "pricing",
+    legacy: true,
     label: "Preços",
     description: "Planos e tarifários, com destaque opcional",
     group: "content",
@@ -352,6 +353,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
   },
   {
     type: "contact",
+    legacy: true,
     label: "Contactos",
     description: "Morada, telefone, email, horário e mapa",
     group: "content",
@@ -411,12 +413,8 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     label: "Marcações",
     description: "Marcações — liga à agenda real do negócio",
     group: "functional",
-    variants: [
-      { id: "inline", label: "Inline" },
-      { id: "card", label: "Cartão" },
-      { id: "tifas", label: "Tifas (Barbearia)" },
-    ],
-    defaultVariant: "inline",
+    variants: [{ id: "tifas", label: "Tifas" }],
+    defaultVariant: "tifas",
     dataHint:
       "Os serviços e os horários disponíveis vêm da tua Agenda — este bloco só edita os textos à volta do formulário de marcação.",
     fields: [
@@ -474,12 +472,8 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     label: "Produtos",
     description: "Montra de produtos da loja",
     group: "functional",
-    variants: [
-      { id: "grid", label: "Grelha" },
-      { id: "featured", label: "Destaque" },
-      { id: "tifas", label: "Tifas (Loja)" },
-    ],
-    defaultVariant: "grid",
+    variants: [{ id: "tifas", label: "Tifas" }],
+    defaultVariant: "tifas",
     dataHint: "Os produtos vêm da tua Loja — este bloco mostra o catálogo real, não uma lista editável aqui.",
     fields: [
       text("eyebrow", "Eyebrow"),
@@ -502,12 +496,8 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     label: "Ginásio",
     description: "Planos e chamada à ação do ginásio",
     group: "functional",
-    variants: [
-      { id: "cta", label: "Chamada à ação" },
-      { id: "plans", label: "Planos" },
-      { id: "tifas", label: "Tifas (Ginásio)" },
-    ],
-    defaultVariant: "cta",
+    variants: [{ id: "tifas", label: "Tifas" }],
+    defaultVariant: "tifas",
     dataHint:
       "Este bloco é só marketing — os planos aqui são texto livre, não vêm das mensalidades reais (essas ficam em Financeiro → Ginásio). O botão NÃO cria uma conta de sócio: podes apontá-lo para /inscrever (formulário de interesse — o ginásio entra em contacto depois) ou para #contacto. A inscrição efetiva continua a ser sempre por CONVITE teu (Financeiro → Ginásio → Convidar sócio), nunca self-serve.",
     fields: [
@@ -549,12 +539,8 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     label: "Captação de leads",
     description: "Formulário de contacto/captação de leads",
     group: "functional",
-    variants: [
-      { id: "split", label: "Dividido" },
-      { id: "stack", label: "Empilhado" },
-      { id: "tifas", label: "Tifas (Barbearia)" },
-    ],
-    defaultVariant: "split",
+    variants: [{ id: "tifas", label: "Tifas" }],
+    defaultVariant: "tifas",
     dataHint: "Os envios criam leads na tua inbox (Clientes → Leads, com notificação) — não é só texto de marketing.",
     fields: [
       text("eyebrow", "Eyebrow"),

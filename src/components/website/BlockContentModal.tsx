@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Modal, Button, Tabs } from "../../ui/ui.jsx";
-import { getBlockSchema } from "../../lib/blockCatalog";
+import { getBlockSchema, getBlockFields } from "../../lib/blockCatalog";
 import { RichBlockForm, GenericContentEditor } from "./blockFields";
 import { uploadImage } from "../../gen/backoffice/hooks/useUploadImage.js";
 import type { SiteBlock } from "../../hooks/useWebsite";
@@ -69,6 +69,8 @@ export function BlockContentModal({
   const [uploading, setUploading] = useState(false);
 
   const schema = getBlockSchema(block.type);
+  // Campos por VARIANTE quando existam (ex.: blocos tifas) — senão os do tipo.
+  const fields = getBlockFields(block.type, block.variant);
   const currentContent = draft[locale] ?? {};
 
   const setContent = (next: Record<string, unknown>) => {
@@ -140,9 +142,9 @@ export function BlockContentModal({
         </p>
       )}
 
-      {schema.fields ? (
+      {fields.length > 0 ? (
         <RichBlockForm
-          fields={schema.fields}
+          fields={fields}
           content={currentContent}
           onChange={setContent}
           disabled={busy}

@@ -58,6 +58,11 @@ export interface BlockTypeSchema {
   /** Ausente = editor genérico chave/valor (fallback só para tipos desconhecidos). */
   fields?: FieldSchema[];
   /**
+   * Campos específicos por variante — se definido, sobrepõe `fields` para uma variante específica.
+   * Útil quando variantes (ex: "tifas-split" do tipo "hero") precisam de campos muito diferentes.
+   */
+  variantFields?: Record<string, FieldSchema[]>;
+  /**
    * Nota PT curta mostrada no topo do formulário — só os 4 tipos funcionais a
    * usam, para explicar que o bloco puxa/produz dados reais do negócio (Agenda/
    * Loja/Ginásio/Clientes) e não é conteúdo de marketing normal.
@@ -112,6 +117,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       { id: "centered", label: "Centrado" },
       { id: "split", label: "Dividido" },
       { id: "full", label: "Ecrã inteiro" },
+      { id: "tifas-split", label: "Tifas Split (Barbearia)" },
     ],
     defaultVariant: "centered",
     fields: [
@@ -122,6 +128,34 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       url("ctaHref", "Destino do botão", { hint: "Link ou #âncora" }),
       image("imageUrl", "Imagem"),
     ],
+    variantFields: {
+      "tifas-split": [
+        image("logo", "Logótipo (80×80px)", { required: true }),
+        text("badge", "Badge de status", { hint: "ex: Agora aberto" }),
+        text("titulo", "Título do negócio", { required: true }),
+        text("tagline", "Tagline"),
+        // Estatísticas (3 campos planos: stat1.valor, stat1.label, etc.)
+        text("stat1.valor", "Estatística 1 — Valor"),
+        text("stat1.label", "Estatística 1 — Rótulo"),
+        text("stat2.valor", "Estatística 2 — Valor"),
+        text("stat2.label", "Estatística 2 — Rótulo"),
+        text("stat3.valor", "Estatística 3 — Valor"),
+        text("stat3.label", "Estatística 3 — Rótulo"),
+        // Contacto
+        text("contacto.morada1", "Morada (linha 1)"),
+        text("contacto.morada2", "Morada (linha 2)"),
+        url("contacto.mapa_url", "Link Google Maps"),
+        text("contacto.horario.dias", "Dias abertos (ex: Seg-Sex)"),
+        text("contacto.horario.manha", "Horário manhã (ex: 09h-13h)"),
+        text("contacto.horario.tarde", "Horário tarde (ex: 14h-19h)"),
+        text("contacto.telefone", "Telefone"),
+        text("contacto.telefone.href", "Telefone (apenas dígitos)", { hint: "ex: 911234567" }),
+        // Redes sociais
+        url("redes.instagram", "Instagram URL"),
+        url("redes.facebook", "Facebook URL"),
+        url("redes.whatsapp", "WhatsApp URL"),
+      ],
+    },
   },
   {
     type: "about",
@@ -131,6 +165,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     variants: [
       { id: "text-image", label: "Texto + imagem" },
       { id: "text", label: "Só texto" },
+      { id: "tifas", label: "Tifas (Barbearia)" },
     ],
     defaultVariant: "text-image",
     fields: [
@@ -139,6 +174,16 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       stringList("body", "Parágrafos", "parágrafo"),
       image("imageUrl", "Imagem"),
     ],
+    variantFields: {
+      "tifas": [
+        text("label", "Eyebrow/Badge", { hint: "ex: SOBRE" }),
+        text("titulo", "Título", { required: true }),
+        text("corpo1", "Primeiro parágrafo"),
+        text("corpo2", "Segundo parágrafo"),
+        image("foto", "Foto (aspect 4:5, retrato)"),
+        stringList("especialidades", "Especialidades", "especialidade"),
+      ],
+    },
   },
   {
     type: "stats",
@@ -188,6 +233,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       { id: "grid", label: "Grelha" },
       { id: "masonry", label: "Mosaico" },
       { id: "carousel", label: "Carrossel" },
+      { id: "tifas", label: "Tifas (Barbearia)" },
     ],
     defaultVariant: "grid",
     fields: [
@@ -198,6 +244,20 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
         "imagem",
       ),
     ],
+    variantFields: {
+      "tifas": [
+        text("label", "Eyebrow/Badge", { hint: "ex: GALERIA" }),
+        text("titulo", "Título da página"),
+        text("descricao", "Descrição"),
+        text("altText", "Texto alternativo padrão", { hint: "Usado para todas as imagens" }),
+        items(
+          "photos",
+          "Fotografias (9 fotos)",
+          [image("url", "Foto", { required: true }), text("alt", "Descrição da foto")],
+          "foto",
+        ),
+      ],
+    },
   },
   {
     type: "testimonials",
@@ -354,6 +414,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     variants: [
       { id: "inline", label: "Inline" },
       { id: "card", label: "Cartão" },
+      { id: "tifas", label: "Tifas (Barbearia)" },
     ],
     defaultVariant: "inline",
     dataHint:
@@ -376,6 +437,37 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       text("successEmailNote", "Nota sobre o email de confirmação"),
       text("newBookingLabel", 'Texto do botão "fazer nova marcação"'),
     ],
+    variantFields: {
+      "tifas": [
+        text("eyebrow", "Eyebrow/Badge", { hint: "ex: MARCAÇÃO" }),
+        text("title", "Título do widget"),
+        text("subtitle", "Subtítulo do widget"),
+        text("successTitle", "Título de confirmação"),
+        text("authTitle", "Título de autenticação"),
+        text("loggedInAs", "Texto de sessão iniciada"),
+        text("logoutLabel", "Texto do botão de logout"),
+        text("notesLabel", "Etiqueta do campo de notas"),
+        text("step1Label", "Rótulo passo 1 (Serviço)"),
+        text("step2Label", "Rótulo passo 2 (Data & Hora)"),
+        text("step3Label", "Rótulo passo 3 (Confirmação)"),
+        text("pickServiceLabel", "Texto: escolhe um serviço"),
+        text("loadingServicesLabel", "Texto: a carregar serviços"),
+        text("servicesUnavailableMsg", "Mensagem: serviços indisponíveis"),
+        text("noSlotsMsg", "Mensagem: sem horários neste dia"),
+        text("loadingSlotsMsg", "Texto: a carregar horários"),
+        text("slotsErrorMsg", "Mensagem de erro ao carregar slots"),
+        text("retryLabel", "Texto do botão tentar novamente"),
+        text("bookingErrorMsg", "Mensagem de erro ao criar marcação"),
+        text("slotTakenMsg", "Mensagem: slot já ocupado"),
+        text("sessionExpiredMsg", "Mensagem: sessão expirada"),
+        text("suspendedMsg", "Mensagem: conta suspensa"),
+        text("successEmailNote", "Nota sobre email de confirmação"),
+        text("newBookingLabel", "Texto: fazer nova marcação"),
+        text("googleCalLabel", "Texto: adicionar ao Google Calendar"),
+        text("webcalLabel", "Texto: subscrever no calendário"),
+        text("demoDoneMsg", "Mensagem de demonstração (demo mode)"),
+      ],
+    },
   },
   {
     type: "products",
@@ -488,6 +580,18 @@ function fallbackSchema(type: string): BlockTypeSchema {
 /** Devolve o schema do tipo, ou um fallback genérico se o tipo for desconhecido. */
 export function getBlockSchema(type: string): BlockTypeSchema {
   return BLOCK_SCHEMA_MAP[type] ?? fallbackSchema(type);
+}
+
+/**
+ * Devolve os campos do schema para um bloco específico (type + variant).
+ * Se a variante tiver campos específicos em `variantFields`, usa-os; senão, usa `fields`.
+ */
+export function getBlockFields(type: string, variant?: string): FieldSchema[] {
+  const schema = getBlockSchema(type);
+  if (variant && schema.variantFields && schema.variantFields[variant]) {
+    return schema.variantFields[variant];
+  }
+  return schema.fields ?? [];
 }
 
 /** Resolve o conteúdo localizado de um bloco (mesma regra do renderer: locale → defaultLocale → {}). */

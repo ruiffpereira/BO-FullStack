@@ -659,12 +659,14 @@ function TemplateTab({ site }: { site: Site }) {
  */
 const RESERVED_SLUGS = new Set([
   "app",
+  "cancelar", // cancelamento público por token (T4 do port tifas)
   "carrinho",
   "checkout",
-  "loja",
-  "inscrever",
-  "entrar",
   "conta",
+  "entrar",
+  "inscrever",
+  "loja",
+  "privacidade", // página legal/RGPD (T4 do port tifas)
   "api",
   "robots.txt",
   "sitemap.xml",

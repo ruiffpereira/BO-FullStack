@@ -36,6 +36,8 @@ export const FONT_STACK: Record<ThemeFont, string> = {
   modern: '"Inter", system-ui, -apple-system, sans-serif',
   warm: '"Nunito", "Segoe UI", system-ui, sans-serif',
   serifbody: '"Source Serif 4", Georgia, serif',
+  // Fonte do template barber/tifas (T1 do port — carregada pelo renderer via next/font)
+  plusjakarta: '"Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif',
 };
 export const FONT_LABEL: Record<ThemeFont, string> = {
   grotesk: "Grotesk",
@@ -43,6 +45,7 @@ export const FONT_LABEL: Record<ThemeFont, string> = {
   modern: "Moderno",
   warm: "Acolhedor",
   serifbody: "Serifa",
+  plusjakarta: "Plus Jakarta",
 };
 export const PRESET_LABEL: Record<ThemePreset, string> = {
   slate: "Ardósia",

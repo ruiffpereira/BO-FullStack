@@ -1470,6 +1470,62 @@ describe("Website — gate seletivo (T3.8: sem VIEW_SITE_BUILDER/VIEW_ADMIN)", (
   });
 });
 
+// ── Template com gating (vertical automática) ──────────────────────────────────
+
+describe("Website — Template com gating (vertical automática)", () => {
+  beforeEach(() => {
+    mockWebsiteTemplates(TEMPLATES);
+  });
+
+  it("com VIEW_ADMIN: mostra a galeria normal com cartões clicáveis", () => {
+    hasPermissionMock.mockReturnValue(true);
+    useSiteMock.mockReturnValue({
+      data: makeSite({ template: "barber", pages: [] }),
+      isLoading: false,
+      dataUpdatedAt: 0,
+    });
+    render(<Website view="template" />);
+
+    // Galeria visível com 2 templates.
+    expect(screen.getByText("Barbearia")).toBeInTheDocument();
+    expect(screen.getByText("Ginásio")).toBeInTheDocument();
+    // Template "barber" está marcado como ativo.
+    expect(screen.getByRole("button", { name: /Barbearia/i }).closest("button")?.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("sem VIEW_ADMIN: mostra um cartão de estado com o template atual", () => {
+    hasPermissionMock.mockReturnValue(false);
+    useSiteMock.mockReturnValue({
+      data: makeSite({ template: "gym" }),
+      isLoading: false,
+      dataUpdatedAt: 0,
+    });
+    render(<Website view="template" />);
+
+    // Galeria escondida.
+    expect(screen.queryByText("Escolhe um ponto de partida")).not.toBeInTheDocument();
+    // Cartão de estado com mensagem.
+    expect(screen.getByText("O teu site usa o design da tua área de negócio")).toBeInTheDocument();
+    // Badge com o LABEL PT (tokens EN só no modelo — o tenant nunca vê "gym").
+    expect(screen.getByText("Ginásio")).toBeInTheDocument();
+    expect(screen.queryByText("gym")).not.toBeInTheDocument();
+    expect(screen.getByText(/fala com a equipa RufVision/i)).toBeInTheDocument();
+  });
+
+  it("sem VIEW_ADMIN e sem template: mostra um cartão indicando que a área ainda não está definida", () => {
+    hasPermissionMock.mockReturnValue(false);
+    useSiteMock.mockReturnValue({
+      data: makeSite({ template: null }),
+      isLoading: false,
+      dataUpdatedAt: 0,
+    });
+    render(<Website view="template" />);
+
+    expect(screen.getByText("O teu site usa o design da tua área de negócio")).toBeInTheDocument();
+    expect(screen.getByText(/área de negócio ainda não está definida/i)).toBeInTheDocument();
+  });
+});
+
 // ── Definições (3.10 — afinação leve do tenant) ───────────────────────────────
 
 describe("Website — Definições (3.10 — afinação leve do tenant)", () => {

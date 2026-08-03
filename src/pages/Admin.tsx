@@ -5,6 +5,7 @@ import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { API_BASE } from "../lib/env";
 import { Icon } from "../ui/icons.jsx";
+import { VERTICALS } from "../lib/verticals";
 import {
   Card,
   Button,
@@ -127,6 +128,7 @@ type UserForm = {
   emailSenderName: string;
   fromEmail: string;
   siteUrl: string;
+  vertical?: string;
 };
 const emptyUserForm: UserForm = {
   name: "",
@@ -215,6 +217,21 @@ function UserFormFields({
           searchPlaceholder="Pesquisar permissão…"
         />
       </div>
+      <div>
+        <p className="text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+          Tipo de negócio
+        </p>
+        <Combobox
+          value={form.vertical || ""}
+          onChange={(v) => setForm({ ...form, vertical: v || undefined })}
+          options={[
+            { value: "", label: "Nenhum (opcional)" },
+            ...VERTICALS.map((v) => ({ value: v.id, label: v.label })),
+          ]}
+          placeholder="Seleccionar tipo de negócio"
+          searchPlaceholder="Pesquisar tipo de negócio…"
+        />
+      </div>
     </div>
   );
 }
@@ -286,6 +303,7 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
       emailSenderName: (u as any).emailSenderName ?? "",
       fromEmail: (u as any).fromEmail ?? "",
       siteUrl: (u as any).siteUrl ?? "",
+      vertical: (u as any).vertical,
     });
     setEditOpen(true);
   };
@@ -404,6 +422,7 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
                     email: form.email,
                     phone: form.phone || undefined,
                     permissionId: form.permissionId,
+                    vertical: form.vertical || undefined,
                   } as any,
                 });
               }}
@@ -441,6 +460,7 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
                 p.emailSenderName = form.emailSenderName || null;
                 p.fromEmail = form.fromEmail || null;
                 p.siteUrl = form.siteUrl || null;
+                p.vertical = form.vertical || null;
                 updateM.mutate({ data: p });
               }}
             >

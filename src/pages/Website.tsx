@@ -507,6 +507,19 @@ function ThumbPreview({ template }: { template: SiteTemplate }) {
   );
 }
 
+/**
+ * Fallback PT dos ids de template (tokens EN no modelo, PT na UI). Só é usado
+ * quando a galeria da API ainda não carregou — a fonte de verdade dos labels
+ * continua a ser `GET /website/templates`.
+ */
+const TEMPLATE_LABEL_PT: Record<string, string> = {
+  barber: "Barbearia",
+  salon: "Salão",
+  gym: "Ginásio",
+  loja: "Loja",
+  generic: "Negócio geral",
+}
+
 /** Cartões-esqueleto enquanto `GET /website/templates` carrega. */
 function TemplateGallerySkeleton() {
   return (
@@ -522,7 +535,7 @@ function TemplateGallerySkeleton() {
   );
 }
 
-function TemplateTab({ site }: { site: Site }) {
+function TemplateTab({ site, canEditStructure }: { site: Site; canEditStructure: boolean }) {
   const { data: templates, isLoading, isError } = useGetWebsiteTemplates();
   const save = useSaveSite();
   const [pending, setPending] = useState<SiteTemplate | null>(null);
@@ -544,6 +557,42 @@ function TemplateTab({ site }: { site: Site }) {
     if (hasSite) setPending(t);
     else applyTemplate(t);
   };
+
+  // Tenant sem VIEW_SITE_BUILDER/VIEW_ADMIN — mostra um cartão de estado
+  // em vez da galeria interativa.
+  if (!canEditStructure) {
+    return (
+      <Card className="p-5">
+        <div className="space-y-3">
+          <p className="font-medium text-zinc-900 dark:text-white">
+            O teu site usa o design da tua área de negócio
+          </p>
+          {current ? (
+            <>
+              <p className="text-sm text-zinc-600 dark:text-zinc-300">
+                A tua área de negócio:
+              </p>
+              {/* Label PT do template (tokens EN só no modelo). O nome vem da
+                  própria galeria da API; sem ela (loading/erro) mostra-se o
+                  mapa local como fallback — nunca o token cru. */}
+              <Badge>
+                {templates?.find((t) => t.id === current)?.label ??
+                  TEMPLATE_LABEL_PT[current] ??
+                  "Personalizado"}
+              </Badge>
+              <p className="text-xs text-zinc-500 mt-3">
+                Para mudar a área de negócio ou o design do site, fala com a equipa RufVision.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-zinc-500">
+              A tua área de negócio ainda não está definida — a equipa RufVision trata disso.
+            </p>
+          )}
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <div>
@@ -2743,7 +2792,7 @@ export function Website({ view }: { view: WebsiteView }) {
           {view === "site" && (
             <SiteStatusTab site={site} siteUpdatedAt={dataUpdatedAt} canEditStructure={canEditStructure} />
           )}
-          {view === "template" && <TemplateTab site={site} />}
+          {view === "template" && <TemplateTab site={site} canEditStructure={canEditStructure} />}
           {view === "pages" && <PagesTab site={site} canEditStructure={canEditStructure} />}
           {view === "brand" && <BrandTab site={site} />}
           {view === "footer" && <FooterNavTab site={site} />}

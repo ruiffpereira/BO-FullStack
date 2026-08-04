@@ -145,7 +145,11 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
         text("stat2.label", "Estatística 2 — Rótulo"),
         text("stat3.valor", "Estatística 3 — Valor"),
         text("stat3.label", "Estatística 3 — Rótulo"),
-        // Contacto
+        // Contacto — o cartão tem título e rótulos próprios, todos editáveis
+        // (nenhum texto visível ao cliente final pode ficar preso no código).
+        text("contacto.titulo", "Cartão de contacto — Título", { hint: "ex: Onde nos encontrar" }),
+        text("contacto.morada.label", "Cartão de contacto — Rótulo da morada", { hint: "ex: Morada" }),
+        text("contacto.horario.label", "Cartão de contacto — Rótulo do horário", { hint: "ex: Horário" }),
         text("contacto.morada1", "Morada (linha 1)"),
         text("contacto.morada2", "Morada (linha 2)"),
         url("contacto.mapa_url", "Link Google Maps"),
@@ -158,6 +162,16 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
         url("redes.instagram", "Instagram URL"),
         url("redes.facebook", "Facebook URL"),
         url("redes.whatsapp", "WhatsApp URL"),
+        // Cabeçalho do painel da direita. O cartão e o cabeçalho são desenhados
+        // pelo HERO (o widget lá dentro entra sem moldura), por isso estes
+        // campos vivem aqui e não no bloco de marcação.
+        text("booking.eyebrow", "Painel — Eyebrow", { hint: "ex: Marcações online" }),
+        text("booking.titulo", "Painel — Título (1.ª linha)"),
+        text("booking.subtitulo", "Painel — Título (2.ª linha)"),
+        // Etiquetas dos 3 passos do widget de marcação
+        text("step1Label", "Passo 1 — Etiqueta", { hint: "ex: Escolhe o serviço" }),
+        text("step2Label", "Passo 2 — Etiqueta", { hint: "ex: Escolhe a data e hora" }),
+        text("step3Label", "Passo 3 — Etiqueta", { hint: "ex: Confirma a marcação" }),
       ],
     },
   },

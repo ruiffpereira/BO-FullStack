@@ -65,7 +65,7 @@ export interface BlockTypeSchema {
   fields?: FieldSchema[];
   /**
    * Campos específicos por variante — se definido, sobrepõe `fields` para uma variante específica.
-   * Útil quando variantes (ex: "tifas-split" do tipo "hero") precisam de campos muito diferentes.
+   * Útil quando variantes (ex: "split" do tipo "hero") precisam de campos muito diferentes.
    */
   variantFields?: Record<string, FieldSchema[]>;
   /**
@@ -119,11 +119,11 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     label: "Hero",
     description: "Destaque principal — título, subtítulo e botão",
     group: "content",
-    // U3 (opção A): as variantes genéricas foram removidas do renderer — a
-    // tifas é O design da plataforma (qualquer variante desconhecida rende
-    // tifas no engine, por isso blocos antigos continuam a abrir).
-    variants: [{ id: "tifas-split", label: "Split com widget (tifas)" }],
-    defaultVariant: "tifas-split",
+    // U3 (opção A): as variantes genéricas foram removidas do renderer — o
+    // design padrão é O design da plataforma (qualquer variante desconhecida rende
+    // o padrão no engine, por isso blocos antigos continuam a abrir).
+    variants: [{ id: "split", label: "Split com widget" }],
+    defaultVariant: "split",
     fields: [
       text("eyebrow", "Eyebrow", { hint: "Texto pequeno acima do título" }),
       text("title", "Título"),
@@ -133,7 +133,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       image("imageUrl", "Imagem"),
     ],
     variantFields: {
-      "tifas-split": [
+      "split": [
         image("logo", "Logótipo (80×80px)", { required: true }),
         text("badge", "Badge de status", { hint: "ex: Agora aberto" }),
         text("titulo", "Título do negócio", { required: true }),
@@ -180,8 +180,8 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     label: "Sobre",
     description: "Texto sobre o negócio, com imagem",
     group: "content",
-    variants: [{ id: "tifas", label: "Tifas" }],
-    defaultVariant: "tifas",
+    variants: [{ id: "portrait", label: "Retrato" }],
+    defaultVariant: "portrait",
     fields: [
       text("eyebrow", "Eyebrow"),
       text("title", "Título"),
@@ -189,7 +189,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       image("imageUrl", "Imagem"),
     ],
     variantFields: {
-      "tifas": [
+      "portrait": [
         text("label", "Eyebrow/Badge", { hint: "ex: SOBRE" }),
         text("titulo", "Título", { required: true }),
         text("corpo1", "Primeiro parágrafo"),
@@ -245,8 +245,8 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     label: "Galeria",
     description: "Grelha de imagens",
     group: "content",
-    variants: [{ id: "tifas", label: "Tifas" }],
-    defaultVariant: "tifas",
+    variants: [{ id: "grid", label: "Grelha" }],
+    defaultVariant: "grid",
     fields: [
       items(
         "images",
@@ -256,7 +256,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       ),
     ],
     variantFields: {
-      "tifas": [
+      "grid": [
         text("label", "Eyebrow/Badge", { hint: "ex: GALERIA" }),
         text("titulo", "Título da página"),
         text("descricao", "Descrição"),
@@ -427,8 +427,8 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     label: "Marcações",
     description: "Marcações — liga à agenda real do negócio",
     group: "functional",
-    variants: [{ id: "tifas", label: "Tifas" }],
-    defaultVariant: "tifas",
+    variants: [{ id: "default", label: "Padrão" }],
+    defaultVariant: "default",
     dataHint:
       "Os serviços e os horários disponíveis vêm da tua Agenda — este bloco só edita os textos à volta do formulário de marcação.",
     fields: [
@@ -450,7 +450,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       text("newBookingLabel", 'Texto do botão "fazer nova marcação"'),
     ],
     variantFields: {
-      "tifas": [
+      "default": [
         text("eyebrow", "Eyebrow/Badge", { hint: "ex: MARCAÇÃO" }),
         text("title", "Título do widget"),
         text("subtitle", "Subtítulo do widget"),
@@ -486,8 +486,8 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     label: "Produtos",
     description: "Montra de produtos da loja",
     group: "functional",
-    variants: [{ id: "tifas", label: "Tifas" }],
-    defaultVariant: "tifas",
+    variants: [{ id: "default", label: "Padrão" }],
+    defaultVariant: "default",
     dataHint: "Os produtos vêm da tua Loja — este bloco mostra o catálogo real, não uma lista editável aqui.",
     fields: [
       text("eyebrow", "Eyebrow"),
@@ -496,7 +496,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       text("unavailableMsg", "Mensagem sem produtos disponíveis"),
     ],
     variantFields: {
-      "tifas": [
+      "default": [
         text("label", "Eyebrow/Badge", { hint: "ex: PRODUTOS" }),
         text("title", "Título"),
         text("subtitle", "Subtítulo"),
@@ -510,8 +510,8 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     label: "Ginásio",
     description: "Planos e chamada à ação do ginásio",
     group: "functional",
-    variants: [{ id: "tifas", label: "Tifas" }],
-    defaultVariant: "tifas",
+    variants: [{ id: "default", label: "Padrão" }],
+    defaultVariant: "default",
     dataHint:
       "Este bloco é só marketing — os planos aqui são texto livre, não vêm das mensalidades reais (essas ficam em Financeiro → Ginásio). O botão NÃO cria uma conta de sócio: podes apontá-lo para /inscrever (formulário de interesse — o ginásio entra em contacto depois) ou para #contacto. A inscrição efetiva continua a ser sempre por CONVITE teu (Financeiro → Ginásio → Convidar sócio), nunca self-serve.",
     fields: [
@@ -538,7 +538,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       ),
     ],
     variantFields: {
-      "tifas": [
+      "default": [
         text("label", "Eyebrow/Badge", { hint: "ex: GINÁSIO" }),
         text("title", "Título"),
         text("subtitle", "Subtítulo"),
@@ -553,8 +553,8 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     label: "Captação de leads",
     description: "Formulário de contacto/captação de leads",
     group: "functional",
-    variants: [{ id: "tifas", label: "Tifas" }],
-    defaultVariant: "tifas",
+    variants: [{ id: "default", label: "Padrão" }],
+    defaultVariant: "default",
     dataHint: "Os envios criam leads na tua inbox (Clientes → Leads, com notificação) — não é só texto de marketing.",
     fields: [
       text("eyebrow", "Eyebrow"),
@@ -573,7 +573,7 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       }),
     ],
     variantFields: {
-      "tifas": [
+      "default": [
         text("label", "Eyebrow/Badge", { hint: "ex: CONTACTO" }),
         text("title", "Título"),
         text("subtitle", "Subtítulo"),
@@ -623,10 +623,38 @@ export function getBlockSchema(type: string): BlockTypeSchema {
  * Devolve os campos do schema para um bloco específico (type + variant).
  * Se a variante tiver campos específicos em `variantFields`, usa-os; senão, usa `fields`.
  */
+/**
+ * Nomes de variante ANTIGOS que continuam gravados em sites reais na BD.
+ * Sem este mapa, abrir um bloco desses no editor caía nos `fields` genéricos —
+ * o tenant perdia o formulário rico (logótipo, estatísticas, contacto, redes)
+ * e via 6 campos que não são os do bloco que está publicado.
+ * Manter até não haver sites com estes valores; o renderer também os aceita.
+ */
+const LEGACY_VARIANT_ALIAS: Record<string, string> = {
+  "tifas-split": "split",
+  tifas: "default",
+};
+
+/** Resolve o nome canónico de uma variante, aceitando os nomes legados. */
+export function canonicalVariant(type: string, variant?: string): string | undefined {
+  if (!variant) return variant;
+  const schema = getBlockSchema(type);
+  if (schema.variantFields?.[variant] || schema.variants.some((v) => v.id === variant)) {
+    return variant;
+  }
+  const alias = LEGACY_VARIANT_ALIAS[variant];
+  // `tifas` significava "a variante única deste tipo" — que hoje tem nomes
+  // diferentes por tipo (grid/portrait/default). Cair na variante por omissão
+  // do tipo é o que traduz isso corretamente.
+  if (alias) return schema.variantFields?.[alias] ? alias : schema.defaultVariant;
+  return variant;
+}
+
 export function getBlockFields(type: string, variant?: string): FieldSchema[] {
   const schema = getBlockSchema(type);
-  if (variant && schema.variantFields && schema.variantFields[variant]) {
-    return schema.variantFields[variant];
+  const resolved = canonicalVariant(type, variant);
+  if (resolved && schema.variantFields && schema.variantFields[resolved]) {
+    return schema.variantFields[resolved];
   }
   return schema.fields ?? [];
 }

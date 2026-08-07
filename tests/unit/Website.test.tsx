@@ -554,12 +554,12 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
       {
         id: "b1",
         type: "hero",
-        variant: "tifas-split",
+        variant: "split",
         settings: { content: { pt: { title: "Título do hero" } } },
       },
       {
         id: "b2",
-        type: "services", // legacy (sem design tifas) — continua editável
+        type: "services", // legacy (sem design padrão) — continua editável
         variant: "grid",
         settings: { content: { pt: { title: "Os nossos serviços" } } },
       },
@@ -610,9 +610,9 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
     const home = pages.find((p: any) => p.id === "home");
     expect(home.blocks).toHaveLength(1);
     // U3 (opção A, 2026-07-29): as variantes genéricas saíram do catálogo — a
-    // default de cada tipo é a tifas (o design da plataforma).
+    // default de cada tipo é o design padrão da plataforma.
     expect(home.blocks[0]).toEqual(
-      expect.objectContaining({ type: "hero", variant: "tifas-split" }),
+      expect.objectContaining({ type: "hero", variant: "split" }),
     );
   });
 
@@ -655,17 +655,17 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
     render(<Website view="pages" />);
     await openBlocksFor(user);
 
-    // U3 (opção A, 2026-07-29): os tipos com design tifas passaram a ter UMA
+    // U3 (opção A, 2026-07-29): os tipos com design padrão passaram a ter UMA
     // variante, por isso o seletor desaparece nesses (`hasVariantPicker =
     // variants.length > 1`) e mostra-se o Badge. O `services` (legacy, sem
-    // equivalente tifas) mantém as suas variantes — blocos antigos continuam
+    // equivalente padrão) mantém as suas variantes — blocos antigos continuam
     // editáveis. Aqui: 2 blocos, mas só o legacy tem seletor.
     expect(screen.queryAllByRole("button", { name: "Variante" })).toHaveLength(1);
-    expect(screen.getAllByText(/Tifas/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Split com widget/i).length).toBeGreaterThan(0);
     expect(saveMutate).not.toHaveBeenCalled();
   });
 
-  it("edita o título (formulário rico tifas) na língua padrão e guarda em settings.content.pt.titulo", async () => {
+  it("edita o título (formulário rico padrão) na língua padrão e guarda em settings.content.pt.titulo", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_TWO_BLOCKS]), isLoading: false });
     render(<Website view="pages" />);

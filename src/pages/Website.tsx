@@ -716,6 +716,7 @@ const RESERVED_SLUGS = new Set([
   "inscrever",
   "loja",
   "privacidade", // página legal/RGPD (T4 do port tifas)
+  "reset-password", // destino do email de recuperação de password do cliente final
   "api",
   "robots.txt",
   "sitemap.xml",

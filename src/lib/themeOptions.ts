@@ -38,6 +38,8 @@ export const FONT_STACK: Record<ThemeFont, string> = {
   serifbody: '"Source Serif 4", Georgia, serif',
   // Fonte do template barber/tifas (T1 do port — carregada pelo renderer via next/font)
   plusjakarta: '"Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif',
+  // Fonte do template stand (Schibsted + Hanken)
+  standpair: '"Schibsted Grotesk", "Hanken Grotesk", "Segoe UI", system-ui, sans-serif',
 };
 export const FONT_LABEL: Record<ThemeFont, string> = {
   grotesk: "Grotesk",
@@ -46,6 +48,7 @@ export const FONT_LABEL: Record<ThemeFont, string> = {
   warm: "Acolhedor",
   serifbody: "Serifa",
   plusjakarta: "Plus Jakarta",
+  standpair: "Schibsted + Hanken (stand)",
 };
 export const PRESET_LABEL: Record<ThemePreset, string> = {
   slate: "Ardósia",
@@ -90,6 +93,7 @@ export const THEME_FONTS: ThemeFont[] = [
   "modern",
   "warm",
   "serifbody",
+  "standpair",
 ];
 
 // ── Accent: 7 nomeados curados + hex livre (color-picker) ──────────────────

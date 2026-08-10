@@ -649,18 +649,17 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
     expect(home.blocks[0].id).toBe("b2");
   });
 
-  it("com uma unica variante por tipo, o seletor de variante nao aparece (mostra Badge)", async () => {
+  it("com multiplas variantes por tipo, o seletor de variante aparece", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_TWO_BLOCKS]), isLoading: false });
     render(<Website view="pages" />);
     await openBlocksFor(user);
 
-    // U3 (opção A, 2026-07-29): os tipos com design padrão passaram a ter UMA
-    // variante, por isso o seletor desaparece nesses (`hasVariantPicker =
-    // variants.length > 1`) e mostra-se o Badge. O `services` (legacy, sem
-    // equivalente padrão) mantém as suas variantes — blocos antigos continuam
-    // editáveis. Aqui: 2 blocos, mas só o legacy tem seletor.
-    expect(screen.queryAllByRole("button", { name: "Variante" })).toHaveLength(1);
+    // Após a adição de variantes por vertical (stand/gym/etc.):
+    // - hero tem split + stand + gym
+    // - services tem grid + list + stand
+    // Então ambos mostram o seletor de variante (`hasVariantPicker = variants.length > 1`).
+    expect(screen.queryAllByRole("button", { name: "Variante" })).toHaveLength(2);
     expect(screen.getAllByText(/Split com widget/i).length).toBeGreaterThan(0);
     expect(saveMutate).not.toHaveBeenCalled();
   });

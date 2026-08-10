@@ -33,7 +33,7 @@ export type ThemeAccent =
   | "teal"
   | "ink"
   | (string & {});
-export type ThemeFont = "grotesk" | "editorial" | "modern" | "warm" | "serifbody" | "plusjakarta";
+export type ThemeFont = "grotesk" | "editorial" | "modern" | "warm" | "serifbody" | "plusjakarta" | "standpair";
 /** Modo claro/escuro do site público (renderer: `lib/theme.ts::themeAttrs`,
  *  fallback "light" quando ausente — sites antigos sem `mode` continuam claros). */
 export type ThemeMode = "light" | "dark";

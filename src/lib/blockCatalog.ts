@@ -76,6 +76,49 @@ export interface BlockTypeSchema {
   dataHint?: string;
 }
 
+// ── Campos reutilizados ────────────────────────────────────────────────────────
+
+const HERO_SPLIT_FIELDS: FieldSchema[] = [
+  text("logo", "Logótipo (80×80px)", { required: true }),
+  text("badge", "Badge de status", { hint: "ex: Agora aberto" }),
+  text("titulo", "Título do negócio", { required: true }),
+  text("tagline", "Tagline"),
+  // Estatísticas (3 campos planos: stat1.valor, stat1.label, etc.)
+  text("stat1.valor", "Estatística 1 — Valor"),
+  text("stat1.label", "Estatística 1 — Rótulo"),
+  text("stat2.valor", "Estatística 2 — Valor"),
+  text("stat2.label", "Estatística 2 — Rótulo"),
+  text("stat3.valor", "Estatística 3 — Valor"),
+  text("stat3.label", "Estatística 3 — Rótulo"),
+  // Contacto — o cartão tem título e rótulos próprios, todos editáveis
+  // (nenhum texto visível ao cliente final pode ficar preso no código).
+  text("contacto.titulo", "Cartão de contacto — Título", { hint: "ex: Onde nos encontrar" }),
+  text("contacto.morada.label", "Cartão de contacto — Rótulo da morada", { hint: "ex: Morada" }),
+  text("contacto.horario.label", "Cartão de contacto — Rótulo do horário", { hint: "ex: Horário" }),
+  text("contacto.morada1", "Morada (linha 1)"),
+  text("contacto.morada2", "Morada (linha 2)"),
+  url("contacto.mapa_url", "Link Google Maps"),
+  text("contacto.horario.dias", "Dias abertos (ex: Seg-Sex)"),
+  text("contacto.horario.manha", "Horário manhã (ex: 09h-13h)"),
+  text("contacto.horario.tarde", "Horário tarde (ex: 14h-19h)"),
+  text("contacto.telefone", "Telefone"),
+  text("contacto.telefone.href", "Telefone (apenas dígitos)", { hint: "ex: 911234567" }),
+  // Redes sociais
+  url("redes.instagram", "Instagram URL"),
+  url("redes.facebook", "Facebook URL"),
+  url("redes.whatsapp", "WhatsApp URL"),
+  // Cabeçalho do painel da direita. O cartão e o cabeçalho são desenhados
+  // pelo HERO (o widget lá dentro entra sem moldura), por isso estes
+  // campos vivem aqui e não no bloco de marcação.
+  text("booking.eyebrow", "Painel — Eyebrow", { hint: "ex: Marcações online" }),
+  text("booking.titulo", "Painel — Título (1.ª linha)"),
+  text("booking.subtitulo", "Painel — Título (2.ª linha)"),
+  // Etiquetas dos 3 passos do widget de marcação
+  text("step1Label", "Passo 1 — Etiqueta", { hint: "ex: Escolhe o serviço" }),
+  text("step2Label", "Passo 2 — Etiqueta", { hint: "ex: Escolhe a data e hora" }),
+  text("step3Label", "Passo 3 — Etiqueta", { hint: "ex: Confirma a marcação" }),
+];
+
 // ── Helpers de construção ──────────────────────────────────────────────────────
 
 function text(key: string, label: string, opts: { required?: boolean; hint?: string } = {}): PrimitiveField {
@@ -122,7 +165,11 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     // U3 (opção A): as variantes genéricas foram removidas do renderer — o
     // design padrão é O design da plataforma (qualquer variante desconhecida rende
     // o padrão no engine, por isso blocos antigos continuam a abrir).
-    variants: [{ id: "split", label: "Split com widget" }],
+    variants: [
+      { id: "split", label: "Split com widget" },
+      { id: "stand", label: "Stand (viatura em destaque)" },
+      { id: "gym", label: "Ginásio (verde)" },
+    ],
     defaultVariant: "split",
     fields: [
       text("eyebrow", "Eyebrow", { hint: "Texto pequeno acima do título" }),
@@ -133,46 +180,18 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       image("imageUrl", "Imagem"),
     ],
     variantFields: {
-      "split": [
-        image("logo", "Logótipo (80×80px)", { required: true }),
-        text("badge", "Badge de status", { hint: "ex: Agora aberto" }),
-        text("titulo", "Título do negócio", { required: true }),
-        text("tagline", "Tagline"),
-        // Estatísticas (3 campos planos: stat1.valor, stat1.label, etc.)
-        text("stat1.valor", "Estatística 1 — Valor"),
-        text("stat1.label", "Estatística 1 — Rótulo"),
-        text("stat2.valor", "Estatística 2 — Valor"),
-        text("stat2.label", "Estatística 2 — Rótulo"),
-        text("stat3.valor", "Estatística 3 — Valor"),
-        text("stat3.label", "Estatística 3 — Rótulo"),
-        // Contacto — o cartão tem título e rótulos próprios, todos editáveis
-        // (nenhum texto visível ao cliente final pode ficar preso no código).
-        text("contacto.titulo", "Cartão de contacto — Título", { hint: "ex: Onde nos encontrar" }),
-        text("contacto.morada.label", "Cartão de contacto — Rótulo da morada", { hint: "ex: Morada" }),
-        text("contacto.horario.label", "Cartão de contacto — Rótulo do horário", { hint: "ex: Horário" }),
-        text("contacto.morada1", "Morada (linha 1)"),
-        text("contacto.morada2", "Morada (linha 2)"),
-        url("contacto.mapa_url", "Link Google Maps"),
-        text("contacto.horario.dias", "Dias abertos (ex: Seg-Sex)"),
-        text("contacto.horario.manha", "Horário manhã (ex: 09h-13h)"),
-        text("contacto.horario.tarde", "Horário tarde (ex: 14h-19h)"),
-        text("contacto.telefone", "Telefone"),
-        text("contacto.telefone.href", "Telefone (apenas dígitos)", { hint: "ex: 911234567" }),
-        // Redes sociais
-        url("redes.instagram", "Instagram URL"),
-        url("redes.facebook", "Facebook URL"),
-        url("redes.whatsapp", "WhatsApp URL"),
-        // Cabeçalho do painel da direita. O cartão e o cabeçalho são desenhados
-        // pelo HERO (o widget lá dentro entra sem moldura), por isso estes
-        // campos vivem aqui e não no bloco de marcação.
-        text("booking.eyebrow", "Painel — Eyebrow", { hint: "ex: Marcações online" }),
-        text("booking.titulo", "Painel — Título (1.ª linha)"),
-        text("booking.subtitulo", "Painel — Título (2.ª linha)"),
-        // Etiquetas dos 3 passos do widget de marcação
-        text("step1Label", "Passo 1 — Etiqueta", { hint: "ex: Escolhe o serviço" }),
-        text("step2Label", "Passo 2 — Etiqueta", { hint: "ex: Escolhe a data e hora" }),
-        text("step3Label", "Passo 3 — Etiqueta", { hint: "ex: Confirma a marcação" }),
+      "stand": [
+        text("carCount", "Contagem de viaturas", { hint: "ex: 50" }),
+        text("title", "Título principal"),
+        text("subtitle", "Subtítulo"),
+        text("featureCar", "Viatura em destaque — Modelo"),
+        text("featurePrice", "Viatura em destaque — Preço"),
+        text("featureMonthly", "Viatura em destaque — Mensalidade", { hint: "ex: € 350/mês" }),
+        image("featureImage", "Viatura em destaque — Imagem"),
+        text("searchCta", "Texto do botão de pesquisa", { hint: "ex: Procurar Viaturas" }),
       ],
+      "split": HERO_SPLIT_FIELDS,
+      "gym": HERO_SPLIT_FIELDS,
     },
   },
   {
@@ -180,7 +199,10 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     label: "Sobre",
     description: "Texto sobre o negócio, com imagem",
     group: "content",
-    variants: [{ id: "portrait", label: "Retrato" }],
+    variants: [
+      { id: "portrait", label: "Retrato" },
+      { id: "gym", label: "Ginásio (cartões)" },
+    ],
     defaultVariant: "portrait",
     fields: [
       text("eyebrow", "Eyebrow"),
@@ -197,32 +219,58 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
         image("foto", "Foto (aspect 4:5, retrato)"),
         stringList("especialidades", "Especialidades", "especialidade"),
       ],
+      "gym": [
+        text("label", "Eyebrow/Badge", { hint: "ex: SOBRE" }),
+        text("titulo", "Título", { required: true }),
+        text("corpo1", "Primeiro parágrafo"),
+        text("corpo2", "Segundo parágrafo"),
+        image("foto", "Foto (aspect 4:5, retrato)"),
+        stringList("especialidades", "Especialidades", "especialidade"),
+      ],
     },
   },
   {
     type: "stats",
-    legacy: true,
     label: "Estatísticas",
     description: "Números em destaque (ex.: anos de experiência, clientes)",
     group: "content",
     variants: [
       { id: "row", label: "Linha" },
       { id: "band", label: "Faixa" },
+      { id: "stand", label: "Stand (vantagens)" },
     ],
     defaultVariant: "row",
     fields: [
       items("items", "Estatísticas", [text("value", "Valor"), text("label", "Legenda")], "estatística"),
     ],
+    variantFields: {
+      "row": [
+        items("items", "Estatísticas", [text("value", "Valor"), text("label", "Legenda")], "estatística"),
+      ],
+      "band": [
+        items("items", "Estatísticas", [text("value", "Valor"), text("label", "Legenda")], "estatística"),
+      ],
+      "stand": [
+        text("item1.title", "Item 1 — Título", { required: true }),
+        text("item1.subtitle", "Item 1 — Subtítulo"),
+        text("item2.title", "Item 2 — Título", { required: true }),
+        text("item2.subtitle", "Item 2 — Subtítulo"),
+        text("item3.title", "Item 3 — Título", { required: true }),
+        text("item3.subtitle", "Item 3 — Subtítulo"),
+        text("item4.title", "Item 4 — Título", { required: true }),
+        text("item4.subtitle", "Item 4 — Subtítulo"),
+      ],
+    },
   },
   {
     type: "services",
-    legacy: true,
     label: "Serviços",
     description: "Lista de serviços ou produtos com preço",
     group: "content",
     variants: [
       { id: "grid", label: "Grelha" },
       { id: "list", label: "Lista" },
+      { id: "stand", label: "Stand (serviços)" },
     ],
     defaultVariant: "grid",
     fields: [
@@ -239,13 +287,29 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
         "serviço",
       ),
     ],
+    variantFields: {
+      "stand": [
+        text("eyebrow", "Eyebrow", { hint: "ex: SERVIÇOS" }),
+        text("title", "Título"),
+        text("subtitle", "Subtítulo"),
+        text("service1.title", "Serviço 1 — Título", { required: true }),
+        text("service1.description", "Serviço 1 — Descrição"),
+        text("service2.title", "Serviço 2 — Título", { required: true }),
+        text("service2.description", "Serviço 2 — Descrição"),
+        text("service3.title", "Serviço 3 — Título", { required: true }),
+        text("service3.description", "Serviço 3 — Descrição"),
+      ],
+    },
   },
   {
     type: "gallery",
     label: "Galeria",
     description: "Grelha de imagens",
     group: "content",
-    variants: [{ id: "grid", label: "Grelha" }],
+    variants: [
+      { id: "grid", label: "Grelha" },
+      { id: "gym", label: "Ginásio (cartões)" },
+    ],
     defaultVariant: "grid",
     fields: [
       items(
@@ -257,6 +321,18 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     ],
     variantFields: {
       "grid": [
+        text("label", "Eyebrow/Badge", { hint: "ex: GALERIA" }),
+        text("titulo", "Título da página"),
+        text("descricao", "Descrição"),
+        text("altText", "Texto alternativo padrão", { hint: "Usado para todas as imagens" }),
+        items(
+          "photos",
+          "Fotografias (9 fotos)",
+          [image("url", "Foto", { required: true }), text("alt", "Descrição da foto")],
+          "foto",
+        ),
+      ],
+      "gym": [
         text("label", "Eyebrow/Badge", { hint: "ex: GALERIA" }),
         text("titulo", "Título da página"),
         text("descricao", "Descrição"),
@@ -298,13 +374,13 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
   },
   {
     type: "cta",
-    legacy: true,
     label: "Chamada à ação",
     description: "Bloco de destaque com botão — normalmente no fim da página",
     group: "content",
     variants: [
       { id: "simple", label: "Simples" },
       { id: "with-image", label: "Com imagem" },
+      { id: "stand", label: "Stand (simulador)" },
     ],
     defaultVariant: "simple",
     fields: [
@@ -314,6 +390,29 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       url("ctaHref", "Destino do botão"),
       image("imageUrl", "Imagem"),
     ],
+    variantFields: {
+      "stand": [
+        text("eyebrow", "Eyebrow", { hint: "ex: SIMULADOR" }),
+        text("title", "Título"),
+        text("subtitle", "Subtítulo"),
+        text("perk1.label", "Vantagem 1 — Rótulo", { required: true }),
+        text("perk1.description", "Vantagem 1 — Descrição"),
+        text("perk2.label", "Vantagem 2 — Rótulo", { required: true }),
+        text("perk2.description", "Vantagem 2 — Descrição"),
+        text("perk3.label", "Vantagem 3 — Rótulo", { required: true }),
+        text("perk3.description", "Vantagem 3 — Descrição"),
+        text("calculator.title", "Simulador — Título"),
+        text("calculator.taegPct", "Simulador — TAEG (%)", { hint: "ex: 8,9 (só o número)" }),
+        text("calculator.priceLabel", "Simulador — Rótulo preço"),
+        text("calculator.downLabel", "Simulador — Rótulo entrada"),
+        text("calculator.termLabel", "Simulador — Rótulo prazo"),
+        text("calculator.resultLabel", "Simulador — Rótulo resultado"),
+        text("calculator.financed", "Simulador — Valor financiado"),
+        text("calculator.apr", "Simulador — TAEG indicativa"),
+        text("calculator.total", "Simulador — Total a pagar"),
+        text("calculator.disclaimer", "Simulador — Aviso/disclaimer"),
+      ],
+    },
   },
   {
     type: "faq",
@@ -367,13 +466,13 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
   },
   {
     type: "contact",
-    legacy: true,
     label: "Contactos",
     description: "Morada, telefone, email, horário e mapa",
     group: "content",
     variants: [
       { id: "split", label: "Dividido" },
       { id: "stack", label: "Empilhado" },
+      { id: "stand", label: "Stand (contacto)" },
     ],
     defaultVariant: "split",
     fields: [
@@ -385,6 +484,37 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
       stringList("hours", "Horário", "horário"),
       url("mapEmbedUrl", "Mapa (embed)", { hint: "Tem de começar por http(s)://" }),
     ],
+    variantFields: {
+      "stand": [
+        text("eyebrow", "Eyebrow", { hint: "ex: CONTACTO" }),
+        text("title", "Título", { hint: "ex: Visita-nos ou fala connosco" }),
+        text("phoneLabel", "Rótulo telefone", { hint: "ex: TELEFONE" }),
+        text("scheduleLabel", "Rótulo horário", { hint: "ex: HORÁRIO" }),
+        text("location1.name", "Localidade 1 — Nome", { required: true }),
+        text("location1.tag", "Localidade 1 — Etiqueta (ex: Lisboa)"),
+        text("location1.address", "Localidade 1 — Morada"),
+        text("location1.phone", "Localidade 1 — Telefone"),
+        text("location1.schedule", "Localidade 1 — Horário"),
+        text("location2.name", "Localidade 2 — Nome"),
+        text("location2.tag", "Localidade 2 — Etiqueta (ex: Porto)"),
+        text("location2.address", "Localidade 2 — Morada"),
+        text("location2.phone", "Localidade 2 — Telefone"),
+        text("location2.schedule", "Localidade 2 — Horário"),
+        text("form.nameLabel", "Formulário — Rótulo nome"),
+        text("form.namePlaceholder", "Formulário — Placeholder nome"),
+        text("form.emailLabel", "Formulário — Rótulo email"),
+        text("form.emailPlaceholder", "Formulário — Placeholder email"),
+        text("form.phoneLabel", "Formulário — Rótulo telefone"),
+        text("form.phonePlaceholder", "Formulário — Placeholder telefone"),
+        text("form.messageLabel", "Formulário — Rótulo mensagem"),
+        text("form.messagePlaceholder", "Formulário — Placeholder mensagem"),
+        text("form.submitLabel", "Formulário — Texto botão"),
+        text("form.sendingLabel", "Formulário — Texto a enviar"),
+        text("form.errorMsg", "Formulário — Mensagem erro"),
+        text("form.thanksTitle", "Formulário — Título agradecimento"),
+        text("form.thanks", "Formulário — Mensagem agradecimento"),
+      ],
+    },
   },
   {
     type: "collection",
@@ -486,7 +616,10 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     label: "Produtos",
     description: "Montra de produtos da loja",
     group: "functional",
-    variants: [{ id: "default", label: "Padrão" }],
+    variants: [
+      { id: "default", label: "Padrão" },
+      { id: "stand", label: "Catálogo de viaturas" },
+    ],
     defaultVariant: "default",
     dataHint: "Os produtos vêm da tua Loja — este bloco mostra o catálogo real, não uma lista editável aqui.",
     fields: [
@@ -503,6 +636,17 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
         text("ctaLabel", "Texto do botão"),
         text("unavailableMsg", "Mensagem sem produtos"),
       ],
+      "stand": [
+        text("eyebrow", "Eyebrow", { hint: "ex: STOCK DISPONÍVEL" }),
+        text("title", "Título", { hint: "ex: As nossas viaturas" }),
+        text("subtitle", "Subtítulo"),
+        text("badgeLabel", "Rótulo badge", { hint: "ex: Usado" }),
+        text("priceFromLabel", "Rótulo preço", { hint: "ex: Desde" }),
+        text("detailsLabel", "Rótulo botão", { hint: "ex: Detalhes" }),
+        text("countSuffix", "Sufixo contagem", { hint: "ex: viaturas disponíveis" }),
+        text("unavailableMsg", "Mensagem sem produtos"),
+        text("anchorId", "Identificador da âncora", { hint: "ex: catalogo" }),
+      ],
     },
   },
   {
@@ -510,7 +654,10 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
     label: "Ginásio",
     description: "Planos e chamada à ação do ginásio",
     group: "functional",
-    variants: [{ id: "default", label: "Padrão" }],
+    variants: [
+      { id: "default", label: "Padrão" },
+      { id: "gym-cards", label: "Planos (design ginásio)" },
+    ],
     defaultVariant: "default",
     dataHint:
       "Este bloco é só marketing — os planos aqui são texto livre, não vêm das mensalidades reais (essas ficam em Financeiro → Ginásio). O botão NÃO cria uma conta de sócio: podes apontá-lo para /inscrever (formulário de interesse — o ginásio entra em contacto depois) ou para #contacto. A inscrição efetiva continua a ser sempre por CONVITE teu (Financeiro → Ginásio → Convidar sócio), nunca self-serve.",
@@ -545,6 +692,28 @@ export const BLOCK_SCHEMAS: BlockTypeSchema[] = [
         text("ctaLabel", "Texto do botão"),
         url("ctaHref", "Destino do botão"),
         stringList("benefits", "Benefícios", "benefício"),
+      ],
+      "gym-cards": [
+        text("eyebrow", "Eyebrow", { hint: "ex: PLANOS" }),
+        text("title", "Título"),
+        text("subtitle", "Subtítulo"),
+        text("ctaLabel", "Texto do botão (padrão)", { hint: "Usado se um plano não tiver texto próprio" }),
+        url("ctaHref", "Destino do botão (padrão)"),
+        text("anchorId", "Identificador da âncora", { hint: "ex: ginasio" }),
+        items(
+          "plans",
+          "Planos",
+          [
+            text("name", "Nome", { required: true }),
+            text("price", "Preço", { required: true }),
+            text("period", "Período", { hint: "ex.: /mês" }),
+            textareaLines("features", "Vantagens (uma por linha)"),
+            boolean("highlighted", "Destacado"),
+            text("ctaLabel", "Texto do botão"),
+            url("ctaHref", "Destino do botão"),
+          ],
+          "plano",
+        ),
       ],
     },
   },

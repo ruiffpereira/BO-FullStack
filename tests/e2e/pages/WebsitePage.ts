@@ -13,14 +13,11 @@ export class WebsitePage {
     return this.page.getByRole("heading", { name: "Website", level: 2 });
   }
 
-  /** Subitens da sidebar (T2.3): O meu site (âncora) · Template · Páginas · Marca · Rodapé & Nav · Domínio — botões do submenu, não role="tab". */
+  /** Subitens da sidebar (T2.3): O meu site (âncora) · Páginas · Marca — botões do submenu, não role="tab". */
   private static PATH_BY_LABEL: Record<string, string> = {
     "O meu site": "/website",
-    Template: "/website/template",
     Páginas: "/website/paginas",
     Marca: "/website/marca",
-    "Rodapé & Nav": "/website/rodape-nav",
-    Domínio: "/website/dominio",
   };
 
   tab(label: string) {

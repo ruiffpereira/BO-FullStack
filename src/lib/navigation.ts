@@ -57,31 +57,13 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
   "/website": [
     // Label do âncora ("O meu site", não "Website") pelo mesmo motivo dos
     // outros grupos acima. A página nunca usou `?tab=` (sem deep-link legacy
-    // a redirecionar aqui, T2.3).
-    //
-    // Gating por subitem (T3.8, `.design/site-tenant-light/DESIGN_BRIEF.md`
-    // secção 3.8 — "feito por mim, afinado por eles"): o site é montado PELO
-    // DONO por omissão; só quem tem `VIEW_SITE_BUILDER` (self-serve concede-a
-    // automaticamente; contas montadas à mão pelo dono NÃO a têm por defeito,
-    // ele atribui-a enquanto monta o site e revoga na entrega) OU
-    // `VIEW_ADMIN` (o dono, sempre) vê Template/Domínio. "Páginas" fica
-    // SEMPRE visível (sem `perm`) mas em MODO CONTEÚDO sem essa permissão —
-    // ver `canEditStructure`/`PagesTab` em `Website.tsx`: o tenant tem de
-    // conseguir editar textos/imagens dos blocos das páginas já montadas,
-    // só não pode mexer na estrutura (criar/remover/reordenar páginas ou
-    // blocos, mudar slug/variante). Mesmo padrão para o botão Publicar em
-    // "O meu site" (`SiteStatusTab`).
+    // a redirecionar aqui, T2.3). Contém 3 vistas: "O meu site" (com
+    // DomainSection dentro, só visível com VIEW_SITE_BUILDER/VIEW_ADMIN),
+    // "Páginas" (sempre visível, mode read-only sem a permissão) e "Marca"
+    // (sempre visível).
     { id: "site", label: "O meu site", path: "/website" },
-    { id: "template", label: "Template", path: "/website/template", perm: ["VIEW_SITE_BUILDER", "VIEW_ADMIN"] },
     { id: "pages", label: "Páginas", path: "/website/paginas" },
     { id: "brand", label: "Marca", path: "/website/marca" },
-    { id: "footer", label: "Rodapé & Nav", path: "/website/rodape-nav" },
-    { id: "domain", label: "Domínio", path: "/website/dominio", perm: ["VIEW_SITE_BUILDER", "VIEW_ADMIN"] },
-    // Definições (3.10, `.design/site-tenant-light/DESIGN_BRIEF.md`) — afinação
-    // leve (anúncio/WhatsApp/redes sociais/férias/SEO/cantos), SEM `perm`: é a
-    // casa da afinação leve, tenant-open mesmo sem VIEW_SITE_BUILDER/VIEW_ADMIN
-    // (ao contrário de Template/Domínio acima).
-    { id: "settings", label: "Definições", path: "/website/definicoes" },
   ],
   "/admin": [
     // Label do âncora ("Utilizadores", não "Admin") pelo mesmo motivo dos

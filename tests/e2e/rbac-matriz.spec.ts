@@ -20,26 +20,14 @@ import { loginAs } from "./fixtures/login";
  *  - **T3.8 (2026-07-14, un-gate seletivo do `/website`):** `/website` voltou
  *    a CORE_PATHS — todos os tenants acedem à página. O que continua gated
  *    por permissão (`VIEW_SITE_BUILDER` OU `VIEW_ADMIN`) é só a SUPERFÍCIE
- *    dentro dela: os subitens "Template"/"Domínio" (gating por SUBITEM,
- *    `SUBMENU['/website']` em `navigation.ts` — mesmo mecanismo do
- *    Conteúdos) redirecionam para o 1.º subitem permitido ("/website", não
- *    "/dashboard") quando faltam as duas permissões. O botão Publicar e a
- *    edição estrutural de páginas/blocos (`canEditStructure`) são gate DENTRO
- *    da página (`Website.tsx`), cobertos em `tests/unit/Website.test.tsx`,
- *    não aqui.
+ *    dentro dela: o botão Publicar e a edição estrutural de páginas/blocos
+ *    (`canEditStructure`) são gate DENTRO da página (`Website.tsx`), cobertos
+ *    em `tests/unit/Website.test.tsx`, não aqui.
  *
  * NOTA: as páginas CORE não têm guard de rota — renderizam para todos; a proteção
  * dos DADOS é feita na API (isolamento). Por isso a matriz testa o que o Shell
  * garante: quais ITENS de módulo aparecem e quais ROTAS de módulo redirecionam.
  *
- * ⚠ NOTA HONESTA (T3.8, construído em paralelo com a API): a permissão
- * `VIEW_SITE_BUILDER` é nova — se o `seedE2e.ts` ainda não a atribuir a
- * nenhum dos utilizadores da matriz abaixo, os testes que dependem dela (ver
- * bloco "Website — Template/Domínio atrás de VIEW_SITE_BUILDER") só ficam
- * plenamente cobertos para `noaccess@e2e` (zero permissões, já hoje) e
- * `admin@e2e` (VIEW_ADMIN, já hoje) — os dois não dependem do seed novo.
- * Este ficheiro não foi corrido (precisa da API + BD de teste); confirmar ao
- * correr `pnpm test:e2e` depois do seed atualizado.
  */
 
 // Cada teste autentica o seu próprio tenant — começa sem sessão.
@@ -85,20 +73,15 @@ async function expectBlockedRedirect(
 }
 
 // Itens CORE que TODOS os tenants (mesmo sem módulos) devem ver na sidebar.
-// "Website" voltou a core a 2026-07-14 (T3.8, un-gate seletivo — ver
-// docstring do ficheiro): a página é sempre acessível, só a SUPERFÍCIE lá
-// dentro (Template/Domínio) é que gate por permissão.
+// "Website" voltou a core a 2026-07-14 (T3.8, un-gate seletivo): a página é
+// sempre acessível a todos; o gating de conteúdo (botão Publicar, editar
+// estrutura) é verificado em `tests/unit/Website.test.tsx`.
 const CORE_ITEMS = ["Clientes", "Mensagens", "Financeiro", "Conteúdos", "Website"];
 // Estatísticas continua atrás do gate TEMPORÁRIO de produto (2026-07-08,
 // `ADMIN_GATED_PATHS` no Shell.tsx): só visível/acessível com VIEW_ADMIN, como
 // o Admin. Reverter o gate = devolvê-la a CORE_ITEMS aqui.
 const ADMIN_GATED_ITEMS = ["Estatísticas"];
 const ADMIN_GATED_ROUTES = ["/estatisticas"];
-// Subitens de /website que exigem VIEW_SITE_BUILDER OU VIEW_ADMIN (T3.8,
-// gating por SUBITEM — mesmo mecanismo do Conteúdos). Sem nenhuma das duas,
-// o guard redireciona para "/website" (1.º subitem permitido), NÃO para
-// "/dashboard" — a raiz é core, ao contrário de Estatísticas/Admin.
-const SITE_BUILDER_GATED_ROUTES = ["/website/template", "/website/dominio"];
 // Todos os itens de módulo (não-core, não-admin) — usados para verificar ocultação.
 const ALL_MODULE_ITEMS = ["Loja", "Agenda", "Ginásio"];
 // Rotas de módulo protegidas por permissão (o guard redireciona sem a permissão).
@@ -187,11 +170,11 @@ test.describe("RBAC matriz — sidebar por permissão (core + módulo próprio)"
       await loginAs(context, m.user);
       // Core é acessível a todos os tenants — nenhuma destas rotas deve redirecionar
       // para /dashboard. (/despesas é deep-link do Financeiro, também permitido.
-      // /website é core desde T3.8 (2026-07-14) — a raiz e "Páginas" (modo
-      // conteúdo) são sempre acessíveis, mesmo sem VIEW_SITE_BUILDER/VIEW_ADMIN;
-      // ver o describe "Website — Template/Domínio..." abaixo para o gating por
-      // SUBITEM. /estatisticas continua fora daqui — gate temporário VIEW_ADMIN,
-      // ver ADMIN_GATED_ROUTES acima.)
+      // /website é core desde T3.8 (2026-07-14) — a raiz, "Páginas" e "Marca" são
+      // sempre acessíveis, mesmo sem VIEW_SITE_BUILDER/VIEW_ADMIN; o gating de
+      // conteúdo (botão Publicar, editar estrutura) é testado em Website.test.tsx.
+      // /estatisticas continua fora daqui — gate temporário VIEW_ADMIN, ver
+      // ADMIN_GATED_ROUTES acima.)
       for (const route of ["/clientes", "/financeiro", "/conteudos", "/despesas", "/website", "/website/paginas"]) {
         await page.goto(route);
         await expect(page, `${m.user} devia poder ficar em ${route}`).toHaveURL(
@@ -273,51 +256,36 @@ test.describe("RBAC matriz — noaccess@e2e (sem componentes)", () => {
   });
 });
 
-// T3.8 (2026-07-14): gating por SUBITEM de /website — "Template"/"Domínio"
-// exigem VIEW_SITE_BUILDER OU VIEW_ADMIN (`SUBMENU['/website']`,
-// `navigation.ts`); sem nenhuma das duas o guard redireciona para "/website"
-// (1.º subitem permitido), NÃO para "/dashboard" (a raiz é core). Testado só
-// com `noaccess@e2e` (zero permissões) e `admin@e2e` (VIEW_ADMIN) — nenhum
-// dos dois depende do seed novo de VIEW_SITE_BUILDER (ver nota honesta no
-// topo do ficheiro).
-test.describe("RBAC matriz — Website: Template/Domínio atrás de VIEW_SITE_BUILDER/VIEW_ADMIN", () => {
-  test("noaccess@e2e: /website/template e /website/dominio redirecionam para /website (não /dashboard)", async ({
-    page,
-    context,
-  }) => {
-    await loginAs(context, "noaccess@e2e");
-    for (const route of SITE_BUILDER_GATED_ROUTES) {
+// Backward compatibility: paths antigos de /website redirecionam para /website
+// (o editor de site foi reorganizado: só ficam "O meu site", "Páginas" e "Marca").
+test.describe("RBAC matriz — Website: backward compatibility (paths antigos redirecionam)", () => {
+  test("paths antigos de /website redirecionam para /website", async ({ page, context }) => {
+    await loginAs(context, "admin@e2e");
+    const legacyRoutes = ["/website/template", "/website/rodape-nav", "/website/dominio", "/website/definicoes"];
+    for (const route of legacyRoutes) {
       await page.goto(route);
-      await expect(page, `noaccess devia ser redirecionado de ${route} para /website`).toHaveURL(
-        /\/website$/,
-        { timeout: 15_000 },
-      );
+      await expect(page, `${route} devia redirecionar para /website`).toHaveURL(/\/website$/, { timeout: 15_000 });
     }
   });
+});
 
-  test("noaccess@e2e: submenu de Website esconde Template e Domínio", async ({ page, context }) => {
+// Gating de conteúdo dentro de /website: sem VIEW_SITE_BUILDER/VIEW_ADMIN, o tenant
+// vê a página mas em "MODO CONTEÚDO" (não consegue publicar, editar estrutura, etc.).
+test.describe("RBAC matriz — Website: gating de conteúdo (sem VIEW_SITE_BUILDER)", () => {
+  test("noaccess@e2e: /website/paginas acessível mas em modo read-only (sem botão Publicar)", async ({ page, context }) => {
+    await loginAs(context, "noaccess@e2e");
+    await page.goto("/website/paginas");
+    await expect(page).toHaveURL(/\/website\/paginas$/, { timeout: 15_000 });
+    // Botão "Publicar" deve estar escondido para utilizadores sem VIEW_SITE_BUILDER
+    await expect(page.getByRole("button", { name: /Publicar/i })).toHaveCount(0);
+  });
+
+  test("noaccess@e2e: /website não mostra secção de Domínio (Subdomínio) sem VIEW_SITE_BUILDER", async ({ page, context }) => {
     await loginAs(context, "noaccess@e2e");
     await page.goto("/website");
     await expect(page).toHaveURL(/\/website$/, { timeout: 15_000 });
-    for (const label of ["O meu site", "Páginas", "Marca", "Rodapé & Nav"]) {
-      await expect(nav(page).getByRole("button", { name: label, exact: true })).toBeVisible({ timeout: 10_000 });
-    }
-    for (const label of ["Template", "Domínio"]) {
-      await expect(nav(page).getByRole("button", { name: label, exact: true })).toHaveCount(0);
-    }
-  });
-
-  test("admin@e2e: acede a /website/template e /website/dominio sem redirect (VIEW_ADMIN cobre a OR)", async ({
-    page,
-    context,
-  }) => {
-    await loginAs(context, "admin@e2e");
-    for (const route of SITE_BUILDER_GATED_ROUTES) {
-      await page.goto(route);
-      await expect(page, `admin devia aceder a ${route}`).toHaveURL(new RegExp(route.replace("/", "\\/")), {
-        timeout: 15_000,
-      });
-    }
+    // A secção de Subdomínio/Domínio não deve aparecer sem VIEW_SITE_BUILDER
+    await expect(page.getByText(/Subdomínio/i)).toHaveCount(0);
   });
 });
 

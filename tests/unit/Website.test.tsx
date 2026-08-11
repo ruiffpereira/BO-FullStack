@@ -42,14 +42,6 @@ vi.mock("../../src/gen/backoffice/hooks/useGetBillingSubscription", () => ({
 // Domínio próprio (3.9) — hook manual novo em useWebsite.ts.
 const setCustomDomainMutate = vi.fn();
 
-// Templates de arranque (T19) — fonte única na API, consumidos via o hook
-// gerado pelo Kubb. Mockamos o módulo para controlar loading/erro/dados sem
-// servidor nem React Query (mesmo padrão do Faturacao.test.tsx).
-const useWebsiteTemplatesMock = vi.fn();
-vi.mock("../../src/gen/backoffice/hooks/useGetWebsiteTemplates", () => ({
-  useGetWebsiteTemplates: () => useWebsiteTemplatesMock(),
-}));
-
 // Preview ao vivo (mint de token) — mockado como os outros hooks Kubb (mesmo
 // padrão do Faturacao.test.tsx para usePostBillingPortal/usePostBillingSubscribe).
 // Capturamos as `options.mutation` passadas pelo componente para conseguirmos
@@ -62,50 +54,6 @@ vi.mock("../../src/gen/backoffice/hooks/usePostWebsitePreviewToken", () => ({
     return { mutate: previewMintMutate, isPending: false };
   },
 }));
-
-const TEMPLATES = [
-  {
-    id: "barber",
-    label: "Barbearia",
-    vertical: "Barbearia · marcações",
-    description: "Página focada em serviços e reservas, com estilo escuro e moderno.",
-    site: {
-      template: "barber",
-      theme: { preset: "ink", accent: "amber", font: "grotesk", logo: null },
-      defaultLocale: "pt",
-      activeLocales: ["pt"],
-      nav: { items: [], cta: null },
-      pages: [{ id: "home", slug: "", inNav: true, order: 0, kind: "content", blocks: [] }],
-      footer: {},
-    },
-  },
-  {
-    id: "gym",
-    label: "Ginásio",
-    vertical: "Ginásio · mensalidades",
-    description: "Energia e prova social, com destaque para planos e resultados.",
-    site: {
-      template: "gym",
-      theme: { preset: "slate", accent: "emerald", font: "grotesk", logo: null },
-      defaultLocale: "pt",
-      activeLocales: ["pt"],
-      nav: { items: [], cta: null },
-      pages: [{ id: "home", slug: "", inNav: true, order: 0, kind: "content", blocks: [] }],
-      footer: {},
-    },
-  },
-];
-
-function mockWebsiteTemplates(
-  data: typeof TEMPLATES | undefined,
-  opts: { isLoading?: boolean; isError?: boolean } = {},
-) {
-  useWebsiteTemplatesMock.mockReturnValue({
-    data,
-    isLoading: opts.isLoading ?? false,
-    isError: opts.isError ?? false,
-  });
-}
 
 // AuthContext — `Website.tsx` usa `hasPermission` para calcular
 // `canEditStructure` (T3.8: VIEW_SITE_BUILDER OU VIEW_ADMIN). Por omissão
@@ -153,7 +101,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   hasPermissionMock.mockReturnValue(true);
   useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false, dataUpdatedAt: 0 });
-  mockWebsiteTemplates(TEMPLATES);
 });
 
 // Nota (T2.3, migração sidebar-com-submenus): a página `Website` deixou de ter
@@ -172,75 +119,6 @@ describe("Website", () => {
     expect(screen.getAllByText("Rascunho").length).toBeGreaterThan(0);
     const publicar = screen.getByRole("button", { name: /Publicar/i });
     expect(publicar).toBeDisabled();
-  });
-
-  it("(b) escolher um template chama save com um Site JSON com template + pages", async () => {
-    const user = userEvent.setup();
-    render(<Website view="template" />);
-
-    // Escolher a Barbearia (não há site montado → aplica direto, sem confirmar).
-    await user.click(screen.getByRole("button", { name: /Barbearia/i }));
-
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const arg = saveMutate.mock.calls[0][0];
-    expect(arg).toEqual(
-      expect.objectContaining({
-        template: "barber",
-        pages: expect.arrayContaining([
-          expect.objectContaining({ id: "home" }),
-        ]),
-      }),
-    );
-    expect(Array.isArray(arg.pages)).toBe(true);
-    expect(arg.pages.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("(b2) Template: renderiza a galeria a partir do endpoint (GET /website/templates)", () => {
-    render(<Website view="template" />);
-
-    expect(useWebsiteTemplatesMock).toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: /Barbearia/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Ginásio/i })).toBeInTheDocument();
-    expect(screen.getByText("Ginásio · mensalidades")).toBeInTheDocument();
-  });
-
-  it("(b3) Template: aplicar chama useSaveSite com o payload `site` exato do template escolhido", async () => {
-    const user = userEvent.setup();
-    render(<Website view="template" />);
-
-    await user.click(screen.getByRole("button", { name: /Ginásio/i }));
-
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    expect(saveMutate.mock.calls[0][0]).toEqual(TEMPLATES[1].site);
-  });
-
-  it("(b4) Template: mostra um estado de carregamento enquanto o endpoint não responde", () => {
-    mockWebsiteTemplates(undefined, { isLoading: true });
-    render(<Website view="template" />);
-
-    expect(screen.queryByRole("button", { name: /Barbearia/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/Não foi possível carregar/i)).not.toBeInTheDocument();
-  });
-
-  it("(b5) Template: mostra uma mensagem de erro em PT quando o endpoint falha", async () => {
-    mockWebsiteTemplates(undefined, { isError: true });
-    render(<Website view="template" />);
-
-    expect(await screen.findByText(/Não foi possível carregar os templates/i)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Barbearia/i })).not.toBeInTheDocument();
-  });
-
-  it("(c) domínio: mostra a razão de indisponibilidade devolvida pela verificação", async () => {
-    const user = userEvent.setup();
-    checkFn.mockResolvedValue({ value: "admin", available: false, reason: "reserved" });
-    render(<Website view="domain" />);
-
-    const input = screen.getByPlaceholderText("a-tua-marca");
-    await user.type(input, "admin");
-
-    await waitFor(() => {
-      expect(screen.getByText(/Reservado/i)).toBeInTheDocument();
-    });
   });
 
   it("(d) Publicar fica ativo e chama publish com subdomínio + páginas + template + marca", async () => {
@@ -1158,168 +1036,6 @@ describe("Website — Blocos (Coleção — editor de itens)", () => {
   });
 });
 
-// ── Rodapé & Nav (D1 footer + D2 nav CTA — site-editor-complete) ─────────────
-
-describe("Website — Rodapé & Nav (D1 footer + D2 nav CTA)", () => {
-  it("(D1) mostra os valores atuais do rodapé (nome, tagline, nota legal, colunas+links)", async () => {
-    useSiteMock.mockReturnValue({
-      data: makeSite({
-        footer: {
-          name: "Acme",
-          tagline: "A tua barbearia de bairro",
-          smallPrint: "© 2026 Acme.",
-          columns: [{ title: "Empresa", links: [{ label: "Sobre nós", to: "/sobre" }] }],
-        },
-      }),
-      isLoading: false,
-    });
-    render(<Website view="footer" />);
-
-    // Os campos `name`/`smallPrint` têm hint (texto extra dentro do próprio
-    // <label>), por isso o nome acessível não é exatamente a etiqueta — regex
-    // de prefixo em vez de string exata (mesmo padrão usado no resto do ficheiro,
-    // ex.: `getAllByLabelText(/Endereço/)` na tab Páginas).
-    expect(screen.getByLabelText(/^Nome \/ marca/)).toHaveValue("Acme");
-    expect(screen.getByLabelText("Tagline")).toHaveValue("A tua barbearia de bairro");
-    expect(screen.getByLabelText(/^Nota legal/)).toHaveValue("© 2026 Acme.");
-    expect(screen.getByLabelText("Título da coluna 1")).toHaveValue("Empresa");
-    expect(screen.getByLabelText("Texto do link 1")).toHaveValue("Sobre nós");
-    expect(screen.getByLabelText("Endereço do link 1")).toHaveValue("/sobre");
-  });
-
-  it("(D1) adicionar uma coluna + um link persiste o footer completo (campo `to`, não `href`)", async () => {
-    const user = userEvent.setup();
-    useSiteMock.mockReturnValue({
-      data: makeSite({ footer: { name: "Acme" } }),
-      isLoading: false,
-    });
-    render(<Website view="footer" />);
-
-    await user.click(screen.getByRole("button", { name: /Adicionar coluna/i }));
-    await user.type(screen.getByLabelText("Título da coluna 1"), "Empresa");
-    await user.click(screen.getByRole("button", { name: /Adicionar link/i }));
-    await user.type(screen.getByLabelText("Texto do link 1"), "Contactos");
-    await user.type(screen.getByLabelText("Endereço do link 1"), "#contacto");
-
-    await user.click(screen.getByRole("button", { name: /Guardar rodapé/i }));
-
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const arg = saveMutate.mock.calls[0][0];
-    expect(arg.footer).toEqual(
-      expect.objectContaining({
-        name: "Acme",
-        columns: [{ title: "Empresa", links: [{ label: "Contactos", to: "#contacto" }] }],
-      }),
-    );
-  });
-
-  it("(D2) define nav.cta e preserva nav.items ao guardar", async () => {
-    const user = userEvent.setup();
-    useSiteMock.mockReturnValue({
-      data: makeSite({ nav: { items: [{ label: "Início", to: "/" }], cta: null } }),
-      isLoading: false,
-    });
-    render(<Website view="footer" />);
-
-    // Duas toggles nesta vista (CTA + itens do menu) — desambiguar pelo nome.
-    await user.click(screen.getByRole("switch", { name: "Mostrar botão personalizado" }));
-    await user.type(screen.getByLabelText("Texto do botão"), "Marcar");
-    // O campo "Endereço" existe tanto no CTA como (com outro nome acessível,
-    // "Endereço do link N") no editor de itens do menu — regex específico do
-    // hint do CTA para não colidir.
-    await user.type(screen.getByLabelText(/Normalmente uma âncora/), "#marcar");
-    await user.click(screen.getByRole("button", { name: /Guardar botão do menu/i }));
-
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const arg = saveMutate.mock.calls[0][0];
-    expect(arg.nav).toEqual({
-      items: [{ label: "Início", to: "/" }],
-      cta: { label: "Marcar", to: "#marcar" },
-    });
-  });
-
-  it("(D2) desligar o CTA existente grava cta:null e continua a preservar nav.items", async () => {
-    const user = userEvent.setup();
-    useSiteMock.mockReturnValue({
-      data: makeSite({
-        nav: { items: [{ label: "Início", to: "/" }], cta: { label: "Marcar", to: "#marcar" } },
-      }),
-      isLoading: false,
-    });
-    render(<Website view="footer" />);
-
-    // O toggle começa ligado (já há CTA guardado) — desligar limpa o CTA.
-    await user.click(screen.getByRole("switch", { name: "Mostrar botão personalizado" }));
-    await user.click(screen.getByRole("button", { name: /Guardar botão do menu/i }));
-
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const arg = saveMutate.mock.calls[0][0];
-    expect(arg.nav).toEqual({
-      items: [{ label: "Início", to: "/" }],
-      cta: null,
-    });
-  });
-
-  it("(itens do menu) com nav.items já preenchido, mostra 'Personalizado' ativo e os itens existentes", async () => {
-    useSiteMock.mockReturnValue({
-      data: makeSite({
-        nav: { items: [{ label: "Serviços", to: "/servicos" }], cta: null },
-      }),
-      isLoading: false,
-    });
-    render(<Website view="footer" />);
-
-    expect(screen.getByRole("switch", { name: "Personalizar itens do menu" })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
-    expect(screen.getByLabelText("Texto do link 1")).toHaveValue("Serviços");
-    expect(screen.getByLabelText("Endereço do link 1")).toHaveValue("/servicos");
-  });
-
-  it("(itens do menu) modo Personalizado: adicionar um item grava nav.items preservando o cta", async () => {
-    const user = userEvent.setup();
-    useSiteMock.mockReturnValue({
-      data: makeSite({ nav: { items: [], cta: { label: "Marcar", to: "#marcar" } } }),
-      isLoading: false,
-    });
-    render(<Website view="footer" />);
-
-    await user.click(screen.getByRole("switch", { name: "Personalizar itens do menu" }));
-    await user.click(screen.getByRole("button", { name: /Adicionar link/i }));
-    await user.type(screen.getByLabelText("Texto do link 1"), "Início");
-    await user.type(screen.getByLabelText("Endereço do link 1"), "/");
-    await user.click(screen.getByRole("button", { name: /Guardar itens do menu/i }));
-
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const arg = saveMutate.mock.calls[0][0];
-    expect(arg.nav).toEqual({
-      items: [{ label: "Início", to: "/" }],
-      cta: { label: "Marcar", to: "#marcar" },
-    });
-  });
-
-  it("(itens do menu) voltar a Automático grava nav.items ausente (renderer volta a derivar das páginas)", async () => {
-    const user = userEvent.setup();
-    useSiteMock.mockReturnValue({
-      data: makeSite({
-        nav: { items: [{ label: "Início", to: "/" }], cta: { label: "Marcar", to: "#marcar" } },
-      }),
-      isLoading: false,
-    });
-    render(<Website view="footer" />);
-
-    // Já começa em "Personalizado" (há items) — desligar volta a Automático.
-    await user.click(screen.getByRole("switch", { name: "Personalizar itens do menu" }));
-    await user.click(screen.getByRole("button", { name: /Guardar itens do menu/i }));
-
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const arg = saveMutate.mock.calls[0][0];
-    expect(arg.nav.items).toBeUndefined();
-    expect(arg.nav.cta).toEqual({ label: "Marcar", to: "#marcar" });
-  });
-});
-
 // ── Gate seletivo (T3.8, `.design/site-tenant-light/DESIGN_BRIEF.md` 3.8) ────
 //
 // Por omissão (`hasPermissionMock` → true, ver `beforeEach` global) o tenant
@@ -1335,24 +1051,23 @@ describe("Website — gate seletivo (T3.8: sem VIEW_SITE_BUILDER/VIEW_ADMIN)", (
     hasPermissionMock.mockReturnValue(false);
   });
 
-  it("submenu (navigation.ts): esconde Template e Domínio, mantém os restantes subitens (incl. Definições, 3.10)", () => {
-    // Sem nenhuma das duas permissões — "Definições" (3.10) é tenant-open,
-    // sem `perm`, por isso continua visível tal como "Páginas"/"Marca"/"Rodapé & Nav".
+  it("submenu (navigation.ts): página Website tem 3 vistas base (sem permissão ou com)", () => {
+    // Página Website simplificada: 3 vistas (site/pages/brand). O template e
+    // domínio foram incorporados ou removidos (template faz parte de /website/template,
+    // domínio é uma secção interna de /website/site). A navegação mostra as mesmas
+    // 3 vistas para todos os tenants — o gating de Template e Domínio fica a nível
+    // de conteúdo das vistas, não de visibilidade das rotas.
     expect(allowedSubitems("/website", () => false).map((i) => i.id)).toEqual([
       "site",
       "pages",
       "brand",
-      "footer",
-      "settings",
     ]);
-    // Com VIEW_SITE_BUILDER (self-serve) — mostra tudo.
     expect(
       allowedSubitems("/website", (name) => name === "VIEW_SITE_BUILDER").map((i) => i.id),
-    ).toEqual(["site", "template", "pages", "brand", "footer", "domain", "settings"]);
-    // Com VIEW_ADMIN (sem VIEW_SITE_BUILDER) — também mostra tudo (OR, T3.8).
+    ).toEqual(["site", "pages", "brand"]);
     expect(
       allowedSubitems("/website", (name) => name === "VIEW_ADMIN").map((i) => i.id),
-    ).toEqual(["site", "template", "pages", "brand", "footer", "domain", "settings"]);
+    ).toEqual(["site", "pages", "brand"]);
   });
 
   it("'O meu site': esconde o botão Publicar mesmo com o setup completo, mantém estado/URL", () => {
@@ -1467,263 +1182,18 @@ describe("Website — gate seletivo (T3.8: sem VIEW_SITE_BUILDER/VIEW_ADMIN)", (
     const home = pages.find((p: any) => p.id === "home");
     expect(home.blocks.find((b: any) => b.id === "b1").settings.content.pt.title).toBe("Novo título");
   });
-});
 
-// ── Template com gating (vertical automática) ──────────────────────────────────
-
-describe("Website — Template com gating (vertical automática)", () => {
-  beforeEach(() => {
-    mockWebsiteTemplates(TEMPLATES);
-  });
-
-  it("com VIEW_ADMIN: mostra a galeria normal com cartões clicáveis", () => {
-    hasPermissionMock.mockReturnValue(true);
+  it("'O meu site' (Domínio): sem VIEW_SITE_BUILDER/VIEW_ADMIN, não mostra a secção Subdomínio", () => {
     useSiteMock.mockReturnValue({
-      data: makeSite({ template: "barber", pages: [] }),
+      data: makeSite({ subdomain: "acme" }),
       isLoading: false,
       dataUpdatedAt: 0,
     });
-    render(<Website view="template" />);
+    render(<Website view="site" />);
 
-    // Galeria visível com 2 templates.
-    expect(screen.getByText("Barbearia")).toBeInTheDocument();
-    expect(screen.getByText("Ginásio")).toBeInTheDocument();
-    // Template "barber" está marcado como ativo.
-    expect(screen.getByRole("button", { name: /Barbearia/i }).closest("button")?.getAttribute("aria-pressed")).toBe("true");
-  });
-
-  it("sem VIEW_ADMIN: mostra um cartão de estado com o template atual", () => {
-    hasPermissionMock.mockReturnValue(false);
-    useSiteMock.mockReturnValue({
-      data: makeSite({ template: "gym" }),
-      isLoading: false,
-      dataUpdatedAt: 0,
-    });
-    render(<Website view="template" />);
-
-    // Galeria escondida.
-    expect(screen.queryByText("Escolhe um ponto de partida")).not.toBeInTheDocument();
-    // Cartão de estado com mensagem.
-    expect(screen.getByText("O teu site usa o design da tua área de negócio")).toBeInTheDocument();
-    // Badge com o LABEL PT (tokens EN só no modelo — o tenant nunca vê "gym").
-    expect(screen.getByText("Ginásio")).toBeInTheDocument();
-    expect(screen.queryByText("gym")).not.toBeInTheDocument();
-    expect(screen.getByText(/fala com a equipa RufVision/i)).toBeInTheDocument();
-  });
-
-  it("sem VIEW_ADMIN e sem template: mostra um cartão indicando que a área ainda não está definida", () => {
-    hasPermissionMock.mockReturnValue(false);
-    useSiteMock.mockReturnValue({
-      data: makeSite({ template: null }),
-      isLoading: false,
-      dataUpdatedAt: 0,
-    });
-    render(<Website view="template" />);
-
-    expect(screen.getByText("O teu site usa o design da tua área de negócio")).toBeInTheDocument();
-    expect(screen.getByText(/área de negócio ainda não está definida/i)).toBeInTheDocument();
-  });
-});
-
-// ── Definições (3.10 — afinação leve do tenant) ───────────────────────────────
-
-describe("Website — Definições (3.10 — afinação leve do tenant)", () => {
-  function siteWithSettings(settings: Site["settings"], overrides: Partial<Site> = {}): Site {
-    return makeSite({ settings, activeLocales: ["pt"], defaultLocale: "pt", ...overrides });
-  }
-
-  it("Anúncio: liga o toggle, escreve texto+link e guarda preservando as outras chaves de `settings`", async () => {
-    const user = userEvent.setup();
-    useSiteMock.mockReturnValue({
-      data: siteWithSettings({ whatsapp: { enabled: true, number: "+351912345678" } }),
-      isLoading: false,
-    });
-    render(<Website view="settings" />);
-
-    await user.click(screen.getByRole("switch", { name: "Mostrar anúncio" }));
-    await user.type(screen.getByLabelText("Texto do anúncio"), "Promoção de verão");
-    await user.type(screen.getByLabelText("Link (opcional)"), "/promocoes");
-    await user.click(screen.getByRole("button", { name: /Guardar anúncio/i }));
-
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const arg = saveMutate.mock.calls[0][0];
-    expect(arg.settings).toEqual(
-      expect.objectContaining({
-        announcement: { enabled: true, text: { pt: "Promoção de verão" }, href: "/promocoes" },
-        whatsapp: { enabled: true, number: "+351912345678" },
-      }),
-    );
-  });
-
-  it("Anúncio: um link inválido (nem http(s) nem /) bloqueia Guardar e mostra o erro", async () => {
-    const user = userEvent.setup();
-    useSiteMock.mockReturnValue({ data: siteWithSettings({}), isLoading: false });
-    render(<Website view="settings" />);
-
-    await user.type(screen.getByLabelText("Link (opcional)"), "javascript:alert(1)");
-
-    expect(await screen.findByText(/a começar por http\(s\):\/\/ ou \//i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Guardar anúncio/i })).toBeDisabled();
-    expect(saveMutate).not.toHaveBeenCalled();
-  });
-
-  it("Anúncio: editar o texto só na língua ativa (pt) preserva o texto de uma língua desativada (fr) ao guardar", async () => {
-    const user = userEvent.setup();
-    useSiteMock.mockReturnValue({
-      data: siteWithSettings(
-        { announcement: { enabled: true, text: { pt: "Texto antigo", fr: "Texte français" } } },
-        { activeLocales: ["pt"] },
-      ),
-      isLoading: false,
-    });
-    render(<Website view="settings" />);
-
-    const textInput = screen.getByLabelText("Texto do anúncio");
-    await user.clear(textInput);
-    await user.type(textInput, "Texto novo");
-    await user.click(screen.getByRole("button", { name: /Guardar anúncio/i }));
-
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const arg = saveMutate.mock.calls[0][0];
-    expect(arg.settings.announcement.text).toEqual({ pt: "Texto novo", fr: "Texte français" });
-  });
-
-  it("WhatsApp: guarda o número e o toggle", async () => {
-    const user = userEvent.setup();
-    useSiteMock.mockReturnValue({ data: siteWithSettings({}), isLoading: false });
-    render(<Website view="settings" />);
-
-    await user.click(screen.getByRole("switch", { name: "Mostrar botão de WhatsApp" }));
-    await user.type(screen.getByLabelText(/^Número/), "+351912345678");
-    await user.click(screen.getByRole("button", { name: /Guardar WhatsApp/i }));
-
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    expect(saveMutate.mock.calls[0][0].settings.whatsapp).toEqual({
-      enabled: true,
-      number: "+351912345678",
-    });
-  });
-
-  it("WhatsApp: um número demasiado curto bloqueia Guardar", async () => {
-    const user = userEvent.setup();
-    useSiteMock.mockReturnValue({ data: siteWithSettings({}), isLoading: false });
-    render(<Website view="settings" />);
-
-    await user.type(screen.getByLabelText(/^Número/), "12345");
-
-    expect(await screen.findByText(/demasiado curto/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Guardar WhatsApp/i })).toBeDisabled();
-    expect(saveMutate).not.toHaveBeenCalled();
-  });
-
-  it("Redes sociais: guarda os 3 URLs", async () => {
-    const user = userEvent.setup();
-    useSiteMock.mockReturnValue({ data: siteWithSettings({}), isLoading: false });
-    render(<Website view="settings" />);
-
-    await user.type(screen.getByLabelText("Instagram"), "https://instagram.com/acme");
-    await user.type(screen.getByLabelText("Facebook"), "https://facebook.com/acme");
-    await user.type(screen.getByLabelText("TikTok"), "https://tiktok.com/@acme");
-    await user.click(screen.getByRole("button", { name: /Guardar redes sociais/i }));
-
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    expect(saveMutate.mock.calls[0][0].settings.social).toEqual({
-      instagram: "https://instagram.com/acme",
-      facebook: "https://facebook.com/acme",
-      tiktok: "https://tiktok.com/@acme",
-    });
-  });
-
-  it("Redes sociais: um URL sem http(s) bloqueia Guardar", async () => {
-    const user = userEvent.setup();
-    useSiteMock.mockReturnValue({ data: siteWithSettings({}), isLoading: false });
-    render(<Website view="settings" />);
-
-    await user.type(screen.getByLabelText("Instagram"), "instagram.com/acme");
-
-    expect(await screen.findByText(/Tem de começar por http/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Guardar redes sociais/i })).toBeDisabled();
-    expect(saveMutate).not.toHaveBeenCalled();
-  });
-
-  it("Modo férias: liga o toggle, escreve a mensagem e guarda", async () => {
-    const user = userEvent.setup();
-    useSiteMock.mockReturnValue({ data: siteWithSettings({}), isLoading: false });
-    render(<Website view="settings" />);
-
-    await user.click(screen.getByRole("switch", { name: "Ativar modo férias" }));
-    await user.type(screen.getByLabelText("Mensagem de férias"), "Fechado até dia 20.");
-    await user.click(screen.getByRole("button", { name: /Guardar modo férias/i }));
-
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    expect(saveMutate.mock.calls[0][0].settings.vacation).toEqual({
-      enabled: true,
-      message: { pt: "Fechado até dia 20." },
-    });
-  });
-
-  it("SEO: guarda título/descrição por língua e um URL de imagem colado", async () => {
-    const user = userEvent.setup();
-    useSiteMock.mockReturnValue({ data: siteWithSettings({}), isLoading: false });
-    render(<Website view="settings" />);
-
-    await user.type(screen.getByLabelText("Título de SEO"), "Acme — Barbearia");
-    await user.type(screen.getByLabelText("Descrição de SEO"), "A tua barbearia de bairro.");
-    await user.click(screen.getByRole("button", { name: /ou cola um URL/i }));
-    await user.type(screen.getByPlaceholderText("https://…/og.jpg"), "https://x/og.jpg");
-    await user.click(screen.getByRole("button", { name: /Guardar SEO/i }));
-
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    expect(saveMutate.mock.calls[0][0].settings.seo).toEqual({
-      title: { pt: "Acme — Barbearia" },
-      description: { pt: "A tua barbearia de bairro." },
-      ogImage: "https://x/og.jpg",
-    });
-  });
-
-  it("SEO: faz upload da imagem de partilha (diferido até Guardar)", async () => {
-    const user = userEvent.setup();
-    uploadImage.mockResolvedValue({ fileUrl: "https://x/og.webp", key: "k3" });
-    useSiteMock.mockReturnValue({ data: siteWithSettings({}), isLoading: false });
-    render(<Website view="settings" />);
-
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-    const img = new File(["x"], "og.png", { type: "image/png" });
-    fireEvent.change(fileInput, { target: { files: [img] } });
-
-    expect(uploadImage).not.toHaveBeenCalled();
-
-    await user.click(screen.getByRole("button", { name: /Guardar SEO/i }));
-
-    await waitFor(() =>
-      expect(uploadImage).toHaveBeenCalledWith({ image: img, module: "website" }),
-    );
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    expect(saveMutate.mock.calls[0][0].settings.seo.ogImage).toBe("https://x/og.webp");
-  });
-
-  it("Cantos: por omissão mostra Arredondado selecionado e guarda radius:'rounded'", async () => {
-    const user = userEvent.setup();
-    useSiteMock.mockReturnValue({ data: siteWithSettings({}), isLoading: false });
-    render(<Website view="settings" />);
-
-    expect(screen.getByRole("button", { name: "Arredondado" })).toHaveAttribute("aria-pressed", "true");
-    await user.click(screen.getByRole("button", { name: /Guardar cantos/i }));
-
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    expect(saveMutate.mock.calls[0][0].settings.radius).toBe("rounded");
-  });
-
-  it("Cantos: escolher Reto guarda radius:'square'", async () => {
-    const user = userEvent.setup();
-    useSiteMock.mockReturnValue({ data: siteWithSettings({}), isLoading: false });
-    render(<Website view="settings" />);
-
-    await user.click(screen.getByRole("button", { name: "Reto" }));
-    await user.click(screen.getByRole("button", { name: /Guardar cantos/i }));
-
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    expect(saveMutate.mock.calls[0][0].settings.radius).toBe("square");
+    // Sem a permissão, a secção Domínio fica escondida.
+    expect(screen.queryByText("Subdomínio")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("a-tua-marca")).not.toBeInTheDocument();
   });
 });
 
@@ -1834,13 +1304,5 @@ describe("Website — Domínio próprio (3.9) — construído, UI desativada", (
     expect(toastError).toHaveBeenCalledWith(
       "Esse é o domínio da plataforma — não pode ser usado como domínio próprio.",
     );
-  });
-
-  it("flag desligada: a tab Domínio NÃO mostra o card 'Domínio próprio'", () => {
-    useSiteMock.mockReturnValue({ data: siteWithCustomDomain("www.acme.pt"), isLoading: false });
-    render(<Website view="domain" />);
-
-    expect(screen.queryByText("Domínio próprio")).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("www.cliente.pt")).not.toBeInTheDocument();
   });
 });

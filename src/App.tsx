@@ -168,12 +168,13 @@ function App() {
         <Route path="/conteudos/emails" element={<Conteudos view="emails" />} />
         <Route path="/conteudos/notificacoes" element={<Conteudos view="notificacoes" />} />
         <Route path="/website" element={<Website view="site" />} />
-        <Route path="/website/template" element={<Website view="template" />} />
         <Route path="/website/paginas" element={<Website view="pages" />} />
         <Route path="/website/marca" element={<Website view="brand" />} />
-        <Route path="/website/rodape-nav" element={<Website view="footer" />} />
-        <Route path="/website/dominio" element={<Website view="domain" />} />
-        <Route path="/website/definicoes" element={<Website view="settings" />} />
+        {/* Redirect legacy routes to /website */}
+        <Route path="/website/template" element={<Navigate to="/website" replace />} />
+        <Route path="/website/rodape-nav" element={<Navigate to="/website" replace />} />
+        <Route path="/website/dominio" element={<Navigate to="/website" replace />} />
+        <Route path="/website/definicoes" element={<Navigate to="/website" replace />} />
         <Route path="/admin" element={<AdminEntry />} />
         <Route path="/admin/permissoes" element={<Admin view="permissoes" />} />
         <Route path="/admin/componentes" element={<Admin view="componentes" />} />

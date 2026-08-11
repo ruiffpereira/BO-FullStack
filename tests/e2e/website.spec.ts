@@ -6,12 +6,12 @@ test.describe("Website — Navegação (submenu, T2.3)", () => {
     const p = new WebsitePage(page);
     await p.goto();
     await expect(p.header()).toBeVisible();
-    for (const label of ["O meu site", "Template", "Páginas", "Marca", "Rodapé & Nav", "Domínio"]) {
+    for (const label of ["O meu site", "Páginas", "Marca"]) {
       await expect(p.tab(label)).toBeVisible();
     }
   });
 
-  test("navegar para Template e Domínio muda a URL e mostra o conteúdo de cada vista", async ({ page }) => {
+  test("navegar entre O meu site, Páginas e Marca muda a URL", async ({ page }) => {
     const p = new WebsitePage(page);
     await p.goto();
 
@@ -24,15 +24,10 @@ test.describe("Website — Navegação (submenu, T2.3)", () => {
     // vistas seguintes (SPA, sem reload) não voltam a depender de rede lenta.
     await expect(page.getByText("Estado", { exact: true })).toBeVisible({ timeout: 20_000 });
 
-    await p.goToTab("Template");
-    await expect(page).toHaveURL(/\/website\/template/);
-    // Parágrafo estático (fora do `isLoading` de `useGetWebsiteTemplates`) —
-    // não depende da resposta de `GET /website/templates`.
-    await expect(page.getByText(/Escolhe um ponto de partida/i)).toBeVisible({ timeout: 8_000 });
+    await p.goToTab("Páginas");
+    await expect(page).toHaveURL(/\/website\/paginas/);
 
-    await p.goToTab("Domínio");
-    await expect(page).toHaveURL(/\/website\/dominio/);
-    // Placeholder do input — renderiza de imediato, sem fetch próprio no mount.
-    await expect(page.getByPlaceholder("a-tua-marca")).toBeVisible({ timeout: 8_000 });
+    await p.goToTab("Marca");
+    await expect(page).toHaveURL(/\/website\/marca/);
   });
 });

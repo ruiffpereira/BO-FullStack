@@ -108,7 +108,7 @@ describe("Signup — passo 1 (negócio)", () => {
 
   it("vertical inválida na query string é ignorada (nenhuma pré-selecionada)", () => {
     renderSignup("/signup?vertical=not-a-vertical");
-    for (const label of ["Barbearia/Salão", "Ginásio", "Loja", "Outro"]) {
+    for (const label of ["Agenda", "Ginásio", "Loja"]) {
       expect(screen.getByRole("radio", { name: label })).not.toBeChecked();
     }
   });
@@ -141,9 +141,9 @@ describe("Signup — passo 2 (plano): pré-seleção por vertical + total", () =
     expect(screen.getByText(totalText("30,00"))).toBeInTheDocument();
   });
 
-  it("barbearia pré-seleciona Agenda", () => {
+  it("agenda pré-seleciona Agenda", () => {
     renderSignup();
-    fillStep1("Barbearia/Salão");
+    fillStep1("Agenda");
     expect(screen.getByLabelText("Agenda")).toBeChecked();
   });
 
@@ -153,14 +153,6 @@ describe("Signup — passo 2 (plano): pré-seleção por vertical + total", () =
     expect(screen.getByLabelText("Loja")).toBeChecked();
   });
 
-  it('"Outro" não pré-seleciona nenhum módulo', () => {
-    renderSignup();
-    fillStep1("Outro");
-    expect(screen.getByLabelText("Agenda")).not.toBeChecked();
-    expect(screen.getByLabelText("Ginásio")).not.toBeChecked();
-    expect(screen.getByLabelText("Loja")).not.toBeChecked();
-    expect(screen.getByText(totalText("0,00"))).toBeInTheDocument();
-  });
 
   it("o total recomputa ao marcar/desmarcar módulos", () => {
     renderSignup();

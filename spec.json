@@ -1,4 +1,4 @@
-﻿{
+{
   "openapi": "3.0.0",
   "info": {
     "title": "API BackOffice Documentation",
@@ -4061,8 +4061,7 @@
                     "enum": [
                       "barber",
                       "gym",
-                      "shop",
-                      "other"
+                      "shop"
                     ]
                   },
                   "modules": {
@@ -12307,7 +12306,7 @@
                     },
                     "url": {
                       "type": "string",
-                      "description": "URL completo do preview no renderer (RENDERER_URL, se configurado; senão deriva-se de `https://<PLATFORM_ROOT_DOMAIN>`)"
+                      "description": "URL completo do preview no renderer (RENDERER_URL, se configurado; senão deriva-se de `https://siteengine.<PLATFORM_ROOT_DOMAIN>`, o host canónico do renderer — o apex é a landing page)"
                     }
                   }
                 }

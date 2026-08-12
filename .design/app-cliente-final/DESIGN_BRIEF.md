@@ -1,6 +1,19 @@
 # App de Cliente Final Multi-Tenant — Design Brief
 
-**Data:** 2026-07-23 · **Estado:** brief aprovado nas decisões-chave (user delegou as escolhas técnicas, 2026-07-23) · **Build:** por autorizar
+**Data:** 2026-07-23 · **Estado:** brief aprovado + **BUILD AUTORIZADO 2026-08-12 (âmbito: só módulo GINÁSIO)** · **Referência:** gymnoprado
+
+---
+
+## 0. CONFIRMADO 2026-08-12 (arranque do build — âmbito ginásio)
+
+O dono autorizou o arranque, **só para o módulo ginásio** (o módulo Agenda, F3, fica para depois). Duas decisões que REFINAM o brief:
+
+- **A app vive DENTRO do site-engine** (Next.js), não como deploy Vite à parte — porta-se o gymnoprado para o site-engine, 1 deploy multi-tenant, config por host. (Confirma a arquitetura D5.) **Nota de tecnologia:** o que importa (React, offline em `localStorage`, cronómetros wall-clock, wake-lock, vibração, push, fila offline) porta-se 1:1; muda o bundler (Vite→Next) e a cola do service worker (refeita no idioma do Next; o engine já serve manifest por host). É re-alojamento, não reescrita.
+- **O SUBDOMÍNIO DO GINÁSIO É A APP (supersede o D1 `/app` para o gym):** abrir `ginasiox.rufvision.com` mostra logo a app (login→treino), como o gymnoprado hoje. **NÃO há site de marketing para tenants de ginásio** — o site de marketing atual do gym (blocos `Gym*`/`gym.css`/variantes "gym" no `BlockRenderer`) é **para APAGAR**. A bifurcação faz-se em `site-engine/app/[[...slug]]/page.tsx` (`CatchAllPage`) + `layout.tsx`: `if (site.template === "gym")` → serve o shell da app (SPA client-side) em vez dos blocos, em TODAS as rotas do host; a app usa o seu próprio router client-side (react-router) para `/`, `/treinos`, `/treino/:id/executar`, etc. SW/manifest com scope `/` (só em hosts de ginásio).
+- **Isolamento confirmado (recon 2026-08-12):** barber (agenda) e loja (stand) ficam intactos — não partilham código específico do gym; apagar o gym não lhes toca. O trigger "este host é app" é `site.template === "gym"`.
+- **Abordagem de porte (decidida):** hospedar a SPA do gymnoprado **client-side** dentro do Next (um catch-all do host de ginásio monta `<AppGym/>` como client component com `BrowserRouter`), preservando o router e a estrutura da app — em vez de converter react-router→Next routing. `import.meta.env` (VITE_*) → config injetada por host (D5).
+
+O resto do brief (D2–D4, D6, arquitetura, riscos, "o que não muda") mantém-se. Fases relevantes agora: **F0 → F1 → F2** (F3 Agenda e F4 polimento ficam para depois).
 
 ---
 

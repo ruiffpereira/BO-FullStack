@@ -89,6 +89,7 @@ export const THEME_ACCENTS: ThemeAccent[] = [
 ];
 export const THEME_FONTS: ThemeFont[] = [
   "grotesk",
+  "plusjakarta",
   "editorial",
   "modern",
   "warm",

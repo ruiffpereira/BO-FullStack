@@ -43,7 +43,8 @@ export interface SiteTheme {
   accent?: ThemeAccent | null;
   font?: ThemeFont | null;
   mode?: ThemeMode | null;
-  logo?: string | null;
+  // Sem `logo`: o logótipo do site vem do CMS (campo `logo` do bloco hero,
+  // editável em Conteúdos), nunca do tema — removido do editor de Marca 2026-08-12.
 }
 
 /**

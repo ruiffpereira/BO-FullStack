@@ -699,53 +699,28 @@ describe("Website — Blocos (upload de imagem)", () => {
   });
 });
 
-// ── Marca: upload do logótipo ──────────────────────────────────────────────────
+// ── Marca: o logótipo saiu (vem do CMS) ─────────────────────────────────────
 
-describe("Website — Marca (upload do logótipo)", () => {
-  it("mostra o uploader do logótipo (sem o antigo aviso de upload direto)", async () => {
+describe("Website — Marca (logótipo veio do tema para o CMS)", () => {
+  it("já não há uploader de logótipo na Marca", () => {
     useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
     renderWithQueryClient(<Website view="brand" />);
-
-    expect(screen.getByText("Carregar logótipo")).toBeInTheDocument();
-    expect(screen.getByText(/ou cola um URL/i)).toBeInTheDocument();
-    expect(screen.queryByText(/upload direto chega mais tarde/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Carregar logótipo")).not.toBeInTheDocument();
+    expect(screen.queryByText(/ou cola um URL/i)).not.toBeInTheDocument();
   });
 
-  it("faz upload do logótipo (diferido até Guardar marca) e guarda o URL devolvido", async () => {
+  it("guardar a Marca descarta um `logo` legado do tema", async () => {
     const user = userEvent.setup();
-    uploadImage.mockResolvedValue({ fileUrl: "https://x/logo.webp", key: "k2" });
-    useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
+    useSiteMock.mockReturnValue({
+      data: makeSite({ theme: { accent: "amber", logo: "https://x/legacy.png" } }),
+      isLoading: false,
+    });
     renderWithQueryClient(<Website view="brand" />);
-
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-    const img = new File(["x"], "logo.png", { type: "image/png" });
-    fireEvent.change(fileInput, { target: { files: [img] } });
-
-    expect(uploadImage).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: /Guardar marca/i }));
 
-    await waitFor(() =>
-      expect(uploadImage).toHaveBeenCalledWith({ image: img, module: "website" }),
-    );
     expect(toastSuccess).toHaveBeenCalled();
-    expect(saveMutate.mock.calls[0][0].theme.logo).toBe("https://x/logo.webp");
-  });
-
-  it("cola um URL manualmente quando não há upload", async () => {
-    const user = userEvent.setup();
-    useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
-    renderWithQueryClient(<Website view="brand" />);
-
-    await user.click(screen.getByRole("button", { name: /ou cola um URL/i }));
-    const input = screen.getByPlaceholderText("https://…/logo.svg");
-    await user.type(input, "https://x/manual-logo.png");
-
-    await user.click(screen.getByRole("button", { name: /Guardar marca/i }));
-
-    expect(uploadImage).not.toHaveBeenCalled();
-    expect(toastSuccess).toHaveBeenCalled();
-    expect(saveMutate.mock.calls[0][0].theme.logo).toBe("https://x/manual-logo.png");
+    expect(saveMutate.mock.calls[0][0].theme.logo).toBeUndefined();
   });
 });
 
@@ -766,10 +741,10 @@ describe("Website — Marca (modo claro/escuro)", () => {
     expect(saveMutate.mock.calls[0][0].theme.mode).toBe("light");
   });
 
-  it("escolher Escuro guarda `mode: \"dark\"` no theme, preservando preset/accent/font/logo existentes", async () => {
+  it("escolher Escuro guarda `mode: \"dark\"` no theme, preservando preset/accent/font", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({
-      data: makeSite({ theme: { preset: "ink", accent: "amber", font: "warm", logo: "https://x/logo.png" } }),
+      data: makeSite({ theme: { preset: "ink", accent: "amber", font: "warm" } }),
       isLoading: false,
     });
     renderWithQueryClient(<Website view="brand" />);
@@ -784,7 +759,6 @@ describe("Website — Marca (modo claro/escuro)", () => {
         accent: "amber",
         font: "warm",
         mode: "dark",
-        logo: "https://x/logo.png",
       }),
     );
   });
@@ -1050,20 +1024,19 @@ describe("Website — gate seletivo (T3.8: sem VIEW_SITE_BUILDER/VIEW_ADMIN)", (
     hasPermissionMock.mockReturnValue(false);
   });
 
-  it("submenu (navigation.ts): página Website tem 3 vistas base (sem permissão ou com)", () => {
-    // Página Website simplificada: 3 vistas (site/pages/brand). O template e
-    // domínio foram incorporados ou removidos (template faz parte de /website/template,
-    // domínio é uma secção interna de /website/site). A navegação mostra as mesmas
-    // 3 vistas para todos os tenants — o gating de Template e Domínio fica a nível
-    // de conteúdo das vistas, não de visibilidade das rotas.
+  it("submenu (navigation.ts): 'Marca' escondida dos clientes (só VIEW_ADMIN); 'O meu site'+'Páginas' sempre", () => {
+    // Página Website simplificada. "O meu site" e "Páginas" são tenant-open; a
+    // "Marca" está escondida dos clientes (2026-08-12) — a customização de marca
+    // ainda não está pronta, por agora todos os sites ficam iguais. Só o dono
+    // (VIEW_ADMIN) vê "Marca". VIEW_SITE_BUILDER NÃO a desbloqueia (o self-serve
+    // tem essa permissão e continua a ser "cliente" para este efeito).
     expect(allowedSubitems("/website", () => false).map((i) => i.id)).toEqual([
       "site",
       "pages",
-      "brand",
     ]);
     expect(
       allowedSubitems("/website", (name) => name === "VIEW_SITE_BUILDER").map((i) => i.id),
-    ).toEqual(["site", "pages", "brand"]);
+    ).toEqual(["site", "pages"]);
     expect(
       allowedSubitems("/website", (name) => name === "VIEW_ADMIN").map((i) => i.id),
     ).toEqual(["site", "pages", "brand"]);

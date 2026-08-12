@@ -15,10 +15,8 @@ import { Icon } from "../ui/icons.jsx";
 import { usePageSubtitle } from "../context/PageMetaContext";
 import { useAuth } from "../context/AuthContext";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { FileUpload } from "../components/FileUpload";
 import { GuardButton } from "../components/GuardButton";
 import { PageBlocksSection } from "../components/website/PageBlocksSection";
-import { uploadImage } from "../gen/backoffice/hooks/useUploadImage.js";
 import { putCmsEntries } from "../gen/backoffice/hooks/usePutCmsEntries.js";
 import { SITE_ROOT_URL } from "../lib/env";
 import {
@@ -966,13 +964,11 @@ function BrandPreview({
   accent,
   font,
   mode,
-  logo,
 }: {
   preset: ThemePreset;
   accent: ThemeAccent;
   font: ThemeFont;
   mode: ThemeMode;
-  logo: string;
 }) {
   const c = BRAND_PREVIEW_COLORS[mode][preset];
   // Nomeado → cor curada; hex livre (color-picker) → usa-o diretamente.
@@ -983,22 +979,7 @@ function BrandPreview({
       style={{ background: c.bg, color: c.fg, fontFamily: FONT_STACK[font] }}
     >
       <div className="flex items-center gap-2">
-        {logo ? (
-          // eslint-disable-next-line jsx-a11y/img-redundant-alt
-          <img
-            src={logo}
-            alt="Logo"
-            className="h-6 w-auto object-contain"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = "none";
-            }}
-          />
-        ) : (
-          <span
-            className="w-6 h-6 rounded-md"
-            style={{ background: accentHex }}
-          />
-        )}
+        <span className="w-6 h-6 rounded-md" style={{ background: accentHex }} />
         <span className="text-sm font-semibold">A tua marca</span>
       </div>
       <p
@@ -1072,42 +1053,16 @@ function BrandTab({ site }: { site: Site }) {
   );
   const [font, setFont] = useState<ThemeFont>((theme.font as ThemeFont) ?? "grotesk");
   const [mode, setMode] = useState<ThemeMode>((theme.mode as ThemeMode) ?? "light");
-  const [logo, setLogo] = useState<string>(theme.logo ?? "");
-  const [logoPasteMode, setLogoPasteMode] = useState(false);
-  // Upload diferido (como o resto do editor de blocos): o ficheiro escolhido
-  // só é enviado ao clicar "Guardar marca" — nunca no momento de escolher.
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [uploadingLogo, setUploadingLogo] = useState(false);
 
-  const onSave = async () => {
-    let logoUrl = logo.trim() || null;
-    if (logoFile) {
-      setUploadingLogo(true);
-      try {
-        const { fileUrl } = await uploadImage({ image: logoFile, module: "website" });
-        logoUrl = fileUrl;
-      } catch (err: any) {
-        toast.error(err?.message ?? "Erro ao carregar o logótipo");
-        setUploadingLogo(false);
-        return;
-      }
-      setUploadingLogo(false);
-    }
-    const nextTheme: SiteTheme = {
-      ...theme,
-      preset,
-      accent,
-      font,
-      mode,
-      logo: logoUrl,
-    };
+  const onSave = () => {
+    // O logótipo NÃO vive no tema — vem do CMS (bloco hero). Um `logo` legado
+    // no tema (sites antigos) é descartado aqui, não se volta a gravar.
+    const { logo: _legacyLogo, ...rest } = theme as SiteTheme & { logo?: unknown };
+    const nextTheme: SiteTheme = { ...rest, preset, accent, font, mode };
     save.mutate(
       { theme: nextTheme },
       {
-        onSuccess: () => {
-          setLogoFile(null);
-          toast.success("Marca guardada.");
-        },
+        onSuccess: () => toast.success("Marca guardada."),
         onError: () => toast.error("Não foi possível guardar a marca."),
       },
     );
@@ -1215,44 +1170,13 @@ function BrandTab({ site }: { site: Site }) {
           </div>
         </Card>
 
-        <Card className="p-5">
-          <SectionTitle>Logótipo</SectionTitle>
-          <FileUpload
-            module="website"
-            currentUrl={logo.trim() || null}
-            deferred
-            disabled={uploadingLogo || save.isPending}
-            onFileSelected={(file) => setLogoFile(file)}
-            onDeleted={() => {
-              setLogo("");
-              setLogoFile(null);
-            }}
-            label="Carregar logótipo"
-          />
-          {logoPasteMode ? (
-            <Input
-              className="mt-2"
-              placeholder="https://…/logo.svg"
-              icon="link"
-              value={logo}
-              onChange={(e: any) => {
-                setLogo(e.target.value);
-                setLogoFile(null);
-              }}
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => setLogoPasteMode(true)}
-              className="mt-1.5 text-xs text-zinc-400 hover:text-accent underline underline-offset-2"
-            >
-              ou cola um URL
-            </button>
-          )}
-        </Card>
+        <p className="text-xs text-zinc-400">
+          O logótipo do site vem do conteúdo (bloco principal) — edita-o em
+          Conteúdos → Site público.
+        </p>
 
         <div>
-          <Button onClick={onSave} isLoading={save.isPending || uploadingLogo} icon="check">
+          <Button onClick={onSave} isLoading={save.isPending} icon="check">
             Guardar marca
           </Button>
         </div>
@@ -1260,7 +1184,7 @@ function BrandTab({ site }: { site: Site }) {
 
       <div className="space-y-2">
         <SectionTitle>Pré-visualização</SectionTitle>
-        <BrandPreview preset={preset} accent={accent} font={font} mode={mode} logo={logo.trim()} />
+        <BrandPreview preset={preset} accent={accent} font={font} mode={mode} />
         <p className="text-xs text-zinc-400">
           Amostra aproximada das escolhas ainda não guardadas. Para veres o
           site real, usa a Pré-visualização em "O meu site" (depois de

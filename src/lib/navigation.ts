@@ -57,13 +57,17 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
   "/website": [
     // Label do âncora ("O meu site", não "Website") pelo mesmo motivo dos
     // outros grupos acima. A página nunca usou `?tab=` (sem deep-link legacy
-    // a redirecionar aqui, T2.3). Contém 3 vistas: "O meu site" (com
-    // DomainSection dentro, só visível com VIEW_SITE_BUILDER/VIEW_ADMIN),
-    // "Páginas" (sempre visível, mode read-only sem a permissão) e "Marca"
-    // (sempre visível).
+    // a redirecionar aqui, T2.3). Vistas: "O meu site" (com DomainSection
+    // dentro, só visível com VIEW_SITE_BUILDER/VIEW_ADMIN) e "Páginas" (sempre
+    // visível, mode read-only sem a permissão). A "Marca" está ESCONDIDA dos
+    // clientes (2026-08-12, decisão do dono): a customização de marca ainda
+    // não está pronta — por agora todos os sites ficam iguais (o tema
+    // semeado pela vertical). Fica só para o dono (VIEW_ADMIN) continuar a
+    // afiná-la; o guard do Shell redireciona um cliente que faça deep-link a
+    // /website/marca para o 1.º subitem permitido.
     { id: "site", label: "O meu site", path: "/website" },
     { id: "pages", label: "Páginas", path: "/website/paginas" },
-    { id: "brand", label: "Marca", path: "/website/marca" },
+    { id: "brand", label: "Marca", path: "/website/marca", perm: "VIEW_ADMIN" },
   ],
   "/admin": [
     // Label do âncora ("Utilizadores", não "Admin") pelo mesmo motivo dos

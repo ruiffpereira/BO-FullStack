@@ -1,10 +1,25 @@
 import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Modal, Button, Tabs } from "../../ui/ui.jsx";
 import { getBlockSchema, getBlockFields } from "../../lib/blockCatalog";
 import { RichBlockForm, GenericContentEditor } from "./blockFields";
 import { uploadImage } from "../../gen/backoffice/hooks/useUploadImage.js";
+import {
+  useGetCmsEntries,
+  getCmsEntriesQueryKey,
+} from "../../gen/backoffice/hooks/useGetCmsEntries.js";
+import { putCmsEntries } from "../../gen/backoffice/hooks/usePutCmsEntries.js";
+import { deleteCmsEntries } from "../../gen/backoffice/hooks/useDeleteCmsEntries.js";
+import {
+  flattenBlockContent,
+  unflattenBlockEntries,
+  getOrphanedEntryKeys,
+  getBlockEntryKeys,
+  type CmsEntry,
+} from "../../lib/siteCms";
 import type { SiteBlock } from "../../hooks/useWebsite";
+import { websiteKeys } from "../../hooks/useWebsite";
 
 type ContentDraft = Record<string, Record<string, unknown>>;
 
@@ -29,10 +44,11 @@ function applyPendingUpload(draft: ContentDraft, path: string, fileUrl: string):
 
 /**
  * Modal de conteúdo de um bloco: tabs por língua ativa (draft local por
- * língua, seedado de `block.settings.content`), com o formulário rico do tipo
- * ou o editor genérico chave/valor como fallback. "Guardar" escreve o draft
- * inteiro de volta como `block.settings.content` (o resto do bloco —
- * id/type/variant/contentRef/data/outras settings — fica intocado pelo chamador).
+ * língua, seedado do CMS com fallback a `block.settings.content` inline),
+ * com o formulário rico do tipo ou o editor genérico chave/valor como fallback.
+ *
+ * "Guardar" faz upsert das entradas CMS (flatten do draft) e apaga índices órfãos
+ * de listas (quando um item é removido).
  *
  * Campos `image` (upload, T-imagem): o ficheiro escolhido fica só local
  * (preview blob:, ver `ImageFieldInput`/`FileUpload` em modo `deferred`) —
@@ -46,22 +62,27 @@ export function BlockContentModal({
   activeLocales,
   defaultLocale,
   onClose,
-  onSave,
   isPending,
 }: {
   block: SiteBlock;
   activeLocales: string[];
   defaultLocale: string;
   onClose: () => void;
-  onSave: (nextContent: Record<string, Record<string, unknown>>) => void;
   isPending?: boolean;
 }) {
   const locales = activeLocales.length > 0 ? activeLocales : [defaultLocale];
   const [locale, setLocale] = useState(locales[0]);
+  const queryClient = useQueryClient();
+  const { data: cmsEntries = [] } = useGetCmsEntries();
+
   const [draft, setDraft] = useState<ContentDraft>(() => {
     const seed: ContentDraft = {};
     for (const loc of locales) {
-      seed[loc] = (block.settings?.content?.[loc] as Record<string, unknown>) ?? {};
+      // Try to read from CMS first, fallback to inline content
+      const cmsContent = unflattenBlockEntries(block.id, cmsEntries as CmsEntry[], loc);
+      const inlineContent = (block.settings?.content?.[loc] as Record<string, unknown>) ?? {};
+      // CMS overrides inline (field-by-field)
+      seed[loc] = { ...inlineContent, ...cmsContent };
     }
     return seed;
   });
@@ -86,22 +107,50 @@ export function BlockContentModal({
   const localeTabs = locales.map((loc) => ({ id: loc, label: loc.toUpperCase() }));
 
   const handleSave = async () => {
-    const pending = Object.entries(pendingFilesRef.current);
-    if (pending.length === 0) {
-      onSave(draft);
-      return;
-    }
     setUploading(true);
     try {
+      // Step 1: Upload pending images
+      const pending = Object.entries(pendingFilesRef.current);
       let next = draft;
-      for (const [path, file] of pending) {
-        const { fileUrl } = await uploadImage({ image: file, module: "website" });
-        next = applyPendingUpload(next, path, fileUrl);
+      if (pending.length > 0) {
+        for (const [path, file] of pending) {
+          const { fileUrl } = await uploadImage({ image: file, module: "website" });
+          next = applyPendingUpload(next, path, fileUrl);
+        }
+        pendingFilesRef.current = {};
       }
-      pendingFilesRef.current = {};
-      onSave(next);
+
+      // Step 2: Flatten draft and upsert CMS entries (await for error handling)
+      const entriesToUpsert: CmsEntry[] = [];
+      for (const loc of locales) {
+        const content = next[loc] ?? {};
+        const flattened = flattenBlockContent(block.id, loc, content);
+        entriesToUpsert.push(...flattened);
+      }
+
+      // Upsert all entries — if any fails, throw and keep modal open
+      await Promise.all(
+        entriesToUpsert.map((entry) =>
+          putCmsEntries({
+            key: entry.key,
+            locale: entry.locale,
+            value: entry.value,
+            type: entry.type,
+          })
+        )
+      );
+
+      // Invalidate CMS + Site queries to reflect changes (PreviewPanel will re-mint token)
+      queryClient.invalidateQueries({ queryKey: getCmsEntriesQueryKey() });
+      queryClient.invalidateQueries({ queryKey: ["cms-search"] });
+      queryClient.invalidateQueries({ queryKey: websiteKeys.site });
+
+      // Success — close modal (onSave called without arguments, content stays in CMS only)
+      toast.success("Conteúdo guardado");
+      onClose();
     } catch (err: any) {
-      toast.error(err?.message ?? "Erro ao carregar imagem");
+      toast.error(err?.message ?? "Erro ao guardar conteúdo");
+      // Modal stays open for retry
     } finally {
       setUploading(false);
     }

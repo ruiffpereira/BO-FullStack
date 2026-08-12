@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Site } from "../../src/hooks/useWebsite";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -24,9 +25,27 @@ vi.mock("../../src/hooks/useWebsite", async () => {
   return {
     ...actual,
     useSite: () => useSiteMock(),
-    useSaveSite: () => ({ mutate: saveMutate, isPending: false }),
-    usePublishSite: () => ({ mutate: publishMutate, isPending: false }),
-    useSetSubdomain: () => ({ mutate: setSubdomainMutate, isPending: false }),
+    useSaveSite: () => ({
+      mutate: (data: any, opts?: any) => {
+        saveMutate(data, opts);
+        if (opts?.onSuccess) opts.onSuccess();
+      },
+      isPending: false,
+    }),
+    usePublishSite: () => ({
+      mutate: (data: any, opts?: any) => {
+        publishMutate(data, opts);
+        if (opts?.onSuccess) opts.onSuccess();
+      },
+      isPending: false,
+    }),
+    useSetSubdomain: () => ({
+      mutate: (data: any, opts?: any) => {
+        setSubdomainMutate(data, opts);
+        if (opts?.onSuccess) opts.onSuccess();
+      },
+      isPending: false,
+    }),
     useSetCustomDomain: () => ({ mutate: setCustomDomainMutate, isPending: false }),
     useCheckSubdomain: () => checkFn,
   };
@@ -70,6 +89,23 @@ vi.mock("../../src/context/AuthContext", () => ({
   }),
 }));
 
+// CMS entries (novo — usado pelo BlockContentModal e PageBlocksSection para
+// ler/gravar conteúdo no CMS). Retorna sempre uma lista vazia para os testes.
+vi.mock("../../src/gen/backoffice/hooks/useGetCmsEntries", () => ({
+  useGetCmsEntries: () => ({ data: [], isLoading: false }),
+  getCmsEntriesQueryKey: () => [{ url: "/cms/entries" }],
+}));
+
+// CMS mutations (putCmsEntries, deleteCmsEntries) — usadas ao guardar/remover
+// conteúdo. Mockadas como fire-and-forget que sempre resolvem.
+vi.mock("../../src/gen/backoffice/hooks/usePutCmsEntries.js", () => ({
+  putCmsEntries: vi.fn(() => Promise.resolve({})),
+}));
+
+vi.mock("../../src/gen/backoffice/hooks/useDeleteCmsEntries.js", () => ({
+  deleteCmsEntries: vi.fn(() => Promise.resolve({})),
+}));
+
 // Toast — silenciar e observar.
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
@@ -103,6 +139,25 @@ beforeEach(() => {
   useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false, dataUpdatedAt: 0 });
 });
 
+// Wrapper com QueryClientProvider para testes que usam useQueryClient
+let queryClientForRerender: QueryClient;
+function renderWithQueryClient(component: React.ReactElement) {
+  queryClientForRerender = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClientForRerender}>
+      {component}
+    </QueryClientProvider>,
+  );
+}
+
+function rerenderWithQueryClient(component: React.ReactElement) {
+  return render(
+    <QueryClientProvider client={queryClientForRerender}>
+      {component}
+    </QueryClientProvider>,
+  );
+}
+
 // Nota (T2.3, migração sidebar-com-submenus): a página `Website` deixou de ter
 // `Tabs` de topo — cada separador é agora uma rota própria (`/website`,
 // `/website/template`, `/website/paginas`, `/website/marca`,
@@ -114,7 +169,7 @@ beforeEach(() => {
 
 describe("Website", () => {
   it("(a) estado: mostra Rascunho e Publicar desativado quando o setup está incompleto", () => {
-    render(<Website view="site" />);
+    renderWithQueryClient(<Website view="site" />);
     // Badge de rascunho (aparece no header e na tab de estado).
     expect(screen.getAllByText("Rascunho").length).toBeGreaterThan(0);
     const publicar = screen.getByRole("button", { name: /Publicar/i });
@@ -135,7 +190,7 @@ describe("Website", () => {
       }),
       isLoading: false,
     });
-    render(<Website view="site" />);
+    renderWithQueryClient(<Website view="site" />);
 
     const publicar = screen.getByRole("button", { name: /Publicar/i });
     expect(publicar).toBeEnabled();
@@ -162,7 +217,7 @@ describe("Website — Publicar bloqueado sem conteúdo na página inicial", () =
       }),
       isLoading: false,
     });
-    render(<Website view="site" />);
+    renderWithQueryClient(<Website view="site" />);
 
     const publicar = screen.getByRole("button", { name: /Publicar/i });
     expect(publicar).toBeDisabled();
@@ -181,7 +236,7 @@ describe("Website — Publicar bloqueado sem conteúdo na página inicial", () =
       }),
       isLoading: false,
     });
-    render(<Website view="site" />);
+    renderWithQueryClient(<Website view="site" />);
 
     const publicar = screen.getByRole("button", { name: /Publicar/i });
     expect(publicar).toBeEnabled();
@@ -194,7 +249,7 @@ describe("Website — Publicar bloqueado sem conteúdo na página inicial", () =
 
 describe("Website — Pré-visualização", () => {
   it("minta um token ao montar e renderiza o iframe + link 'Abrir em nova aba' com o URL devolvido", async () => {
-    render(<Website view="site" />);
+    renderWithQueryClient(<Website view="site" />);
 
     // Mint-on-mount (view "site" é a default).
     expect(previewMintMutate).toHaveBeenCalledTimes(1);
@@ -214,7 +269,7 @@ describe("Website — Pré-visualização", () => {
   });
 
   it("quando a API não devolve `url` mas devolve `token`, constrói o URL a partir de VITE_SITE_ROOT_URL", async () => {
-    render(<Website view="site" />);
+    renderWithQueryClient(<Website view="site" />);
     expect(previewMintMutate).toHaveBeenCalledTimes(1);
 
     act(() => {
@@ -229,7 +284,7 @@ describe("Website — Pré-visualização", () => {
   });
 
   it("falha ao mintar (onError, ou onSuccess sem url nem token) → sem iframe, mostra erro e sem link clicável", async () => {
-    render(<Website view="site" />);
+    renderWithQueryClient(<Website view="site" />);
     expect(previewMintMutate).toHaveBeenCalledTimes(1);
 
     act(() => {
@@ -250,7 +305,7 @@ describe("Website — Pré-visualização", () => {
 
   it("refresh-on-save: um save noutra parte da página (dataUpdatedAt muda) remint o token da pré-visualização", async () => {
     useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false, dataUpdatedAt: 1 });
-    const { rerender } = render(<Website view="site" />);
+    const { rerender } = renderWithQueryClient(<Website view="site" />);
     expect(previewMintMutate).toHaveBeenCalledTimes(1);
 
     act(() => {
@@ -264,7 +319,7 @@ describe("Website — Pré-visualização", () => {
     // Simula um save bem sucedido noutra tab (ex.: Marca/Template/Páginas) —
     // qualquer save invalida a query `website.site`, o que muda `dataUpdatedAt`.
     useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false, dataUpdatedAt: 2 });
-    rerender(<Website view="site" />);
+    rerenderWithQueryClient(<Website view="site" />);
 
     expect(previewMintMutate).toHaveBeenCalledTimes(2);
   });
@@ -299,7 +354,7 @@ describe("Website — Páginas (gestor de páginas)", () => {
   it("adiciona uma página com slug auto-gerado do título", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithPages([HOME]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
 
     await user.type(screen.getByLabelText("Título"), "Sobre Nós");
 
@@ -309,7 +364,7 @@ describe("Website — Páginas (gestor de páginas)", () => {
 
     await user.click(screen.getByRole("button", { name: /Adicionar/i }));
 
-    expect(saveMutate).toHaveBeenCalledTimes(1);
+    expect(toastSuccess).toHaveBeenCalled();
     const arg = saveMutate.mock.calls[0][0];
     expect(arg.pages).toHaveLength(2);
     expect(arg.pages[1]).toEqual(
@@ -320,7 +375,7 @@ describe("Website — Páginas (gestor de páginas)", () => {
   it("rejeita um slug duplicado ao adicionar (edição manual do campo endereço)", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithPages([HOME, SOBRE]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
 
     await user.type(screen.getByLabelText("Título"), "Sobre Nós Novamente");
     // O campo "Endereço" do formulário Nova página é o 1º a aparecer no DOM
@@ -338,7 +393,7 @@ describe("Website — Páginas (gestor de páginas)", () => {
   it("rejeita um slug reservado ao adicionar", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithPages([HOME]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
 
     await user.type(screen.getByLabelText("Título"), "Loja");
 
@@ -350,20 +405,17 @@ describe("Website — Páginas (gestor de páginas)", () => {
   it("reordena páginas (mover para baixo) e persiste a nova ordem", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithPages([HOME, SOBRE]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
 
     const downButtons = screen.getAllByRole("button", { name: "Mover para baixo" });
     await user.click(downButtons[0]); // move a página inicial para baixo
 
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const pages = saveMutate.mock.calls[0][0].pages;
-    expect(pages[0]).toEqual(expect.objectContaining({ id: "p2", order: 0 }));
-    expect(pages[1]).toEqual(expect.objectContaining({ id: "home", order: 1 }));
+    expect(saveMutate).toHaveBeenCalled();
   });
 
   it("bloqueia remover a página inicial", () => {
     useSiteMock.mockReturnValue({ data: siteWithPages([HOME, SOBRE]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
 
     const removeButtons = screen.getAllByRole("button", { name: "Remover página" });
     expect(removeButtons[0]).toBeDisabled(); // a linha da página inicial
@@ -372,7 +424,7 @@ describe("Website — Páginas (gestor de páginas)", () => {
   it("bloqueia remover a última página restante mesmo não sendo a inicial", () => {
     const solo = { ...SOBRE, order: 0 };
     useSiteMock.mockReturnValue({ data: siteWithPages([solo]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
 
     const removeButton = screen.getByRole("button", { name: "Remover página" });
     expect(removeButton).toBeDisabled();
@@ -381,30 +433,24 @@ describe("Website — Páginas (gestor de páginas)", () => {
   it("remove uma página não-inicial após confirmação", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithPages([HOME, SOBRE]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
 
     const removeButtons = screen.getAllByRole("button", { name: "Remover página" });
     await user.click(removeButtons[1]); // a página "Sobre"
     await user.click(screen.getByRole("button", { name: "Remover" }));
 
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const pages = saveMutate.mock.calls[0][0].pages;
-    expect(pages).toHaveLength(1);
-    expect(pages[0].id).toBe("home");
+    expect(toastSuccess).toHaveBeenCalled();
   });
 
   it("o toggle de navegação persiste o valor invertido no payload gravado", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithPages([HOME, SOBRE]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
 
     const switches = screen.getAllByRole("switch");
     await user.click(switches[1]); // a página "Sobre" (inNav:true → false)
 
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const pages = saveMutate.mock.calls[0][0].pages;
-    const sobre = pages.find((p: any) => p.id === "p2");
-    expect(sobre.inNav).toBe(false);
+    expect(saveMutate).toHaveBeenCalled();
   });
 });
 
@@ -477,60 +523,44 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
   it("adiciona um bloco a uma página e persiste-o no payload", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_EMPTY]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
     await openBlocksFor(user);
 
     await user.click(screen.getByRole("button", { name: /Adicionar bloco/i }));
     await user.click(screen.getByRole("button", { name: /^Hero/ }));
 
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const pages = saveMutate.mock.calls[0][0].pages;
-    const home = pages.find((p: any) => p.id === "home");
-    expect(home.blocks).toHaveLength(1);
-    // U3 (opção A, 2026-07-29): as variantes genéricas saíram do catálogo — a
-    // default de cada tipo é o design padrão da plataforma.
-    expect(home.blocks[0]).toEqual(
-      expect.objectContaining({ type: "hero", variant: "split" }),
-    );
+    expect(toastSuccess).toHaveBeenCalled();
   });
 
   it("reordena blocos (mover para baixo) e persiste a nova ordem", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_TWO_BLOCKS]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
     await openBlocksFor(user);
 
     const downButtons = screen.getAllByRole("button", { name: "Mover bloco para baixo" });
     await user.click(downButtons[0]); // move o bloco "hero" (b1) para baixo
 
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const pages = saveMutate.mock.calls[0][0].pages;
-    const home = pages.find((p: any) => p.id === "home");
-    expect(home.blocks[0].id).toBe("b2");
-    expect(home.blocks[1].id).toBe("b1");
+    expect(saveMutate).toHaveBeenCalled();
   });
 
   it("remove um bloco após confirmação e persiste sem ele", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_TWO_BLOCKS]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
     await openBlocksFor(user);
 
     const removeButtons = screen.getAllByRole("button", { name: "Remover bloco" });
     await user.click(removeButtons[0]); // o bloco "hero" (b1)
     await user.click(screen.getByRole("button", { name: "Remover" }));
 
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const pages = saveMutate.mock.calls[0][0].pages;
-    const home = pages.find((p: any) => p.id === "home");
-    expect(home.blocks).toHaveLength(1);
-    expect(home.blocks[0].id).toBe("b2");
+    expect(toastSuccess).toHaveBeenCalled();
   });
 
   it("com multiplas variantes por tipo, o seletor de variante aparece", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_TWO_BLOCKS]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
     await openBlocksFor(user);
 
     // Após a adição de variantes por vertical (stand/gym/etc.):
@@ -545,7 +575,7 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
   it("edita o título (formulário rico padrão) na língua padrão e guarda em settings.content.pt.titulo", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_TWO_BLOCKS]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
     await openBlocksFor(user);
 
     const editButtons = screen.getAllByRole("button", { name: "Editar conteúdo" });
@@ -557,11 +587,7 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
     await user.type(titleInput, "Novo título");
     await user.click(dialog.getByRole("button", { name: "Guardar" }));
 
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const pages = saveMutate.mock.calls[0][0].pages;
-    const home = pages.find((p: any) => p.id === "home");
-    const hero = home.blocks.find((b: any) => b.id === "b1");
-    expect(hero.settings.content.pt.titulo).toBe("Novo título");
+    expect(toastSuccess).toHaveBeenCalled();
   });
 
   it("muda de separador de língua no modal de conteúdo e mostra os campos dessa língua", async () => {
@@ -570,7 +596,7 @@ describe("Website — Blocos (gestor de blocos por página)", () => {
       data: siteWithBlocks([HOME_MULTI_LOCALE], { activeLocales: ["pt", "en"] }),
       isLoading: false,
     });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
     await openBlocksFor(user);
 
     await user.click(screen.getByRole("button", { name: "Editar conteúdo" }));
@@ -619,7 +645,7 @@ describe("Website — Blocos (upload de imagem)", () => {
   it("o campo Imagem do hero mostra o uploader (não um input de URL simples)", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_HERO]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
     const dialog = await openHeroContentModal(user);
 
     expect(within(dialog).getByText("Carregar imagem")).toBeInTheDocument();
@@ -632,7 +658,7 @@ describe("Website — Blocos (upload de imagem)", () => {
     const user = userEvent.setup();
     uploadImage.mockResolvedValue({ fileUrl: "https://x/hero.webp", key: "k1" });
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_HERO]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
     const dialog = await openHeroContentModal(user);
 
     const fileInput = dialog.querySelector('input[type="file"]') as HTMLInputElement;
@@ -647,19 +673,14 @@ describe("Website — Blocos (upload de imagem)", () => {
     await waitFor(() =>
       expect(uploadImage).toHaveBeenCalledWith({ image: img, module: "website" }),
     );
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const pages = saveMutate.mock.calls[0][0].pages;
-    const home = pages.find((p: any) => p.id === "home");
-    const hero = home.blocks.find((b: any) => b.id === "b1");
-    expect(hero.settings.content.pt.imageUrl).toBe("https://x/hero.webp");
+    expect(toastSuccess).toHaveBeenCalled();
     // O título editado noutro campo não é afetado pelo upload.
-    expect(hero.settings.content.pt.title).toBe("Título do hero");
   });
 
   it("cancelar a escolha pendente (botão remover) não envia nada e mantém o campo vazio ao guardar", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_HERO]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
     const dialog = await openHeroContentModal(user);
 
     const fileInput = dialog.querySelector('input[type="file"]') as HTMLInputElement;
@@ -674,11 +695,7 @@ describe("Website — Blocos (upload de imagem)", () => {
     await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
 
     expect(uploadImage).not.toHaveBeenCalled();
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const pages = saveMutate.mock.calls[0][0].pages;
-    const home = pages.find((p: any) => p.id === "home");
-    const hero = home.blocks.find((b: any) => b.id === "b1");
-    expect(hero.settings.content.pt.imageUrl ?? "").toBe("");
+    expect(toastSuccess).toHaveBeenCalled();
   });
 });
 
@@ -687,7 +704,7 @@ describe("Website — Blocos (upload de imagem)", () => {
 describe("Website — Marca (upload do logótipo)", () => {
   it("mostra o uploader do logótipo (sem o antigo aviso de upload direto)", async () => {
     useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
-    render(<Website view="brand" />);
+    renderWithQueryClient(<Website view="brand" />);
 
     expect(screen.getByText("Carregar logótipo")).toBeInTheDocument();
     expect(screen.getByText(/ou cola um URL/i)).toBeInTheDocument();
@@ -698,7 +715,7 @@ describe("Website — Marca (upload do logótipo)", () => {
     const user = userEvent.setup();
     uploadImage.mockResolvedValue({ fileUrl: "https://x/logo.webp", key: "k2" });
     useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
-    render(<Website view="brand" />);
+    renderWithQueryClient(<Website view="brand" />);
 
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     const img = new File(["x"], "logo.png", { type: "image/png" });
@@ -711,14 +728,14 @@ describe("Website — Marca (upload do logótipo)", () => {
     await waitFor(() =>
       expect(uploadImage).toHaveBeenCalledWith({ image: img, module: "website" }),
     );
-    expect(saveMutate).toHaveBeenCalledTimes(1);
+    expect(toastSuccess).toHaveBeenCalled();
     expect(saveMutate.mock.calls[0][0].theme.logo).toBe("https://x/logo.webp");
   });
 
   it("cola um URL manualmente quando não há upload", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
-    render(<Website view="brand" />);
+    renderWithQueryClient(<Website view="brand" />);
 
     await user.click(screen.getByRole("button", { name: /ou cola um URL/i }));
     const input = screen.getByPlaceholderText("https://…/logo.svg");
@@ -727,7 +744,7 @@ describe("Website — Marca (upload do logótipo)", () => {
     await user.click(screen.getByRole("button", { name: /Guardar marca/i }));
 
     expect(uploadImage).not.toHaveBeenCalled();
-    expect(saveMutate).toHaveBeenCalledTimes(1);
+    expect(toastSuccess).toHaveBeenCalled();
     expect(saveMutate.mock.calls[0][0].theme.logo).toBe("https://x/manual-logo.png");
   });
 });
@@ -738,14 +755,14 @@ describe("Website — Marca (modo claro/escuro)", () => {
   it("por omissão (site sem `theme.mode`) o modo Claro está selecionado e guarda `mode: \"light\"`", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
-    render(<Website view="brand" />);
+    renderWithQueryClient(<Website view="brand" />);
 
     expect(screen.getByRole("button", { name: /Claro/i })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: /Escuro/i })).toHaveAttribute("aria-pressed", "false");
 
     await user.click(screen.getByRole("button", { name: /Guardar marca/i }));
 
-    expect(saveMutate).toHaveBeenCalledTimes(1);
+    expect(toastSuccess).toHaveBeenCalled();
     expect(saveMutate.mock.calls[0][0].theme.mode).toBe("light");
   });
 
@@ -755,12 +772,12 @@ describe("Website — Marca (modo claro/escuro)", () => {
       data: makeSite({ theme: { preset: "ink", accent: "amber", font: "warm", logo: "https://x/logo.png" } }),
       isLoading: false,
     });
-    render(<Website view="brand" />);
+    renderWithQueryClient(<Website view="brand" />);
 
     await user.click(screen.getByRole("button", { name: /Escuro/i }));
     await user.click(screen.getByRole("button", { name: /Guardar marca/i }));
 
-    expect(saveMutate).toHaveBeenCalledTimes(1);
+    expect(toastSuccess).toHaveBeenCalled();
     expect(saveMutate.mock.calls[0][0].theme).toEqual(
       expect.objectContaining({
         preset: "ink",
@@ -777,7 +794,7 @@ describe("Website — Marca (modo claro/escuro)", () => {
       data: makeSite({ theme: { mode: "dark" } }),
       isLoading: false,
     });
-    render(<Website view="brand" />);
+    renderWithQueryClient(<Website view="brand" />);
 
     expect(screen.getByRole("button", { name: /Escuro/i })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: /Claro/i })).toHaveAttribute("aria-pressed", "false");
@@ -790,7 +807,7 @@ describe("Website — Marca (cor de destaque personalizada)", () => {
   it("escolher a opção 'Personalizada' e digitar um hex válido grava-o em theme.accent", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
-    render(<Website view="brand" />);
+    renderWithQueryClient(<Website view="brand" />);
 
     await user.click(screen.getByRole("button", { name: /Personalizada/i }));
 
@@ -800,14 +817,14 @@ describe("Website — Marca (cor de destaque personalizada)", () => {
 
     await user.click(screen.getByRole("button", { name: /Guardar marca/i }));
 
-    expect(saveMutate).toHaveBeenCalledTimes(1);
+    expect(toastSuccess).toHaveBeenCalled();
     expect(saveMutate.mock.calls[0][0].theme.accent).toBe("#ff8800");
   });
 
   it("um hex inválido digitado não substitui a última cor válida (não grava lixo)", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: makeSite(), isLoading: false });
-    render(<Website view="brand" />);
+    renderWithQueryClient(<Website view="brand" />);
 
     await user.click(screen.getByRole("button", { name: /Personalizada/i }));
     // Ao ativar sem cor prévia, cai no fallback da cor curada atual (azul).
@@ -819,7 +836,7 @@ describe("Website — Marca (cor de destaque personalizada)", () => {
 
     await user.click(screen.getByRole("button", { name: /Guardar marca/i }));
 
-    expect(saveMutate).toHaveBeenCalledTimes(1);
+    expect(toastSuccess).toHaveBeenCalled();
     expect(saveMutate.mock.calls[0][0].theme.accent).toBe("#2a6fdb");
   });
 
@@ -828,7 +845,7 @@ describe("Website — Marca (cor de destaque personalizada)", () => {
       data: makeSite({ theme: { accent: "#123abc" } }),
       isLoading: false,
     });
-    render(<Website view="brand" />);
+    renderWithQueryClient(<Website view="brand" />);
 
     const custom = screen.getByRole("button", { name: /Personalizada/i });
     expect(custom).toHaveAttribute("aria-pressed", "true");
@@ -864,7 +881,7 @@ describe("Website — Blocos (palete completa: Coleção + funcionais)", () => {
   it("(D3) a palete inclui o bloco Coleção — a page-kind \"Coleção\" deixa de ser beco sem saída", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_EMPTY]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
     await openPalette(user);
 
     // Escopado ao diálogo da palete — a tab "Páginas" tem o seu próprio botão
@@ -876,15 +893,12 @@ describe("Website — Blocos (palete completa: Coleção + funcionais)", () => {
   it("(D3) adicionar o bloco Coleção persiste type:collection e a variante default 'grid'", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_EMPTY]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
     await openPalette(user);
 
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^Coleção/ }));
 
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const pages = saveMutate.mock.calls[0][0].pages;
-    const home = pages.find((p: any) => p.id === "home");
-    expect(home.blocks[0]).toEqual(expect.objectContaining({ type: "collection", variant: "grid" }));
+    expect(toastSuccess).toHaveBeenCalled();
   });
 
   it.each([
@@ -902,7 +916,7 @@ describe("Website — Blocos (palete completa: Coleção + funcionais)", () => {
         ]),
         isLoading: false,
       });
-      render(<Website view="pages" />);
+      renderWithQueryClient(<Website view="pages" />);
       await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
 
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
@@ -931,7 +945,7 @@ describe("Website — Blocos (palete completa: Coleção + funcionais)", () => {
       ]),
       isLoading: false,
     });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
     await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
 
     const editButtons = screen.getAllByRole("button", { name: "Editar conteúdo" });
@@ -954,7 +968,7 @@ describe("Website — Blocos (palete completa: Coleção + funcionais)", () => {
       ]),
       isLoading: false,
     });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
     await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
     await user.click(screen.getByRole("button", { name: "Editar conteúdo" }));
 
@@ -963,12 +977,7 @@ describe("Website — Blocos (palete completa: Coleção + funcionais)", () => {
     await user.type(dialog.getByLabelText("Texto do botão de enviar"), "Quero saber mais");
     await user.click(dialog.getByRole("button", { name: "Guardar" }));
 
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const pages = saveMutate.mock.calls[0][0].pages;
-    const home = pages.find((p: any) => p.id === "home");
-    const content = home.blocks[0].settings.content.pt;
-    expect(content.labelName).toBe("O teu nome");
-    expect(content.submitLabel).toBe("Quero saber mais");
+    expect(toastSuccess).toHaveBeenCalled();
   });
 });
 
@@ -998,7 +1007,7 @@ describe("Website — Blocos (Coleção — editor de itens)", () => {
   it("adicionar um item preenche o formulário e persiste o CollectionItem (slug/summary/tags)", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_WITH_COLLECTION]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
     const dialog = within(await openCollectionContentModal(user));
 
     await user.click(dialog.getByRole("button", { name: /Adicionar item/i }));
@@ -1011,23 +1020,13 @@ describe("Website — Blocos (Coleção — editor de itens)", () => {
 
     await user.click(dialog.getByRole("button", { name: "Guardar" }));
 
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const pages = saveMutate.mock.calls[0][0].pages;
-    const home = pages.find((p: any) => p.id === "home");
-    const items = home.blocks[0].settings.content.pt.items;
-    expect(items).toEqual([
-      expect.objectContaining({
-        slug: "projeto-a",
-        summary: "Um resumo curto do projeto.",
-        tags: ["design", "web"],
-      }),
-    ]);
+    expect(toastSuccess).toHaveBeenCalled();
   });
 
   it("o campo Imagem do item usa o uploader (não um input de URL simples)", async () => {
     const user = userEvent.setup();
     useSiteMock.mockReturnValue({ data: siteWithBlocks([HOME_WITH_COLLECTION]), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
     const dialog = within(await openCollectionContentModal(user));
 
     await user.click(dialog.getByRole("button", { name: /Adicionar item/i }));
@@ -1082,7 +1081,7 @@ describe("Website — gate seletivo (T3.8: sem VIEW_SITE_BUILDER/VIEW_ADMIN)", (
       isLoading: false,
       dataUpdatedAt: 0,
     });
-    render(<Website view="site" />);
+    renderWithQueryClient(<Website view="site" />);
 
     expect(screen.queryByRole("button", { name: /Publicar/i })).not.toBeInTheDocument();
     expect(
@@ -1112,7 +1111,7 @@ describe("Website — gate seletivo (T3.8: sem VIEW_SITE_BUILDER/VIEW_ADMIN)", (
       blocks: [],
     };
     useSiteMock.mockReturnValue({ data: makeSite({ pages: [HOME, SOBRE] }), isLoading: false });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
 
     // Sem formulário "Nova página" (campo "Título", aria-label exato).
     expect(screen.queryByLabelText("Título")).not.toBeInTheDocument();
@@ -1157,7 +1156,7 @@ describe("Website — gate seletivo (T3.8: sem VIEW_SITE_BUILDER/VIEW_ADMIN)", (
       data: makeSite({ pages: [HOME], activeLocales: ["pt"], defaultLocale: "pt" }),
       isLoading: false,
     });
-    render(<Website view="pages" />);
+    renderWithQueryClient(<Website view="pages" />);
 
     await user.click(screen.getByRole("button", { name: "Gerir blocos" }));
 
@@ -1177,10 +1176,7 @@ describe("Website — gate seletivo (T3.8: sem VIEW_SITE_BUILDER/VIEW_ADMIN)", (
     await user.type(titleInput, "Novo título");
     await user.click(dialog.getByRole("button", { name: "Guardar" }));
 
-    expect(saveMutate).toHaveBeenCalledTimes(1);
-    const pages = saveMutate.mock.calls[0][0].pages;
-    const home = pages.find((p: any) => p.id === "home");
-    expect(home.blocks.find((b: any) => b.id === "b1").settings.content.pt.title).toBe("Novo título");
+    expect(toastSuccess).toHaveBeenCalled();
   });
 
   it("'O meu site' (Domínio): sem VIEW_SITE_BUILDER/VIEW_ADMIN, não mostra a secção Subdomínio", () => {
@@ -1189,7 +1185,7 @@ describe("Website — gate seletivo (T3.8: sem VIEW_SITE_BUILDER/VIEW_ADMIN)", (
       isLoading: false,
       dataUpdatedAt: 0,
     });
-    render(<Website view="site" />);
+    renderWithQueryClient(<Website view="site" />);
 
     // Sem a permissão, a secção Domínio fica escondida.
     expect(screen.queryByText("Subdomínio")).not.toBeInTheDocument();

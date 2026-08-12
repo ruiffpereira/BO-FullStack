@@ -1,9 +1,18 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Card, Button, IconButton, Badge, SectionTitle, EmptyState } from "../../ui/ui.jsx";
 import { Combobox } from "../Combobox";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { getBlockSchema, summarizeBlock } from "../../lib/blockCatalog";
+import {
+  useGetCmsEntries,
+  getCmsEntriesQueryKey,
+} from "../../gen/backoffice/hooks/useGetCmsEntries.js";
+import { deleteCmsEntries } from "../../gen/backoffice/hooks/useDeleteCmsEntries.js";
+import { getBlockEntryKeys, type CmsEntry } from "../../lib/siteCms";
 import type { SitePage, SiteBlock } from "../../hooks/useWebsite";
+import { websiteKeys } from "../../hooks/useWebsite";
 import { BlockPaletteModal } from "./BlockPaletteModal";
 import { BlockContentModal } from "./BlockContentModal";
 
@@ -124,6 +133,9 @@ export function PageBlocksSection({
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState<SiteBlock | null>(null);
   const [pendingRemove, setPendingRemove] = useState<SiteBlock | null>(null);
+  const queryClient = useQueryClient();
+  const { data: cmsEntries = [] } = useGetCmsEntries();
+  const [removing, setRemoving] = useState(false);
 
   const blocks = page.blocks ?? [];
   const locale = activeLocales[0] ?? defaultLocale;
@@ -162,27 +174,34 @@ export function PageBlocksSection({
 
   const onConfirmRemove = () => {
     if (!pendingRemove) return;
+    setRemoving(true);
+
+    // Delete CMS entries for this block (fire-and-forget)
+    const entriesToDelete = getBlockEntryKeys(pendingRemove.id, cmsEntries as CmsEntry[]);
+    if (entriesToDelete.length > 0) {
+      deleteCmsEntries({ keys: entriesToDelete })
+        .then(() => {
+          // Invalidate queries on success
+          queryClient.invalidateQueries({ queryKey: getCmsEntriesQueryKey() });
+          queryClient.invalidateQueries({ queryKey: ["cms-search"] });
+        })
+        .catch((err) => {
+          console.error("Erro ao apagar conteúdo do bloco no CMS:", err);
+          toast.error("Erro ao apagar conteúdo do bloco");
+        });
+    }
+
+    // Remove block from pages
     updateBlocks(
       blocks.filter((b) => b.id !== pendingRemove.id),
       "Bloco removido.",
     );
+    // Also invalidate site to refresh preview
+    queryClient.invalidateQueries({ queryKey: websiteKeys.site });
     setPendingRemove(null);
+    setRemoving(false);
   };
 
-  const onSaveContent = (nextContent: Record<string, Record<string, unknown>>) => {
-    if (!editingBlock) return;
-    updateBlocks(
-      blocks.map((b) =>
-        // Merge (não substituir) `content`: o modal só edita as línguas ativas — um
-        // merge preserva o conteúdo de línguas desativadas em vez de o apagar.
-        b.id === editingBlock.id
-          ? { ...b, settings: { ...b.settings, content: { ...b.settings?.content, ...nextContent } } }
-          : b,
-      ),
-      "Conteúdo do bloco guardado.",
-    );
-    setEditingBlock(null);
-  };
 
   return (
     <Card className="p-5 mt-5">
@@ -237,7 +256,7 @@ export function PageBlocksSection({
         description={<>Isto remove definitivamente este bloco da página. Não podes desfazer esta ação.</>}
         confirmLabel="Remover"
         pendingLabel="A remover…"
-        isPending={disabled}
+        isPending={disabled || removing}
       />
 
       {editingBlock && (
@@ -246,7 +265,6 @@ export function PageBlocksSection({
           activeLocales={activeLocales.length > 0 ? activeLocales : [defaultLocale]}
           defaultLocale={defaultLocale}
           onClose={() => setEditingBlock(null)}
-          onSave={onSaveContent}
           isPending={disabled}
         />
       )}

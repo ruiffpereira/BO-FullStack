@@ -19,6 +19,7 @@ import { FileUpload } from "../components/FileUpload";
 import { GuardButton } from "../components/GuardButton";
 import { PageBlocksSection } from "../components/website/PageBlocksSection";
 import { uploadImage } from "../gen/backoffice/hooks/useUploadImage.js";
+import { putCmsEntries } from "../gen/backoffice/hooks/usePutCmsEntries.js";
 import { SITE_ROOT_URL } from "../lib/env";
 import {
   useSite,
@@ -775,6 +776,22 @@ function PagesTab({ site, canEditStructure }: { site: Site; canEditStructure: bo
   };
 
   const onPatch = (id: string, patch: Partial<SitePage>) => {
+    // If title is being updated, also upsert to CMS (fire and forget)
+    if (patch.title !== undefined) {
+      const page = pages.find((p) => p.id === id);
+      if (page && patch.title !== page.title) {
+        const pageRef = id || page.slug || "home";
+        const titleValue = patch.title || "";
+        // Fire-and-forget: don't wait for this to complete
+        putCmsEntries({
+          key: `site.page.${pageRef}.title`,
+          locale: site.defaultLocale,
+          value: titleValue,
+          type: "text",
+        }).catch((err) => console.error("Erro ao guardar título da página no CMS:", err));
+      }
+    }
+
     persist(pages.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   };
 

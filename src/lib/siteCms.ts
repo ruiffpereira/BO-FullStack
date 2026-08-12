@@ -170,62 +170,77 @@ export function unflattenBlockEntries(
 }
 
 /**
- * Unflatten um mapa flat de chaves em objeto aninhado.
- * Semelhante ao `unflattenPrefix` do site-engine.
+ * Unflatten um mapa flat de chaves em objeto. ESPELHO EXATO do
+ * `unflattenPrefix` do site-engine (`site-engine/lib/cmsContent.ts`) — se um
+ * mudar, o outro TEM de mudar, senão o editor e o renderer divergem.
  *
- * Exemplo:
- *   { "title": "Título", "items.1.name": "Item 1", "items.2.name": "Item 2" }
- *   → { title: "Título", items: [{ name: "Item 1" }, { name: "Item 2" }] }
+ * O modelo de conteúdo do renderer é PLANO: uma chave sem segmento puramente
+ * numérico é uma chave plana com pontos (`content["contacto.morada1"]`,
+ * `content["stat1.valor"]`) — NUNCA se aninha. Só os segmentos numéricos (listas
+ * reais 1-based) geram arrays. Aninhar segmentos não-numéricos além de perder o
+ * valor rebentava quando uma chave era prefixo de outra
+ * (`contacto.telefone` + `contacto.telefone.href` → escrita numa string → throw).
+ *
+ * Exemplos:
+ *   { "titulo": "T", "contacto.morada1": "R", "especialidades.1": "Corte" }
+ *   → { titulo: "T", "contacto.morada1": "R", especialidades: ["Corte"] }
+ *   { "plans.1.name": "Base", "plans.1.features.1": "X" }
+ *   → { plans: [{ name: "Base", features: ["X"] }] }
  */
 export function unflattenMap(flatMap: Record<string, string>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
+  const isIndex = (s: string) => /^\d+$/.test(s);
 
   for (const [key, value] of Object.entries(flatMap)) {
-    const parts = key.split(".");
-    let current: any = result;
+    if (!key) continue;
+    const segs = key.split(".");
+    const firstIdx = segs.findIndex(isIndex);
 
-    for (let i = 0; i < parts.length - 1; i++) {
-      const part = parts[i];
-      const isNumeric = /^\d+$/.test(part);
-      const nextPart = parts[i + 1];
-      const nextIsNumeric = /^\d+$/.test(nextPart);
+    // Sem segmento numérico → chave PLANA (não aninhar).
+    if (firstIdx === -1) {
+      result[key] = value;
+      continue;
+    }
+    // Chave que começa por índice → malformada; ignora.
+    if (firstIdx === 0) continue;
 
-      if (isNumeric) {
-        // This is a 1-based array index; convert to 0-based
+    const path = [segs.slice(0, firstIdx).join("."), ...segs.slice(firstIdx)];
+    let current: unknown = result;
+    let malformed = false;
+
+    for (let i = 0; i < path.length - 1; i++) {
+      const part = path[i];
+      const nextIsIndex = isIndex(path[i + 1]);
+      if (isIndex(part)) {
         const idx = parseInt(part, 10) - 1;
-
-        // Ensure current is an array
         if (!Array.isArray(current)) {
-          break; // Malformed; skip this entry
+          malformed = true;
+          break;
         }
-
-        // Expand array if needed
-        while (current.length <= idx) {
-          current.push({});
+        while (current.length <= idx) current.push(nextIsIndex ? [] : {});
+        if (current[idx] === null || typeof current[idx] !== "object") {
+          current[idx] = nextIsIndex ? [] : {};
         }
-
         current = current[idx];
       } else {
-        // Object key
-        if (!current[part]) {
-          current[part] = nextIsNumeric ? [] : {};
+        const cur = current as Record<string, unknown>;
+        if (cur[part] === null || typeof cur[part] !== "object") {
+          cur[part] = nextIsIndex ? [] : {};
         }
-        current = current[part];
+        current = cur[part];
       }
     }
+    if (malformed) continue;
 
-    // Set the final leaf value
-    const lastPart = parts[parts.length - 1];
-    if (/^\d+$/.test(lastPart)) {
-      const idx = parseInt(lastPart, 10) - 1;
+    const last = path[path.length - 1];
+    if (isIndex(last)) {
+      const idx = parseInt(last, 10) - 1;
       if (Array.isArray(current)) {
-        while (current.length <= idx) {
-          current.push(value);
-        }
+        while (current.length <= idx) current.push(undefined);
         current[idx] = value;
       }
-    } else {
-      current[lastPart] = value;
+    } else if (current !== null && typeof current === "object" && !Array.isArray(current)) {
+      (current as Record<string, unknown>)[last] = value;
     }
   }
 

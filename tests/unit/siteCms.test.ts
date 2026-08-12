@@ -222,7 +222,7 @@ describe("siteCms helpers", () => {
       });
     });
 
-    it("desachata objetos aninhados", () => {
+    it("chaves com pontos SEM índice ficam PLANAS (modelo do renderer)", () => {
       const flatMap = {
         "contact.name": "John",
         "contact.email": "john@example.com",
@@ -230,17 +230,27 @@ describe("siteCms helpers", () => {
         "contact.address.city": "NYC",
       };
 
-      const result = unflattenMap(flatMap);
+      // O renderer lê content["contact.address.street"] como chave plana — NUNCA aninhar.
+      expect(unflattenMap(flatMap)).toEqual({
+        "contact.name": "John",
+        "contact.email": "john@example.com",
+        "contact.address.street": "Main St",
+        "contact.address.city": "NYC",
+      });
+    });
 
-      expect(result).toEqual({
-        contact: {
-          name: "John",
-          email: "john@example.com",
-          address: {
-            street: "Main St",
-            city: "NYC",
-          },
-        },
+    it("REGRESSÃO: chave que é prefixo de outra não rebenta (contacto.telefone + .href)", () => {
+      // Forma real do template barber. Aninhar rebentava (escrita numa string, strict mode).
+      const flatMap = {
+        "contacto.telefone": "+351 123 456 789",
+        "contacto.telefone.href": "+351123456789",
+        "stat1.valor": "10+",
+      };
+      expect(() => unflattenMap(flatMap)).not.toThrow();
+      expect(unflattenMap(flatMap)).toEqual({
+        "contacto.telefone": "+351 123 456 789",
+        "contacto.telefone.href": "+351123456789",
+        "stat1.valor": "10+",
       });
     });
 

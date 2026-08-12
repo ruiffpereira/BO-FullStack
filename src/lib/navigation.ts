@@ -58,15 +58,17 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     // Label do âncora ("O meu site", não "Website") pelo mesmo motivo dos
     // outros grupos acima. A página nunca usou `?tab=` (sem deep-link legacy
     // a redirecionar aqui, T2.3). Vistas: "O meu site" (com DomainSection
-    // dentro, só visível com VIEW_SITE_BUILDER/VIEW_ADMIN) e "Páginas" (sempre
-    // visível, mode read-only sem a permissão). A "Marca" está ESCONDIDA dos
-    // clientes (2026-08-12, decisão do dono): a customização de marca ainda
-    // não está pronta — por agora todos os sites ficam iguais (o tema
-    // semeado pela vertical). Fica só para o dono (VIEW_ADMIN) continuar a
-    // afiná-la; o guard do Shell redireciona um cliente que faça deep-link a
-    // /website/marca para o 1.º subitem permitido.
+    // dentro, só visível com VIEW_SITE_BUILDER/VIEW_ADMIN). "Páginas" e "Marca"
+    // estão ESCONDIDAS dos clientes (2026-08-12, decisão do dono): ainda NÃO
+    // estão prontas para o cliente — por agora todos os sites ficam iguais (a
+    // estrutura/tema semeados pela vertical; o TEXTO edita-se em Conteúdos →
+    // Site público). Ficam só para o dono (VIEW_ADMIN) continuar a afiná-las; o
+    // guard do Shell redireciona um cliente que faça deep-link a
+    // /website/paginas|/website/marca para o 1.º subitem permitido (/website =
+    // "O meu site"). Com só 1 subitem permitido, o Shell mostra o Website como
+    // link simples, não como menu expansível (condição `groupItems.length > 1`).
     { id: "site", label: "O meu site", path: "/website" },
-    { id: "pages", label: "Páginas", path: "/website/paginas" },
+    { id: "pages", label: "Páginas", path: "/website/paginas", perm: "VIEW_ADMIN" },
     { id: "brand", label: "Marca", path: "/website/marca", perm: "VIEW_ADMIN" },
   ],
   "/admin": [

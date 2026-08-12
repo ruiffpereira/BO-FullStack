@@ -170,13 +170,12 @@ test.describe("RBAC matriz — sidebar por permissão (core + módulo próprio)"
       await loginAs(context, m.user);
       // Core é acessível a todos os tenants — nenhuma destas rotas deve redirecionar
       // para /dashboard. (/despesas é deep-link do Financeiro, também permitido.
-      // /website é core desde T3.8 (2026-07-14) — a raiz e "Páginas" são sempre
-      // acessíveis, mesmo sem VIEW_SITE_BUILDER/VIEW_ADMIN; o gating de conteúdo
-      // (botão Publicar, editar estrutura) é testado em Website.test.tsx. A
-      // "Marca" está ESCONDIDA dos clientes (2026-08-12, VIEW_ADMIN) — testada
-      // no redirect abaixo. /estatisticas continua fora daqui — gate temporário
-      // VIEW_ADMIN, ver ADMIN_GATED_ROUTES acima.)
-      for (const route of ["/clientes", "/financeiro", "/conteudos", "/despesas", "/website", "/website/paginas"]) {
+      // /website é core desde T3.8 (2026-07-14) — a raiz ("O meu site") é sempre
+      // acessível. "Páginas" e "Marca" estão ESCONDIDAS dos clientes (2026-08-12,
+      // VIEW_ADMIN) — ainda não prontas; testadas no redirect abaixo.
+      // /estatisticas continua fora daqui — gate temporário VIEW_ADMIN, ver
+      // ADMIN_GATED_ROUTES acima.)
+      for (const route of ["/clientes", "/financeiro", "/conteudos", "/despesas", "/website"]) {
         await page.goto(route);
         await expect(page, `${m.user} devia poder ficar em ${route}`).toHaveURL(
           new RegExp(route.replace("/", "\\/")),
@@ -270,24 +269,26 @@ test.describe("RBAC matriz — Website: backward compatibility (paths antigos re
   });
 });
 
-// Gating de conteúdo dentro de /website: sem VIEW_SITE_BUILDER/VIEW_ADMIN, o tenant
-// vê a página mas em "MODO CONTEÚDO" (não consegue publicar, editar estrutura, etc.).
-test.describe("RBAC matriz — Website: gating de conteúdo (sem VIEW_SITE_BUILDER)", () => {
-  test("noaccess@e2e: /website/paginas acessível mas em modo read-only (sem botão Publicar)", async ({ page, context }) => {
+// Gating de /website: "Páginas" e "Marca" estão escondidas dos clientes (2026-08-12,
+// VIEW_ADMIN) — ainda não prontas. Sem VIEW_ADMIN o guard redireciona-as para
+// /website ("O meu site"), e o Website mostra-se como link simples (1 subitem).
+test.describe("RBAC matriz — Website: Páginas + Marca escondidas dos clientes", () => {
+  test("noaccess@e2e: sidebar do Website não mostra 'Páginas' nem 'Marca'", async ({ page, context }) => {
     await loginAs(context, "noaccess@e2e");
-    await page.goto("/website/paginas");
-    await expect(page).toHaveURL(/\/website\/paginas$/, { timeout: 15_000 });
-    // Botão "Publicar" deve estar escondido para utilizadores sem VIEW_SITE_BUILDER
-    await expect(page.getByRole("button", { name: /Publicar/i })).toHaveCount(0);
-  });
-
-  test("noaccess@e2e: /website/marca está ESCONDIDA (redireciona; só o dono/VIEW_ADMIN a vê)", async ({ page, context }) => {
-    await loginAs(context, "noaccess@e2e");
-    await page.goto("/website/marca");
-    // Sem VIEW_ADMIN o subitem Marca não existe → o guard cai no 1.º permitido (/website)
+    await page.goto("/website");
     await expect(page).toHaveURL(/\/website$/, { timeout: 15_000 });
+    await expect(page.getByRole("button", { name: "Páginas", exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Marca", exact: true })).toHaveCount(0);
   });
+
+  for (const route of ["/website/paginas", "/website/marca"]) {
+    test(`noaccess@e2e: ${route} está ESCONDIDA (redireciona para /website)`, async ({ page, context }) => {
+      await loginAs(context, "noaccess@e2e");
+      await page.goto(route);
+      // Sem VIEW_ADMIN o subitem não existe → o guard cai no 1.º permitido (/website).
+      await expect(page).toHaveURL(/\/website$/, { timeout: 15_000 });
+    });
+  }
 
   test("noaccess@e2e: /website não mostra secção de Domínio (Subdomínio) sem VIEW_SITE_BUILDER", async ({ page, context }) => {
     await loginAs(context, "noaccess@e2e");

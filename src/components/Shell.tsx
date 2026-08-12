@@ -445,7 +445,12 @@ function SidebarContent({ accessiblePaths, collapsed }: {
         <nav ref={navRef} className="space-y-1" onKeyDown={handleNavKeyDown}>
           {accessiblePaths.map((path) => {
             const groupItems = allowedSubitems(path, hasPermission)
-            if (groupItems.length > 0) {
+            // Um grupo só é menu EXPANSÍVEL com ≥2 subitens permitidos. Com 1 só
+            // (ou 0), o expander abriria para um único filho — redundante: cai
+            // para um NavItem simples (link ao root). Único caso real: o Website
+            // dos clientes, agora que Páginas/Marca são VIEW_ADMIN — sobra "O meu
+            // site", cujo path É o root `/website`, por isso o link fica exato.
+            if (groupItems.length > 1) {
               const isExpanded = expandedPath === path
               return (
                 <NavItemGroup

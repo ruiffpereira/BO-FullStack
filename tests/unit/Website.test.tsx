@@ -1024,19 +1024,16 @@ describe("Website — gate seletivo (T3.8: sem VIEW_SITE_BUILDER/VIEW_ADMIN)", (
     hasPermissionMock.mockReturnValue(false);
   });
 
-  it("submenu (navigation.ts): 'Marca' escondida dos clientes (só VIEW_ADMIN); 'O meu site'+'Páginas' sempre", () => {
-    // Página Website simplificada. "O meu site" e "Páginas" são tenant-open; a
-    // "Marca" está escondida dos clientes (2026-08-12) — a customização de marca
-    // ainda não está pronta, por agora todos os sites ficam iguais. Só o dono
-    // (VIEW_ADMIN) vê "Marca". VIEW_SITE_BUILDER NÃO a desbloqueia (o self-serve
-    // tem essa permissão e continua a ser "cliente" para este efeito).
-    expect(allowedSubitems("/website", () => false).map((i) => i.id)).toEqual([
-      "site",
-      "pages",
-    ]);
+  it("submenu (navigation.ts): 'Páginas' e 'Marca' escondidas dos clientes (só VIEW_ADMIN); cliente vê só 'O meu site'", () => {
+    // Página Website. "Páginas" e "Marca" estão escondidas dos clientes
+    // (2026-08-12) — ainda não estão prontas; por agora todos os sites ficam
+    // iguais. Só o dono (VIEW_ADMIN) as vê. VIEW_SITE_BUILDER NÃO as desbloqueia
+    // (o self-serve tem essa permissão e continua a ser "cliente" para isto).
+    // Com só 1 subitem, o Shell mostra o Website como link simples (ver Shell).
+    expect(allowedSubitems("/website", () => false).map((i) => i.id)).toEqual(["site"]);
     expect(
       allowedSubitems("/website", (name) => name === "VIEW_SITE_BUILDER").map((i) => i.id),
-    ).toEqual(["site", "pages"]);
+    ).toEqual(["site"]);
     expect(
       allowedSubitems("/website", (name) => name === "VIEW_ADMIN").map((i) => i.id),
     ).toEqual(["site", "pages", "brand"]);

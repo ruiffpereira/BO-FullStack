@@ -56,8 +56,12 @@ Backoffice → Website → **O meu site** → secção Domínio.
 
 ## Passo 2 — Pôr o template gym · **EU** (script)
 
+**Onde correr: DENTRO do contentor da API em produção** (Coolify → serviço da API → terminal). Não localmente: a única configuração de base de dados nesta máquina é `*_DEV`, a apontar para o MySQL do docker local — um script corrido daqui mexeria na BD de **desenvolvimento**, não na de produção.
+
+Funciona no contentor porque o `Dockerfile` faz `pnpm install` **sem** `--prod` e `COPY . .` — logo o `ts-node` e o código-fonte estão na imagem, e o processo já tem as variáveis `DB_*` de produção (as mesmas que a app usa; se a API arranca, o script liga-se). É o mesmo mecanismo do `pnpm backup`, que também é um script TS pensado para produção.
+
 ```bash
-# a partir de API-FullStack/
+# no terminal do contentor da API (cwd = /app)
 pnpm exec ts-node --transpile-only scripts/makeGymAppTenant.ts --email <email-do-tenant>            # dry-run: mostra o antes/depois, não escreve
 pnpm exec ts-node --transpile-only scripts/makeGymAppTenant.ts --email <email-do-tenant> --commit   # aplica
 ```
@@ -104,7 +108,7 @@ e fazer **redeploy** (é build-time — mudá-la sem rebuild não faz nada).
 
 A partir daí, quem abrir o endereço antigo — incluindo a PWA instalada no ecrã inicial — vê a despedida, com um botão para a morada nova; a página desregista o service worker e limpa as caches para a app velha não ficar presa.
 
-**Verificado localmente (2026-08-20):** com a env definida, o texto e o URL entram no bundle; **sem a env, o URL não existe no bundle e a app arranca exactamente como hoje**. O `applyStoredTheme()` e o `initPlausible()` correm nos dois caminhos de propósito — o tema para a despedida não aparecer sem cores, e o Plausible para se poder **medir quantos sócios ainda abrem o endereço antigo**.
+**Verificado (2026-08-20), e o resultado é mais forte do que se esperava:** com a env definida, o texto e o URL entram no bundle. **Sem a env, o componente da despedida nem chega a ser entregue** — o Vite substitui `import.meta.env.VITE_MIGRATED_TO` por `undefined`, o ramo passa a código morto e o Rollup elimina-o. Confirmado no **bundle vivo em produção** depois do deploy deste trabalho: o texto "Mudámos de casa" não aparece lá, e os únicos URLs da plataforma no bundle são o da API e o do Plausible. A app está exactamente como estava. O `applyStoredTheme()` e o `initPlausible()` correm nos dois caminhos de propósito — o tema para a despedida não aparecer sem cores, e o Plausible para se poder **medir quantos sócios ainda abrem o endereço antigo**.
 
 **Rollback:** apagar a env + redeploy. A app antiga volta ao normal.
 
@@ -133,4 +137,11 @@ Antes de desligar, ter em conta:
 | 6 · `VITE_MIGRATED_TO` no Coolify + redeploy | **Tu** |
 | 7 · Desligar o antigo, guiado pelo Plausible | **Tu** |
 
-**Bloqueio real:** os passos 1 e 3 exigem sessão no Backoffice desse tenant e o passo 6 exige o Coolify — nenhum dos três é acessível a mim. O passo 2 exige acesso à base de dados de produção para correr o script; se não me deres esse acesso, corres tu os dois comandos acima (estão prontos e são copy-paste).
+**Bloqueio real — não é identificar o tenant, é o acesso a produção.** Verificado a 2026-08-20:
+
+- O tenant do ginásio **não tem subdomínio nem domínio próprio registados**: `GET /api/websites/app/config?host=gymnoprado.rufvision.com` devolve **404**, e esse endpoint resolve exactamente por `Site.customDomain` ou `Site.subdomain`. Ou seja, o passo 1 é mesmo necessário e não está feito à socapa.
+- A app viva **não tem o `userId` embutido** (zero UUIDs no bundle de produção): identifica-se pelo site-token, que o servidor resolve. Não há nada a ler dali.
+- O `VITE_USER_ID` do `.env` local é da BD de **desenvolvimento** (`VITE_API_BASE_URL=http://localhost:3001/api`) — os UUIDs são por base de dados, logo não serve para produção.
+- **Nesta máquina não existem credenciais de produção** — o `.env` da API só tem chaves `*_DEV` (`DB_HOST_DEV=mysql`). Vivem no Coolify.
+
+Conclusão: o passo 2 corre-se **no terminal do contentor da API** (ver o passo 2), e isso é acesso que só o dono tem. Não precisas de me dizer o `userId`: o script aceita `--email`, e o email do ginásio já o conheces. Os dois comandos são copy-paste e o primeiro não escreve nada.

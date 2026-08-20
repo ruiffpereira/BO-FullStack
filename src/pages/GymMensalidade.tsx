@@ -16,6 +16,7 @@ import { LineChart, Waterfall } from '../ui/charts.jsx'
 import { useGymAnalytics } from '../hooks/useGymAnalytics'
 import { useAuth } from '../context/AuthContext'
 import { useWriteGuard } from '../hooks/useWriteGuard'
+import { useSite } from '../hooks/useWebsite'
 import { gymBulkMarkPaid, gymRemind, gymSetPayOnly } from '../hooks/useFinanceiro'
 import { InfoDot } from '../components/financeiro/kit'
 import { INFO } from '../components/financeiro/info'
@@ -827,6 +828,94 @@ function AnaliseView() {
   )
 }
 
+/**
+ * Hook para guardar o convite de sócio: retorna um objeto com `readOnly`,
+ * `reason`, e `message` (em PT-PT) a apontar para o CTA de resolver.
+ *
+ * Verifica 3 condições (prioridade):
+ * 1. Sem subdomínio → "sócios precisam do endereço da app"
+ * 2. Sem subscrições ativas → "cria uma subscrição primeiro"
+ * 3. Write-guard de billing → "subscrição da plataforma em atraso"
+ */
+function useInviteGuard() {
+  const { data: site, isLoading: siteLoading } = useSite()
+  const { data: subsData } = useGetGymSubscriptions()
+  const writeGuard = useWriteGuard()
+
+  const subs = (subsData ?? []) as Sub[]
+  const activeSubs = subs.filter((s) => s.active)
+
+  // Enquanto o site não carrega, não mostras um bloqueio falso ("sem subdomínio").
+  if (siteLoading) {
+    return { readOnly: false, reason: null as string | null, message: '' }
+  }
+
+  // Prioridade 1: sem subdomínio
+  if (!site?.subdomain) {
+    return {
+      readOnly: true,
+      reason: 'subdomain',
+      // NÃO dizer "Website → Domínio": o separador Domínio deixou de existir na
+      // simplificação de 2026-08-12 (foi absorvido pelo "O meu site", que é a
+      // única vista do Website aberta a todos os tenants).
+      message: 'Reclama o subdomínio em Website → O meu site antes de convidar sócios — é o endereço da app que eles vão usar.',
+    }
+  }
+
+  // Prioridade 2: sem subscrições ativas
+  if (!activeSubs.length) {
+    return {
+      readOnly: true,
+      reason: 'subscriptions',
+      message: 'Cria uma subscrição ativa no catálogo antes de convidar sócios.',
+    }
+  }
+
+  // Prioridade 3: write-guard de billing
+  if (writeGuard.readOnly) {
+    return {
+      readOnly: true,
+      reason: 'billing',
+      message: writeGuard.message,
+    }
+  }
+
+  return { readOnly: false, reason: null, message: '' }
+}
+
+/**
+ * Botão "Convidar sócio" com guard multinível: subdomínio + subscrições + billing.
+ * Usa o mesmo padrão do `GuardButton`, mas com múltiplos motivos de bloqueio.
+ *
+ * O wrapper (`<span>`) segura o title para o tooltip aparecer no hover,
+ * igual ao `GuardButton`.
+ */
+export function InviteGymMemberButton({
+  onInviteClick,
+  disabled = false,
+}: {
+  onInviteClick: () => void
+  disabled?: boolean
+}) {
+  const guard = useInviteGuard()
+
+  if (!guard.readOnly) {
+    return (
+      <Button size="sm" icon="mail" onClick={onInviteClick} disabled={disabled}>
+        Convidar sócio
+      </Button>
+    )
+  }
+
+  return (
+    <span title={guard.message} className="inline-flex">
+      <Button size="sm" icon="mail" onClick={() => {}} disabled aria-disabled="true" title={guard.message}>
+        Convidar sócio
+      </Button>
+    </span>
+  )
+}
+
 // ── Tab principal: Financeiro do ginásio (Cobranças + Subscrições + Análise) ───
 export function MensalidadesTab() {
   const qc = useQueryClient()
@@ -858,7 +947,7 @@ export function MensalidadesTab() {
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-zinc-500">Cobranças das mensalidades.</p>
         <div className="flex items-center gap-2">
-          <Button size="sm" icon="mail" onClick={() => setConviteOpen(true)}>Convidar sócio</Button>
+          <InviteGymMemberButton onInviteClick={() => setConviteOpen(true)} />
           <Button variant="outline" size="sm" icon="trend" onClick={() => setAnaliseOpen(true)}>Análise</Button>
           <Button variant="outline" size="sm" icon="layers" onClick={() => setSubsOpen(true)}>Subscrições</Button>
         </div>

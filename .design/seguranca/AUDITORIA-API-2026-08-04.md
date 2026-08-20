@@ -4,6 +4,14 @@
 **Status:** AUDITORIA DE SEGURANÇA COMPLETA  
 **Repositório:** `d:\Projetos\Projectos\API-FullStack`  
 
+> **Nota de estado posterior (2026-08-20) — não altera o corpo da auditoria, que fica como registo do
+> que era verdade a 4 de Agosto.** O único achado de risco **MÉDIO** deste documento (os 3 feeds `.ics`
+> públicos sem rate-limit, §2.3/§3.1/§6-Fase-2.1) está **FECHADO**: as três rotas têm hoje
+> `publicRateLimit` aplicado — `routes/index.ts:213` (agenda), `:438` (cliente final) e `:446` (gym).
+> Com isso, **nenhum achado desta auditoria continua aberto**; o que resta são as recomendações de
+> backlog da Fase 3 (teste IDOR do Site JSON, observabilidade de tentativas de IDOR), que nunca foram
+> classificadas como risco.
+
 ---
 
 ## SUMÁRIO EXECUTIVO
@@ -305,11 +313,11 @@ Verificações:
 
 ### Fase 2: ALTO (2-3 dias)
 
-#### 2.1 Rate-Limit em Feeds .ics Públicos [3 testes]
-- [ ] Adicionar `publicRateLimit` a `GET /schedule/calendar/:token.ics` (routes/index.ts:213)
-- [ ] Adicionar `publicRateLimit` a `GET /websites/booking/customer/calendar/:token.ics` (routes/index.ts:437)
-- [ ] Adicionar `publicRateLimit` a `GET /websites/gym/calendar/:token.ics` (routes/index.ts:445)
-- [ ] Teste: `tests/security/rate-limit-ics-public.test.ts` (novo, 3 cenários)
+#### 2.1 Rate-Limit em Feeds .ics Públicos [3 testes] — ✅ FECHADO (verificado 2026-08-20)
+- [x] Adicionar `publicRateLimit` a `GET /schedule/calendar/:token.ics` (routes/index.ts:213)
+- [x] Adicionar `publicRateLimit` a `GET /websites/booking/customer/calendar/:token.ics` (routes/index.ts:438)
+- [x] Adicionar `publicRateLimit` a `GET /websites/gym/calendar/:token.ics` (routes/index.ts:446)
+- [ ] Teste: `tests/security/rate-limit-ics-public.test.ts` (novo, 3 cenários) — o middleware está aplicado, o teste dedicado continua por escrever
 
 **Esforço:** 2-3 horas (1 ficheiro de route com 3 linhas modificadas, 1 teste)
 

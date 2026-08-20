@@ -8,6 +8,7 @@ import { useGetScheduleServices } from '../gen/backoffice/hooks/useGetScheduleSe
 import { useGetScheduleWorkingHours } from '../gen/backoffice/hooks/useGetScheduleWorkingHours.js'
 import { useGetGymSubscriptions } from '../gen/backoffice/hooks/useGetGymSubscriptions.js'
 import { useGetProducts } from '../gen/backoffice/hooks/useGetProducts.js'
+import { useSite } from '../hooks/useWebsite.js'
 
 /**
  * Bloco "Primeiros passos" no topo do Dashboard (T11, brief `.design/self-serve/`).
@@ -88,6 +89,7 @@ export function FirstValueChecklist() {
     query: { enabled: canProducts },
     client: { headers },
   })
+  const { data: site } = useSite()
 
   const customersCount = customersData?.count ?? customersData?.rows?.length ?? 0
   const productsCount = productsData?.count ?? productsData?.rows?.length ?? 0
@@ -117,6 +119,12 @@ export function FirstValueChecklist() {
     }
     if (canGym) {
       const gymItems: ChecklistItem[] = [
+        {
+          id: 'gym-subdomain',
+          label: 'Reclamar o subdomínio',
+          href: '/website',
+          done: !!site?.subdomain,
+        },
         {
           id: 'gym-subscription',
           label: 'Cria a tua primeira subscrição',
@@ -174,7 +182,7 @@ export function FirstValueChecklist() {
     }
     coreItems.push({ id: 'core-content', label: 'Explora os conteúdos do teu site', href: '/conteudos', done: false })
     return coreItems
-  }, [canSchedule, canGym, canProducts, canCustomers, services, workingHours, gymSubscriptions, customersCount, productsCount])
+  }, [canSchedule, canGym, canProducts, canCustomers, services, workingHours, gymSubscriptions, customersCount, productsCount, site?.subdomain])
 
   if (dismissed) return null
 

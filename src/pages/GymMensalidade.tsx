@@ -845,42 +845,52 @@ function useInviteGuard() {
   const subs = (subsData ?? []) as Sub[]
   const activeSubs = subs.filter((s) => s.active)
 
-  // Enquanto o site não carrega, não mostras um bloqueio falso ("sem subdomínio").
-  if (siteLoading) {
-    return { readOnly: false, reason: null as string | null, message: '' }
-  }
+  // ── BLOQUEIOS a sério (valem seja qual for o alojamento da app do sócio) ──
 
-  // Prioridade 1: sem subdomínio
-  if (!site?.subdomain) {
-    return {
-      readOnly: true,
-      reason: 'subdomain',
-      // NÃO dizer "Website → Domínio": o separador Domínio deixou de existir na
-      // simplificação de 2026-08-12 (foi absorvido pelo "O meu site", que é a
-      // única vista do Website aberta a todos os tenants).
-      message: 'Reclama o subdomínio em Website → O meu site antes de convidar sócios — é o endereço da app que eles vão usar.',
-    }
-  }
-
-  // Prioridade 2: sem subscrições ativas
+  // Sem plano nenhum no catálogo o convite não tem o que atribuir.
   if (!activeSubs.length) {
     return {
       readOnly: true,
       reason: 'subscriptions',
       message: 'Cria uma subscrição ativa no catálogo antes de convidar sócios.',
+      warning: '',
     }
   }
 
-  // Prioridade 3: write-guard de billing
   if (writeGuard.readOnly) {
     return {
       readOnly: true,
       reason: 'billing',
       message: writeGuard.message,
+      warning: '',
     }
   }
 
-  return { readOnly: false, reason: null, message: '' }
+  // ── AVISO, não bloqueio: falta de subdomínio ──────────────────────────
+  //
+  // ⚠️ Isto ERA um bloqueio (2026-08-20) e foi um erro meu. A premissa era "a app
+  // do sócio vive em {subdomain}.{host}, logo sem subdomínio o convite é um beco
+  // sem saída" — verdade para um ginásio alojado no site-engine, FALSO para um
+  // ginásio cuja app é um deploy standalone com o seu próprio domínio (é o caso
+  // do ginásio real, servido hoje pelo deploy do gymnoprado, que não tem
+  // subdomínio reclamado). O bloqueio impedia os convites de sócios desse
+  // ginásio — uma regressão num fluxo que funcionava.
+  //
+  // O Backoffice NÃO consegue distinguir com fiabilidade "app no engine" de
+  // "app em deploy próprio", por isso não deve decidir por bloqueio a partir de
+  // informação incompleta. Mantém-se a informação, que é útil para um ginásio
+  // novo no engine, mas o convite segue.
+  if (!siteLoading && !site?.subdomain) {
+    return {
+      readOnly: false,
+      reason: 'subdomain',
+      message: '',
+      warning:
+        'Ainda não reclamaste um subdomínio. Se a app dos teus sócios é a do site (Website → O meu site), reclama-o antes de convidar — é o endereço que eles vão usar. Se tens uma app própria, ignora este aviso.',
+    }
+  }
+
+  return { readOnly: false, reason: null as string | null, message: '', warning: '' }
 }
 
 /**
@@ -900,8 +910,16 @@ export function InviteGymMemberButton({
   const guard = useInviteGuard()
 
   if (!guard.readOnly) {
+    // Com aviso (ex.: sem subdomínio) o botão continua ACTIVO — só leva o
+    // motivo no `title`. Ver o comentário no `useInviteGuard`.
     return (
-      <Button size="sm" icon="mail" onClick={onInviteClick} disabled={disabled}>
+      <Button
+        size="sm"
+        icon="mail"
+        onClick={onInviteClick}
+        disabled={disabled}
+        title={guard.warning || undefined}
+      >
         Convidar sócio
       </Button>
     )

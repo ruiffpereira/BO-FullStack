@@ -6,9 +6,10 @@ import { render, screen } from "@testing-library/react";
  * subdomínio + subscrições ativas + write-guard de billing.
  *
  * O botão deve estar desativado com motivo claro quando:
- * 1. Sem subdomínio (prioridade 1)
- * 2. Sem subscrições ativas (prioridade 2)
- * 3. Write-guard de billing bloqueado (prioridade 3)
+ * BLOQUEIAM: (1) sem subscrições ativas, (2) write-guard de billing.
+ * AVISA sem bloquear: falta de subdomínio — ver o comentário no teste
+ * respectivo (era bloqueio, e era uma premissa errada sobre onde vive a app
+ * do sócio).
  */
 
 const siteMock = vi.fn();
@@ -56,7 +57,18 @@ describe("InviteGymMemberButton — guards", () => {
     expect(button).not.toBeDisabled();
   });
 
-  it("bloqueado sem subdomínio, com mensagem a apontar para Website → O meu site", () => {
+  /**
+   * ⚠️ A falta de subdomínio AVISA, não bloqueia.
+   *
+   * Isto era um bloqueio (2026-08-20) e foi um erro: a premissa "a app do sócio
+   * vive em {subdomain}.{host}" é verdade para um ginásio alojado no
+   * site-engine e FALSA para um cujo app é um deploy standalone com domínio
+   * próprio — o caso do ginásio real. O bloqueio impedia os convites desse
+   * ginásio, uma regressão num fluxo que funcionava. O Backoffice não consegue
+   * distinguir os dois alojamentos com fiabilidade, por isso informa e deixa
+   * seguir.
+   */
+  it("sem subdomínio AVISA mas deixa convidar", () => {
     siteMock.mockReturnValue({ data: { subdomain: null }, isLoading: false });
     gymSubsMock.mockReturnValue({
       data: [{ subscriptionId: "sub1", active: true }],
@@ -66,18 +78,28 @@ describe("InviteGymMemberButton — guards", () => {
     render_();
 
     const button = screen.getByRole("button", { name: /convidar sócio/i });
-    expect(button).toBeDisabled();
-    expect(button).toHaveAttribute(
-      "title",
-      expect.stringContaining("subdomínio"),
-    );
+    expect(button).not.toBeDisabled();
+    expect(button.title).toMatch(/subdomínio/i);
     // O destino tem de ser "O meu site": o separador "Domínio" deixou de existir
     // na simplificação de 2026-08-12 e mandar lá o tenant era um beco sem saída.
-    expect(button).toHaveAttribute(
-      "title",
-      expect.stringContaining("O meu site"),
-    );
+    expect(button.title).toMatch(/O meu site/);
     expect(button.title).not.toMatch(/Website\s*→\s*Domínio/i);
+    // E tem de dizer a quem tem app própria que pode ignorar.
+    expect(button.title).toMatch(/app própria|ignora/i);
+  });
+
+  it("com subdomínio não mostra aviso nenhum", () => {
+    siteMock.mockReturnValue({ data: { subdomain: "meu-ginasio" }, isLoading: false });
+    gymSubsMock.mockReturnValue({
+      data: [{ subscriptionId: "sub1", active: true }],
+    });
+    writeGuardMock.mockReturnValue({ readOnly: false, message: "" });
+
+    render_();
+
+    const button = screen.getByRole("button", { name: /convidar sócio/i });
+    expect(button).not.toBeDisabled();
+    expect(button.title || "").toBe("");
   });
 
   it("bloqueado sem subscrições ativas (mesmo com subdomínio)", () => {
@@ -117,7 +139,7 @@ describe("InviteGymMemberButton — guards", () => {
     );
   });
 
-  it("prioridade: sem subdomínio > sem subscrições", () => {
+  it("sem subscrições bloqueia mesmo sem subdomínio (o aviso não tapa o bloqueio)", () => {
     siteMock.mockReturnValue({ data: { subdomain: null }, isLoading: false });
     gymSubsMock.mockReturnValue({ data: [] }); // nem subscrições ativas
 
@@ -125,9 +147,10 @@ describe("InviteGymMemberButton — guards", () => {
 
     const button = screen.getByRole("button", { name: /convidar sócio/i });
     expect(button).toBeDisabled();
-    // Motivo é "subdomínio", não "subscrição"
-    expect(button.title).toContain("subdomínio");
-    expect(button.title).not.toContain("subscrição");
+    // O motivo mostrado é o BLOQUEIO (subscrição), não o aviso do subdomínio —
+    // um aviso nunca deve tapar a razão pela qual o botão está de facto travado.
+    expect(button.title).toMatch(/subscrição/i);
+    expect(button.title).not.toMatch(/subdomínio/i);
   });
 
   it("prioridade: sem subscrições > write-guard de billing", () => {

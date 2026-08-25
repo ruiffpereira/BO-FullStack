@@ -205,7 +205,8 @@ O CMS tem quatro contextos: `website`, `product`, `service`, `gym`. O contexto i
 **Texto dos sites do site-engine (site-cms-content, 2026-08-12):** TODO o texto visível nos sites dos tenants vive em entradas do contexto `website` com o esquema de chaves `site.*` — `site.<blockId>.<campo>` (listas com índices **1-based**: `site.<blockId>.items.1.q`), `site.page.<ref>.title` (títulos de página/nav; ref = `page.id || slug || "home"`) e `site.footer.*` (rodapé, incl. `columns.<i>.links.<j>.label`/`.to`). Aparecem na tab **"Site público"** organizadas em secções "Site" → uma por página + "Rodapé", e o tenant edita-as aqui como qualquer entrada CMS (ou pelo modal de blocos da página Website — mesmas entradas). São semeadas no signup (`seedSiteCms`, API) e por uma migração de backfill para sites existentes (skip-if-exists — nunca pisa edições). O renderer (site-engine) recebe estas entradas no payload do site (`cms`) e dá-lhes precedência sobre o conteúdo inline legado do Site JSON. Tipos: `text` (default), `image` (campos image/img/foto/logo), `data` (campos `to`/`href`/`ctaHref`/`cta`/`slug` — hrefs/slugs, não é texto traduzível). Brief: `.design/site-cms-content/DESIGN_BRIEF.md`.
 
 - **Secções**: hierarquia de organização (parent/child)
-- **Entradas**: `key` + `locale` + `value` + `type` (text | richtext | image)
+- **Entradas**: `key` + `locale` + `value` + `type` (text | image)
+  > **⚠ `richtext` foi retirado da UI a 2026-08-24 (auditoria de segurança).** Nunca funcionou: a API remove **todo** o HTML de qualquer corpo de pedido (`applySanitization` → DOMPurify com `ALLOWED_TAGS: []`, em `API-FullStack/src/middleware/security.ts`), e isso vale também para a importação de CSV (`POST /cms/setup` recebe o CSV já convertido em JSON no `req.body`). Qualquer `<em>`/`<strong>`/`<h2>` era destruído **em silêncio**, com `200 OK` — a mesma classe do bug das chaves com ponto de 2026-08-04. O tipo continua a ser **aceite e lido** pela API para as entradas que já existem; o que desapareceu foi a opção de criar novas. Se algum dia se quiser HTML a sério no CMS, é preciso primeiro relaxar aquele sanitizador **e** garantir a sanitização na renderização (`site-engine/lib/sanitizeRichText.ts`) — por essa ordem.
 - Traduções agrupadas por `key`: `Record<locale, value>`
 - A língua padrão define a coluna principal das tabelas
 
@@ -240,7 +241,7 @@ key,locale,value,type,section,parent
 | Tipo | Quando usar |
 |------|-------------|
 | `text` | Títulos, labels, descrições, qualquer string |
-| `richtext` | HTML inline simples (`<em>`, `<strong>`, `<br>`) |
+| ~~`richtext`~~ | **NÃO USAR** — o HTML é removido em silêncio na escrita (ver o aviso na secção CMS acima). Usar `text`. |
 | `number` | Valores numéricos (anos, contagens, áreas) |
 | `data` | Slugs, referências internas, flags — não é texto traduzível |
 | `url` | Links externos |

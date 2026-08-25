@@ -2303,7 +2303,15 @@ export function Conteudos({ view }: { view: ConteudosView }) {
                     onChange={(v) => setEntryForm((f) => ({ ...f, type: v }))}
                     options={[
                       { value: "text", label: "Texto" },
-                      { value: "richtext", label: "Texto rico" },
+                      // "Texto rico" foi RETIRADO da escolha (2026-08-24). O tipo
+                      // `richtext` nunca funcionou: a API remove TODO o HTML de
+                      // qualquer corpo de pedido (`applySanitization`, DOMPurify
+                      // com `ALLOWED_TAGS: []`), incluindo na importação de CSV —
+                      // qualquer <em>/<strong>/<h2> era destruído em silêncio, com
+                      // 200 OK. Oferecer a opção prometia uma coisa que a
+                      // plataforma não faz. As entradas `richtext` que já existem
+                      // continuam a ser LIDAS e editadas normalmente (os ramos de
+                      // render abaixo mantêm-se) — só não se criam novas.
                       { value: "image", label: "Imagem" },
                     ]}
                   />

@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push)",
+      "Bash(git push *)",
+      "Bash(git checkout -- *)",
+      "Bash(git stash *)",
+      "Bash(pnpm exec tsc --noEmit)",
+      "Bash(pnpm exec vitest run *)",
+      "Bash(pnpm exec vitest run)",
+      "Bash(pnpm exec next build)",
+      "Bash(pnpm exec eslint *)",
+      "Bash(docker compose -f docker-compose.test.yml *)",
+      "Bash(docker inspect *)",
+      "Bash(curl -s https://api.rufvision.com/api/*)",
+      "Bash(curl -sI https://*)",
+      "Read(//d/Projetos/Projectos/API-FullStack/**)",
+      "Read(//d/Projetos/Projectos/site-engine/**)",
+      "Read(//d/Projetos/Projectos/gymnoprado/**)",
+      "Edit(//d/Projetos/Projectos/API-FullStack/**)",
+      "Edit(//d/Projetos/Projectos/site-engine/**)",
+      "Edit(//d/Projetos/Projectos/gymnoprado/**)",
+      "Write(//d/Projetos/Projectos/API-FullStack/**)",
+      "Write(//d/Projetos/Projectos/site-engine/**)",
+      "Write(//d/Projetos/Projectos/gymnoprado/**)"
+    ],
+    "additionalDirectories": [
+      "d:\\Projetos\\Projectos\\API-FullStack",
+      "d:\\Projetos\\Projectos\\site-engine",
+      "d:\\Projetos\\Projectos\\gymnoprado"
+    ]
+  }
+}

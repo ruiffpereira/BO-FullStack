@@ -51,6 +51,19 @@ test.describe("Perfil — Conta", () => {
 
     const phoneInput = page.getByLabel("Telefone");
     await expect(phoneInput).toBeVisible({ timeout: 10_000 });
+
+    // Esperar que o formulário esteja SEMEADO pelo `GET /users/me` antes de
+    // escrever. Sem isto o teste era intermitente no CI (falhou em commits que
+    // só mexiam em documentação, o que denunciou a corrida): preenchia-se o
+    // telefone, a resposta chegava depois e re-semeava o estado do formulário,
+    // o `dirty` voltava a falso e o `Guardar` — que é `disabled={!dirty}` —
+    // ficava desactivado para sempre. O sintoma era "14 × locator resolved to
+    // <button disabled>".
+    //
+    // O email serve de sentinela porque um tenant tem sempre email; o telefone
+    // pode legitimamente vir vazio, por isso não dá para esperar por ele.
+    await expect(page.getByLabel("Email")).not.toHaveValue("", { timeout: 10_000 });
+
     const original = await phoneInput.inputValue();
     const novoTelefone = "+351 912 345 678";
 

@@ -17,7 +17,7 @@
 | Público / cliente final | 1 | corrigido |
 | Injecção e validação | 1 | corrigido |
 | Segredos e fuga de dados | 2 | 1 corrigido, 1 já reportado antes |
-| Uploads e ficheiros | 3 | 1 corrigido, 2 em aberto (ver abaixo) |
+| Uploads e ficheiros | 3 | 2 corrigidos, 1 decidido em contrário (ver abaixo) |
 | **Caminhos de dinheiro** | **0** | **limpo** |
 
 O agente do dinheiro devolveu zero achados **com a lista do que verificou e descartou**: ordem da verificação de assinatura do webhook, idempotência (ecommerce e platform billing), tampering de preço no checkout, cupões acumuláveis/reutilizáveis, cobertura do `billingGate` em todas as rotas de escrita, isolamento das mensalidades do ginásio e `isDefault` órfão. É o tipo de "nada encontrado" que vale alguma coisa.
@@ -58,11 +58,16 @@ O `isPlatformOrigin` aceitava `localhost` e `*.localhost` sem verificar o ambien
 
 ---
 
-## Em aberto — decisão tua
+### 9. Upload de vídeo sem verificação de conteúdo · **média**
+O caminho das imagens é sólido: o `sharp` tem de conseguir *decodificar* os bytes e re-codifica sempre para WebP, o que mata o vector do SVG/HTML servido tal-qual. O vídeo era gravado em streaming só com base no `Content-Type` declarado pelo cliente — trivial de falsificar. Não era XSS (a allowlist só tem 3 tipos de vídeo), mas permitia alojar até 100 MB de bytes arbitrários sob um URL de confiança da plataforma.
 
-**Upload de vídeo sem verificação de conteúdo** (média). O caminho das imagens é sólido: o `sharp` tem de conseguir *decodificar* os bytes e re-codifica sempre para WebP, o que mata o vector do SVG/HTML servido tal-qual. O vídeo é gravado em streaming só com base no `Content-Type` que o cliente declara — trivial de falsificar. Não é XSS (a allowlist só tem 3 tipos de vídeo), mas permite alojar até 100 MB de bytes arbitrários sob um URL de confiança da plataforma.
+`sniffVideoContainer` lê os primeiros 12 bytes e exige que a família real bata com o tipo declarado: EBML para Matroska/WebM, ou uma caixa de topo válida de ISO BMFF para mp4/mov (que contam como a mesma família, porque distingui-las pelos bytes não é fiável). É verificação de contentor, não de codec — o suficiente para impedir o "declaro vídeo, envio outra coisa". **Commit `23baa83`.**
 
-**Objectos gravados sem `Content-Disposition`** (baixa). Os ficheiros são servidos pelo SeaweedFS, não pelo Express, por isso o único momento em que a API controla headers é na escrita — e não define nem `Content-Disposition` nem equivalente a `nosniff`.
+---
+
+## Não corrigido, com razão
+
+**Objectos gravados sem `Content-Disposition`** (baixa, do agente dos uploads). Os ficheiros são servidos pelo SeaweedFS, não pelo Express, por isso o único momento em que a API controla headers é na escrita. Mas estes ficheiros são servidos **inline** — imagens em `<img>`, vídeos em `<video>` — e um `Content-Disposition: attachment` partia exactamente o caso de uso. A mitigação real é a allowlist estrita de `Content-Type`, que já existia e agora está reforçada pela verificação de assinatura acima. Registado como decisão, não como pendência.
 
 **Pistas não confirmadas**, registadas sem serem achados: o JWT `app-site` não tem revogação (só expira); SSRF teórico via SVG no `sharp` se o rasterizador seguir referências externas; `upsertPlatformSubscription` sem tratamento de `UniqueConstraintError` (autocura via reenvio do Stripe); `ContactInfo.tsx` no site-engine renderiza `href` sem `safeHref` mas é código morto sem importadores.
 
@@ -77,6 +82,7 @@ Feitas com pedidos `GET` sem efeitos: sem escritas, sem enumeração em volume, 
 - **Autenticação:** 401 em `/customers`, `/products`, `/schedule/appointments`, `/gym/exercises`, `/expenses`, `/users`, `/admin/billing/subscriptions`, `/audit-logs`.
 - **Erros:** `404 {"error":"site_not_found"}` e equivalentes — sem stack, sem SQL.
 - **Feed `.ics` com token falso:** 404, sem distinguir inexistente de inválido.
+- **Correcção do `localhost` confirmada em produção** (sondagem repetida depois do deploy): `http://localhost:5173` e `http://tenant.localhost:3000` deixaram de receber `access-control-allow-origin`. O fix do commit `563f760` está vivo.
 
 O teste **activo** (payloads de escrita, fuzzing, enumeração) fica por fazer de propósito: em produção cria dados lixo, dispara emails a sócios reais e pode bloquear contas. Pertence a um ambiente de staging ou a uma janela combinada.
 
@@ -84,6 +90,6 @@ O teste **activo** (payloads de escrita, fuzzing, enumeração) fica por fazer d
 
 ## Gates
 
-API: **1696 testes** em 83 ficheiros (mais 21 novos). site-engine: **466** em 31 (mais 10 novos). Backoffice: 37 ficheiros. Typecheck limpo nos três.
+API: **1701 testes** em 83 ficheiros (mais 26 novos). site-engine: **466** em 31 (mais 10 novos). Backoffice: 37 ficheiros. Typecheck limpo nos três.
 
 Cada correcção com impacto foi **provada nos dois sentidos** — o teste passa, e falha na assertiva certa quando se remove a protecção (sabotagem feita e revertida).

@@ -84,7 +84,34 @@ Feitas com pedidos `GET` sem efeitos: sem escritas, sem enumeração em volume, 
 - **Feed `.ics` com token falso:** 404, sem distinguir inexistente de inválido.
 - **Correcção do `localhost` confirmada em produção** (sondagem repetida depois do deploy): `http://localhost:5173` e `http://tenant.localhost:3000` deixaram de receber `access-control-allow-origin`. O fix do commit `563f760` está vivo.
 
-O teste **activo** (payloads de escrita, fuzzing, enumeração) fica por fazer de propósito: em produção cria dados lixo, dispara emails a sócios reais e pode bloquear contas. Pertence a um ambiente de staging ou a uma janela combinada.
+---
+
+## Teste ACTIVO contra produção (2026-08-25)
+
+Feito o que é seguro fazer, e explicado o que fica de fora e porquê.
+
+### Rate-limits — verificados AO VIVO, e só aqui é possível
+
+Esta é a parte que **nenhum teste automatizado pode cobrir**: em ambiente de teste todos os limitadores excepto o global estão desligados de propósito (`config.isTest ? noLimit : …`). A única forma de observar a protecção é em produção.
+
+- **`publicRateLimit` (30/min):** 35 pedidos a `GET /websites/site?host=<inexistente>` → **429 exactamente ao pedido 31**. Trinta permitidos, depois travado.
+  Nota: isto é também prova directa de que a correcção do dia está deployada — **esta rota não tinha limitador nenhum antes** (commit `c3d3a6d`), só os 600/min globais.
+- **`authRateLimit` (10/min):** 14 tentativas de `POST /users/login` com um email inexistente → **429 exactamente ao pedido 11**. Usado um email que não corresponde a conta nenhuma, de propósito: não há conta real a bloquear e o limitador é por IP.
+- O limitador é **por IP e partilhado entre rotas** (`keyGenerator: clientIp`), não por rota — gastar o orçamento numa gasta-o em todas.
+
+### Payloads malformados em endpoints de leitura
+
+Dez payloads (injecção SQL, `UNION SELECT`, travessia de caminho, null byte, XSS refletido, operador NoSQL `[$ne]`, prototype pollution via `__proto__[x]`) contra `/websites/site`, `/websites/app/config` e `/websites/booking/services`.
+
+Resultado: **404 terso com código fixo** (`site_not_found`, `not_found`) em todos. Zero 5xx, zero stack, zero erro de SQL, e o payload nunca é reflectido na resposta. Os endpoints de booking devolvem 401 — não são sequer alcançáveis sem site token.
+
+### O que fica de fora, e porque não é uma lacuna
+
+Escritas, fuzzing de mutações e enumeração em volume **não** foram feitos contra produção: criam dados lixo, disparam emails a sócios reais e podem bloquear contas de clientes.
+
+Mas isso **não deixa um buraco na cobertura**, e vale a pena ser explícito: é precisamente o que os ~310 casos de teste de segurança já fazem, continuamente, contra a base de dados de teste descartável — escritas cross-tenant, mass-assignment, forjar identidade via JWT, IDOR em mutações, cupões cross-tenant no checkout. A suite corre verde (1701 testes).
+
+A única lacuna real que sobra é **teste autenticado contra produção** (como um tenant a sério, com credenciais), que exige credenciais de produção e uma janela combinada.
 
 ---
 

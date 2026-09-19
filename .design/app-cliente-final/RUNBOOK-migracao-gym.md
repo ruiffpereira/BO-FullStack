@@ -3,7 +3,25 @@
 **Criado:** 2026-08-20 · **Estado:** pronto a executar, à espera do dono
 **Contexto:** épico `app-cliente-final`. O subdomínio do tenant de ginásio passa a **ser** a app do sócio; o deploy standalone `gymnoprado.rufvision.com` é retirado.
 
-> **O que está em jogo:** `gymnoprado.rufvision.com` está **vivo, com sócios reais**. Nada neste runbook é irreversível até ao passo 6, e o passo 7 (desligar) é o único sem volta fácil.
+> # ⚠ A PREMISSA MUDOU — 2026-09-20
+> **O único sócio do gymnoprado é o DONO.** Não há sócios reais em risco (confirmado pelo dono).
+> Este runbook foi escrito a 2026-08-20 a assumir o contrário, e **toda a cerimónia abaixo está
+> calibrada para esse cenário que não existe**.
+>
+> O que deixa de ser necessário: o **preflight com um tenant de teste** (faz-se direto no real, e
+> corrige-se se partir) · a **drenagem guiada por visitas** no passo 7 (desliga-se quando o dono
+> quiser) · o cuidado com o texto da **página de despedida**.
+>
+> O que CONTINUA a valer, e não é cerimónia: a **ordem obrigatória** (template → subdomínio →
+> publicar — senão o host dá 404), o **script** para pôr `template = "gym"` (não há outro caminho),
+> e **correr o script dentro do contentor da API em produção** (esta máquina só tem configuração de
+> BD de desenvolvimento).
+>
+> Consequências para o sócio único, aceites pelo dono: desinstala a PWA antiga, instala a nova e
+> reactiva as notificações. Conta, histórico e treinos **não se movem** — ficam na mesma BD, no
+> mesmo tenant; a API não muda.
+
+> **Texto original (2026-08-20), mantido como registo:** `gymnoprado.rufvision.com` está **vivo, com sócios reais**. Nada neste runbook é irreversível até ao passo 6, e o passo 7 (desligar) é o único sem volta fácil.
 
 ---
 

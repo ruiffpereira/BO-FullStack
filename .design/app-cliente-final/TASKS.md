@@ -75,4 +75,11 @@ Commits (LOCAIS→ a fazer push): site-engine `1117983`(F0) `8d8982d`(F1a) `a760
 
 ## Review
 - [ ] **Design review** por fase: /design-review contra o brief + verificação no dispositivo real (offline, instalar PWA, cronómetro em background) — os gates automáticos não cobrem isto.
-- [ ] **Security review** antes de F2 fechar: isolamento por host/tenant no config-endpoint + no localStorage por-tenant + no site-token injetado.
+- [x] **Security review** — **FEITA a 2026-08-20**, pedida pelo dono depois de o núcleo ter ido para
+  produção sem revisão. Relatório: `../seguranca/AUDITORIA-SITE-ENGINE-API-2026-08-20.md` (leitura de
+  código dos dois lados da fronteira + sondagem de produção sem credenciais). **Veredicto: nenhuma
+  vulnerabilidade explorável.** O "localStorage por-tenant" deste item saiu do âmbito por a premissa
+  estar errada (ver o item dos stores em F1 — subdomínios já são origens separadas). ⚠ O relatório
+  deixa **uma bomba com temporizador**: o que hoje impede XSS é o filtro de INPUT global da API
+  (`applySanitization`, `ALLOWED_TAGS: []`) — quando o produto quiser relaxá-lo, dois pontos de
+  renderização passam a ser exploráveis.

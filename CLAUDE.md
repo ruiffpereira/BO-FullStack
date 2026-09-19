@@ -1,42 +1,62 @@
 # CLAUDE.md — Backoffice
 
-Vite + React + TypeScript + TailwindCSS + React Query (gerado por Kubb).
-Backoffice multi-tenant — um único deploy serve todos os clientes da plataforma.
-**PWA:** instala-se como **"RufVision BO"** (nome em `public/manifest.json` + `index.html` + fallback de push em `public/sw.js`), com os ícones do monograma RV em `public/icons/` — ao mudar os ícones, incrementar o `?v=` nos URLs (manifest + links do `index.html`) para forçar o refresh nos dispositivos já instalados.
+Vite + React + TypeScript + Tailwind + React Query (hooks gerados por Kubb).
+Um único deploy serve **todos** os tenants da plataforma.
+**PWA:** instala-se como "RufVision BO" (`public/manifest.json` + `index.html` + fallback de push em
+`public/sw.js`), ícones em `public/icons/` — ao trocar os ícones, incrementar o `?v=` nos URLs para
+forçar o refresh nos dispositivos já instalados.
+
+> **Coordenação da plataforma:** [`../CLAUDE.md`](../CLAUDE.md) (roteiro + **Regra cross-repo**) ·
+> [`../TASKS.md`](../TASKS.md) (o que falta) · [`../DECISOES.md`](../DECISOES.md) (porquê) ·
+> [`../docs/ARMADILHAS.md`](../docs/ARMADILHAS.md) (erros já pagos).
+>
+> **Detalhe por página/componente:** [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md) — ler quando se
+> mexe na página em causa. **Briefs de todos os épicos da plataforma:** `.design/<épico>/`.
+
+Este ficheiro tem **invariantes**. Estado e trabalho aberto vivem no `TASKS.md` da raiz.
 
 ---
 
 ## Comandos
 
 ```bash
-pnpm dev          # gera código Kubb + inicia Vite (porta 5173)
-pnpm build        # gera código Kubb + build de produção
-pnpm kubb         # regenera hooks/types a partir do spec OpenAPI da API
-pnpm lint         # tsc --noEmit (type check)
-pnpm test:unit    # testes de componentes (Vitest + RTL + jsdom) — isolados, sem servidor
-pnpm test:e2e     # testes end-to-end (Playwright) — precisam da app + API a correr
+pnpm dev          # Kubb + Vite (porta 5173)
+pnpm build        # Kubb + build de produção
+pnpm kubb         # regenera hooks/tipos a partir do spec.json COMMITADO (offline)
+pnpm kubb:refresh # busca o spec fresco da API, reescreve spec.json e regenera
+pnpm lint         # tsc --noEmit
+pnpm test:unit    # componentes (Vitest + RTL + jsdom) — sem servidor
+pnpm test:e2e     # Playwright — arranca tudo sozinho
 ```
 
-A API deve estar a correr no URL de `VITE_API_BASE_URL` (dev: `http://localhost:3001/api`, via `.env.development`).
+A API tem de estar no URL de `VITE_API_BASE_URL` (dev: `http://localhost:3001/api`).
 
 ---
 
 ## Envs (obrigatórias — SEM defaults)
 
-**Regra do projeto: nenhuma env tem default silencioso.** Se faltar, é ERRO — o build recusa, nunca se embute um valor de fallback.
-
-> **REGRA (validação de envs — obrigatória):** toda env OBRIGATÓRIA tem de ter **fail-fast** (erro claro no arranque/build se faltar), numa **superfície de validação ÚNICA** por repo. Ao **adicionar ou mudar** qualquer env, ligá-la a essa validação — NUNCA `import.meta.env.X` solto com fallback (`?? "..."` / `|| "..."`). Envs opcionais ficam explicitamente opcionais e documentadas.
+> **REGRA — nenhuma env tem default silencioso.** Se faltar, é erro: o build recusa. Toda env
+> obrigatória tem **fail-fast** numa **superfície de validação única**. Ao adicionar ou mudar uma
+> env, ligá-la a essa validação — **nunca** `import.meta.env.X` solto com `?? "..."` / `|| "..."`.
 >
-> **Superfície de validação (Backoffice) — DUAS camadas que têm de listar o MESMO conjunto:** o guard `REQUIRED_ENVS` em **`vite.config.ts`** (falha o `build`/`dev` logo, antes de qualquer código correr) + **[`src/lib/env.ts`](src/lib/env.ts)** (único ponto de leitura no código em runtime — `required()`, throw como backstop; exporta `API_BASE`/`SITE_ROOT_URL`). Ao adicionar uma env obrigatória nova: acrescentar a `REQUIRED_ENVS` **e** a `src/lib/env.ts` (com `required("VITE_...")`) — nunca só numa das duas.
+> **Superfície (este repo) — DUAS camadas que têm de listar o MESMO conjunto:** `REQUIRED_ENVS` em
+> **`vite.config.ts`** (falha o build/dev antes de qualquer código correr) **+** [`src/lib/env.ts`](src/lib/env.ts)
+> (único ponto de leitura em runtime; `required()` como backstop; exporta `API_BASE`/`SITE_ROOT_URL`).
+> Uma env nova entra nas **duas**, nunca só numa.
 
 | Env | Para quê | Dev | Prod |
-|-----|----------|-----|------|
-| `VITE_API_BASE_URL` | Base da API | `http://localhost:3001/api` | URL real da API |
-| `VITE_SITE_ROOT_URL` | Base pública dos sites dos tenants (página Website: `{sub}.{host}`) | `http://localhost:3000` | ex.: `https://rufvision.com` |
+|---|---|---|---|
+| `VITE_API_BASE_URL` | Base da API | `http://localhost:3001/api` | URL real |
+| `VITE_SITE_ROOT_URL` | Base pública dos sites dos tenants (`{sub}.{host}`) | `http://localhost:3000` | ex. `https://rufvision.com` |
 
-- **Onde vivem os valores:** dev → **`.env.development`** (commitado) · e2e → `.env.test` (gitignored; o CI gera-o) · **prod → build-time variables no Coolify** (as `VITE_*` ficam embutidas no bundle no momento do build — mudá-las em runtime não faz nada).
-- **Enforcement em 3 camadas:** `vite.config.ts` (guard com `loadEnv` — build/dev-server falham logo com a lista do que falta) · [`src/lib/env.ts`](src/lib/env.ts) (único ponto de leitura no código: exporta `API_BASE` e `SITE_ROOT_URL`, throw como backstop; **nunca ler `import.meta.env` diretamente nem escrever `?? "http://localhost..."`**) · `kubb.config.ts` (exige `VITE_API_BASE_URL`; lê env real > `.env` > `.env.development`). O vitest injeta os valores via `test.env` no `vitest.config.ts`.
-- **`.env` é local e gitignored** (só segredos/overrides pessoais, ex.: `SWAGGER_ACCESS_TOKEN`). **NUNCA commitar um `.env`:** o Vite carrega-o em TODOS os modos, incluindo o build de produção — um `.env` commitado com valores de dev satisfaz o fail-fast com o valor errado (foi o bug do `teste1.localhost:3000` em produção, 2026-07-02).
+- **Onde vivem os valores:** dev → `.env.development` (commitado) · e2e → `.env.test` (gitignored, o
+  CI gera) · **prod → build-time variables no Coolify** (as `VITE_*` ficam embutidas no bundle **no
+  momento do build** — mudá-las em runtime não faz nada).
+- **Terceira camada:** `kubb.config.ts` exige `VITE_API_BASE_URL` (env real > `.env` > `.env.development`).
+  O vitest injecta os valores via `test.env`.
+- ⚠ **NUNCA commitar um `.env`.** O Vite carrega-o em **todos** os modos, incluindo o build de
+  produção — um `.env` commitado com valores de dev satisfaz o fail-fast **com o valor errado**.
+  Foi exactamente o bug do `teste1.localhost:3000` em produção (2026-07-02).
 
 ---
 
@@ -44,21 +64,31 @@ A API deve estar a correr no URL de `VITE_API_BASE_URL` (dev: `http://localhost:
 
 Duas camadas, ambas em `tests/`:
 
-- **Componentes (`tests/unit/`, Vitest + React Testing Library + jsdom):** testes unitários e isolados dos componentes/páginas — sem servidor nem API. Config em `vitest.config.ts`, setup em `tests/unit/setup.ts` (stub do `scrollIntoView`, matchers `jest-dom`). Hooks gerados (Kubb)/manuais que tocam a API são mockados (`vi.mock`). Cobertos: **Combobox, ConfirmDialog, DatePicker, DateRangePicker, FileUpload, ApptModal, NotificationsPanel** e a página **Estatísticas** (`Estatisticas.test.tsx` — mocka `useSiteAnalytics` para os 3 estados: `no-plausible`, `no-domain` com input de domínio, e configurado com KPIs). Correr: `pnpm test:unit`.
-- **End-to-end (`tests/e2e/`, Playwright):** fluxos reais no browser (Chromium). Correr: **`pnpm test:e2e`** — não precisa de nada ligado à mão (~87 testes, serial). Specs: admin, **admin-tokens**, agenda, **agenda-pagamentos**, **auth-setup-password**, auth, clientes, conteudos, **conteudos-multilingua**, dashboard, despesas, errors, financeiro, ginasio, **ginasio-detalhe**, loja, **loja-encomendas**, **notificacoes**, **chat** (suporte Admin↔tenant — round-trip + vistas por papel + topbar/bolinha), **rbac** (matriz de permissões), **isolamento** (multi-tenant, incl. deep-link), security. Page objects em `tests/e2e/pages/`; helper `fixtures/login.ts` (`loginAs`) para autenticar tenants específicos.
+- **Componentes** (`tests/unit/`, Vitest + RTL + jsdom) — isolados, sem servidor nem API. Setup em
+  `tests/unit/setup.ts`. Os hooks que tocam a API são mockados (`vi.mock`).
+- **End-to-end** (`tests/e2e/`, Playwright/Chromium) — `pnpm test:e2e`, **não precisa de nada ligado
+  à mão** (~87 specs, serial). Page objects em `tests/e2e/pages/`.
 
-**Infra isolada (NUNCA toca em dev):** o `playwright.config.ts` arranca **dois** servidores próprios e semeia uma BD dedicada antes de tudo:
-> - **API de teste** em `:3002` (`ENVIRONMENT=TEST`, `API-FullStack/.env.e2e`) ligada à BD **`api_e2e`** no `mysql-test:3307` (separada do `api_test` dos testes de integração e do dev). Comando: `pnpm serve:e2e` (na API).
-> - **Vite** em `:5273` com `--mode test` → lê `Backoffice/.env.test` (`VITE_API_BASE_URL=…:3002`).
-> - **`globalSetup`** (`tests/e2e/global-setup.ts`) corre `pnpm seed:e2e` (→ `API-FullStack/scripts/seedE2e.ts`): recria o schema (`sync force`) e cria **4 tenants** com passwords conhecidas — `admin@e2e` (Admin), `limited@e2e` (só `VIEW_PRODUCTS`), `tenantA@e2e`/`tenantB@e2e` (Admin, com dados distintos) — e dados de negócio (clientes, produtos, despesas, **marcações pagas/em dívida/pendentes**). Password: `E2ePass123!`.
+**Infra isolada — NUNCA toca em dev.** O `playwright.config.ts` arranca dois servidores próprios e
+semeia uma BD dedicada:
 
-**Autenticação:** os specs gerais importam `{ test, expect }` de `tests/e2e/fixtures/auth.ts` (login por teste como `admin@e2e`). Os specs de **RBAC/isolamento** importam `loginAs(context, "<user>@e2e")` de `tests/e2e/fixtures/login.ts` + `test.use({ storageState: vazio })` para autenticar um tenant específico. Os specs `auth`/`security` correm de propósito **sem** auth e o `errors` intercepta a API.
+- **API de teste** na `:3002` (`ENVIRONMENT=TEST`, `API-FullStack/.env.e2e`) contra a BD **`api_e2e`**
+  no `mysql-test:3307` — separada do `api_test` dos testes de integração e da de dev.
+- **Vite** na `:5273` com `--mode test` → lê `.env.test`.
+- **`globalSetup`** corre `pnpm seed:e2e` (`API-FullStack/scripts/seedE2e.ts`): recria o schema
+  (`sync force`) e cria **4 tenants** — `admin@e2e` (Admin), `limited@e2e` (só `VIEW_PRODUCTS`),
+  `tenantA@e2e`/`tenantB@e2e` (Admin, dados distintos) — mais dados de negócio.
+  Password: `E2ePass123!`.
 
-> **Notas:**
-> - Toda a escrita de dados acontece em `api_e2e` (recriada a cada `pnpm test:e2e`) — **nunca polui a BD de dev**.
-> - Os modais expõem `role="dialog"` e o `Input` partilhado tem `type="text"` por defeito (`ui/ui.jsx`) — os page objects dependem disso.
-> - O `authRateLimit` da API isenta o **loopback** fora de produção (`src/middleware/security.ts`).
-> - Marcações semeadas precisam de `serviceId` válido (o frontend assume serviço associado).
+**Autenticação nos specs:** os gerais importam `{ test, expect }` de `tests/e2e/fixtures/auth.ts`
+(login como `admin@e2e`). Os de **RBAC/isolamento** usam `loginAs(context, "<user>@e2e")` de
+`fixtures/login.ts` + `test.use({ storageState: vazio })`. Os de `auth`/`security` correm **sem**
+auth de propósito; o `errors` intercepta a API.
+
+> Notas: toda a escrita vai para `api_e2e` (recriada a cada corrida) · os modais expõem
+> `role="dialog"` e o `Input` partilhado é `type="text"` por defeito — os page objects dependem
+> disso · o `authRateLimit` da API isenta o loopback fora de produção · marcações semeadas precisam
+> de um `serviceId` válido.
 
 ---
 
@@ -66,299 +96,141 @@ Duas camadas, ambas em `tests/`:
 
 ```
 src/
-  pages/          — páginas principais (uma por rota)
-  components/     — componentes partilhados
-  hooks/          — hooks manuais (não gerados pelo Kubb)
-  gen/backoffice/ — código gerado pelo Kubb (não editar manualmente)
-    hooks/        — 129 hooks React Query
-    types/        — tipos TypeScript dos endpoints
+  App.tsx         — rotas + redirects legacy (LegacyTabEntry, AgendaEntry, AdminEntry)
+  pages/          — uma por rota (+ clientes/ e financeiro/)
+  components/     — Shell, BillingBanner, GuardButton, FirstValueChecklist, chat/…
+  ui/ui.jsx       — primitivas partilhadas
+  hooks/          — hooks manuais (não gerados)
+  gen/backoffice/ — GERADO pelo Kubb — nunca editar à mão
   context/        — AuthContext (JWT + refresh automático)
-  lib/            — utilitários (apiError, etc.)
-  ui/             — componentes de UI base (Card, Button, Input, Modal, Icon, etc.)
-  utils/          — langFlag.tsx e outros utilitários
+  lib/            — env, navigation (SUBMENU), blockCatalog, siteCms, apptStatus, billingStatus…
+  templates/ types/ utils/
 ```
 
 ---
 
-## Páginas e Permissões
+## Páginas e permissões
 
-| Página | Rota | Permissão | Descrição |
-|--------|------|-----------|-----------|
-| `Admin.tsx` | `/admin` (Utilizadores) · `/admin/permissoes` · `/admin/componentes` · `/admin/tokens` · `/admin/faturacao` · `/admin/integracoes` · `/admin/atividade` · `/admin/sistema` | `VIEW_ADMIN` | Cada separador vive na sua própria rota (submenu na sidebar, T2.4 — `.design/shell-nav-perfil/`), não em `Tabs` de topo; a página só recebe a vista pedida via `view`. Sem `?tab=` legacy — o único deep-link real é o retorno do OAuth do Google (`/admin?google=connected\|error`), resolvido pelo `AdminEntry` (`App.tsx`) que redireciona para `/admin/integracoes` preservando o parâmetro. Utilizadores, permissões, componentes RBAC, site tokens, línguas, **Faturação** (painel de subscrições da plataforma do dono — `AdminBillingTab` de `src/components/AdminBilling.tsx`: **editor do catálogo de preços** por módulo — label + preço/mês em € + toggle ativo, via `useGetAdminBillingCatalog` + `usePutAdminBillingCatalogModule` (a API fala em cêntimos; conversão €↔cents em `src/lib/billingStatus.ts`: `centsToEurInput`/`parseEurToCents`) — lista tenants + estado/módulos/total via `useGetAdminBillingSubscriptions`, e cria subscrições com **override de preço opcional por módulo** (`items:[{module, amountCents?}]`, vazio = preço do catálogo) via `usePostAdminBillingSubscriptions`, mostrando o `monthlyTotalEur` devolvido — T6 + Fatia 2 preços. **Período experimental (dias) configurável (2026-07-04):** `TrialSettingsEditor`, ao lado do catálogo — campo "Período experimental (dias)" (0–90) via `useGetAdminBillingSettings`/`usePutAdminBillingSettings` (`GET`/`PUT /admin/billing/settings` → `{ trialDays }`, zod 0–90 na API), afeta **só os signups self-serve NOVOS a partir daí** (o trial de quem já se registou mantém o `trialEnd` já fixado — nunca retroage; substitui o antigo `TRIAL_DAYS=14` hardcoded na API, `API-FullStack/src/billing/settings.ts`). **Estender trial** (self-serve, T10): ação por linha só nos tenants com subscrição `trialing` (cobre trial local self-serve e `trial_expired` — ambos partilham esse `status` na BD; a API devolve 409 se afinal for Stripe-backed) — input de dias (default 14) → `PATCH /admin/billing/subscriptions/:userId/trial` via `usePatchAdminBillingSubscriptionsUseridTrial`, invalida subscrições+catálogo), **Atividade** (audit log unificado — ações + erros 5xx, com filtro "Só erros"), **Sistema** (health) e **Integrações** (Google Calendar sync + Reviews — `useGoogleIntegration.ts`; OAuth env-gated) |
-| `Agenda.tsx` | `/agenda` (Calendário) · `/agenda/marcacoes` · `/agenda/servicos` · `/agenda/config` | `VIEW_SCHEDULE` | Cada separador vive na sua própria rota (submenu, T2.7 — `.design/shell-nav-perfil/`); a página só recebe a vista via `view`. `?openService=<id>` (deep-link legacy) redireciona para `/agenda/servicos` preservando o parâmetro (`AgendaEntry`, `App.tsx`) — não é o mesmo mecanismo do `LegacyTabEntry` porque não é o id de um subitem. Calendário de agendamentos, serviços, horários, bloqueios + card **Subscrever calendário** (feed .ics da agenda, `CalendarSubscribeCard`). Grelha **00–24h** (`AG_H_START=0`/`AG_H_END=24`, `AG_ROW_H=80px`) com **scroll a arrancar nas 8h** (`AG_SCROLL_START_H`, via callback-ref no contentor de scroll), **ticks de 15 min** (linha de hora forte + 15/30/45 min ténues), e um **toggle de exibição da hora** na barra (`cellTimeMode`, persistido em localStorage): **Sempre** = hora discreta em cada célula de 15 min · **Ao passar** = realce + pílula accent `DD/MM · HH:MM` só no hover (`hoverSlot`). O drag-to-create faz snap a 15 min. No tab **Pagamento** do `ApptModal`, pílulas **Dinheiro/MBway/Cartão** que preenchem o valor do serviço num clique (`PriceFillChip`). Cursor **dedo** (`pointer`) em repouso → **`crosshair`** ao arrastar para criar (condicional em `dragSel`) |
-| `Clientes.tsx` | `/clientes` (lista) · `/clientes/leads` | **core** (todos) | Cada separador vive na sua própria rota (submenu na sidebar, T2.2 — `.design/shell-nav-perfil/`, não `Tabs` de topo); a página só recebe a vista via `view`. O subitem-âncora chama-se **"Lista"** na sidebar (não "Clientes") para não duplicar o nome acessível do próprio item pai (`src/lib/navigation.ts`). Deep-link legacy `?tab=leads` (+ `?tab=leads&lead=<id>`) redireciona para `/clientes/leads?lead=<id>` (`LegacyTabEntry`); `?cliente=<id>` mantém-se em qualquer rota. Vista **lista**: lista de clientes; ficha com **tabs por permissão** (cabeçalho fixo + tab **Agenda** se `VIEW_SCHEDULE` = stats/histórico, tab **Ginásio** se `VIEW_GYM` = mensalidade do cliente via `ClienteMensalidade` — estas tabs de DETALHE não migraram para rota própria, ficam como estado local do modal de perfil). **Histórico de marcações (cores por estado, 2026-07-07):** cada linha tem uma barra de cor lateral + `Badge`, ambos derivados da fonte única `apptStatusView` (`src/lib/apptStatus.ts` — confirmada→azul, concluída paga→verde, concluída **em dívida**→amarelo (label inclui o valor), cancelada→vermelho, pendente→âmbar, faltou→neutro; dívida = preço do serviço − pago). O mesmo helper alimenta a tab Marcações e o popup de ficha do cliente da Agenda, para não haver o mesmo estado a cores diferentes consoante o ecrã. Vista **Leads** (`LeadsInbox`, `src/pages/clientes/LeadsInbox.tsx`): inbox dos pedidos de contacto/orçamento capturados no form do site público do tenant (`POST /websites/leads` → `Lead`, API). Separadores **Novos/Todos/Arquivados** (`useGetLeads({status})`, mais recentes primeiro), badge de estado PT (novo/lido/arquivado; tokens EN `new/read/archived`), mensagem truncada com "Ver mais/menos", ações **Marcar como lida**/**Arquivar** via `usePatchLeadsId` atrás do write-guard (`GuardButton`/`useWriteGuard`, PATCH está atrás do `billingGate`). Expandir um lead **novo** marca-o como lido automaticamente (silencioso, sem toast). Deep-link `/clientes/leads?lead=<id>` (notificação de novo lead) muda para "Todos", expande e realça o lead |
-| `Conteudos.tsx` | `/conteudos` (Site público) · `/conteudos/produtos` (`VIEW_PRODUCTS`) · `/conteudos/servicos` (`VIEW_SCHEDULE`) · `/conteudos/ginasio` (`VIEW_GYM`) · `/conteudos/linguas` · `/conteudos/emails` · `/conteudos/notificacoes` | **core**, com **gating por subitem** | CMS multi-língua: secções, entradas, textos, imagens. Cada separador vive na sua própria rota (submenu, T2.6 — última página da Fase 2 da sidebar com submenus, `.design/shell-nav-perfil/`), não em `Tabs` de topo; a página só recebe a vista via `view` (`ConteudosView`, exportado). **Única página com gating POR SUBITEM**: produtos/serviços/ginásio continuam atrás de `VIEW_PRODUCTS`/`VIEW_SCHEDULE`/`VIEW_GYM` (como as tabs antigas do `CMS_TABS`) — `SUBMENU["/conteudos"]` (`src/lib/navigation.ts`) espelha esse gating com `perm` por subitem, e o guard do `Shell.tsx` redireciona um subitem sem permissão para o 1.º permitido. Os 4 primeiros subitens não puderam manter o nome "óbvio" (colidiam com o nome acessível dos itens homónimos da sidebar — mesma permissão gate os dois): **"Site público"** (contexto `website`), **"Produtos"** (`product`), **"Serviços"** (`service`), **"Ginásio (nomes)"** (`gym`, mesmo padrão do "Progresso de clientes" do Ginásio, T2.5) |
-| `Dashboard.tsx` | `/` | qualquer | Topo: **`FirstValueChecklist`** (self-serve, T11 — `src/components/FirstValueChecklist.tsx`) — checklist por vertical derivada das permissões + dados já existentes (nenhum endpoint novo): `VIEW_SCHEDULE`→criar serviço/definir horário/partilhar link · `VIEW_GYM`→**reclamar o subdomínio** (2026-08-20, 1.º item do ramo: sem ele não há app do sócio para onde convidar ninguém; auto-completa com `site.subdomain` de `useSite`, deep-link `/website`)/criar subscrição/adicionar cliente/registar cobrança · `VIEW_PRODUCTS`→criar produto/rever encomendas · core→adicionar cliente/explorar conteúdos. Itens são deep-links, auto-completam-se com os dados (o item "partilhar link"/"rever encomendas"/"explorar conteúdos" fica sempre por marcar — sem sinal de dados fiável), dispensável (`localStorage` por `userId`), colapsa a acordeão `<md`. **Vertical-aware** (brief em `.design/dashboard-vertical/`): compõe-se a partir das permissões do tenant em vez de assumir "negócio de marcações". **Espinha** (peça central) escolhida por prioridade operacional — `VIEW_SCHEDULE`→**"Hoje"** (`DayRail`: timeline + próximo + marcador "agora") · senão `VIEW_GYM`→**"Cobranças · {mês}"** (`GymCobrancasSpine`: recebido/previsto + por cobrar/em atraso/MRR + lista de em atraso clicável) · senão `VIEW_PRODUCTS`→**"Por despachar + Vendas hoje + últimas + stock"** (`FulfillmentSpine`) · senão core→`CustomersWelcome`. **Faixa de KPIs** (até 4, sem o antigo corte `slice(0,4)` arbitrário): **Receita de hoje agregada** (agenda+loja+ginásio, via `useDashboard('today')`) + uma âncora por vertical (Marcações hoje · Em atraso/Por cobrar · Por despachar/Vendas · Clientes novos) + fillers. **Carris** de apoio para as outras verticais (estado do mês · `GymMiniCard` · últimas encomendas · `StockAlerts`). **Cada KPI/linha é clicável** (deep-link: `/agenda?data=` · `/financeiro/ginasio` · `/loja/encomendas` · `/clientes?cliente=`), mesmo padrão de afordância das notificações — hrefs atualizados para os paths reais dos submenus (T1.2/T2.1, `.design/shell-nav-perfil/`). Dados reais de `GET /api/dashboard?period=today` (schedule+ecommerce+gym+expenses) + `useGetGymMensalidadeFinance` + listas (appointments/orders/customers). Clientes tratado como **core** (sem gate `VIEW_CUSTOMERS`) |
-| `Estatisticas.tsx` | `/estatisticas` | `VIEW_ADMIN` (gate temporário 2026-07-08 — produto ainda não pronto para todos os tenants; API continua tenant-open, reverter = voltar a pô-los em `CORE_PATHS`) | Estatísticas do site público do tenant via **Plausible auto-hospedado** (`useSiteAnalytics.ts`). Selector de período (**Hoje**/7 dias/30 dias/Este mês/6 meses; **default `month` = "Este mês"**), KPIs (Visitantes, Visualizações, Taxa de saída, Duração média), `LineChart` de visitantes, listas de **páginas mais vistas** e **origem do tráfego**. Estados: `no-plausible` (admin tem de configurar) · `no-domain` (input para guardar o domínio via PUT) · dashboard. Env-gated no servidor; a key do Plausible nunca chega ao browser. **Nota Plausible:** `7d`/`30d` terminam *ontem* (não incluem hoje); `day` (Hoje) e `month` (Este mês) incluem o dia corrente — por isso o default é `month` (um site novo com visitas só de hoje veria 0 em 30d) |
-| `Faturacao.tsx` | `/faturacao` | **core** (todos) | **Platform billing** (a subscrição da plataforma do próprio tenant; brief/tarefas em `.design/platform-billing/` + `.design/self-serve/`). Lê `useGetBillingSubscription` (`GET /api/billing/subscription` → `{ status, modules[], monthlyTotalEur, readOnly, reason, graceEndsAt, hasStripeSubscription, … }`; `reason` ∈ none/trialing/**trial_expired**/active/incomplete/grace/past_due_locked/canceled) e mostra o plano (módulos + total/mês), o aviso de estado e o CTA certo para cada caso. **Dois CTAs distintos, nunca os dois ao mesmo tempo** (decididos por `hasStripeSubscription`, exposto pela API — nunca o `stripeSubscriptionId` em si): **"Gerir pagamento"** abre o **Stripe Billing Portal** via `usePostBillingPortal` (`POST /api/billing/portal` → redirect) — só quando `hasStripeSubscription` (já existe uma subscrição Stripe real, mesmo cancelada, para faturas antigas). **"Adicionar cartão"/"Reativar subscrição"** (self-serve) cria uma **Stripe Checkout Session** via `usePostBillingSubscribe` (`POST /api/billing/subscribe` → `{ url }`, redirect) — quando `!hasStripeSubscription` (trial local do signup, incl. `trial_expired`) **ou** `status==='canceled'` (o Billing Portal não ressuscita uma subscrição Stripe já cancelada; o self-serve cria uma nova, honrando os dias de trial local restantes). 409 do subscribe = já tem uma subscrição viva → toast a apontar para "Gerir pagamento". Badges/labels e formatos partilhados em `src/lib/billingStatus.ts` |
-| `Perfil.tsx` | `/perfil` | **core, fora da sidebar** (menu do avatar no topbar) | **Perfil do tenant** (T3.3, `.design/shell-nav-perfil/`). Como `/despesas`, é um deep-link sem item de menu próprio — acede-se pelo `AvatarMenu` no topbar (`Shell.tsx`), não pela sidebar (por isso entra em `guardRoots` no `Shell.tsx` a par de `/despesas`). 4 `Card`: **Conta** (nome do negócio/email/phone via `useGetUsersMe`/`usePutUsersMe`; mudar o email revela um campo condicional "Password atual (para mudar o email)" — a API exige-o só quando o email muda de facto; Guardar atrás do `GuardButton`), **Password** (`usePutUsersMePassword`; **sem** `GuardButton` de propósito — a API não gate este endpoint pelo billing, um tenant read-only tem de conseguir trocar a password; ao suceder, a API reemite um par de tokens novo — `AuthContext.setAccessToken` adota o `accessToken` devolvido de imediato, sem esperar por um 401→refresh reativo, e realinha o `scheduleRefresh` — e mostra o aviso "Sessão dos outros dispositivos foi terminada"), **Preferências** (tema light/dark/system, `Tabs` `size="sm"`, persiste de imediato via `usePutUsersMe` com reversão otimista no erro — quem aplica de facto o tema visual em qualquer página é o `useThemeSync` (T3.4, `src/hooks/`) em `App.tsx`, via a mesma query key partilhada; língua padrão reusando `useGetSettingsLanguages`/`usePutSettingsLanguages`, mesmas pills com bandeira do `LinguasPanel` em `Conteudos.tsx`), **Logótipo** (`FileUpload` `deferred`, módulo `"profile"`, + "ou cola um URL", mesmo padrão do logótipo da Marca em `Website.tsx`). Um `Guardar` bem-sucedido na Conta chama `AuthContext.updateIdentity({username, email})` para o avatar/topbar ficarem coerentes com a edição sem logout/login |
-| `Signup.tsx` | `/signup` | **público** (sem sessão, standalone como `Login.tsx`/`SetupPassword.tsx`) | **Signup self-serve** (T8, brief `.design/self-serve/`): par do Login, 2 passos + 1 estado final. Passo 1 — vertical (**3 radio cards desde 2026-08-12: Agenda · Ginásio · Loja** — a antiga "Barbearia/Salão" passou a chamar-se "Agenda" (token `barber` mantém-se, ícone `calendar`) e "Outro" foi removida (o enum da API só aceita barber/gym/shop; o mapeamento legado `other`→`generic` fica no catálogo de templates para tenants antigos); `?vertical=` pré-seleciona se válido) + nome do negócio + email. **A vertical também fixa o TEMPLATE do site para sempre** (`seedDraftSite` na API semeia o Site JSON + `seedSiteCms` semeia o texto no CMS; não existe forma de trocar de template depois). Passo 2 — módulos pré-marcados pela vertical (mapa único `VERTICAL_MODULES` em `src/lib/verticals.ts`, extensível) mas editáveis, com preço de `GET /billing/catalog` (**público**, `useGetBillingCatalog`, sem auth) + total €/mês live + badge "14 dias grátis, sem cartão". Submeter → `usePostUsersSignup` (`POST /users/signup`) → SEMPRE o mesmo ecrã "Confirma o teu email" (`role=status`, anti-enumeração — a API responde sempre `{ok:true}`), com reenvio (`usePostUsersSignupResend`, cooldown de 60s). Foco gerido entre passos (heading recebe foco). Link "Criar conta" no `Login.tsx`; volta a `/login` |
-| `FinanceiroPage.tsx` | `/financeiro` (O Negócio) · `/financeiro/agenda` (`VIEW_SCHEDULE`) · `/financeiro/loja` (`VIEW_PRODUCTS`) · `/financeiro/ginasio` (`VIEW_GYM`) · `/financeiro/despesas` | **core**, com subitens gated por permissão | Cada vertical vive na sua própria rota (submenu, **T1.2 — piloto** da sidebar com submenus, `.design/shell-nav-perfil/`), não em `Tabs` de topo; a página só recebe a vista via `view` (`FinanceiroView`). Período + IVA (`VatToggle`) são partilhados por O Negócio/Agenda/Loja; Despesas e Ginásio têm os seus próprios controlos. Deep-links legacy `/despesas`→`/financeiro/despesas` e `?vista=X`→`/financeiro/X` continuam a redirecionar (`LegacyTabEntry`/`resolveLegacyTabTarget`, não está na sidebar). Vistas — cada uma no seu próprio ficheiro em `src/pages/financeiro/` (deixou de ser um único `Financeiro.tsx` com KPIs condicionais): **O Negócio** (`ONegocio.tsx` — health score + tríade + KPIs agregados Receita/Despesas/Lucro/Em dívida + gráfico receita vs despesas + receita por fonte, via `useNegocioFinance`/`useDashboard`), **Agenda** (`FinanceiroAgenda.tsx` — deep-dive: valor médio/marcação, ocupação da agenda, receita/hora-cadeira, taxa de retorno, clientes novos/recorrentes/perdidos, via `useAgendaFinance`), **Loja** (`FinanceiroLoja.tsx` — deep-dive: margem bruta, valor médio/compra, LTV, taxa de recompra, clientes novos/recorrentes/perdidos, via `useLojaFinance`), **Despesas** (`../Despesas.tsx`) e **Ginásio** (`MensalidadesTab` de `../GymMensalidade.tsx` — mensalidades+subscrições; só `VIEW_GYM`). KPI/UI partilhados em `src/components/financeiro/kit.tsx` (`KpiCard`/`MoneyTriad`/`HealthScore`/`VatToggle`) + `src/components/financeiro/info.ts` (`INFO`, textos dos tooltips) |
-| `Ginasio.tsx` | `/ginasio` (Exercícios) · `/ginasio/treinos` · `/ginasio/planos` · `/ginasio/clientes` | `VIEW_GYM` | Cada separador vive na sua própria rota (submenu, T2.5 — `.design/shell-nav-perfil/`), não em `Tabs` de topo; a página nunca usou `?tab=` (sem redirect legacy a fazer). O subitem "clientes" chama-se **"Progresso de clientes"** na sidebar, não "Clientes" — evita colidir com o nome acessível do item core `/clientes` quando o grupo Ginásio está expandido (ver `src/lib/navigation.ts`). Ginásio: exercícios, treinos, planos, progresso por cliente (`/api/gym`). **Mensalidades vivem no Financeiro** (`/financeiro/ginasio`), não aqui |
-| `Loja.tsx` | `/loja` (Produtos) · `/loja/encomendas` · `/loja/categorias` | `VIEW_PRODUCTS` | Cada separador vive na sua própria rota (submenu, T2.1 — Fase 2 da sidebar com submenus, `.design/shell-nav-perfil/`), não em `Tabs` de topo; a página só recebe a vista via `view`. Deep-link legacy `?tab=X` redireciona para o path novo (`LegacyTabEntry`); `?openProduct=<id>` continua a funcionar em qualquer rota. Produtos, categorias, subcategorias, encomendas, cupões |
-| `Mensagens.tsx` | `/mensagens` | **core** (todos) | **Chat de suporte** (Admin↔tenant). Admin (`VIEW_ADMIN`) → inbox de todos os tenants (`MensagensTab`); tenant → a sua conversa com o suporte. 3 pontos de acesso: item na sidebar + ícone no topbar (`ChatLauncher`) + botão flutuante (`ChatFab`, some na própria página). Ver secção **Chat de Suporte** |
-| `Website.tsx` | `/website` (O meu site) · `/website/paginas` · `/website/marca` | **core** (todos) + `canEditStructure` dentro da página | **Site engine** (config do site público do tenant; briefs em `.design/site-engine/` + `.design/website-simplify/` + `.design/site-cms-content/`). **Simplificação 2026-08-12 (website-simplify):** a página encolheu de 7 para **3 vistas** — **O meu site** (`SiteStatusTab`: estado rascunho/publicado + checklist + Publicar + pré-visualização ao vivo (`PreviewPanel`, token 30 min via `usePostWebsitePreviewToken`) **+ secção Domínio integrada** (`DomainSection`, ex-tab Domínio: reclamar subdomínio com check de disponibilidade + sync do domínio das Estatísticas; só visível com `canEditStructure`; o `CustomDomainCard` mantém-se exportado atrás da flag `CUSTOM_DOMAIN_UI = false`, endpoint PUT /website/custom-domain intacto)), **Páginas** (`PagesTab` + `PageBlocksSection` — gestor de páginas e blocos, catálogo em `src/lib/blockCatalog.ts`) e **Marca** (`BrandTab` — preset/accent (7 curados + cor livre)/fonte/modo claro-escuro; **sem logótipo** — o logo do site vem do CMS (campo `logo` do bloco hero, `site.<blockId>.logo`, editável em Conteúdos), removido do tema/BO/API a 2026-08-12; `SiteTheme` já não tem `logo` e o Guardar descarta um `logo` legado). **"Páginas" e "Marca" estão ESCONDIDAS dos clientes (2026-08-12):** ainda não estão prontas para o cliente — por agora todos os sites ficam iguais (estrutura/tema semeados pela vertical; o TEXTO edita-se em Conteúdos → Site público). Ambos os subitens têm `perm: "VIEW_ADMIN"` no `SUBMENU`, por isso só o dono os vê e o guard do Shell redireciona um cliente que faça deep-link a `/website/paginas`/`/website/marca` para `/website`. Como sobra **1 só subitem** ("O meu site", cujo path É o root `/website`), o `SidebarContent` do `Shell.tsx` mostra o Website como **link simples**, não como menu expansível (condição `groupItems.length > 1`). **Saíram (decisão do dono 2026-08-11 — estrutura fixa, texto no CMS):** a galeria **Template** (o template é semeado no signup pela vertical — `seedDraftSite`/`getTemplateForVertical` na API — e NUNCA mais muda; `GET /website/templates` foi removido da API; o catálogo `src/data/siteTemplates.ts` fica, alimenta o seed), **Rodapé & Nav** e **Definições** (anúncio/WhatsApp/social/férias/SEO/cantos). Na API, `EDITABLE_FIELDS` do PUT /website ficou só com `theme`/`pages`/`defaultLocale`/`activeLocales` (`nav`/`footer`/`settings`/`template`/`skin` são ignorados — mass-assignment testado em `site.test.ts`); o rodapé/nav semeados pelo template continuam a ser RENDERIZADOS, e o TEXTO deles edita-se no CMS (`site.footer.*`). As rotas antigas (`/website/template`, `/website/rodape-nav`, `/website/definicoes`, `/website/dominio`) redirecionam para `/website` (`Navigate`, `App.tsx`). `WebsiteView` = `"site" \| "pages" \| "brand"`. **Texto dos blocos vive no CMS (site-cms-content, batch C, 2026-08-12):** o `BlockContentModal` semeia o draft das entradas CMS `site.<blockId>.*` (fallback ao `settings.content` inline legado — que nunca mais é escrito) e o Guardar faz flatten por língua (índices 1-based) + upsert **awaited** via PUT /cms/entries (erro → toast + modal fica aberto) + delete de índices órfãos de listas + invalidação das queries de CMS e do site (a `PreviewPanel` re-minta o token e o iframe refresca); remover um bloco apaga as entradas do prefixo (DELETE /cms/entries bulk); renomear o título de uma página upserta `site.page.<ref>.title` (ref = `page.id \|\| slug \|\| "home"`). Helpers em `src/lib/siteCms.ts` (flatten/unflatten + `identifyFieldType` text/image/data — espelha `site-engine/lib/cmsContent.ts` e `API-FullStack/src/utils/siteCms.ts`; testes `tests/unit/siteCms.test.ts`). O tenant edita os textos em **Conteúdos → Site público** (entradas organizadas em secções "Site" → por página + "Rodapé") ou no modal de blocos — ambos escrevem nas MESMAS entradas. **Gate seletivo (T3.8) recalibrado:** sem `VIEW_SITE_BUILDER`/`VIEW_ADMIN`, "O meu site" esconde a secção Domínio e o Publicar, e Páginas fica em modo conteúdo (só "Editar conteúdo" nos blocos); o submenu tem gating por subitem na **Páginas** e **Marca** (`perm: "VIEW_ADMIN"`, escondidas dos clientes desde 2026-08-12) — só "O meu site" continua tenant-open. Testes: `tests/unit/Website.test.tsx` + e2e `website.spec.ts`/`rbac-matriz.spec.ts` adaptados. |
+Detalhe de cada página em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
 
-A navegação em `Shell.tsx` decide **o que** aparece por duas famílias, **a ordem** por um array fixo, e — desde o épico **shell-nav-perfil** (`.design/shell-nav-perfil/`) — **quais itens são expansíveis** (submenus com rotas reais, substituindo as antigas `Tabs` de topo de 8 páginas):
+| Página | Rotas | Permissão |
+|---|---|---|
+| `Dashboard.tsx` | `/` | qualquer |
+| `Clientes.tsx` | `/clientes` · `/clientes/leads` | **core** |
+| `Mensagens.tsx` | `/mensagens` | **core** (chat de suporte) |
+| `Conteudos.tsx` | `/conteudos` · `/produtos` · `/servicos` · `/ginasio` · `/linguas` · `/emails` · `/notificacoes` | **core**, com gating **por subitem** |
+| `Website.tsx` | `/website` · `/website/paginas` · `/website/marca` | **core** + `canEditStructure` dentro da página |
+| `Faturacao.tsx` | `/faturacao` | **core** |
+| `FinanceiroPage.tsx` | `/financeiro` · `/agenda` · `/loja` · `/ginasio` · `/despesas` | **core**, subitens gated |
+| `Perfil.tsx` | `/perfil` | **core, fora da sidebar** (menu do avatar) |
+| `Agenda.tsx` | `/agenda` · `/marcacoes` · `/servicos` · `/config` | `VIEW_SCHEDULE` |
+| `Loja.tsx` | `/loja` · `/encomendas` · `/categorias` | `VIEW_PRODUCTS` |
+| `Ginasio.tsx` | `/ginasio` · `/treinos` · `/planos` · `/clientes` | `VIEW_GYM` |
+| `Admin.tsx` | `/admin` + 7 subrotas | `VIEW_ADMIN` |
+| `Estatisticas.tsx` | `/estatisticas` | `VIEW_ADMIN` — **gate temporário de UI** (2026-07-08); a API continua tenant-open. Reverter = devolvê-la a `CORE_PATHS` |
+| `Login` · `SetupPassword` · `Signup` | `/login` · `/setup-password` · `/signup` | **público** (standalone, sem Shell) |
 
-- **Core (todos os tenants, sem permissão):** Dashboard · **Clientes** · **Mensagens** · **Financeiro** · **Conteúdos** · **Website** · **Faturação**. No backend, `/customers`, `/expenses`, `/cms`, `/dashboard`, `/analytics`, `/chat/support` e `/website` só exigem `authenticateToken` (dados scoped por `userId`). **Estatísticas** saiu do core a 2026-07-08 (gate temporário de produto — ver a linha abaixo). **Website** voltou ao core a 2026-07-14 (T3.8, un-gate SELETIVO definitivo — o que continua gated por permissão é só a superfície DENTRO da página, ver a linha de `Website.tsx` na tabela acima), depois de ter passado por lá temporariamente entre 2026-07-08 e 2026-07-14.
-- **Módulos (por permissão, em `MODULE_PERM_TO_PATH`):** Agenda (`VIEW_SCHEDULE`) · Loja (`VIEW_PRODUCTS`) · Ginásio (`VIEW_GYM`). **Admin** (`VIEW_ADMIN`) à parte — e, **temporariamente (2026-07-08)**, **Estatísticas** também só com `VIEW_ADMIN` (`ADMIN_GATED_PATHS` no `Shell.tsx`; Umami ainda não provisionado para todos os tenants; gate SÓ de UI, a API continua tenant-open; reverter = devolvê-la a `CORE_PATHS`).
-- **Ordem da sidebar** (`MENU_ORDER`): Dashboard · Estatísticas · Admin · Clientes · Mensagens · Conteúdos · Website · Loja · Agenda · Ginásio · Financeiro · Faturação. As rotas acessíveis (conjunto core+módulos+admin) são apresentadas por esta ordem fixa; itens não listados vão para o fim. O redirect inicial continua a usar `accessiblePaths[0]` (= Dashboard, que todos têm).
+### Navegação (`Shell.tsx` + `src/lib/navigation.ts`)
 
-**Submenus (`src/lib/navigation.ts`, fonte única):** o mapa `SUBMENU: Record<path, SubmenuItem[]>` (`{id, label, path, perm?}`, `perm` aceita **`string | string[]`** — array = OR, basta uma das permissões, T3.8) descreve as 8 páginas que absorveram as suas `Tabs` de topo para dentro do menu — Financeiro, Loja, Clientes, Website, Admin, Ginásio, Conteúdos, Agenda. `allowedSubitems(root, hasPermission)` filtra por `perm` (**Conteúdos** faz gating por subitem, e o **Website** voltou a ter subitens gated a 2026-08-12 — "Páginas" e "Marca" com `perm: "VIEW_ADMIN"`, escondidas dos clientes (ainda não prontas); só "O meu site" fica tenant-open, com o gate `VIEW_SITE_BUILDER`/`VIEW_ADMIN` a viver DENTRO da página via `canEditStructure`. Quando um grupo sobra com 1 só subitem permitido (o Website dos clientes), o `SidebarContent` mostra-o como link simples, não como menu expansível (`groupItems.length > 1`); os outros grupos são tudo-ou-nada, gated ao nível do item pai); `findRoot(pathname, accessiblePaths)` resolve a que grupo um pathname pertence (rota exata OU prefixo `root/`); `resolveLegacyTabTarget(root, id, restSearch)` traduz um deep-link antigo `?<param>=<id-do-subitem>` no path novo, preservando os restantes query params — usado pelo `LegacyTabEntry` genérico do `App.tsx` (`?tab=`/`?vista=` → path; `/despesas` e outros redirects específicos como `?openService=`/`?google=` têm as suas próprias entries, `AgendaEntry`/`AdminEntry`, por não serem um id de subitem).
+- **Core (todos, sem permissão):** Dashboard · Clientes · Mensagens · Financeiro · Conteúdos ·
+  Website · Faturação. No backend, `/customers`, `/expenses`, `/cms`, `/dashboard`, `/analytics`,
+  `/chat/support` e `/website` só exigem `authenticateToken` (dados scoped por `userId`).
+- **Módulos (por permissão, `MODULE_PERM_TO_PATH`):** Agenda · Loja · Ginásio. **Admin** à parte, e
+  **Estatísticas** temporariamente também (`ADMIN_GATED_PATHS`).
+- **Ordem da sidebar** (`MENU_ORDER`) é um array fixo; o que não estiver listado vai para o fim.
+- **Submenus:** `SUBMENU: Record<path, SubmenuItem[]>` em `src/lib/navigation.ts` é a **fonte única**
+  (`perm` aceita `string | string[]`; array = OR). `allowedSubitems` filtra, `findRoot` resolve a que
+  grupo um pathname pertence, `resolveLegacyTabTarget` traduz deep-links antigos `?tab=`/`?vista=`.
+  Grupo que sobre com **1 só** subitem permitido é mostrado como link simples, não como expansível.
+- **Guard de rotas por prefixo:** um pathname sob um root acessível é válido. Um subitem sem
+  permissão redirecciona para o 1.º subitem permitido do **mesmo pai**, nunca para o dashboard.
+  `/despesas` e `/perfil` entram em `guardRoots` como roots extra (senão o guard expulsa-os).
 
-**`NavItemGroup` (`Shell.tsx`):** item de sidebar expansível para qualquer `path` com entrada em `SUBMENU`. Dois modos: **expandido** (sidebar aberta + drawer mobile) — acordeão que expande por omissão o grupo da rota ativa (`derivedExpandedPath`), pode ser colapsado manualmente sem navegar (clicar num pai já expandido fecha-o); os subitens só existem no DOM quando o grupo está expandido (nunca escondidos por CSS) para não duplicar o nome acessível de um item de módulo homónimo escondido lá dentro. **Colapsado** (sidebar só-ícones) — clicar ou passar o rato abre um **flyout em portal** (mesmo padrão do `Combobox`), ancorado à direita do ícone; navegação por ↑/↓ dentro do flyout, Esc/Tab/clique-fora fecham. `SubmenuLink` é o botão partilhado entre os dois modos.
-
-**Guard de rotas por prefixo:** deixou de exigir igualdade exata — um pathname sob um root acessível é válido (`/financeiro/despesas` é válido porque `/financeiro` é, via `findRoot`). Um subitem sem a permissão do tenant (ex.: `/financeiro/ginasio` sem `VIEW_GYM`) redireciona para o 1.º subitem permitido do MESMO pai, nunca para o dashboard. `/despesas` (deep-link legacy, redireciona para `/financeiro/despesas`) e `/perfil` (T3.3, acede-se pelo `AvatarMenu`, não pela sidebar) entram em `guardRoots` como roots extra — sem isto o guard por prefixo expulsava-os para o dashboard por não pertencerem a nenhum item de `accessiblePaths`.
-
-**Regra crítica — labels de subitens nunca duplicam nomes acessíveis da sidebar:** quando um grupo expande, os seus subitens e os itens de módulo da sidebar coexistem no mesmo `<nav>` — um subitem homónimo de um item sempre visível (ex.: "Clientes" dentro do Ginásio, quando o item core `/clientes` já existe) duplicaria o nome em qualquer `getByRole("button", { name: ... })`, partindo os testes RBAC/e2e. Por isso: "Lista" (não "Clientes") no âncora de `/clientes`; "Progresso de clientes" (não "Clientes") no subitem `/ginasio/clientes`; "Site público"/"Produtos"/"Serviços"/"Ginásio (nomes)" (não "Website"/"Loja"/"Agenda"/"Ginásio") nos 4 primeiros subitens de `/conteudos`. Ver comentários em `src/lib/navigation.ts`.
-
-**Badge de mensagens (T0.2):** o item `/mensagens` da sidebar liga `useChatUnread()` (só ali, não por item — reusa a cache do React Query já usada por `ChatLauncher`/`ChatFab`) e mostra a contagem via `NavBadge`/`CountBadge` (`src/components/NavBadge.tsx`, ver **Componentes Partilhados**).
-
-**Menu do avatar (T3.3):** `AvatarMenu` (dentro de `Shell.tsx`) substitui o `Avatar` decorativo do topbar por um dropdown em portal (mesmo padrão do flyout) — "O meu perfil" (→ `/perfil`) e "Terminar sessão". É a única forma de aceder a `/perfil`, que fica fora da sidebar (par de `/despesas`).
-
----
-
-## Componentes Partilhados
-
-> **Primitivas de UI (`src/ui/ui.jsx`):** `Card`, `Button`, `IconButton`, `Badge`, `Input`, `Select`, `Toggle`, `Avatar`, `Modal`, `PageHeader`, `EmptyState`, `ImgPlaceholder` e — **frame partilhado entre páginas** — `Tabs` e `SectionTitle`. **Toda a troca de secção usa `<Tabs>`** (pílulas segmentadas: contentor `bg-zinc-100` + ativo `bg-white shadow-sm text-accent`, com `role=tablist` + navegação por ←/→). Props: `tabs={[{id,label,icon?}]}`, `value`, `onChange`, `fullWidth?` (estica, ex.: tabs da ficha do cliente), `size?` (`sm`/`md`). `SectionTitle` é o eyebrow das secções dentro de `Card` (`text-xs uppercase tracking-wide`, com slot `right` opcional). **Não reimplementar barras de tabs nem eyebrows à mão.** **Modal com pilha (B4 do gym-recon, 2026-07-21):** os `Modal` registam-se numa pilha module-level — **Esc fecha só o modal do TOPO** (antes um Esc destruía pilhas inteiras, ex. traduções CMS sobre o modal de exercício), com focus-trap no Tab, foco inicial no painel e restauro do foco ao fechar; API pública inalterada. Testado em `tests/unit/ModalStack.test.tsx`.
-
-| Componente | Descrição |
-|------------|-----------|
-| `Shell.tsx` | Layout principal: sidebar (`NavItemGroup`/`SidebarContent`, submenus com acordeão+flyout — ver secção **Páginas e Permissões**), topbar, notification bell + **`BillingBanner`** (acima do `<main>`) + **`AvatarMenu`** (T3.3 — dropdown do avatar no topbar, portal como o flyout do `NavItemGroup`: "O meu perfil" → `/perfil` · "Terminar sessão") |
-| `NavBadge.tsx` | **`CountBadge`** (T0.2) — pílula vermelha de contagem partilhada ("99+" cap, guard para valores ≤0/NaN), fonte única do visual consolidada de 4 cópias quase idênticas (`NotificationBell`, `ChatLauncher`, `ChatFab`, `NavBadge`); cada consumidor passa só `size` (`icon`/`nav`/`fab`) + posicionamento. **`NavBadge`** é o export usado pelo item `/mensagens` da sidebar (`Shell.tsx`): expandido mostra o `CountBadge` (variante `nav`); colapsado mostra um dot sem número sobreposto ao ícone |
-| `BillingBanner.tsx` | Faixa de billing no topo do Shell (platform billing, T5). Lê `useGetBillingSubscription` e só aparece quando é preciso agir: `trialing` a ≤3 dias do fim (info azul, `role=status`, **dispensável** — persiste em localStorage por período), `grace` (âmbar, `role=status`), `past_due_locked`/`canceled`/**`trial_expired`** (self-serve, T9 — vermelho, `role=alert`, não dispensável; `trial_expired` mostra um link extra "Falar com o suporte" → `/mensagens` além do "Ver faturação"). Invisível quando pago (none/active/incomplete/trial-longe) e na própria `/faturacao` |
-| `GuardButton.tsx` | **Write-guard proativo** de platform billing (roadmap 0.4 / dívida T5). Drop-in do `Button` partilhado: em operação normal é idêntico ao `Button`; quando a subscrição está **read-only** (`useWriteGuard().readOnly` — pagamento em atraso além do grace / cancelada) o botão fica **desativado** com o motivo (title no hover + `aria-disabled`, `WRITE_GUARD_MESSAGE` a apontar p/ Faturação). Aplicado aos CTAs de escrita primários: Agenda (Nova/Criar marcação, Guardar marcação em `ApptModal`, Guardar serviço), Loja (Novo produto, Guardar/Adicionar produto), Clientes (Criar/Guardar cliente), Ginásio-mensalidades (Marcar pago/paga, Criar/Guardar subscrição, Atribuir), Conteúdos/CMS (Guardar entrada/secção/línguas). O botão "Pagar" cru do `ApptModal` lê `useWriteGuard()` diretamente. **Só para escritas** — nunca navegação, leitura, logout, portal Stripe ou chat de suporte. O interceptor 402 (`billing402.ts`) mantém-se como backstop reativo. Testes: `writeGuard.test.tsx` |
-| `Login.tsx` | Formulário de login (standalone, sem Shell). Link "Criar conta" → `/signup` (self-serve, T8) |
-| `NotificationBell.tsx` | Ícone com badge + dropdown de notificações em tempo real |
-| `ApptModal.tsx` | Modal de criação/edição de agendamentos (usado em Agenda) |
-| `FileUpload.tsx` | Upload de imagem único para SeaweedFS via `/api/uploads`. Usado pelo editor de blocos do site (`ImageFieldInput`) e pelo logótipo da Marca (`Website.tsx`). Suporta modo **`deferred`**: não envia já — só mostra a pré-visualização local (`blob:`) e devolve o `File` via `onFileSelected`; quem usa faz o upload mais tarde (ex.: ao Guardar), evitando ficheiros órfãos |
-| `MediaGallery.tsx` | Galeria de imagens/vídeos (Ginásio). **Upload diferido**: segura os ficheiros localmente (preview `blob:`) e só os envia ao Guardar, via `uploadPendingMedia()` |
-| `Combobox.tsx` | Dropdown custom com pesquisa. Menu renderizado em **portal** (`document.body`, posição fixa) para não ser cortado por overflow de modais. `ref` aponta para o botão; tem `label`/`disabled` |
-| `DateRangePicker.tsx` | Selector de intervalo de datas (`react-day-picker`, modo range, locale PT). Usado ao atribuir um programa |
-| `TranslationInputs.tsx` | Campos de tradução por língua com bandeiras reais |
-| `PriceFillChip.tsx` | Pílula que preenche um campo de valor com um preço de referência (preço do serviço na Agenda / da subscrição no ginásio) num clique. Usada no `ApptModal` (pagamento) e no `PagamentoModal` do gym (`GymMensalidade.tsx`). Props: `amount`, `label`, `onClick`, `active?` |
-| `chat/*` | **Chat de suporte** (Admin↔tenant). Entradas (para todos): `ChatLauncher` (ícone no topbar) + `ChatFab` (botão flutuante, some em /mensagens) — ambos navegam para `/mensagens` com badge de não-lidas (`useChatUnread`). A página `Mensagens.tsx` mostra `MensagensTab` (inbox do Admin) ou a conversa do tenant. Partilhados: `ChatConversationView` (liga hooks + envio otimista + marca lida + paginação), `MessageThread`/`MessageBubble`/`DayDivider` (bolhas + "visto"), `Composer` (textarea auto-grow + anexos de imagem com upload diferido). Ver secção **Chat de Suporte** |
+> ⚠ **Regra crítica — labels de subitens nunca duplicam nomes acessíveis da sidebar.** Quando um
+> grupo expande, subitens e itens de módulo coexistem no mesmo `<nav>`: um subitem homónimo de um
+> item sempre visível duplica o nome em qualquer `getByRole("button", { name })` e **parte os testes
+> RBAC/e2e**. Por isso "Lista" (não "Clientes") em `/clientes`; "Progresso de clientes" em
+> `/ginasio/clientes`; "Site público"/"Produtos"/"Serviços"/"Ginásio (nomes)" nos subitens de
+> `/conteudos`. Os subitens só existem no DOM quando o grupo está expandido — nunca escondidos por CSS.
 
 ---
 
-## Hooks Manuais (src/hooks/)
+## Primitivas de UI — não reimplementar
 
-| Hook | Descrição |
-|------|-----------|
-| `useSettingsLanguages.ts` | GET/PUT das línguas activas e língua padrão do tenant |
-| `useCmsSearch.ts` | Pesquisa de entradas CMS por contexto e língua |
-| `useNotifications.ts` | Lista e acções sobre notificações do tenant |
-| `useSSE.ts` | Ligação SSE para notificações em tempo real |
-| `usePushSubscription.ts` | Subscrição Web Push (subscribe/unsubscribe) |
-| `useDashboard.ts` | GET `/api/dashboard?period=` tipado (schedule + ecommerce + **gym** + expenses) para a tab "O Negócio" do Financeiro |
-| `useAuditLogs.ts` | `useAuditLogs` (registo unificado; `errors:"true"` filtra 5xx) / `useHealth` — tabs Atividade e Sistema do Admin (só `VIEW_ADMIN`) |
-| `useSiteAnalytics.ts` | `useSiteAnalytics(period)` (GET `/api/analytics/site`) + `useSiteDomain`/`useSetSiteDomain` (GET/PUT do domínio). Alimenta a página **Estatísticas**; fala só com a nossa API (a key do Plausible fica no servidor) |
-| `useScheduleCalendar.ts` | `useScheduleCalendarFeed` (GET `/api/schedule/calendar` → URL .ics da agenda, gera token na 1.ª vez) + `useRotateScheduleCalendarToken` (POST `/rotate`). Alimenta o `CalendarSubscribeCard` da Agenda |
-| `useChat.ts` | **Chat de suporte** (tipos locais; sem Kubb). Tenant: `useSupportThread`/`useSendSupportMessage`/`useMarkSupportRead`. Admin: `useAdminConversations`/`useAdminThread`/`useSendAdminMessage`/`useMarkAdminRead`. + `fetchOlderMessages` (paginação) e `mergeMessages` (merge por id). O `useSSE.ts` invalida `["chat"]` no evento `message` |
-| `useBillingReadOnly.ts` / `useWriteGuard.ts` | Fonte única do **write-guard** de platform billing. `useBillingReadOnly()` → `{ readOnly, reason }` derivado de `useGetBillingSubscription` (cache do React Query, sem rede extra). `useWriteGuard()` → `{ readOnly, reason, message }` (`WRITE_GUARD_MESSAGE`, PT). Alimenta o `GuardButton` (drop-in do `Button`) e CTAs de escrita não-`Button` (ex.: "Pagar" no `ApptModal`). Complementa o backstop reativo 402 (`billing402.ts`) |
-| `useThemeSync.ts` | **Tema server-side** (T3.4, `.design/shell-nav-perfil/`). Fonte única do tema aplicado — único consumidor: `App.tsx` (substitui o antigo `useState` local, mesma prop `theme`/`onToggleTheme` para `Shell`/`Login`/`Signup`/`SetupPassword`). Precedência **servidor > localStorage > sistema**: init lazy continua local (`computeInitialTheme`, T0.1, `src/lib/uiTheme.ts` — sem sessão não há servidor a consultar, evita esperar rede no 1.º paint); assim que `GET /users/me` resolve (`useGetUsersMe`, `enabled: isAuthenticated`), aplica `resolveThemeFromServer(uiTheme, systemPrefersDark)` — `"light"`/`"dark"` do servidor ganham SEMPRE (mesmo a um localStorage/sistema diferentes neste browser — resolve "o tema começa sempre X noutro browser") e ficam gravados no localStorage (auto-corrige o anti-flash do `index.html` no PRÓXIMO reload); `"system"` segue o sistema atual e **limpa** o localStorage (nunca grava a string `"system"`, o anti-flash só conhece light/dark). `toggleTheme` (ícone do topbar) aplica local+localStorage de imediato e, só se autenticado, grava no servidor (`PUT /users/me`) com reversão otimista + toast se falhar; sem sessão fica só local. **Sem contexto dedicado**: o `PreferenciasCard` do `/perfil` (T3.3, `Perfil.tsx`) grava via `usePutUsersMe` + `invalidateQueries` na MESMA query key (`getUsersMeQueryKey()`) — o React Query entrega o valor novo a este hook através da cache partilhada, por isso o toggle do topbar e as 3 opções do Perfil nunca divergem |
+`src/ui/ui.jsx`: `Card`, `Button`, `IconButton`, `Badge`, `Input`, `Select`, `Toggle`, `Avatar`,
+`Modal`, `PageHeader`, `EmptyState`, `ImgPlaceholder`, `Tabs`, `SectionTitle`.
 
-> Despesas usa hooks gerados pelo Kubb (`useGetExpenses`, `useGetExpensesSummary`, `usePostExpenses`, …) para as despesas, e o hook manual `useExpenseCategories.ts` (list/create/update/delete) para as **categorias criadas pelo tenant**. As categorias têm cor própria; `src/utils/expenseCategories.ts` só guarda a paleta de cores sugeridas.
+**Toda a troca de secção usa `<Tabs>`** (pílulas segmentadas, `role=tablist`, navegação por ←/→).
+`SectionTitle` é o eyebrow das secções dentro de `Card`. **Não reimplementar barras de tabs nem
+eyebrows à mão.**
+
+**`Modal` tem pilha:** os modais registam-se numa pilha ao nível do módulo — **Esc fecha só o do
+topo** (antes um Esc destruía pilhas inteiras), com focus-trap no Tab e restauro do foco ao fechar.
+
+**`GuardButton`** é o drop-in do `Button` para **escritas** quando o billing está read-only — nunca
+para navegação, leitura, logout, portal Stripe ou chat de suporte. O interceptor 402
+(`billing402.ts`) fica como backstop reactivo.
 
 ---
 
-## Ginásio (Ginasio.tsx)
+## Geração de código (Kubb)
 
-4 separadores, cada um na sua própria rota (submenu na sidebar, T2.5 — `.design/shell-nav-perfil/`; o subitem "clientes" chama-se **"Progresso de clientes"** na sidebar, ver **Páginas e Permissões**): **Exercícios** (`/ginasio`, catálogo), **Treinos** (`/ginasio/treinos`, bundles reutilizáveis = `WorkoutTemplate`), **Planos** (`/ginasio/planos`) e **Progresso de clientes** (`/ginasio/clientes`). O antigo separador **"Programas"** (por cliente) não existe como rota própria — selecionar um cliente em "Progresso de clientes" mostra o seu progresso (`ProgressoTab`) + as ações **"Atribuir plano"/"Editar plano"** + (se houver programa ativo) **"PDF do plano"**, que abrem o editor de plano em ecrã cheio (`ClientePlanoEditor`/`ClientePlanoEditorLoader`) para montar os treinos do programa ativo. **"PDF do plano"** (`ClienteProgresso`): gera um documento **A4 horizontal — 1 página se o plano couber, 2 (frente+verso) só se transbordar** — do programa ativo e abre o diálogo de impressão do browser ("Guardar como PDF") — via `src/lib/planPdf.ts` (`buildPlanPrintHtml` monta HTML self-contained com o CSS da maqueta aprovada em `.design/`, `printPlan` imprime num `<iframe>` escondido — **zero deps**, sem jspdf/react-pdf; layout por dia com tabela `Exercício · Séries · Alvo(reps×peso) · Desc. · Sem 1–5` em branco para o cliente apontar o peso feito por semana). Uniform→`reps×peso`; série-a-série/dropset→`—` + sub-linha (de `setRows`/`steps`); tempo→duração; `notes`→linha itálica. Cores dos pontos por grupo via `useGymGroups().colorOf` (reais do tenant); nome/logo do ginásio via `useGetUsersMe`; datas de início/fim do programa. **Densidade auto** (`pickDensity` por nº total de exercícios, só escolhe o tamanho de letra) + **paginação por capacidade** (fix 2026-07-13 — antes saía SEMPRE em 2 folhas, mesmo quando cabia numa: `buildPlanPrintHtml` renderizava sempre os 2 `<article class="sheet">` e o antigo `splitFrontBack` dividia por `floor(dias/2)`, por CONTAGEM de dias, nunca por conteúdo; `paginateWorkouts` substitui-o — cada dia tem um custo heurístico em "linhas de exercício" (exercícios + ~1.6 de cabeçalho do dia), a página 1 enche até à capacidade estimada da densidade escolhida e o resto transborda inteiro para a página 2, nunca a meio de um dia; só existe verso se sobrar conteúdo). `break-inside:avoid` por dia mantém-se. **Localizado via CMS (B6a do gym-recon, 2026-07-21):** as strings do PDF vêm de chaves `gym.pdf.*` (contexto `gym`; dias reutilizam as chaves `gym.app.calendar.day.short.*` da PWA) com fallback PT, resolvidas LAZY no clique do PDF (`getCmsEntries` com cache em ref — nunca no mount); exercícios de tempo imprimem rounds = `reps` (fallback `sets`), coerente com o BO; as colunas de semanas derivam das datas do programa (`ceil(dias/7)`, clamp 4–8; sem datas → 5); `printPlan` espera o `load` do iframe + `img.decode()` (timeout 2s) antes de imprimir. Nomes de exercícios/treinos saem na língua padrão do tenant (`TODO(locale-cliente)` documentado no ficheiro). Testado em `tests/unit/planPdf.test.ts`. *(O código morto `ProgramasTab`/`WorkoutModal`/`MensalidadesTab` local — ~600 linhas — foi REMOVIDO no B0 do gym-recon, 2026-07-21.)* Usa hooks gerados pelo Kubb (`useGetGymExercises`, `useGetGymMuscleGroups`, `useGetGymPrograms`, `useGetGymWorkoutTemplates`, `useGetGymPlanos`, …).
+`spec.json` → `src/gen/backoffice/hooks/` (React Query) e `src/gen/backoffice/types/`.
+**Nunca editar `src/gen/` à mão.**
 
-- **Hierarquia**: Exercício (+presets) → **Treino** (conjunto de exercícios reutilizável, sem dias = `WorkoutTemplate`) → **Plano** (lista de treinos; cada treino tem dia(s) da semana **obrigatório(s)** + exercícios) → **Programa** (plano atribuído a um cliente, com `startDate`/`endDate`).
-- **Modelo do Plano** (`PlanoModal`): um plano é uma **lista de treinos** (cada treino = um `PlanoWorkout` na API: `name` + `daysOfWeek` + `exercises`). Cada treino exige ≥1 dia da semana e ≥1 exercício (validação no Guardar). **Vários treinos podem partilhar o mesmo dia.** Por treino podes **associar um treino existente** (`associateTemplate` → copia nome + exercícios como *snapshot*; herda o nome se vazio) ou montar de raiz adicionando exercícios do catálogo. Editar dentro do plano **não** afeta o `WorkoutTemplate` original. Sem alterações na API — a estrutura `Plano → PlanoWorkout → PlanoWorkoutExercise` já encaixa.
-- **Atribuir** (`PlanosTab` → "Atribuir"): copia o plano para um **Programa** novo do cliente (*snapshot*). Editar o programa do cliente **não** afeta o template e vice-versa. As datas escolhem-se com o `DateRangePicker` (react-day-picker).
-- **Gestão de programas (B1 do gym-recon, 2026-07-21):** o `ClienteProgresso` tem um card **"Programas"** que lista TODOS os programas do cliente (não só o ativo) com badge ★ Ativo, **"Tornar ativo"** (`usePatchGymProgramsIdActive`, GuardButton) e **"Eliminar"** (`ConfirmDialog`; bloqueado no programa ativo — primeiro ativar outro). **"Mudar plano"/"Atribuir plano" ATIVA o programa novo por default**: o `POST /gym/planos/:id/assign` aceita `activate` (default `true` — desativa os outros na mesma transação; `false` = comportamento antigo). O `assignTemplate` exige `daysOfWeek` em programas weekly (400 sem eles). Datas validadas com zod (`endDate >= startDate`). É o programa ativo que aparece ao cliente na PWA; **datas são só informativas**.
-- **Save NÃO-destrutivo do `ClientePlanoEditor` (B1b2):** programas legados com 2+ treinos no mesmo dia ou treinos multi-dia deixaram de ser corrompidos — um treino multi-dia ocupa só o 1.º dia livre e **mantém os `daysOfWeek` originais ao guardar** (`originalDaysRef`); treinos que não cabem no editor ficam FORA do set de carregados (nunca elegíveis para delete) com aviso âmbar a listá-los; o delete só apanha treinos mostrados que o utilizador removeu; nunca há 2 PUTs ao mesmo `workoutId`. Datas sem defaults silenciosos (o que está nos campos é o que se grava). Os 4 editores full-screen têm **dirty-check** (baseline por snapshot do estado seeded + `beforeunload`; Voltar/Cancelar com alterações pede confirmação).
-  - **Lado PWA** (`GET /websites/gym/programs/active`): devolve o programa ativo + `nextWorkoutId` (o "treino a fazer agora" = **rotação por antiguidade**, 2026-07-13: treinos nunca concluídos ganham sempre — entre vários, o de menor ordem; senão ganha o treino cuja conclusão mais recente é a mais antiga; empate na data → menor ordem. Substitui a regra antiga "menos vezes concluído", que podia sugerir de novo um treino acabado de fazer se este tivesse menos conclusões totais que os outros — caso real: Ombros feito 1× ontem vs. outros 2× cada dava Ombros outra vez) + `weeklyGoal` (nº de dias da semana do programa). O cliente pode na mesma escolher outro treino manualmente.
+**Offline por defeito:** o `kubb.config.ts` gera **sempre** a partir do `spec.json` **committado**
+(`input.path`). `pnpm kubb`/`dev`/`build` não precisam da API de pé — é determinístico e o CI não
+depende dela.
 
-- **Grupos e subgrupos musculares** (`/api/gym/muscle-groups`): hierarquia de 1 nível via `parentId` (ex: *Peito → Peito superior*). Geridos no modal "Grupos" do Catálogo. A cor de um novo grupo/subgrupo vem **aleatória** de `GROUP_COLORS` (o user pode mudar). Apagar um grupo apaga os seus subgrupos (os exercícios guardam o nome em snapshot, por isso não corrompem).
-- **Catálogo de exercícios** (`/api/gym/exercises`): cada exercício pertence a um grupo de topo e, opcionalmente, a um `subGroup`. Em vez de um único conjunto de defaults, tem **presets nomeados** (`presets: [{ id, name, sets, reps, weight, rest }]`, ex: "Iniciante", "Avançado"). Os campos `default*` legados são derivados do 1.º preset (compat com a PWA/público). **Editor de criar exercício (`CatalogoTab`, refino 2026-07-07):** ao abrir "Novo exercício" o form já traz **1 rascunho de preset aberto** (`startCreate` semeia `presetEdit`, não `null`) — sem o clique extra + aviso âmbar. O botão **"Adicionar preset"** só renderiza quando não há rascunho aberto **ou** o rascunho atual já tem nome (`!presetEdit || presetEdit.form.name.trim()`), para não empilhar cartões de preset vazios. O botão **"Criar exercício"** (mesmo botão do editar) só fica ativo com `canCreate` = nome do exercício + grupo + ≥1 preset **completo** via `presetIsComplete`: força-uniforme exige `sets`+`reps`; série-a-série exige todas as linhas com reps (nos dropsets, o 1.º `steps[]` — o `reps` da linha fica obsoleto); tempo exige `duration>0`. `startEdit` limpa sempre `presetEdit` (senão um "Novo exercício" cancelado deixava um preset-fantasma ao editar outro). O `createExercise` do page-object e2e preenche nome+séries+reps para satisfazer o gate. **Media reposta (B1b2 do gym-recon, 2026-07-21):** o modal do exercício voltou a ter a `MediaGallery` (upload diferido via `uploadPendingMedia` no Guardar) — o antigo `media: []` hardcoded apagava a galeria em cada edição. **Grupos musculares:** o `GrupoModal` tem "Eliminar grupo" (ConfirmDialog; subgrupos caem em cascata, exercícios mantêm o nome em snapshot) e os subgrupos **renomeiam-se inline**; na API o rename de grupo **propaga aos snapshots de prescrição** (workout/plano/template) e o delete limpa o name-cache `subGroup` dos exercícios. Retry de um Guardar falhado não duplica entradas CMS (o `contentKey` do `ensureCmsName` é gravado no estado imediatamente, em 10 call-sites).
-- **Montar treino** (`WorkoutModal`/`WorkoutTemplateModal`): ao adicionar um exercício do catálogo, se este tiver presets aparece um selector que pré-preenche séries/reps/peso/descanso — **continuam editáveis** por cliente. Os exercícios prescritos guardam snapshot de `group`/`subGroup`.
-- **Exercícios de tempo + modos de plano (overhaul 2026-06-24):** presets e exercícios prescritos têm `type` — `"strength"` (séries/reps/peso) ou `"time"` (duração em segundos, ex: prancha/mobilidade) — mais `notes`. **Tokens em inglês no modelo, PT só na UI.**
-- **Série-a-série + dropsets (overhaul 2026-06-25):** presets e exercícios prescritos de força têm `mode` — `"uniform"` (todas as séries iguais: `sets`×`reps`×`weight`×`rest`) ou `"perSet"` (cada série definida em `setRows`). Cada `setRow` é `{ reps, weight, rest, drop, steps }`; uma **série composta/dropset** tem `drop:true` + `steps:[{reps,weight,rest}]` (e `rest` é o descanso DEPOIS da série inteira). Os escalares `sets/reps/weight/rest` são **sempre derivados** de `setRows` (sets=nº de séries; reps/weight do 1.º passo) para compat com a PWA/recordes — `setRows` é puramente aditivo. No Backoffice: `SetRowsEditor`/`StrengthFields` (toggle Iguais/Série-a-série, com gestão de passos do dropset) são partilhados pelo editor de preset do catálogo e pelo `AjustarModal`. As 3 tabelas de prescrição (`WorkoutExercises`, `WorkoutTemplateExercises`, `PlanoWorkoutExercises`) ganharam colunas `mode` (string) + `setRows` (JSON); presets vivem no JSON `ExerciseCatalog.presets` (sem migração). Na PWA, uma série composta é **expandida num registo por passo** para que cada peso/reps fique registado nas estatísticas. Os `Plano`/`Program` têm `mode` `"weekly"` (dias da semana) ou `"free"` (dias numerados; cada treino tem `dayLabel` "Dia 1"). O `WorkoutModal` recebe o `mode` do programa e mostra `DaySelector` (weekly) ou input de `dayLabel` (free); o `PlanoModal` tem o toggle Semana fixa/Dias livres. "Editar o plano do cliente" = editar o **`Program`** (snapshot; não afeta a biblioteca). O tab **Progresso** usa gráficos reais de `src/ui/charts.jsx` (LineChart multi-série de evolução de carga + DonutChart de volume por grupo) alimentados por `GET /api/gym/clients/:id/stats` (`byGroup`, `progress`, `loadSeries`, `sessions`, `adherence`, `records`).
-- **Mensalidades (2026-06-25):** é uma **tab dentro do Financeiro** (`FinanceiroPage.tsx` → tab "Ginásio", `VIEW_GYM`; ao lado de "O Negócio" e "Despesas"). A receita das mensalidades **pagas** entra no `/api/dashboard` (bloco `gym`) e é agregada na tab **O Negócio** do Financeiro. A UI vive em `src/pages/GymMensalidade.tsx` (`MensalidadesTab`) com sub-tabs: **Cobranças** (`CobrancasView`), **Subscrições** (`SubscricoesTab`, catálogo CRUD: nome, preço, dia de vencimento, ativa) e **Análise** (`AnaliseView` — churn/retenção/LTV/MRR + tendência de 6 meses via `GET /gym/mensalidade/analytics`, hook `useGymAnalytics.ts`, gráfico `LineChart`). **Cobranças (cockpit, reinvenção 2026-06-26 — ver `.design/gym-cobrancas/DESIGN_BRIEF.md`):** seletor de mês (`finance?period=`), resumo *Recebido €X/€Y previsto* + Por cobrar/Em atraso/MRR, segmentação **Por cobrar · Pagos · Todos** + pesquisa, e lista (em atraso primeiro) com **uma** ação por linha — **Marcar pago** (abre `PagamentoModal`); clicar na linha abre a ficha. **Não há ações de mudar estado na linha** (evita enganos) nem botão **"Gerar mês"** — o mês é **automático** (cada membro com plano aparece "por cobrar"; marcar paga/dívida cria o `GymPayment` via upsert). Modelo na API: `GymSubscription` (catálogo) → `GymMembership` (cliente↔subscrição + `blocked`) → `GymPayment` (registo mensal: `period`, `amount`, `dueDate`, `status` **paid|debt|unpaid**, `paidAmount`/`debtSince` para dívida parcial; "Em atraso" é derivado; `updatedAt`/`createdAt` expostos por `serializePayment` para o carimbo **data+hora**). O componente partilhado **`ClienteMensalidade`** (exportado de `GymMensalidade.tsx`) é usado no drawer das Cobranças e na **ficha do cliente** (tab Ginásio): cartão único subscrição→mês corrente→bloqueio, mês corrente **automático** (efémero "por pagar" se ainda sem registo), confirmação ao baixar de "pago", e linha **"Registado a {data+hora}"**. Tokens EN no modelo, PT na UI. Endpoints: `/gym/subscriptions`, `/gym/mensalidade/*`.
-  - **Financeiro SERVER-DRIVEN (B2+B3 do gym-recon, 2026-07-21):** TODAS as derivações vivem na API (`src/utils/mensalidade.ts` — `paymentReceived`/`paymentOutstanding`/`isOverdueFull`/`computeMrr` + relógio único **Europe/Lisbon** `businessToday()`/`currentPeriodLisbon()`); o `GET /gym/mensalidade/finance` devolve `kpis: { previsto, recebido (incl. parciais), porCobrar, emAtraso, mrr, blocked }` e o cockpit só formata (`fin.kpis.*`, barra de cobrança mede recebido/**previsto**). O **mês automático vencido CONTA como em atraso** (antes o KPI ignorava membros sem registo); membros com pagamento mas subscrição eliminada aparecem como **`orphaned`** (badge "Sem plano" — a dívida nunca desaparece). `getAnalytics` e o dashboard usam as MESMAS funções (fim dos 3 MRRs divergentes). Writes de dinheiro com **zod** (`src/schemas/gym.ts`; upsert em transação com corrida tratada; `isDefault` nunca fica órfão; bulk em lote). **Isolamento do bulk-pay:** ids de outro tenant são ignorados em silêncio (200 `paid:0`, nunca 400).
-  - **Cockpit disciplinado (B3):** seleção bulk limpa-se ao mudar mês/filtro/pesquisa + `ConfirmDialog` com resumo + `GuardButton`; o drill-down preserva mês/filtro/pesquisa (estado elevado ao `MensalidadesTab`); `PagamentoModal` com chip **"Em falta"** (pré-preenche o valor em dívida), 0/vazio não grava, aviso quando o valor < esperado; write-guard completo na ficha (botões de estado, toggles, "Já pagou" controlado); erros com retry (fim do "A carregar…" eterno; `keepPreviousData` no mês); convite lê `emailSent` (SMTP falhado não passa por sucesso); Comboboxes em vez de Select nativo.
-  - **Métodos de pagamento com tokens EN (B6b):** `GymPayment.method` guarda `cash|mbway|card|transfer|multibanco` (migração `20260721120000` converte os literais PT históricos; o schema aceita e normaliza literais PT antigos durante o rollout). UI via `src/lib/gymPayMethod.ts` (`PAY_METHODS`/`payMethodLabel` — labels PT). **€ e avatares únicos:** `src/lib/money.ts` (`fmtEur`) e `src/lib/avatarColor.ts` (`colorFromName`) substituem as cópias divergentes (GymMensalidade/PriceFillChip/Clientes/Agenda).
-  - **Separação de responsabilidades (uma fonte de verdade, três lentes):** a gestão por-cliente vive **só** em `ClienteMensalidade` (+ API) — reutilizado em dois pontos de entrada, **nunca forkar a lógica**. (1) **Financeiro → "O Negócio"** = lente do dinheiro, **só agregados** (mensalidades pagas entram agregadas via `/api/dashboard`); **nunca** lista clientes nem marca pagamentos. (2) **Financeiro → "Ginásio"** (`MensalidadesTab`, `VIEW_GYM`) = lente operacional (todos os clientes, cobrança, catálogo de subscrições, drill-down). (3) **Clientes → ficha → Ginásio** = lente da pessoa (um cliente; passa `dense` para empilhar). Regra-fronteira: o cruzamento por-cliente fica em (2)/(3); o tab **"O Negócio"** mantém-se **agregado** (não nomeia clientes).
-  - **`ClienteMensalidade`**: cartão **único** (subscrição → mês corrente → bloqueio), com barra/badge de estado (`STATUS_VIEW`) na lateral. Prop `dense` (modal da ficha) só afeta o histórico (lista vs tabela) e o espaçamento. Mês corrente **automático** (sem "Gerar mês"). Datas via `DatePicker` da app; `Toggle` partilhado.
-- **Guard do convite (2026-08-20):** o botão "Convidar sócio" passa por `useInviteGuard()` (em `GymMensalidade.tsx`) e é servido pelo wrapper `InviteGymMemberButton` — mesmo padrão de afordância do `GuardButton` (`title` no hover + `aria-disabled`) mas com **mensagem própria**, porque a do `GuardButton` (`WRITE_GUARD_MESSAGE`) fala de billing. **Dois motivos BLOQUEIAM:** (1) **sem subscrições ativas** — sem plano nenhum no catálogo o convite não tem o que atribuir; (2) **write-guard de billing** (o motivo do `useWriteGuard`, reencaminhado). Um bloqueio mostra sempre o seu próprio motivo, nunca o aviso abaixo.
-
-⚠️ **A falta de subdomínio AVISA, não bloqueia (corrigido 2026-08-25).** Nasceu como bloqueio a 2026-08-20, com a premissa "a app do sócio vive em `{subdomain}.{host}`, logo sem subdomínio o convite é um beco sem saída". Essa premissa é verdade para um ginásio alojado no **site-engine** e **falsa** para um cujo app é um **deploy standalone com domínio próprio** — que é o caso do ginásio real, servido hoje pelo deploy do `gymnoprado` e sem subdomínio reclamado. O bloqueio impedia os convites de sócios desse ginásio: uma regressão num fluxo que funcionava. O Backoffice **não consegue distinguir com fiabilidade** "app no engine" de "app em deploy próprio", por isso não deve decidir por bloqueio a partir de informação incompleta — informa (o texto diz explicitamente a quem tem app própria que pode ignorar) e deixa seguir. Enquanto o site ainda carrega **não** bloqueia, para não piscar um "sem subdomínio" falso. ⚠ O texto do motivo aponta para **"Website → O meu site"** e nunca para "Website → Domínio" — esse separador deixou de existir na simplificação de 2026-08-12 (há uma assertiva em `tests/unit/InviteGymMemberButton.test.tsx` a impedir a regressão). Aresta conhecida: a secção Domínio dentro de "O meu site" só aparece com `canEditStructure` (`VIEW_SITE_BUILDER`/`VIEW_ADMIN`) — o signup concede-a, a criação manual não, pelo que um tenant criado à mão lê o motivo mas não consegue agir sozinho.
-- **Convite de sócio por email (2026-07-04):** botão **"Convidar sócio"** no cabeçalho do `MensalidadesTab` (ao lado de Análise/Subscrições) abre modal (nome + email + `Combobox` de plano, pré-selecionado com o plano **predefinido** do tenant) → `postGymMembersInvite` (hook Kubb `usePostGymMembersInvite`, `POST /gym/members/invite`). Cria/reutiliza um `Customer` sem password + uma `GymMembership` **pending** no plano indicado (ou o predefinido), e a API envia o email de definição de password (sem self-serve público). **Sócios pendentes** (`membershipStatus`/`status === 'pending'`) ganham um badge **"Convidado"** — na lista de Cobranças (junto ao nome) e um aviso no `ClienteMensalidade` (banner azul, visível também na ficha do cliente). Passam a **active** quando o convidado define a password. No catálogo (`SubscricoesModal`), cada plano mostra **★ Predefinido** se `isDefault`, senão um botão **"Tornar predefinido"** (`putGymSubscriptionsId(id, { isDefault: true })`) — a API garante exatamente um predefinido por tenant (é o atribuído automaticamente quando o convite não indica `subscriptionId`).
-- **Evolução de carga por série (2026-06-25):** o `loadSeries` devolve, por exercício, `sessions: [{ date, sets:[{weight,reps}], e1rm }]` (todas as séries por treino + 1RM estimada média da sessão). O gráfico (`LineChart`) desenha **uma linha por índice de série** (peso em kg por treino) e mostra, por linha, a **% + Δkg** (1.ª→última sessão) e um badge de **força total** = variação da **1RM estimada (fórmula de Epley: `peso×(1+reps/30)`)** média, em **% e kg** (verde sobe / vermelho desce). Helper `epley1RM()` em `API-FullStack/src/utils/gym.ts`.
-
-- **Traduções (CMS)**: os nomes de **exercícios, treinos (templates), planos (+ cada treino do plano), treinos de programa e grupos/subgrupos musculares** são traduzíveis via CMS, no **contexto `gym`** (separado do `website`, que é o site público do ginásio). Cada entidade guarda um `contentKey`; o valor na **língua padrão** é o fallback e as outras línguas vivem no CMS.
-  - **UI**: componente `CmsCombo` (`src/components/CmsCombo.tsx`) — campo de **texto livre** para o nome, com **autocomplete de entradas CMS existentes** (`/cms/search?context=gym`) que se podem reutilizar ao clicar. **Não há botão "criar entrada"**: se não reutilizares nenhuma, a entrada é criada **ao Guardar** o formulário, via `ensureCmsName(contentKey, context, name, defaultLang)` (`src/lib/gymCms.ts`) — gera `gym.<uuid>` se não houver `contentKey` e grava o nome na língua padrão. O botão "Traduções" abre o `CmsTranslationsModal`. Usado em exercícios, treinos, planos (+ treinos), treinos de programa e grupos/subgrupos musculares. Controlado por `value` (contentKey) + `name` (texto); `onChange(key, name)`.
-  - O contexto `gym` está registado no CMS: tab "Ginásio" em `Conteudos.tsx` e suporte no `searchController` da API (prefixo `gym.%`; excluído do separador website).
-  - **Programas/Workouts por cliente herdam o `contentKey`** do plano/treino ao atribuir (snapshot), por isso não precisam de UI própria. A API resolve o nome pela **locale do cliente** (`localizeProgramDTOs` em `src/utils/gym.ts`); exercícios resolvem-se pelo `exerciseId`→catálogo e o grupo pelo nome→`MuscleGroup`.
-
-> Todos os dropdowns da página usam o componente custom `Combobox` (com pesquisa), não os `<select>`/`Select` nativos.
+- **Quando a API muda:** `pnpm kubb:refresh` (busca o spec, reescreve `spec.json`, regenera) e
+  **committar o `spec.json`**. Sem a API a correr, a alternativa é `pnpm exec ts-node
+  --transpile-only scripts/dumpSpec.ts backoffice > ../Backoffice/spec.json` na API.
+- `VITE_API_BASE_URL` continua obrigatória (é o `baseURL` dos hooks) mas só precisa de estar
+  **definida**, não de a API estar **a correr**.
+- `kubb.config.ts` é tooling Node fora do `tsconfig` da app → `@ts-nocheck` no topo.
+- **Atrás da Cloudflare com Bot Fight Mode**, o fetch do spec é bloqueado como bot. Header de bypass
+  `X-CI-Bypass` com `CF_BYPASS_TOKEN` (build-time). ⚠ **NUNCA prefixar com `VITE_`** — senão vai
+  parar ao bundle do browser. Só é enviado no refresh; não fica no `spec.json` nem no `src/gen/`.
 
 ---
 
-## CMS (Conteudos.tsx)
+## Autenticação (`AuthContext.tsx`)
 
-O CMS tem quatro contextos: `website`, `product`, `service`, `gym`. O contexto infere-se pelo prefixo da chave (`product.`/`service.`/`gym.`) ou pela secção; `website` é o resto.
-
-**Texto dos sites do site-engine (site-cms-content, 2026-08-12):** TODO o texto visível nos sites dos tenants vive em entradas do contexto `website` com o esquema de chaves `site.*` — `site.<blockId>.<campo>` (listas com índices **1-based**: `site.<blockId>.items.1.q`), `site.page.<ref>.title` (títulos de página/nav; ref = `page.id || slug || "home"`) e `site.footer.*` (rodapé, incl. `columns.<i>.links.<j>.label`/`.to`). Aparecem na tab **"Site público"** organizadas em secções "Site" → uma por página + "Rodapé", e o tenant edita-as aqui como qualquer entrada CMS (ou pelo modal de blocos da página Website — mesmas entradas). São semeadas no signup (`seedSiteCms`, API) e por uma migração de backfill para sites existentes (skip-if-exists — nunca pisa edições). O renderer (site-engine) recebe estas entradas no payload do site (`cms`) e dá-lhes precedência sobre o conteúdo inline legado do Site JSON. Tipos: `text` (default), `image` (campos image/img/foto/logo), `data` (campos `to`/`href`/`ctaHref`/`cta`/`slug` — hrefs/slugs, não é texto traduzível). Brief: `.design/site-cms-content/DESIGN_BRIEF.md`.
-
-- **Secções**: hierarquia de organização (parent/child)
-- **Entradas**: `key` + `locale` + `value` + `type` (text | image)
-  > **⚠ `richtext` foi retirado da UI a 2026-08-24 (auditoria de segurança).** Nunca funcionou: a API remove **todo** o HTML de qualquer corpo de pedido (`applySanitization` → DOMPurify com `ALLOWED_TAGS: []`, em `API-FullStack/src/middleware/security.ts`), e isso vale também para a importação de CSV (`POST /cms/setup` recebe o CSV já convertido em JSON no `req.body`). Qualquer `<em>`/`<strong>`/`<h2>` era destruído **em silêncio**, com `200 OK` — a mesma classe do bug das chaves com ponto de 2026-08-04. O tipo continua a ser **aceite e lido** pela API para as entradas que já existem; o que desapareceu foi a opção de criar novas. Se algum dia se quiser HTML a sério no CMS, é preciso primeiro relaxar aquele sanitizador **e** garantir a sanitização na renderização (`site-engine/lib/sanitizeRichText.ts`) — por essa ordem.
-- Traduções agrupadas por `key`: `Record<locale, value>`
-- A língua padrão define a coluna principal das tabelas
-
-### Associar entradas CMS (nomes traduzíveis) — `CmsCombo`
-
-Componente partilhado [`src/components/CmsCombo.tsx`](src/components/CmsCombo.tsx) usado para os **nomes** de **serviços** (Agenda), **produtos** (Loja) e **ginásio** (exercícios/treinos/planos/grupos). Comportamento:
-- Campo de **texto livre** com **autocomplete** de entradas CMS existentes do mesmo contexto (`/cms/search?context=`) — clicar reutiliza a chave.
-- **Não há botão "criar entrada"**: se escreveres um nome novo, a entrada é criada **ao Guardar** o formulário, via `ensureCmsName(contentKey, context, name, defaultLang)` ([`src/lib/gymCms.ts`](src/lib/gymCms.ts)) — gera `${context}.${uuid}` se não houver `contentKey` e grava o nome na língua padrão. Botão "Traduções" abre o `CmsTranslationsModal`.
-- Controlado por `value` (contentKey) + `name` (texto); `onChange(key, name)`. As entidades guardam `contentKey` (+ `descriptionKey` em serviços/produtos); o nome resolve-se do CMS na leitura.
-
-### Importar conteúdo via CSV
-
-Para popular o CMS de um novo site de cliente, criar um `content-import.csv` e importar via `POST /api/cms/setup`.
-
-**Formato — 6 colunas obrigatórias:**
-
-```
-key,locale,value,type,section,parent
-```
-
-| Coluna | Descrição |
-|--------|-----------|
-| `key` | Identificador único em dot-notation (`hero.title`, `project.slug.stat.1.value`) |
-| `locale` | Código de língua: `pt`, `en`, `fr` |
-| `value` | O conteúdo. **Nunca deixar vazio** — apagar a linha inteira se não há valor |
-| `type` | Ver tabela abaixo |
-| `section` | Nome da secção a que a entrada pertence |
-| `parent` | Nome da secção pai; deixar vazio para secções raiz |
-
-**Tipos de conteúdo:**
-
-| Tipo | Quando usar |
-|------|-------------|
-| `text` | Títulos, labels, descrições, qualquer string |
-| ~~`richtext`~~ | **NÃO USAR** — o HTML é removido em silêncio na escrita (ver o aviso na secção CMS acima). Usar `text`. |
-| `number` | Valores numéricos (anos, contagens, áreas) |
-| `data` | Slugs, referências internas, flags — não é texto traduzível |
-| `url` | Links externos |
-| `email` | Endereços de email |
-| `phone` | Números de telefone |
-| `file` | URL de ficheiro para download (PDF, etc.) |
-| `image` | URL de imagem (OG images, fotos, etc.) |
-
-**Regras:**
-
-1. **Sem valores vazios** — a linha é ignorada se `value` estiver em branco. Apagar a linha em vez de deixar vazio.
-2. **Slugs e referências** usam tipo `data` e só precisam de locale `pt`.
-3. **URLs, ficheiros, OG images** — só precisam de locale `pt` (são neutros em termos de língua).
-4. **Textos traduzíveis** devem ter uma linha por cada locale activo.
-5. **Hierarquia de secções**: `section` + `parent` criam a árvore automaticamente — não é necessária uma ordem específica no ficheiro.
-
-**Exemplo mínimo:**
-
-```csv
-key,locale,value,type,section,parent
-hero.title,pt,Título em Português,text,Hero,Homepage
-hero.title,en,Title in English,text,Hero,Homepage
-hero.cta,pt,Saber mais,text,Hero,Homepage
-contact.email,pt,geral@cliente.pt,email,Contactos,Homepage
-seo.home.title,pt,Cliente — Slogan,text,SEO · Homepage,SEO
-seo.home.og_image,pt,https://cliente.pt/assets/og.jpg,image,SEO · Homepage,SEO
-```
-
-O ficheiro `winterplateau/content-import.csv` é o exemplo de referência com um site completo (nav, hero, produtos, projetos com SEO, 3 línguas).
-
----
-
-## Línguas
-
-Configuradas em Admin → tab "Línguas":
-- **Línguas activas**: grid com bandeiras reais (`country-flag-icons`), toggle por clique
-- **Língua padrão**: pills com bandeiras entre as línguas activas, clique para seleccionar
-- PT é a língua padrão para novos utilizadores (definido na API)
-- Mapeamento língua→país em `src/utils/langFlag.tsx`
-
-`TranslationInputs` usa `useGetSettingsLanguages()` para renderizar um campo por língua activa.
-
----
-
-## Notificações em Tempo Real
-
-- **SSE** (`useSSE.ts`): ligação persistente a `/api/events/stream`, recebe eventos `notification`
-- **Web Push** (`usePushSubscription.ts`): subscrição via VAPID, funciona com o browser fechado
-- **NotificationBell**: badge com contagem não lida + dropdown com lista + acções (marcar lida, eliminar). Renderiza por **taxonomia unificada** (`NOTIF_META`: label + cor por tipo) — fallback `system` para tipos desconhecidos. **Cada notificação é clicável** (a área de conteúdo é um botão, irmão dos ícones de ação): ao clicar **marca como lida + fecha o painel + navega** para o recurso (deep-link). O destino vem de **`src/lib/notificationTarget.ts`** (`notificationHref(n)`), que mapeia `type`+`data` → rota usando os parâmetros que cada página já lê: `booking/reminder`(data)→`/agenda?marcacao=|?data=` · `order`→`/loja?tab=encomendas` · `customer`(com `data.leadId`)→`/clientes?tab=leads&lead=` (novo lead — ver **Leads** em `Clientes.tsx`) · `customer`/`gym`(c/cliente)→`/clientes?cliente=` · `gym`(s/cliente)→`/ginasio` · `payment`/`reminder`(period)→`/financeiro?vista=ginasio` · `stock`→`/loja?openProduct=` · `system`/sem destino→`null` (clicar só marca lida; o título só fica com cor `accent` no hover quando há destino). A **Loja** lê `?tab=` (produtos/encomendas/categorias) para o deep-link de encomendas. Mapeamento testado em `tests/unit/notificationTarget.test.ts`.
-- Criadas pela API via o helper único **`notifyUser()`** (`src/utils/notifyUser.ts` → DB + SSE + Web Push). **Taxonomia (a mesma em todo o lado):** `booking · order · customer · gym · payment · stock · reminder · message · system` (coluna `Notifications.type` = VARCHAR, migração `20260626120000`). Eventos ligados: novo booking/cancelamento público, nova encomenda, **novo cliente registado**, **nova mensagem de chat** (`message`, ver secção **Chat de Suporte**). **A ligar (consistência em curso):** stock baixo, mensalidade/pagamento, e **lembretes** (marcações + mensalidades em atraso) — estes precisam de um agendador (cron; ainda não existe na API)
-
----
-
-## Chat de Suporte (Admin ↔ tenant)
-
-Canal de mensagens **1:1** entre o **Admin da plataforma** (o dono, `VIEW_ADMIN`) e cada **tenant** (`User` do backoffice). **Não** envolve clientes finais nem sites públicos. Brief/tarefas em `.design/support-chat/`.
-
-- **Onde se acede (para todos):** **3 entradas** — página própria **`/mensagens`** na sidebar (`Mensagens.tsx`, core) + **ícone no topbar** (`ChatLauncher`, navega p/ /mensagens) + **botão flutuante** no canto inferior direito (`ChatFab`) que **abre um mini-chat sobreposto** (`ChatPopup`, widget — não navega; some na página /mensagens). Todas mostram badge de não-lidas (`useChatUnread`: admin = nº conversas por ler; tenant = a sua). A vista decide pelo papel: **Admin** → inbox de todos os tenants (`MensagensTab` na página; lista→conversa no popup); **tenant** → a sua conversa única. Tudo partilha `ChatConversationView` (**nunca forkar a lógica**).
-- **Decisões (brief):** ambos iniciam · texto **+ anexos de imagem** (`/api/uploads`, upload diferido) · **bolhas estilo messenger** · **"visto"** (derivado dos `*LastReadAt`). **Sem typing indicator** (cortado, v2).
-- **Tempo real + avisos:** SSE evento `message` + evento **`chat_read`** (atualiza o "visto" sem refresh) — ambos invalidam `["chat"]` no `useSSE.ts`. Ao chegar `message` e **não** se estar em `/mensagens`, mostra-se um **toast** (`sonner`, coalescido por conversa, ação "Abrir" → /mensagens). **NÃO há notificação no sino** (decisão do user — o chat tem badges próprios). **Web Push (PWA) enviado SEMPRE**; o service worker (`public/sw.js`) só mostra a notificação do sistema se a app **não** estiver visível (`suppressWhenFocused` — quando está visível há toast/badge), e o clique navega **direto para /mensagens** (`notificationclick` → `data.url`). Testado em `tests/backoffice/chat_push.test.ts`.
-- **API:** modelos `Conversation` (1 por tenant: `tenantUserId` único, `adminUnread`/`tenantUnread`, `*LastReadAt`) + `Message` (`senderRole` admin|tenant, `attachments` JSON). Rotas `/api/chat/support/*` (tenant — resolve sempre por `req.user`) e `/api/admin/chat/*` (`VIEW_ADMIN`). Helper `src/utils/chatNotify.ts` (`notifyNewMessage`/`getAdminUserIds`/`broadcastRead`). Schemas OpenAPI `Chat*` em `swaggerBackoffice.ts`.
-- **Isolamento + segurança (auditado — veredicto HELD):** exceção **deliberada** (o Admin cruza tenants) — assimétrica: `/admin/chat/*` gated `VIEW_ADMIN`; `/chat/support/*` resolve pela `userId` autenticada → um tenant nunca vê a conversa de outro. `senderRole`/`senderUserId`/`conversationId` são **sempre server-side** (sem mass-assignment). **Anexos só `http(s)`** (allowlist na API `parseMessageInput` + no `MessageThread`, anti `javascript:`/`data:`). **Rate-limit por utilizador** no POST (`chatRateLimit`, isento em testes). Coberto em `tests/backoffice/chat_isolation.test.ts` (isolamento + 403/401 + mass-assignment + fuzzing `before` + anexos perigosos + truncagem). *(Nota: um admin pode abrir conversa com qualquer `User` existente — aceite como in-scope do papel Admin.)*
-- **Permissões:** **nenhuma nova** — admin = `VIEW_ADMIN` (já existe), tenant = core (qualquer autenticado). "Quem é o admin a notificar" = **todos os utilizadores com acesso de Admin/VIEW_ADMIN** (`getAdminUserIds`).
-- **Hooks/UI:** `src/hooks/useChat.ts` (tipos locais; sem Kubb), componentes em `src/components/chat/`. Testes unitários: `MessageThread.test.tsx`, `Composer.test.tsx`.
-
----
-
-## Geração de Código (Kubb)
-
-O spec OpenAPI `/api-docs/backoffice.json` é lido pelo Kubb e gera:
-- `src/gen/backoffice/hooks/` — hooks React Query (useGet*, usePost*, etc.)
-- `src/gen/backoffice/types/` — tipos TypeScript dos requests/responses
-
-Os ficheiros em `src/gen/` não devem ser editados manualmente.
-
-### OFFLINE por defeito (o `spec.json` committado é a fonte de verdade)
-
-O `kubb.config.ts` gera **SEMPRE a partir do `spec.json` committado** (versionado no repo, `input.path`) — `pnpm kubb`/`dev`/`build` **não** dependem da API estar de pé nem esperam por um fetch. É determinístico (mesmo spec → mesmo `src/gen/`) e o CI não precisa da API.
-
-- **Quando a API muda** (novo/alterado endpoint): `pnpm kubb:refresh` → busca o spec fresco da API, reescreve o `spec.json` e regenera. **Committar o `spec.json`** atualizado. (Alternativa sem API a correr: `pnpm exec ts-node --transpile-only scripts/dumpSpec.ts backoffice > ../Backoffice/spec.json` na API — serializa o spec da fonte, offline.)
-- **`pnpm kubb`** (sem refresh) = offline; falha claro se faltar o `spec.json`.
-- O `VITE_API_BASE_URL` continua **obrigatório** (é o `baseURL` dos hooks gerados) mas só precisa de estar **definido** (`.env.development`), não de a API estar **a correr**.
-- `kubb.config.ts` é tooling Node **fora** do `tsconfig` da app (`include: ["src"]`) → `@ts-nocheck` no topo (o `@types/node` não entra na app de propósito).
-
-### Fetch do spec atrás da Cloudflare (Bot Fight Mode) — só no `kubb:refresh`
-
-Quando o `kubb:refresh` busca o spec e a API está atrás da Cloudflare com Bot Fight Mode ativo, o fetch é bloqueado como bot. Solução: enviar um header de bypass (os tokens `SWAGGER_ACCESS_TOKEN`/`CF_BYPASS_TOKEN` são **opcionais** e lidos SÓ no refresh).
-
-- **Env (build-time):** `CF_BYPASS_TOKEN` — definir no build do Coolify. **NUNCA prefixar com `VITE_`** (senão o Vite inclui-o no bundle do browser). Só é enviado no header `X-CI-Bypass` do pedido ao spec; não fica em `spec.json` nem em `src/gen/`.
-- **Cloudflare → WAF → Custom rule:** `Header X-CI-Bypass equals <segredo>` → action **Skip** Bot Fight Mode / Managed Challenge (opcionalmente restringir a `URI Path equals /api-docs/backoffice.json`).
-- Em localhost (sem Cloudflare) o token não é necessário — o header só é enviado se `CF_BYPASS_TOKEN` existir, por isso o `pnpm kubb`/`pnpm dev` local funciona na mesma.
-
----
-
-## Autenticação
-
-`AuthContext.tsx` gere:
-- Login com `POST /users/login` → armazena `accessToken` em memória (+ `username`/`email` da resposta do login, cacheados em localStorage para sobreviver a um reload — o refresh silencioso no arranque só os HERDA de lá, o JWT do BO nunca embute username/email, só `userId`+`tokenVersion`)
-- Refresh automático com `POST /users/refresh` (cookie httpOnly)
-- CSRF token lido de `/csrf-token` e enviado em headers `x-csrf-token`
-- `authHeader()` devolve `{ Authorization: "Bearer ..." }` para usar nos hooks
-- `isAuthenticated` + `user` disponíveis em toda a app
-- **`setAccessToken(token)`** (T3.3): adota um accessToken novo na sessão atual sem passar por login/refresh — usado pelo `Perfil.tsx` depois de `PUT /users/me/password` (que bump o `tokenVersion`, invalidando o token antigo de imediato, mas devolve já um par novo para a sessão que pediu a mudança); também realinha o temporizador de refresh automático (`scheduleRefresh`) com a validade real do token novo
-- **`updateIdentity({ username?, email? })`** (T3.3): sincroniza `username`/`email` em memória + localStorage sem round-trip ao servidor — usado pelo `Perfil.tsx` depois de um `PUT /users/me` bem-sucedido, para o avatar/topbar ficarem coerentes com a edição sem precisar de logout/login
+- Login `POST /users/login` → `accessToken` **em memória** (+ `username`/`email` cacheados em
+  localStorage para sobreviver a um reload — o JWT do BO nunca embute isso, só `userId`+`tokenVersion`).
+- Refresh automático `POST /users/refresh` (cookie httpOnly) · CSRF de `/csrf-token` no header
+  `x-csrf-token` · `authHeader()` para os hooks manuais.
+- `setAccessToken(token)` — adopta um token novo sem passar por login/refresh (usado depois de
+  `PUT /users/me/password`, que faz bump ao `tokenVersion`) e realinha o `scheduleRefresh`.
+- `updateIdentity({username?, email?})` — sincroniza a identidade em memória + localStorage sem
+  round-trip, para o avatar/topbar ficarem coerentes sem logout.
 
 ---
 
 ## Layout — alturas SEMPRE por flex (regra obrigatória)
 
-**O Shell é o único dono da altura do viewport.** Nenhuma página/componente pode medir o viewport à mão: **proibido** `calc(100vh - Xpx)`, `h-screen`, `100dvh`/offsets fixos que "adivinham" a altura do chrome (topbar, títulos, banners). O padrão é a cadeia flex: Shell = coluna `h-dvh` (topbar/`BillingBanner` como filhos normais) → página recebe `flex-1 min-h-0` → tabelas/listas/threads fazem scroll **interno** (`overflow-auto`) dentro desse espaço. Porquê: qualquer px fixo codifica uma suposição sobre a altura dos irmãos, e essa altura **varia em runtime** (o `BillingBanner` aparece/desaparece consoante o estado de billing; tirar os títulos do corpo das páginas em `1f320cc` partiu tabelas e a página Mensagens exatamente por isso). ⚠ **Dívida em curso (roadmap 0.8):** ainda existem medições fixas herdadas por varrer — ao mexer numa página que as tenha, converter para flex em vez de reajustar o número.
+**O `Shell` é o único dono da altura do viewport.** Nenhuma página ou componente mede o viewport à
+mão: **proibido** `calc(100vh - Xpx)`, `h-screen`, `100dvh` e offsets fixos que adivinhem a altura
+do chrome (topbar, títulos, banners).
 
-## Segurança e Boas Práticas
+O padrão é a cadeia flex: Shell = coluna `h-dvh` (topbar e `BillingBanner` como filhos normais) →
+página recebe `flex-1 min-h-0` → tabelas/listas/threads fazem scroll **interno** (`overflow-auto`).
 
-- Nunca expor `userId` ou dados de outros tenants nas queries
-- Sempre usar `authHeader()` nos hooks manuais
-- O Kubb injeta automaticamente o header nos hooks gerados via o cliente axios configurado
-- Uploads de imagem/vídeo via `/api/uploads` (nunca base64 em JSON)
-- **Upload diferido**: ficheiros escolhidos são segurados localmente (preview `blob:`) e só enviados quando o user clica em **Guardar** — nunca no momento de escolher. Evita ficheiros órfãos no storage se o formulário for cancelado. Aplica-se a: Ginásio (`MediaGallery` + `uploadPendingMedia`), Loja (foto do produto) e Conteúdos/CMS (imagens das entradas)
+**Porquê:** qualquer px fixo codifica uma suposição sobre a altura dos irmãos, e essa altura **varia
+em runtime** — o `BillingBanner` aparece e desaparece consoante o estado de billing. Tirar os
+títulos do corpo das páginas (`1f320cc`) partiu tabelas e a página Mensagens exactamente por isso.
+
+⚠ Ainda há medições fixas herdadas por varrer. Ao mexer numa página que as tenha, **converter para
+flex** em vez de reajustar o número.
+
+---
+
+## Segurança e boas práticas
+
+- Nunca expor `userId` nem dados de outros tenants nas queries.
+- Usar sempre `authHeader()` nos hooks manuais (nos gerados, o cliente axios já o injecta).
+- Uploads de imagem/vídeo via `/api/uploads` — **nunca base64 em JSON**.
+- **Upload diferido:** os ficheiros escolhidos ficam locais (preview `blob:`) e só são enviados
+  quando o utilizador carrega em **Guardar** — nunca ao escolher. Evita órfãos no storage se o
+  formulário for cancelado. Aplica-se a Ginásio (`MediaGallery` + `uploadPendingMedia`), Loja (foto
+  do produto) e Conteúdos/CMS (imagens das entradas).

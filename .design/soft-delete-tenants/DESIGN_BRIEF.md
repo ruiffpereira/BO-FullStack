@@ -65,6 +65,15 @@ Nenhum é `paranoid`, **excepto `Category`** (`models/category.ts:52`).
 
 `RefreshTokens.userId` é o **único órfão silencioso confirmado** — a coluna não tem FK nenhuma.
 
+> **Não é um buraco de segurança — verificado.** `refreshUserToken`
+> (`userController.ts:365`) faz `User.findByPk` e devolve 401 se o utilizador não existir. Um token
+> órfão **não consegue** emitir uma sessão para um tenant apagado. O que fica é lixo que se acumula
+> para sempre, e uma regra que o código assume mas a base de dados não impõe.
+>
+> ⚠ E com soft delete a FK resolve menos do que parece: a linha do `User` **nunca desaparece**, logo
+> um `ON DELETE CASCADE` nunca dispara. A correcção verdadeira é chamar `revokeAllRefreshTokens`
+> (já existe, `src/utils/tokenUtils.ts:82`) ao apagar. A FK fica como rede, não como solução.
+
 ---
 
 ## As decisões

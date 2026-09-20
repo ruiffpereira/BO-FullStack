@@ -245,6 +245,79 @@ describe("Website — Publicar bloqueado sem conteúdo na página inicial", () =
   });
 });
 
+// ── Publicar: gym não exige blocos/páginas/marca (B9.5) ──────────────────────
+//
+// Um site `template: "gym"` NÃO é feito de páginas com blocos — o renderer
+// bifurca para a app SPA do sócio (`AppGymShell`) antes de sequer olhar para
+// os blocos (`site-engine/app/layout.tsx`), e os blocos de marketing do gym
+// foram apagados de propósito (F2, 2026-08-12). Sem esta exceção o botão
+// Publicar ficava desativado para sempre — foi o bug real que bloqueou a
+// migração do ginásio do dono. `setupSteps`/`publishReason` em `Website.tsx`
+// saltam "pelo menos uma página", "conteúdo na home" e "cor de destaque"
+// quando `template === "gym"`; os outros templates (cobertos no describe
+// "Publicar bloqueado sem conteúdo na página inicial" acima) continuam iguais.
+
+describe("Website — Publicar: gym salta blocos/páginas/marca (B9.5)", () => {
+  it("gym com subdomínio e ZERO blocos: Publicar fica ativo e a checklist só lista template + subdomínio", async () => {
+    const user = userEvent.setup();
+    useSiteMock.mockReturnValue({
+      data: makeSite({
+        siteId: "s1",
+        template: "gym",
+        subdomain: "ginasio-acme",
+        pages: [],
+        theme: null,
+      }),
+      isLoading: false,
+    });
+    renderWithQueryClient(<Website view="site" />);
+
+    const publicar = screen.getByRole("button", { name: /Publicar/i });
+    expect(publicar).toBeEnabled();
+    await user.click(publicar);
+    expect(publishMutate).toHaveBeenCalledTimes(1);
+
+    // Checklist "Setup pendente": os passos que não se aplicam ao gym não aparecem.
+    expect(screen.queryByText("Ter pelo menos uma página")).not.toBeInTheDocument();
+    expect(screen.queryByText("Adiciona conteúdo à página inicial")).not.toBeInTheDocument();
+    expect(screen.queryByText("Definir a marca (cor de destaque)")).not.toBeInTheDocument();
+    expect(screen.getByText("Escolher um template")).toBeInTheDocument();
+    expect(screen.getByText("Reclamar um subdomínio")).toBeInTheDocument();
+    expect(screen.getByText("Completo")).toBeInTheDocument();
+  });
+
+  it("gym sem subdomínio continua bloqueado, com o motivo certo", () => {
+    useSiteMock.mockReturnValue({
+      data: makeSite({ template: "gym", subdomain: null, pages: [] }),
+      isLoading: false,
+    });
+    renderWithQueryClient(<Website view="site" />);
+
+    const publicar = screen.getByRole("button", { name: /Publicar/i });
+    expect(publicar).toBeDisabled();
+    expect(screen.getByText(/Reclama um subdomínio primeiro/i)).toBeInTheDocument();
+  });
+
+  it("regressão: barber sem blocos continua bloqueado — a exceção é só do gym", () => {
+    useSiteMock.mockReturnValue({
+      data: makeSite({
+        template: "barber",
+        subdomain: "acme",
+        theme: { accent: "amber" },
+        pages: [{ id: "home", slug: "", blocks: [] }],
+      }),
+      isLoading: false,
+    });
+    renderWithQueryClient(<Website view="site" />);
+
+    const publicar = screen.getByRole("button", { name: /Publicar/i });
+    expect(publicar).toBeDisabled();
+    expect(
+      screen.getByText(/Adiciona pelo menos um bloco à página inicial/i),
+    ).toBeInTheDocument();
+  });
+});
+
 // ── Tab: O meu site — Pré-visualização ao vivo ────────────────────────────────
 
 describe("Website — Pré-visualização", () => {

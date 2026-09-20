@@ -132,6 +132,8 @@ interface SetupStep {
  * Se por alguma razão não houver uma home identificável (ex.: nenhuma página
  * com slug vazio), cai para a regra mais permissiva: pelo menos UMA página
  * qualquer com blocos.
+ *
+ * NÃO se aplica a `template === "gym"` — ver `setupSteps`.
  */
 function homeHasContent(site: Site | undefined): boolean {
   const pages = site?.pages ?? [];
@@ -140,26 +142,66 @@ function homeHasContent(site: Site | undefined): boolean {
   return pages.some((p) => (p.blocks?.length ?? 0) >= 1);
 }
 
+/**
+ * B9.5: um site de ginásio (`template === "gym"`) não é feito de páginas com
+ * blocos — o renderer bifurca ANTES de os montar (`site-engine/app/layout.tsx`,
+ * `isGymTemplate`) e serve a app SPA do sócio (`AppGymShell`) no lugar. Os
+ * blocos de marketing do gym foram apagados de propósito (F2 do épico
+ * `app-cliente-final`, 2026-08-12) — `homeHasContent`/"pelo menos uma página"
+ * NUNCA podem ficar verdadeiros para este template, e sem esta exceção o botão
+ * Publicar fica desativado para sempre (sintoma real: bloqueou a migração do
+ * ginásio do dono).
+ *
+ * A cor de destaque (`theme.accent`) NÃO bloqueia a publicação de um
+ * ginásio: por dentro, a app do sócio usa a sua própria paleta fixa
+ * (`components/appgym/index.css` — `--green`, `--t1`, …), independente de
+ * `--site-accent`/`site.theme` — o `theme.accent` chega ao `<html>` via
+ * `themeAttrs`, mas o AppGymShell nunca o consome. ⚠ Isto NÃO torna o accent
+ * irrelevante para um ginásio: o `manifest.webmanifest` é o MESMO para gym e
+ * não-gym (`app/manifest.webmanifest/route.ts` — "F0: (...) o manifest é
+ * idêntico") e usa `themeAccentHex(site.theme)` (`site-engine/lib/pwa.ts`)
+ * como fundo do ícone PWA que o sócio instala no telemóvel — com fallback
+ * seguro para azul quando `theme.accent` está por definir. Por isso vale a
+ * pena o dono defini-lo (ícone com a cor certa), só não é impeditivo de
+ * publicar (daí não entrar em `setupSteps`/`publishReason` para gym).
+ *
+ * O que continua a valer para um ginásio: `template` (decide a bifurcação) +
+ * `subdomain` (é o que resolve `getAppConfig(host)` no layout — sem ele não
+ * há tenant a servir).
+ */
 function setupSteps(site: Site | undefined): SetupStep[] {
-  return [
+  const isGym = site?.template === "gym";
+
+  const steps: SetupStep[] = [
     { key: "template", label: "Escolher um template", done: !!site?.template },
-    {
+  ];
+
+  if (!isGym) {
+    steps.push({
       key: "brand",
       label: "Definir a marca (cor de destaque)",
       done: !!site?.theme?.accent,
-    },
-    { key: "subdomain", label: "Reclamar um subdomínio", done: !!site?.subdomain },
-    {
-      key: "pages",
-      label: "Ter pelo menos uma página",
-      done: (site?.pages?.length ?? 0) >= 1,
-    },
-    {
-      key: "home-content",
-      label: "Adiciona conteúdo à página inicial",
-      done: homeHasContent(site),
-    },
-  ];
+    });
+  }
+
+  steps.push({ key: "subdomain", label: "Reclamar um subdomínio", done: !!site?.subdomain });
+
+  if (!isGym) {
+    steps.push(
+      {
+        key: "pages",
+        label: "Ter pelo menos uma página",
+        done: (site?.pages?.length ?? 0) >= 1,
+      },
+      {
+        key: "home-content",
+        label: "Adiciona conteúdo à página inicial",
+        done: homeHasContent(site),
+      },
+    );
+  }
+
+  return steps;
 }
 
 // ── Tab: O meu site ───────────────────────────────────────────────────────────
@@ -179,17 +221,24 @@ function SiteStatusTab({
   const canPublish = pending.length === 0;
   const url = siteUrl(site.subdomain);
 
+  // B9.5: um site de ginásio só precisa de template + subdomínio — ver a
+  // docstring de `setupSteps` (o resto não se aplica: sem blocos por desenho,
+  // sem `theme.accent` a chegar à app do sócio).
+  const isGymSite = site.template === "gym";
+
   const publishReason = !site.template
     ? "Escolhe um template primeiro."
     : !site.subdomain
       ? "Reclama um subdomínio primeiro."
-      : (site.pages?.length ?? 0) < 1
-        ? "O site precisa de pelo menos uma página."
-        : !homeHasContent(site)
-          ? "Adiciona pelo menos um bloco à página inicial."
-          : !site.theme?.accent
-            ? "Define a cor de destaque da marca."
-            : "";
+      : isGymSite
+        ? ""
+        : (site.pages?.length ?? 0) < 1
+          ? "O site precisa de pelo menos uma página."
+          : !homeHasContent(site)
+            ? "Adiciona pelo menos um bloco à página inicial."
+            : !site.theme?.accent
+              ? "Define a cor de destaque da marca."
+              : "";
 
   const onPublish = () => {
     publish.mutate(undefined, {

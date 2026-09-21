@@ -80,15 +80,36 @@ function ContaCard({ data }: { data?: GetUsersMe200 }) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
+  // Verdadeiro assim que o utilizador mexe num campo semeado pelo servidor;
+  // volta a falso só no `onSuccess` do guardar (o momento em que o que está
+  // no formulário passa a ser, de facto, o que o servidor tem). Existe
+  // separado do `dirty` abaixo porque `dirty` compara o estado actual com
+  // `data` — no PRIMEIRO render a seguir a `data` chegar, antes de qualquer
+  // seed, os campos ainda estão a "" e `data` já não está, o que os faria
+  // parecer sempre "dirty" mal os dados chegassem.
+  const [touched, setTouched] = useState(false);
 
-  // Re-sincroniza os campos quando os dados do servidor chegam/mudam (mesmo
-  // padrão do `TrialSettingsEditor` em `AdminBilling.tsx`).
+  // Re-sincroniza os campos com o servidor só enquanto o formulário está
+  // PRISTINE (mesmo padrão do `TrialSettingsEditor` em `AdminBilling.tsx`,
+  // agora com o guarda de `touched`). Sem este guarda, um refetch em
+  // background de `GET /users/me` que aterre DEPOIS de o utilizador começar a
+  // escrever — outro observer da mesma query (`useThemeSync`, montado à
+  // parte), uma invalidação disparada de outro cartão desta página, ou
+  // simplesmente uma resposta lenta sob carga — reescreve os campos por cima
+  // do que foi escrito; o `dirty` (que compara com `data`) volta a falso, e o
+  // "Guardar" (`disabled={!dirty}`) fica desactivado para sempre. Foi
+  // exactamente o que `tests/e2e/perfil.spec.ts` apanhou: o campo Telefone
+  // reaparecia com o valor da API por cima do que o teste tinha acabado de
+  // escrever. Um `useRef` a bloquear o efeito por completo mascararia o
+  // sintoma sem resolver o problema de fundo — o formulário TEM de continuar
+  // a reflectir alterações externas legítimas enquanto o utilizador não mexeu
+  // em nada; só não pode perder uma edição em curso.
   useEffect(() => {
-    if (!data) return;
+    if (!data || touched) return;
     setName(data.name ?? "");
     setEmail(data.email ?? "");
     setPhone(data.phone ?? "");
-  }, [data?.name, data?.email, data?.phone]);
+  }, [data?.name, data?.email, data?.phone, touched]);
 
   const originalEmail = data?.email ?? "";
   const emailChanged = email.trim().toLowerCase() !== originalEmail.trim().toLowerCase();
@@ -119,6 +140,21 @@ function ContaCard({ data }: { data?: GetUsersMe200 }) {
       {
         onSuccess: (res) => {
           setCurrentPassword("");
+          // Escreve já a resposta CONFIRMADA do PUT na cache do React Query,
+          // em vez de esperar pelo refetch assíncrono do `invalidateQueries`
+          // abaixo. Isto é o que torna seguro sair do modo `touched` já a
+          // seguir: se saíssemos com a cache ainda no valor pré-guardar (o
+          // refetch da invalidação ainda não voltou), o efeito de
+          // sincronização corria com o `data` ANTIGO e desfazia o que acabou
+          // de ser guardado durante um render — o mesmo bug do reseeding, só
+          // que auto-infligido por este próprio guardar.
+          qc.setQueryData(getUsersMeQueryKey(), (old?: GetUsersMe200) => ({
+            ...old,
+            ...res,
+          }));
+          // O que está no formulário agora É o que a cache tem — a partir
+          // daqui o efeito de sincronização pode voltar a semear normalmente.
+          setTouched(false);
           // Mantém o avatar/topbar (AuthContext) coerentes com a edição, sem
           // precisar de logout/login — ver docstring de `updateIdentity`.
           updateIdentity({ username: res.name, email: res.email });
@@ -133,12 +169,22 @@ function ContaCard({ data }: { data?: GetUsersMe200 }) {
   return (
     <Card className="p-5 space-y-4">
       <SectionTitle>Conta</SectionTitle>
-      <Input label="Nome do negócio" value={name} onChange={(e: any) => setName(e.target.value)} />
+      <Input
+        label="Nome do negócio"
+        value={name}
+        onChange={(e: any) => {
+          setName(e.target.value);
+          setTouched(true);
+        }}
+      />
       <Input
         label="Email"
         type="email"
         value={email}
-        onChange={(e: any) => setEmail(e.target.value)}
+        onChange={(e: any) => {
+          setEmail(e.target.value);
+          setTouched(true);
+        }}
         hint={emailChanged ? "Mudar o email exige a tua password atual." : undefined}
       />
       {emailChanged && (
@@ -150,7 +196,14 @@ function ContaCard({ data }: { data?: GetUsersMe200 }) {
           onChange={(e: any) => setCurrentPassword(e.target.value)}
         />
       )}
-      <Input label="Telefone" value={phone} onChange={(e: any) => setPhone(e.target.value)} />
+      <Input
+        label="Telefone"
+        value={phone}
+        onChange={(e: any) => {
+          setPhone(e.target.value);
+          setTouched(true);
+        }}
+      />
       <div className="flex justify-end">
         <GuardButton onClick={onSave} disabled={!dirty} isLoading={updateMe.isPending}>
           Guardar

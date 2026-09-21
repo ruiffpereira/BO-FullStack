@@ -5,6 +5,15 @@ export const E2E_PASSWORD = "E2ePass123!";
 const API = process.env.VITE_API_BASE_URL ?? "http://localhost:3002/api";
 
 /**
+ * Utilizador por omissão dos specs que autenticam via `fixtures/auth.ts`
+ * (`.env.test` define `TEST_USER=admin@e2e`). Dono único deste valor — antes
+ * vivia duplicado (com um fallback ligeiramente diferente) em `auth.ts` e em
+ * `auth.setup.ts`; extraído aqui para os specs que precisam de reautenticar a
+ * meio de um teste (ver `fixtures/session.ts`) saberem por quem reautenticar.
+ */
+export const DEFAULT_TEST_USER = process.env.TEST_USER ?? "admin@e2e";
+
+/**
  * Cada login usa um IP fictício único no header `CF-Connecting-IP` (que a API lê
  * como IP do cliente para o rate limit). No CI, todos os testes correm do MESMO IP
  * real → os muitos logins da suite colidiam no rate limit por IP do login (429).

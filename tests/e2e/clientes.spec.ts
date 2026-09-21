@@ -1,44 +1,85 @@
 import { test, expect } from "./fixtures/auth";
+import { DEFAULT_TEST_USER } from "./fixtures/login";
+import { withSessionRetry } from "./fixtures/session";
 import { ClientesPage } from "./pages/ClientesPage";
 
+// `p.goto()` + a asserção que se segue vão sempre a par via `withSessionRetry`
+// (ver fixtures/session.ts): é o momento em que o AuthContext remonta e pode
+// cair no ecrã de Login sob carga (doRefresh, 3 chamadas em série). Uma vez
+// confirmado o conteúdo autenticado, o resto do teste (cliques, navegação
+// dentro da SPA) já não remonta o AuthContext — não precisa do mesmo helper.
+
 test.describe("Clientes — Navegação (submenu + deep-links legacy, T2.2)", () => {
-  test("a página carrega com o submenu da sidebar (Lista/Leads)", async ({ page }) => {
+  test("a página carrega com o submenu da sidebar (Lista/Leads)", async ({ page, context }) => {
     const p = new ClientesPage(page);
-    await p.goto();
-    await expect(p.header()).toBeVisible();
-    for (const label of ["Lista", "Leads"]) {
-      await expect(p.tab(label)).toBeVisible();
-    }
+    await withSessionRetry(
+      page,
+      context,
+      DEFAULT_TEST_USER,
+      () => p.goto(),
+      async () => {
+        await expect(p.header()).toBeVisible();
+        for (const label of ["Lista", "Leads"]) {
+          await expect(p.tab(label)).toBeVisible();
+        }
+      },
+    );
   });
 
-  test("alternar para Leads muda a URL para /clientes/leads e mostra o separador Leads", async ({ page }) => {
+  test("alternar para Leads muda a URL para /clientes/leads e mostra o separador Leads", async ({ page, context }) => {
     const p = new ClientesPage(page);
-    await p.goto();
+    await withSessionRetry(
+      page,
+      context,
+      DEFAULT_TEST_USER,
+      () => p.goto(),
+      () => expect(p.header()).toBeVisible(),
+    );
     await p.goToTab("Leads");
     await expect(page).toHaveURL(/\/clientes\/leads/);
     await expect(page.getByRole("tab", { name: /Novos|Todos/ }).first()).toBeVisible({ timeout: 8_000 });
   });
 
-  test("deep-link antigo /clientes?tab=leads&lead=<id> redireciona para /clientes/leads?lead=<id>", async ({ page }) => {
-    await page.goto("/clientes?tab=leads&lead=algum-id-inexistente");
-    // Regex (não glob): o glob `**/clientes/leads` exige correspondência exata
-    // até ao fim da URL e falha com o `?lead=` a seguir — a regex faz substring.
-    await page.waitForURL(/\/clientes\/leads\?lead=algum-id-inexistente/, { timeout: 15_000 });
-    await expect(page).toHaveURL(/\/clientes\/leads\?lead=algum-id-inexistente/);
+  test("deep-link antigo /clientes?tab=leads&lead=<id> redireciona para /clientes/leads?lead=<id>", async ({ page, context }) => {
+    await withSessionRetry(
+      page,
+      context,
+      DEFAULT_TEST_USER,
+      () => page.goto("/clientes?tab=leads&lead=algum-id-inexistente"),
+      async () => {
+        // Regex (não glob): o glob `**/clientes/leads` exige correspondência exata
+        // até ao fim da URL e falha com o `?lead=` a seguir — a regex faz substring.
+        await page.waitForURL(/\/clientes\/leads\?lead=algum-id-inexistente/, { timeout: 15_000 });
+        await expect(page).toHaveURL(/\/clientes\/leads\?lead=algum-id-inexistente/);
+      },
+    );
   });
 });
 
 test.describe("Clientes — Lista & pesquisa", () => {
-  test("a página carrega com o cabeçalho e a pesquisa", async ({ page }) => {
+  test("a página carrega com o cabeçalho e a pesquisa", async ({ page, context }) => {
     const p = new ClientesPage(page);
-    await p.goto();
-    await expect(p.header()).toBeVisible();
-    await expect(p.searchInput()).toBeVisible();
+    await withSessionRetry(
+      page,
+      context,
+      DEFAULT_TEST_USER,
+      () => p.goto(),
+      async () => {
+        await expect(p.header()).toBeVisible();
+        await expect(p.searchInput()).toBeVisible();
+      },
+    );
   });
 
-  test("pesquisa sem correspondência mostra estado vazio", async ({ page }) => {
+  test("pesquisa sem correspondência mostra estado vazio", async ({ page, context }) => {
     const p = new ClientesPage(page);
-    await p.goto();
+    await withSessionRetry(
+      page,
+      context,
+      DEFAULT_TEST_USER,
+      () => p.goto(),
+      () => expect(p.header()).toBeVisible(),
+    );
     await p.searchInput().fill(`zzz-sem-resultados-${Date.now()}`);
     await page.waitForTimeout(600);
     await expect(page.getByText(/sem clientes/i)).toBeVisible({ timeout: 5_000 });
@@ -46,18 +87,30 @@ test.describe("Clientes — Lista & pesquisa", () => {
 });
 
 test.describe("Clientes — CRUD", () => {
-  test("criar cliente → aparece na lista", async ({ page }) => {
+  test("criar cliente → aparece na lista", async ({ page, context }) => {
     const p = new ClientesPage(page);
-    await p.goto();
+    await withSessionRetry(
+      page,
+      context,
+      DEFAULT_TEST_USER,
+      () => p.goto(),
+      () => expect(p.header()).toBeVisible(),
+    );
 
     const name = `Cliente E2E ${Date.now()}`;
     await p.createClient(name);
     await p.expectClientVisible(name);
   });
 
-  test("submeter sem nome → modal continua aberto", async ({ page }) => {
+  test("submeter sem nome → modal continua aberto", async ({ page, context }) => {
     const p = new ClientesPage(page);
-    await p.goto();
+    await withSessionRetry(
+      page,
+      context,
+      DEFAULT_TEST_USER,
+      () => p.goto(),
+      () => expect(p.header()).toBeVisible(),
+    );
     await p.openNewModal();
     await page.locator('[role="dialog"] button[type="submit"]').first().click();
     await expect(page.locator('[role="dialog"]')).toBeVisible({ timeout: 3_000 });
@@ -65,9 +118,15 @@ test.describe("Clientes — CRUD", () => {
 });
 
 test.describe("Clientes — contribuinte na fatura (wantsInvoice)", () => {
-  test("criar com toggle ligado + NIF → persiste (ficha mostra NIF; editar mostra toggle ligado)", async ({ page }) => {
+  test("criar com toggle ligado + NIF → persiste (ficha mostra NIF; editar mostra toggle ligado)", async ({ page, context }) => {
     const p = new ClientesPage(page);
-    await p.goto();
+    await withSessionRetry(
+      page,
+      context,
+      DEFAULT_TEST_USER,
+      () => p.goto(),
+      () => expect(p.header()).toBeVisible(),
+    );
 
     const name = `Cliente Fatura ${Date.now()}`;
     const nif = "501234567";

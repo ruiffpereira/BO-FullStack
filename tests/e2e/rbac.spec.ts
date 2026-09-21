@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { loginAs } from "./fixtures/login";
+import { expectBlockedRedirect, withSessionRetry } from "./fixtures/session";
 
 // Cada teste autentica o seu próprio tenant — começa sem sessão.
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -18,33 +19,53 @@ test.describe("RBAC — matriz de permissões na UI", () => {
   for (const m of MATRIX) {
     test(`${m.user}: sidebar mostra ${m.modulo} + core, esconde ${m.esconde.join("/")}`, async ({ page, context }) => {
       await loginAs(context, m.user);
-      await page.goto(m.path);
-      // Vê o seu módulo + os core (Clientes, Financeiro, Conteúdos).
-      await expect(nav(page).getByRole("button", { name: m.modulo, exact: true })).toBeVisible({ timeout: 10_000 });
-      await expect(nav(page).getByRole("button", { name: "Clientes", exact: true })).toBeVisible();
-      // Não vê os módulos sem permissão.
-      for (const hidden of m.esconde) {
-        await expect(nav(page).getByRole("button", { name: hidden, exact: true })).toHaveCount(0);
-      }
+      await withSessionRetry(
+        page,
+        context,
+        m.user,
+        () => page.goto(m.path),
+        async () => {
+          // Vê o seu módulo + os core (Clientes, Financeiro, Conteúdos).
+          await expect(nav(page).getByRole("button", { name: m.modulo, exact: true })).toBeVisible({ timeout: 10_000 });
+          await expect(nav(page).getByRole("button", { name: "Clientes", exact: true })).toBeVisible();
+          // Não vê os módulos sem permissão.
+          for (const hidden of m.esconde) {
+            await expect(nav(page).getByRole("button", { name: hidden, exact: true })).toHaveCount(0);
+          }
+        },
+      );
     });
 
     test(`${m.user}: bloqueado em ${m.bloqueadas.join(", ")} (→ dashboard)`, async ({ page, context }) => {
       await loginAs(context, m.user);
       for (const route of m.bloqueadas) {
-        await page.goto(route);
-        await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
+        await expectBlockedRedirect(page, context, m.user, route);
       }
     });
   }
 
   test("admin vê todos os módulos e acede a /admin", async ({ page, context }) => {
     await loginAs(context, "admin@e2e");
-    await page.goto("/dashboard");
-    for (const name of ["Loja", "Agenda", "Ginásio", "Clientes", "Conteúdos", "Admin"]) {
-      await expect(nav(page).getByRole("button", { name, exact: true })).toBeVisible({ timeout: 10_000 });
-    }
-    await page.goto("/admin");
-    await expect(page).toHaveURL(/\/admin/);
-    await expect(page.locator("table tbody tr").first()).toBeVisible({ timeout: 10_000 });
+    await withSessionRetry(
+      page,
+      context,
+      "admin@e2e",
+      () => page.goto("/dashboard"),
+      async () => {
+        for (const name of ["Loja", "Agenda", "Ginásio", "Clientes", "Conteúdos", "Admin"]) {
+          await expect(nav(page).getByRole("button", { name, exact: true })).toBeVisible({ timeout: 10_000 });
+        }
+      },
+    );
+    await withSessionRetry(
+      page,
+      context,
+      "admin@e2e",
+      () => page.goto("/admin"),
+      async () => {
+        await expect(page).toHaveURL(/\/admin/);
+        await expect(page.locator("table tbody tr").first()).toBeVisible({ timeout: 10_000 });
+      },
+    );
   });
 });

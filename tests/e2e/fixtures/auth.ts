@@ -1,7 +1,7 @@
 import { test as base, expect } from "@playwright/test";
-import { nextClientIp } from "./login";
+import { DEFAULT_TEST_USER, nextClientIp } from "./login";
 
-const USER = process.env.TEST_USER ?? "admin";
+const USER = DEFAULT_TEST_USER;
 const PASS = process.env.TEST_PASSWORD ?? "";
 const API = process.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
 

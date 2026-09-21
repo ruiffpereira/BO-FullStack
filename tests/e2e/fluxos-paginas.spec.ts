@@ -1,6 +1,7 @@
 import { test, expect } from "./fixtures/auth";
 import { test as anon } from "@playwright/test";
-import { loginAs } from "./fixtures/login";
+import { DEFAULT_TEST_USER, loginAs } from "./fixtures/login";
+import { withSessionRetry } from "./fixtures/session";
 import { LojaPage } from "./pages/LojaPage";
 import { ClientesPage } from "./pages/ClientesPage";
 import { DespesasPage } from "./pages/DespesasPage";
@@ -16,14 +17,24 @@ import { GinasioPage } from "./pages/GinasioPage";
  * Os blocos que usam `test` (fixture auth) correm como admin@e2e (TEST_USER).
  * O bloco do Ginásio usa o tenantA (que tem grupo muscular semeado, necessário
  * para criar um exercício).
+ *
+ * Cada `goto()` + a 1.ª asserção de conteúdo autenticado que se segue passam
+ * por `withSessionRetry` (fixtures/session.ts): é o momento em que o
+ * AuthContext remonta e pode cair no ecrã de Login sob carga.
  */
 
 const uniq = () => Date.now().toString().slice(-7);
 
 test.describe("Loja — fluxo criar produto", () => {
-  test("criar produto → aparece na lista com nome e referência", async ({ page }) => {
+  test("criar produto → aparece na lista com nome e referência", async ({ page, context }) => {
     const p = new LojaPage(page);
-    await p.goto();
+    await withSessionRetry(
+      page,
+      context,
+      DEFAULT_TEST_USER,
+      () => p.goto(),
+      () => expect(p.header()).toBeVisible(),
+    );
 
     const name = `Produto E2E ${uniq()}`;
     const ref = `E2E-${uniq()}`;
@@ -36,9 +47,15 @@ test.describe("Loja — fluxo criar produto", () => {
 });
 
 test.describe("Clientes — bloquear/desbloquear + editar", () => {
-  test("bloquear cliente → badge 'Bloqueado' na lista; desbloquear → some", async ({ page }) => {
+  test("bloquear cliente → badge 'Bloqueado' na lista; desbloquear → some", async ({ page, context }) => {
     const p = new ClientesPage(page);
-    await p.goto();
+    await withSessionRetry(
+      page,
+      context,
+      DEFAULT_TEST_USER,
+      () => p.goto(),
+      () => expect(p.header()).toBeVisible(),
+    );
 
     const name = `Cliente Bloq ${uniq()}`;
     await p.createClient(name);
@@ -63,10 +80,16 @@ test.describe("Clientes — bloquear/desbloquear + editar", () => {
 });
 
 test.describe("Despesas — criar categoria + despesa ligada", () => {
-  test("criar categoria e despesa com essa categoria → despesa aparece", async ({ page }) => {
+  test("criar categoria e despesa com essa categoria → despesa aparece", async ({ page, context }) => {
     const p = new DespesasPage(page);
     const today = new Date().toISOString().slice(0, 10);
-    await p.goto();
+    await withSessionRetry(
+      page,
+      context,
+      DEFAULT_TEST_USER,
+      () => p.goto(),
+      () => expect(p.openCategoriesButton().first()).toBeVisible({ timeout: 10_000 }),
+    );
 
     const cat = `Cat Fluxo ${uniq()}`;
     await p.createCategory(cat);
@@ -93,8 +116,13 @@ anon.describe("Ginásio — fluxo criar exercício", () => {
   anon("criar exercício (nome + grupo Peito A + preset) → aparece na lista", async ({ page, context }) => {
     await loginAs(context, "tenantA@e2e");
     const g = new GinasioPage(page);
-    await g.goto();
-    await expect(g.header()).toBeVisible({ timeout: 12_000 });
+    await withSessionRetry(
+      page,
+      context,
+      "tenantA@e2e",
+      () => g.goto(),
+      () => expect(g.header()).toBeVisible({ timeout: 12_000 }),
+    );
 
     const name = `Exercício E2E ${uniq()}`;
     await g.createExercise({ name, group: "Peito A", preset: "Base" });

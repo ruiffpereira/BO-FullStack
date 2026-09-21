@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { loginAs } from "./fixtures/login";
+import { expectBlockedRedirect, withSessionRetry } from "./fixtures/session";
 
 /**
  * Matriz RBAC EXAUSTIVA na UI.
@@ -36,41 +37,27 @@ test.use({ storageState: { cookies: [], origins: [] } });
 const nav = (page: Page) => page.locator("nav").first();
 
 /**
- * Navega para uma rota bloqueada e confirma que o guard redireciona para
- * /dashboard. Se, por uma corrida de rotação de refresh token (documentada no
- * playwright.config.ts), a sessão cair (aparece o ecrã de login), re-autentica e
- * repete UMA vez — sem enfraquecer o assert (a rota bloqueada tem MESMO de acabar
- * em /dashboard com sessão válida).
+ * Locator de um item da sidebar por nome — tolerante ao badge de não-lidas de
+ * "Mensagens" (achado a 2026-09-21, ao validar o fix do B11: `chat.spec.ts`
+ * corre antes deste ficheiro e deixa `limited@e2e` com mensagens por ler; o
+ * `NavItem`, Shell.tsx, muda o `aria-label` para "Mensagens, N não lida(s)"
+ * quando `unread > 0` — o nome acessível deixa de ser exactamente "Mensagens").
+ * Nenhum outro item da sidebar recebe badge (`SidebarContent` só passa `badge`
+ * a `/mensagens`), por isso só este precisa do prefixo tolerante — os
+ * restantes continuam `exact: true`, sem perder precisão.
  */
-async function expectBlockedRedirect(
-  page: Page,
-  context: import("@playwright/test").BrowserContext,
-  user: string,
-  route: string,
-) {
-  const MAX = 4;
-  for (let attempt = 0; attempt < MAX; attempt++) {
-    await page.goto(route);
-    // Espera estabilizar: ou redirecionou (dashboard), ou ficou na rota, ou caiu
-    // a sessão (login). Damos tempo ao guard.
-    await page.waitForTimeout(1_500);
-    const loginVisible = await page
-      .getByRole("button", { name: "Entrar" })
-      .isVisible()
-      .catch(() => false);
-    if (loginVisible) {
-      // Sessão caiu por corrida de rotação de refresh token → re-autentica e repete.
-      await loginAs(context, user);
-      continue;
-    }
-    // Sessão viva: o guard TEM de nos ter tirado da rota bloqueada.
-    await expect(page, `${user} não devia poder ficar em ${route}`).toHaveURL(/\/dashboard/, {
-      timeout: 15_000,
-    });
-    return;
+function navItem(page: Page, name: string) {
+  if (name === "Mensagens") {
+    return nav(page).getByRole("button", { name: /^Mensagens(,.*)?$/ });
   }
-  throw new Error(`Sessão de ${user} caiu repetidamente ao verificar ${route} (rotação de token).`);
+  return nav(page).getByRole("button", { name, exact: true });
 }
+
+// `expectBlockedRedirect`/`withSessionRetry` (importados de `./fixtures/session`)
+// mitigam a corrida diagnosticada no `AuthContext.doRefresh` (três chamadas em
+// série, 5s de timeout cada — ver docs/ARMADILHAS.md → "Testes e2e"): sob
+// carga, a app pode cair no ecrã de Login em vez de mostrar a rota pedida.
+// Re-autentica e repete, sem nunca enfraquecer o assert em si.
 
 // Itens CORE que TODOS os tenants (mesmo sem módulos) devem ver na sidebar.
 // "Website" voltou a core a 2026-07-14 (T3.8, un-gate seletivo): a página é
@@ -116,43 +103,57 @@ test.describe("RBAC matriz — sidebar por permissão (core + módulo próprio)"
 
     test(`${m.user}: sidebar mostra core ${modulos}, esconde módulos alheios e Admin`, async ({ page, context }) => {
       await loginAs(context, m.user);
-      await page.goto("/dashboard");
-      await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
+      await withSessionRetry(
+        page,
+        context,
+        m.user,
+        () => page.goto("/dashboard"),
+        async () => {
+          await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
 
-      // (1) Vê todos os itens CORE.
-      for (const item of CORE_ITEMS) {
-        await expect(
-          nav(page).getByRole("button", { name: item, exact: true }),
-          `${m.user} devia ver o item core "${item}"`,
-        ).toBeVisible({ timeout: 10_000 });
-      }
+          // (1) Vê todos os itens CORE.
+          for (const item of CORE_ITEMS) {
+            await expect(
+              navItem(page, item),
+              `${m.user} devia ver o item core "${item}"`,
+            ).toBeVisible({ timeout: 10_000 });
+          }
 
-      // (2) Vê o seu módulo (se tiver um).
-      if (m.moduloItem) {
-        await expect(
-          nav(page).getByRole("button", { name: m.moduloItem, exact: true }),
-        ).toBeVisible();
-      }
+          // (2) Vê o seu módulo (se tiver um).
+          if (m.moduloItem) {
+            await expect(
+              nav(page).getByRole("button", { name: m.moduloItem, exact: true }),
+            ).toBeVisible();
+          }
 
-      // (3) NÃO vê os módulos que não são seus, nem o Admin, nem o item do
-      // gate temporário de VIEW_ADMIN (Estatísticas, 2026-07-08). "Website" é
-      // core desde T3.8 — já coberto por CORE_ITEMS acima, não entra aqui.
-      const escondidos = ALL_MODULE_ITEMS.filter((i) => i !== m.moduloItem);
-      for (const item of [...escondidos, "Admin", ...ADMIN_GATED_ITEMS]) {
-        await expect(
-          nav(page).getByRole("button", { name: item, exact: true }),
-          `${m.user} NÃO devia ver o item "${item}"`,
-        ).toHaveCount(0);
-      }
+          // (3) NÃO vê os módulos que não são seus, nem o Admin, nem o item do
+          // gate temporário de VIEW_ADMIN (Estatísticas, 2026-07-08). "Website" é
+          // core desde T3.8 — já coberto por CORE_ITEMS acima, não entra aqui.
+          const escondidos = ALL_MODULE_ITEMS.filter((i) => i !== m.moduloItem);
+          for (const item of [...escondidos, "Admin", ...ADMIN_GATED_ITEMS]) {
+            await expect(
+              nav(page).getByRole("button", { name: item, exact: true }),
+              `${m.user} NÃO devia ver o item "${item}"`,
+            ).toHaveCount(0);
+          }
+        },
+      );
     });
 
     if (m.moduloPath) {
       test(`${m.user}: acede à SUA página de módulo (${m.moduloPath})`, async ({ page, context }) => {
         await loginAs(context, m.user);
-        await page.goto(m.moduloPath!);
-        await expect(page).toHaveURL(new RegExp(m.moduloPath!.replace("/", "\\/")), { timeout: 15_000 });
-        // Confirma que a sidebar carregou (sessão + permissões ok) — não caiu no login.
-        await expect(nav(page).getByRole("button", { name: "Dashboard", exact: true })).toBeVisible({ timeout: 10_000 });
+        await withSessionRetry(
+          page,
+          context,
+          m.user,
+          () => page.goto(m.moduloPath!),
+          async () => {
+            await expect(page).toHaveURL(new RegExp(m.moduloPath!.replace("/", "\\/")), { timeout: 15_000 });
+            // Confirma que a sidebar carregou (sessão + permissões ok) — não caiu no login.
+            await expect(nav(page).getByRole("button", { name: "Dashboard", exact: true })).toBeVisible({ timeout: 10_000 });
+          },
+        );
       });
     }
 
@@ -176,10 +177,16 @@ test.describe("RBAC matriz — sidebar por permissão (core + módulo próprio)"
       // /estatisticas continua fora daqui — gate temporário VIEW_ADMIN, ver
       // ADMIN_GATED_ROUTES acima.)
       for (const route of ["/clientes", "/financeiro", "/conteudos", "/despesas", "/website"]) {
-        await page.goto(route);
-        await expect(page, `${m.user} devia poder ficar em ${route}`).toHaveURL(
-          new RegExp(route.replace("/", "\\/")),
-          { timeout: 15_000 },
+        await withSessionRetry(
+          page,
+          context,
+          m.user,
+          () => page.goto(route),
+          () =>
+            expect(page, `${m.user} devia poder ficar em ${route}`).toHaveURL(
+              new RegExp(route.replace("/", "\\/")),
+              { timeout: 15_000 },
+            ),
         );
       }
     });
@@ -189,21 +196,28 @@ test.describe("RBAC matriz — sidebar por permissão (core + módulo próprio)"
 test.describe("RBAC matriz — noaccess@e2e (sem componentes)", () => {
   test("sidebar: só vê core + Dashboard; sem módulos, sem Admin", async ({ page, context }) => {
     await loginAs(context, "noaccess@e2e");
-    await page.goto("/dashboard");
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
+    await withSessionRetry(
+      page,
+      context,
+      "noaccess@e2e",
+      () => page.goto("/dashboard"),
+      async () => {
+        await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
 
-    // Core visível.
-    for (const item of CORE_ITEMS) {
-      await expect(nav(page).getByRole("button", { name: item, exact: true })).toBeVisible({ timeout: 10_000 });
-    }
-    // Nenhum módulo, nenhum Admin, nem o item do gate temporário de VIEW_ADMIN
-    // (Estatísticas, 2026-07-08). "Website" NÃO entra aqui — é core desde T3.8.
-    for (const item of [...ALL_MODULE_ITEMS, "Admin", ...ADMIN_GATED_ITEMS]) {
-      await expect(
-        nav(page).getByRole("button", { name: item, exact: true }),
-        `noaccess NÃO devia ver "${item}"`,
-      ).toHaveCount(0);
-    }
+        // Core visível.
+        for (const item of CORE_ITEMS) {
+          await expect(navItem(page, item)).toBeVisible({ timeout: 10_000 });
+        }
+        // Nenhum módulo, nenhum Admin, nem o item do gate temporário de VIEW_ADMIN
+        // (Estatísticas, 2026-07-08). "Website" NÃO entra aqui — é core desde T3.8.
+        for (const item of [...ALL_MODULE_ITEMS, "Admin", ...ADMIN_GATED_ITEMS]) {
+          await expect(
+            nav(page).getByRole("button", { name: item, exact: true }),
+            `noaccess NÃO devia ver "${item}"`,
+          ).toHaveCount(0);
+        }
+      },
+    );
   });
 
   test("guard: /admin, /loja, /agenda, /ginasio → redirecionam para /dashboard", async ({ page, context }) => {
@@ -224,10 +238,17 @@ test.describe("RBAC matriz — noaccess@e2e (sem componentes)", () => {
 
   test("core permanece acessível (cai em rota mínima, não em erro)", async ({ page, context }) => {
     await loginAs(context, "noaccess@e2e");
-    await page.goto("/clientes");
-    await expect(page).toHaveURL(/\/clientes/, { timeout: 15_000 });
-    // Título só existe no topbar (h2, Shell.tsx) — a página já não tem h1 próprio.
-    await expect(page.getByRole("heading", { name: "Clientes", level: 2 })).toBeVisible({ timeout: 10_000 });
+    await withSessionRetry(
+      page,
+      context,
+      "noaccess@e2e",
+      () => page.goto("/clientes"),
+      async () => {
+        await expect(page).toHaveURL(/\/clientes/, { timeout: 15_000 });
+        // Título só existe no topbar (h2, Shell.tsx) — a página já não tem h1 próprio.
+        await expect(page.getByRole("heading", { name: "Clientes", level: 2 })).toBeVisible({ timeout: 10_000 });
+      },
+    );
   });
 
   // Gate temporário 2026-07-08 (ADMIN_GATED_PATHS no Shell.tsx): só
@@ -241,16 +262,38 @@ test.describe("RBAC matriz — noaccess@e2e (sem componentes)", () => {
     }
   });
 
-  // T3.8 (2026-07-14): /website voltou a core — /website e /website/paginas
-  // (mesmo o subpath, deep-link ao submenu) já NÃO redirecionam para
+  // T3.8 (2026-07-14): /website voltou a core — a raiz já NÃO redireciona para
   // /dashboard, ao contrário do gate temporário acima.
-  test("/website e /website/paginas são acessíveis mesmo sem VIEW_SITE_BUILDER/VIEW_ADMIN (core)", async ({ page, context }) => {
+  // NOTA (2026-09-21, ao aplicar o `withSessionRetry` do B11): este teste tinha
+  // "/website/paginas" na lista, e a asserção era **vazia**. `toHaveURL` faz
+  // polling e acertava logo no primeiro tick — na URL que o browser tem a
+  // seguir ao `goto`, ANTES de o guard de submenu do `Shell.tsx` correr. Passava
+  // sempre, com ou sem guard, e por isso não provava nada. O `withSessionRetry`
+  // espera que a sessão assente antes de asserir, e foi essa espera que
+  // destapou o buraco: com o redirect já feito, a asserção deixou de acertar.
+  //
+  // O comportamento REAL — sem `VIEW_ADMIN`, "/website/paginas" redireciona
+  // para "/website" — está correctamente coberto no describe "Website: Páginas
+  // + Marca escondidas dos clientes", mais abaixo, que espera pelo estado
+  // ASSENTE. A rota sai daqui por duplicar essa cobertura mal; não se perde
+  // nada.
+  //
+  // ⚠ A mesma armadilha vive em qualquer `goto(x)` + `toHaveURL(x)` deste
+  // ficheiro: afirmam que a navegação não foi bloqueada, mas medem antes de o
+  // guard poder bloquear. Só valem alguma coisa depois de a sessão assentar.
+  test("/website é acessível mesmo sem VIEW_SITE_BUILDER/VIEW_ADMIN (core)", async ({ page, context }) => {
     await loginAs(context, "noaccess@e2e");
-    for (const route of ["/website", "/website/paginas"]) {
-      await page.goto(route);
-      await expect(page, `noaccess devia poder ficar em ${route}`).toHaveURL(
-        new RegExp(route.replace("/", "\\/")),
-        { timeout: 15_000 },
+    for (const route of ["/website"]) {
+      await withSessionRetry(
+        page,
+        context,
+        "noaccess@e2e",
+        () => page.goto(route),
+        () =>
+          expect(page, `noaccess devia poder ficar em ${route}`).toHaveURL(
+            new RegExp(route.replace("/", "\\/")),
+            { timeout: 15_000 },
+          ),
       );
     }
   });
@@ -263,8 +306,14 @@ test.describe("RBAC matriz — Website: backward compatibility (paths antigos re
     await loginAs(context, "admin@e2e");
     const legacyRoutes = ["/website/template", "/website/rodape-nav", "/website/dominio", "/website/definicoes"];
     for (const route of legacyRoutes) {
-      await page.goto(route);
-      await expect(page, `${route} devia redirecionar para /website`).toHaveURL(/\/website$/, { timeout: 15_000 });
+      await withSessionRetry(
+        page,
+        context,
+        "admin@e2e",
+        () => page.goto(route),
+        () =>
+          expect(page, `${route} devia redirecionar para /website`).toHaveURL(/\/website$/, { timeout: 15_000 }),
+      );
     }
   });
 });
@@ -275,40 +324,74 @@ test.describe("RBAC matriz — Website: backward compatibility (paths antigos re
 test.describe("RBAC matriz — Website: Páginas + Marca escondidas dos clientes", () => {
   test("noaccess@e2e: sidebar do Website não mostra 'Páginas' nem 'Marca'", async ({ page, context }) => {
     await loginAs(context, "noaccess@e2e");
-    await page.goto("/website");
-    await expect(page).toHaveURL(/\/website$/, { timeout: 15_000 });
-    await expect(page.getByRole("button", { name: "Páginas", exact: true })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Marca", exact: true })).toHaveCount(0);
+    await withSessionRetry(
+      page,
+      context,
+      "noaccess@e2e",
+      () => page.goto("/website"),
+      async () => {
+        await expect(page).toHaveURL(/\/website$/, { timeout: 15_000 });
+        await expect(page.getByRole("button", { name: "Páginas", exact: true })).toHaveCount(0);
+        await expect(page.getByRole("button", { name: "Marca", exact: true })).toHaveCount(0);
+      },
+    );
   });
 
   for (const route of ["/website/paginas", "/website/marca"]) {
     test(`noaccess@e2e: ${route} está ESCONDIDA (redireciona para /website)`, async ({ page, context }) => {
       await loginAs(context, "noaccess@e2e");
-      await page.goto(route);
       // Sem VIEW_ADMIN o subitem não existe → o guard cai no 1.º permitido (/website).
-      await expect(page).toHaveURL(/\/website$/, { timeout: 15_000 });
+      await withSessionRetry(
+        page,
+        context,
+        "noaccess@e2e",
+        () => page.goto(route),
+        () => expect(page).toHaveURL(/\/website$/, { timeout: 15_000 }),
+      );
     });
   }
 
   test("noaccess@e2e: /website não mostra secção de Domínio (Subdomínio) sem VIEW_SITE_BUILDER", async ({ page, context }) => {
     await loginAs(context, "noaccess@e2e");
-    await page.goto("/website");
-    await expect(page).toHaveURL(/\/website$/, { timeout: 15_000 });
-    // A secção de Subdomínio/Domínio não deve aparecer sem VIEW_SITE_BUILDER
-    await expect(page.getByText(/Subdomínio/i)).toHaveCount(0);
+    await withSessionRetry(
+      page,
+      context,
+      "noaccess@e2e",
+      () => page.goto("/website"),
+      async () => {
+        await expect(page).toHaveURL(/\/website$/, { timeout: 15_000 });
+        // A secção de Subdomínio/Domínio (DomainSection, Website.tsx) não deve
+        // aparecer sem VIEW_SITE_BUILDER. Heading exacto (o <h2> do
+        // `<SectionTitle>Subdomínio</SectionTitle>` da secção gated) — NÃO
+        // `getByText(/Subdomínio/i)`: essa regex também casa com texto do
+        // checklist de publicação, sempre visível a todos ("Reclamar um
+        // subdomínio", "Reclama um subdomínio primeiro." — `setupSteps`/
+        // `publishReason` em Website.tsx), que é ungated de propósito e dava
+        // um falso positivo determinístico (achado a 2026-09-21, ao validar
+        // o fix do B11 — não é flakiness de sessão).
+        await expect(page.getByRole("heading", { name: "Subdomínio", exact: true })).toHaveCount(0);
+      },
+    );
   });
 });
 
 test.describe("RBAC matriz — admin@e2e (acesso total)", () => {
   test("sidebar mostra TODOS os módulos + Admin + core (Website incl.) + Estatísticas (gate VIEW_ADMIN)", async ({ page, context }) => {
     await loginAs(context, "admin@e2e");
-    await page.goto("/dashboard");
-    for (const name of [...CORE_ITEMS, ...ADMIN_GATED_ITEMS, ...ALL_MODULE_ITEMS, "Admin"]) {
-      await expect(
-        nav(page).getByRole("button", { name, exact: true }),
-        `admin devia ver "${name}"`,
-      ).toBeVisible({ timeout: 10_000 });
-    }
+    await withSessionRetry(
+      page,
+      context,
+      "admin@e2e",
+      () => page.goto("/dashboard"),
+      async () => {
+        for (const name of [...CORE_ITEMS, ...ADMIN_GATED_ITEMS, ...ALL_MODULE_ITEMS, "Admin"]) {
+          await expect(
+            navItem(page, name),
+            `admin devia ver "${name}"`,
+          ).toBeVisible({ timeout: 10_000 });
+        }
+      },
+    );
   });
 
   test("acede a todas as rotas de módulo + /admin + gate VIEW_ADMIN sem redirect", async ({ page, context }) => {
@@ -316,10 +399,16 @@ test.describe("RBAC matriz — admin@e2e (acesso total)", () => {
     // /website/paginas confirma que o guard de submenu continua a servir os
     // subpaths de /website a quem tem VIEW_ADMIN (deep-link não expulsa).
     for (const route of ["/loja", "/agenda", "/ginasio", "/admin", "/estatisticas", "/website", "/website/paginas"]) {
-      await page.goto(route);
-      await expect(page, `admin devia aceder a ${route}`).toHaveURL(
-        new RegExp(route.replace("/", "\\/")),
-        { timeout: 15_000 },
+      await withSessionRetry(
+        page,
+        context,
+        "admin@e2e",
+        () => page.goto(route),
+        () =>
+          expect(page, `admin devia aceder a ${route}`).toHaveURL(
+            new RegExp(route.replace("/", "\\/")),
+            { timeout: 15_000 },
+          ),
       );
     }
   });
@@ -328,8 +417,15 @@ test.describe("RBAC matriz — admin@e2e (acesso total)", () => {
     // Login fresco + navegação directa (evita a rotação de refresh token de várias
     // navegações seguidas — ver comentário no playwright.config.ts).
     await loginAs(context, "admin@e2e");
-    await page.goto("/admin");
-    await expect(page).toHaveURL(/\/admin/, { timeout: 15_000 });
-    await expect(page.locator("table tbody tr").first()).toBeVisible({ timeout: 10_000 });
+    await withSessionRetry(
+      page,
+      context,
+      "admin@e2e",
+      () => page.goto("/admin"),
+      async () => {
+        await expect(page).toHaveURL(/\/admin/, { timeout: 15_000 });
+        await expect(page.locator("table tbody tr").first()).toBeVisible({ timeout: 10_000 });
+      },
+    );
   });
 });

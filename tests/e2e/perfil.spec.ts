@@ -1,4 +1,6 @@
 import { test, expect } from "./fixtures/auth";
+import { DEFAULT_TEST_USER } from "./fixtures/login";
+import { withSessionRetry } from "./fixtures/session";
 
 /**
  * /perfil (T3.3, `.design/shell-nav-perfil/`) + menu do avatar no topbar.
@@ -12,13 +14,25 @@ import { test, expect } from "./fixtures/auth";
  * (ex.: timeout do toast), a sessão de "admin@e2e" nunca fica envenenada para
  * os specs seguintes (rbac, isolamento, etc. — correm em serial, um nome
  * alterado aqui deixava-os todos a levar 401).
+ *
+ * Cada navegação completa (`goto`/`reload`) passa por `withSessionRetry`
+ * (fixtures/session.ts): é aí que o AuthContext remonta e pode cair no ecrã
+ * de Login sob carga (doRefresh, 3 chamadas em série — ver ARMADILHAS).
  */
 test.describe("Perfil — menu do avatar", () => {
-  test("abrir o menu do avatar navega para /perfil", async ({ page }) => {
-    await page.goto("/dashboard");
-    await page
-      .waitForSelector(".animate-spin", { state: "detached", timeout: 10_000 })
-      .catch(() => {});
+  test("abrir o menu do avatar navega para /perfil", async ({ page, context }) => {
+    await withSessionRetry(
+      page,
+      context,
+      DEFAULT_TEST_USER,
+      () => page.goto("/dashboard"),
+      async () => {
+        await page
+          .waitForSelector(".animate-spin", { state: "detached", timeout: 10_000 })
+          .catch(() => {});
+        await expect(page.getByRole("button", { name: "Menu da conta" })).toBeVisible({ timeout: 10_000 });
+      },
+    );
 
     await page.getByRole("button", { name: "Menu da conta" }).click();
     await expect(page.getByRole("menu", { name: "Conta" })).toBeVisible({ timeout: 5_000 });
@@ -31,11 +45,19 @@ test.describe("Perfil — menu do avatar", () => {
     });
   });
 
-  test("Esc fecha o menu do avatar", async ({ page }) => {
-    await page.goto("/dashboard");
-    await page
-      .waitForSelector(".animate-spin", { state: "detached", timeout: 10_000 })
-      .catch(() => {});
+  test("Esc fecha o menu do avatar", async ({ page, context }) => {
+    await withSessionRetry(
+      page,
+      context,
+      DEFAULT_TEST_USER,
+      () => page.goto("/dashboard"),
+      async () => {
+        await page
+          .waitForSelector(".animate-spin", { state: "detached", timeout: 10_000 })
+          .catch(() => {});
+        await expect(page.getByRole("button", { name: "Menu da conta" })).toBeVisible({ timeout: 10_000 });
+      },
+    );
 
     await page.getByRole("button", { name: "Menu da conta" }).click();
     await expect(page.getByRole("menu", { name: "Conta" })).toBeVisible({ timeout: 5_000 });
@@ -46,27 +68,33 @@ test.describe("Perfil — menu do avatar", () => {
 });
 
 test.describe("Perfil — Conta", () => {
-  test("editar o telefone e guardar persiste (reload mantém o valor novo)", async ({ page }) => {
-    await page.goto("/perfil");
-
+  test("editar o telefone e guardar persiste (reload mantém o valor novo)", async ({ page, context }) => {
     const phoneInput = page.getByLabel("Telefone");
-    await expect(phoneInput).toBeVisible({ timeout: 10_000 });
+    await withSessionRetry(
+      page,
+      context,
+      DEFAULT_TEST_USER,
+      () => page.goto("/perfil"),
+      async () => {
+        await expect(phoneInput).toBeVisible({ timeout: 10_000 });
 
-    // Esperar que o formulário esteja SEMEADO pelo `GET /users/me` antes de
-    // escrever. Sem isto o teste era intermitente no CI (falhou em commits que
-    // só mexiam em documentação, o que denunciou a corrida): preenchia-se o
-    // telefone, a resposta chegava depois e re-semeava o estado do formulário,
-    // o `dirty` voltava a falso e o `Guardar` — que é `disabled={!dirty}` —
-    // ficava desactivado para sempre. O sintoma era "14 × locator resolved to
-    // <button disabled>". Isto está agora corrigido em `ContaCard`
-    // (`src/pages/Perfil.tsx`, flag `touched`) — ver
-    // "uma edição de telefone em curso sobrevive..." abaixo, que prova a
-    // regressão directamente. Mantemos aqui a espera pelo sentinela de email
-    // na mesma: é barata e documenta a precondição que o teste assume.
-    //
-    // O email serve de sentinela porque um tenant tem sempre email; o telefone
-    // pode legitimamente vir vazio, por isso não dá para esperar por ele.
-    await expect(page.getByLabel("Email")).not.toHaveValue("", { timeout: 10_000 });
+        // Esperar que o formulário esteja SEMEADO pelo `GET /users/me` antes de
+        // escrever. Sem isto o teste era intermitente no CI (falhou em commits que
+        // só mexiam em documentação, o que denunciou a corrida): preenchia-se o
+        // telefone, a resposta chegava depois e re-semeava o estado do formulário,
+        // o `dirty` voltava a falso e o `Guardar` — que é `disabled={!dirty}` —
+        // ficava desactivado para sempre. O sintoma era "14 × locator resolved to
+        // <button disabled>". Isto está agora corrigido em `ContaCard`
+        // (`src/pages/Perfil.tsx`, flag `touched`) — ver
+        // "uma edição de telefone em curso sobrevive..." abaixo, que prova a
+        // regressão directamente. Mantemos aqui a espera pelo sentinela de email
+        // na mesma: é barata e documenta a precondição que o teste assume.
+        //
+        // O email serve de sentinela porque um tenant tem sempre email; o telefone
+        // pode legitimamente vir vazio, por isso não dá para esperar por ele.
+        await expect(page.getByLabel("Email")).not.toHaveValue("", { timeout: 10_000 });
+      },
+    );
 
     const original = await phoneInput.inputValue();
     const novoTelefone = "+351 912 345 678";
@@ -91,10 +119,17 @@ test.describe("Perfil — Conta", () => {
 
       // Persistência real: recarrega a página (novo GET /users/me) e confirma
       // que o telefone novo veio da API, não só do estado local do formulário.
-      await page.reload();
-      await expect(page.getByLabel("Telefone")).toHaveValue(novoTelefone, {
-        timeout: 10_000,
-      });
+      // O reload é outro ponto onde o AuthContext remonta — mesmo helper.
+      await withSessionRetry(
+        page,
+        context,
+        DEFAULT_TEST_USER,
+        () => page.reload(),
+        () =>
+          expect(page.getByLabel("Telefone")).toHaveValue(novoTelefone, {
+            timeout: 10_000,
+          }),
+      );
     } catch (err) {
       tryError = err;
     }
@@ -116,6 +151,7 @@ test.describe("Perfil — Conta", () => {
 
   test("uma edição de telefone em curso sobrevive a uma resposta tardia de GET /users/me", async ({
     page,
+    context,
   }) => {
     // Regressão do bug apanhado por `perfil-*chromium-retry1/test-failed-1.png`
     // no CI: `ContaCard` (src/pages/Perfil.tsx) re-semeava name/email/phone
@@ -136,11 +172,17 @@ test.describe("Perfil — Conta", () => {
     // original E do que está a ser escrito — só assim há mesmo uma mudança de
     // valor a testar o guard (uma resposta IDÊNTICA à já cacheada nunca
     // dispara o efeito de sincronização, com ou sem o bug).
-    await page.goto("/perfil");
-
     const phoneInput = page.getByLabel("Telefone");
-    await expect(phoneInput).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByLabel("Email")).not.toHaveValue("", { timeout: 10_000 });
+    await withSessionRetry(
+      page,
+      context,
+      DEFAULT_TEST_USER,
+      () => page.goto("/perfil"),
+      async () => {
+        await expect(phoneInput).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByLabel("Email")).not.toHaveValue("", { timeout: 10_000 });
+      },
+    );
 
     const novoTelefone = "+351 917 000 111";
     const telefoneDeOutraSessao = "+351 900 111 222";

@@ -36,7 +36,7 @@ export const FONT_STACK: Record<ThemeFont, string> = {
   modern: '"Inter", system-ui, -apple-system, sans-serif',
   warm: '"Nunito", "Segoe UI", system-ui, sans-serif',
   serifbody: '"Source Serif 4", Georgia, serif',
-  // Fonte do template barber/tifas (T1 do port — carregada pelo renderer via next/font)
+  // Fonte do template agenda/tifas (T1 do port — carregada pelo renderer via next/font)
   plusjakarta: '"Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif',
   // Fonte do template stand (Schibsted + Hanken)
   standpair: '"Schibsted Grotesk", "Hanken Grotesk", "Segoe UI", system-ui, sans-serif',

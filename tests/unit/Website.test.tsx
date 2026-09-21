@@ -181,7 +181,7 @@ describe("Website", () => {
     useSiteMock.mockReturnValue({
       data: makeSite({
         siteId: "s1",
-        template: "barber",
+        template: "agenda",
         subdomain: "acme",
         theme: { accent: "amber" },
         // A home (slug vazio) precisa de ≥1 bloco para o gate de publicação
@@ -204,7 +204,7 @@ describe("Website", () => {
 describe("Website — Publicar bloqueado sem conteúdo na página inicial", () => {
   const baseSite = {
     siteId: "s1",
-    template: "barber" as const,
+    template: "agenda" as const,
     subdomain: "acme",
     theme: { accent: "amber" },
   };
@@ -298,10 +298,10 @@ describe("Website — Publicar: gym salta blocos/páginas/marca (B9.5)", () => {
     expect(screen.getByText(/Reclama um subdomínio primeiro/i)).toBeInTheDocument();
   });
 
-  it("regressão: barber sem blocos continua bloqueado — a exceção é só do gym", () => {
+  it("regressão: agenda sem blocos continua bloqueado — a exceção é só do gym", () => {
     useSiteMock.mockReturnValue({
       data: makeSite({
-        template: "barber",
+        template: "agenda",
         subdomain: "acme",
         theme: { accent: "amber" },
         pages: [{ id: "home", slug: "", blocks: [] }],
@@ -1116,7 +1116,7 @@ describe("Website — gate seletivo (T3.8: sem VIEW_SITE_BUILDER/VIEW_ADMIN)", (
     useSiteMock.mockReturnValue({
       data: makeSite({
         siteId: "s1",
-        template: "barber",
+        template: "agenda",
         subdomain: "acme",
         theme: { accent: "amber" },
         pages: [{ id: "home", slug: "", blocks: [{ id: "b1", type: "hero" }] }],

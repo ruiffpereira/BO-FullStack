@@ -240,7 +240,7 @@ describe("siteCms helpers", () => {
     });
 
     it("REGRESSÃO: chave que é prefixo de outra não rebenta (contacto.telefone + .href)", () => {
-      // Forma real do template barber. Aninhar rebentava (escrita numa string, strict mode).
+      // Forma real do template agenda. Aninhar rebentava (escrita numa string, strict mode).
       const flatMap = {
         "contacto.telefone": "+351 123 456 789",
         "contacto.telefone.href": "+351123456789",

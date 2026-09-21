@@ -2373,7 +2373,7 @@
           "id": {
             "type": "string",
             "description": "Chave estável (= Site.template)",
-            "example": "barber"
+            "example": "agenda"
           },
           "label": {
             "type": "string",
@@ -4059,9 +4059,9 @@
                   "vertical": {
                     "type": "string",
                     "enum": [
-                      "barber",
+                      "agenda",
                       "gym",
-                      "shop"
+                      "loja"
                     ]
                   },
                   "modules": {
@@ -12263,7 +12263,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Lista dos templates disponíveis (barber/gym/loja/generic)",
+            "description": "Lista dos templates disponíveis (agenda/gym/loja)",
             "content": {
               "application/json": {
                 "schema": {

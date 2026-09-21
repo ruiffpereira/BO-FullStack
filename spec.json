@@ -4725,6 +4725,7 @@
       },
       "put": {
         "summary": "Definir o domínio do site do tenant",
+        "description": "Grava `User.websiteDomain` (normalizado — sem protocolo/`www.`/path/espaços, minúsculas) para o tenant autenticado. Recusa com **409** se o domínio, já normalizado e comparado de forma case-insensitive, já pertencer a OUTRO tenant — via `User.websiteDomain`, `Site.customDomain`, ou (quando o valor tem a forma `<slug>.<PLATFORM_ROOT_DOMAIN>`) `Site.subdomain`. É a MESMA verificação de `GET /website/subdomain/check` / `PUT /website/subdomain` (`hostTakenByOtherTenant`, partilhada em `src/utils/siteDomainOwnership.ts`) — os dois endpoints nunca discordam sobre o que está \"livre\". A resposta 409 não identifica nem confirma a existência do outro tenant. Nunca bloqueia o dono contra o SEU PRÓPRIO domínio actual, nem contra limpar (`domain: \"\"` → `websiteDomain: null`).\n",
         "tags": [
           "Analytics"
         ],
@@ -4752,6 +4753,15 @@
         "responses": {
           "200": {
             "description": "Domínio guardado (normalizado)"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          },
+          "409": {
+            "description": "Domínio já usado por outro tenant (não identifica de quem é)"
           }
         }
       }
@@ -12019,7 +12029,7 @@
     "/website/custom-domain": {
       "put": {
         "summary": "Define ou limpa o domínio próprio do tenant (Site.customDomain)",
-        "description": "`value: null` limpa o domínio. Um hostname válido é normalizado (minúsculas, sem esquema/porta/path) e não pode ser o domínio raiz da plataforma nem um subdomínio dele (esse espaço público é `PUT /website/subdomain`). Ao definir com sucesso, sincroniza o domínio das Estatísticas (`User.websiteDomain`, provisiona o site de estatísticas) e revalida o cache ISR do renderer (se o site já estiver publicado).\n",
+        "description": "`value: null` limpa o domínio. Um hostname válido é normalizado (minúsculas, sem esquema/porta/path) e não pode ser o domínio raiz da plataforma nem um subdomínio dele (esse espaço público é `PUT /website/subdomain`). Ao definir com sucesso, sincroniza o domínio das Estatísticas (`User.websiteDomain`, provisiona o site de estatísticas) e revalida o cache ISR do renderer (se o site já estiver publicado). **409 alargado (2026-09-21):** \"já usado por outro tenant\" cobre agora não só `Site.customDomain`, mas também `User.websiteDomain` de outro tenant — a mesma verificação de `GET /website/subdomain/check` / `PUT /website/subdomain` e de `PUT /analytics/site/domain` (`hostTakenByOtherTenant`, partilhada), para os três endpoints nunca discordarem sobre o que está \"livre\".\n",
         "tags": [
           "Website"
         ],
@@ -12059,7 +12069,7 @@
             "description": "Não autenticado"
           },
           "409": {
-            "description": "Domínio já usado por outro tenant"
+            "description": "Domínio já usado por outro tenant — via `Site.customDomain` OU `User.websiteDomain` (alargado 2026-09-21; não identifica de quem é)\n"
           }
         }
       }

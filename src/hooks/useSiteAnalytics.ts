@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { axiosInstance } from "@kubb/plugin-client/clients/axios";
+import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 
 /**
@@ -115,6 +116,22 @@ export function useSetSiteDomain() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: DOMAIN_KEY });
       qc.invalidateQueries({ queryKey: ["site-analytics"] });
+    },
+    // Sem isto a mutação falhava em SILÊNCIO: o formulário não tem `onError`,
+    // e o utilizador via apenas o botão parar de girar sem nada acontecer.
+    // Passou a importar a 2026-09-21, quando a API ganhou o 409 `domain_taken`
+    // (um domínio já reclamado por outro tenant) e esta página deixou de ser
+    // só do dono — `/estatisticas` passou a `CORE_PATHS` em `Shell.tsx`.
+    onError: (err: unknown) => {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      const code = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      if (status === 409 || code === "domain_taken") {
+        // Não se diz de QUEM é — a API também não o revela, de propósito:
+        // confirmar o dono seria dizer a um tenant que outro existe.
+        toast.error("Esse domínio já está a ser usado. Confirma se está bem escrito.");
+        return;
+      }
+      toast.error("Não foi possível guardar o domínio.");
     },
   });
 }

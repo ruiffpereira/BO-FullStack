@@ -16,12 +16,20 @@ import { useChatUnread } from '../hooks/useChat'
 import { SUBMENU, allowedSubitems, findRoot, type SubmenuItem } from '../lib/navigation'
 
 // Core: todos os tenants têm (sem permissão). Módulos: por permissão.
-const CORE_PATHS = ['/clientes', '/mensagens', '/financeiro', '/conteudos', '/website', '/faturacao']
-// GATE TEMPORÁRIO (decisão de produto, 2026-07-08): /estatisticas só para
-// VIEW_ADMIN — o Umami ainda não está provisionado para todos os tenants
-// (2026-07-14: dono trata do container a seguir). Gate SÓ de UI (a API
-// continua tenant-open, já auditada). Reverter = mover para CORE_PATHS e
-// apagar esta constante.
+const CORE_PATHS = ['/clientes', '/mensagens', '/financeiro', '/conteudos', '/website', '/faturacao', '/estatisticas']
+// `/estatisticas` entrou em CORE_PATHS a 2026-09-21, fechando o gate TEMPORÁRIO
+// de 2026-07-08 (`ADMIN_GATED_PATHS`, agora apagado). Esse gate existia por uma
+// razão concreta — "o Umami ainda não está provisionado para todos os tenants" —
+// e essa razão deixou de existir: o container subiu a 2026-09-20, e o
+// provisionamento é automático nos dois caminhos (ao reclamar o subdomínio, ou
+// ao definir o domínio no formulário desta página).
+//
+// A API sempre foi "core" (sem permissão, scoped por `userId`) — o gate era só
+// de UI. Abri-lo não deu acesso a nada de novo do lado do servidor; o que mudou
+// foi pôr o formulário de domínio à frente de todos os tenants, e por isso o
+// `PUT /analytics/site/domain` teve de ganhar antes um 409 contra reclamar o
+// domínio de outro (API `7e4111d`, deployado ANTES desta mudança — a ordem
+// importa: ao contrário, expunha-se o formulário sem a protecção).
 //
 // /website voltou a CORE_PATHS a 2026-07-14 (T3.8, `.design/site-tenant-light/
 // DESIGN_BRIEF.md` secção 3.8) — deixou de ser temporário: é o un-gate
@@ -31,7 +39,6 @@ const CORE_PATHS = ['/clientes', '/mensagens', '/financeiro', '/conteudos', '/we
 // submenu (`SUBMENU['/website']`, `navigation.ts`) + botão Publicar/edição
 // estrutural de páginas escondidos dentro da página (`canEditStructure`,
 // `Website.tsx`).
-const ADMIN_GATED_PATHS = ['/estatisticas']
 const MODULE_PERM_TO_PATH: Record<string, string> = {
   VIEW_SCHEDULE:  '/agenda',
   VIEW_PRODUCTS:  '/loja',
@@ -672,15 +679,15 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   }
 
   const isAdmin = permissions.some((p) => p.name === 'VIEW_ADMIN')
-  // Conjunto de rotas acessíveis (dashboard + módulos por permissão + core + admin
-  // + gate temporário: /estatisticas só com VIEW_ADMIN, ver ADMIN_GATED_PATHS —
-  // /website é core desde T3.8, o gating por permissão fica dentro da própria
-  // página/submenu, não aqui)…
+  // Conjunto de rotas acessíveis (dashboard + módulos por permissão + core + admin).
+  // `/website` é core desde T3.8 e `/estatisticas` desde 2026-09-21 — nos dois, o
+  // gating por permissão que ainda exista fica DENTRO da própria página/submenu,
+  // não aqui…
   const accessible = new Set<string>([
     '/dashboard',
     ...permissions.map((p) => MODULE_PERM_TO_PATH[p.name ?? '']).filter(Boolean),
     ...CORE_PATHS,
-    ...(isAdmin ? ['/admin', ...ADMIN_GATED_PATHS] : []),
+    ...(isAdmin ? ['/admin'] : []),
   ])
   // …apresentadas pela ordem fixa de MENU_ORDER (extras desconhecidos vão para o fim).
   const accessiblePaths = [

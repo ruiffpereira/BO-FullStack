@@ -82,18 +82,36 @@ function CatalogRow({ row }: { row: BillingCatalogModule }) {
   const qc = useQueryClient()
   const [priceStr, setPriceStr] = useState(() => centsToEurInput(row.monthlyAmountCents))
   const [active, setActive] = useState(row.active)
+  // Verdadeiro assim que o dono mexe no preço/toggle desta linha; volta a
+  // falso só no `onSuccess` do guardar, depois de a resposta confirmada do
+  // PUT já estar escrita na cache — mesmo padrão do `touched` do `ContaCard`
+  // (`Perfil.tsx`, commit `d1d1b11`). Sem isto, um refetch em fundo do
+  // catálogo (`staleTime: 0`; outra linha a gravar, ou o `ExtendTrialModal`
+  // abaixo, que invalida este MESMO query key ao estender um trial) apanhado
+  // a meio de uma edição de preço apaga o que foi escrito — e como o `dirty`
+  // compara com `row`, volta a falso e o "Guardar" (`disabled={!dirty}`) fica
+  // morto. Num ecrã de preços isto é dinheiro editado e perdido sem aviso.
+  const [touched, setTouched] = useState(false)
 
-  // Re-sincroniza os campos quando os dados do servidor mudam (ex.: após guardar
-  // e invalidar a query) — o input segue o valor autoritativo da API.
+  // Re-sincroniza os campos com o servidor só enquanto a linha está PRISTINE.
   useEffect(() => {
+    if (touched) return
     setPriceStr(centsToEurInput(row.monthlyAmountCents))
     setActive(row.active)
-  }, [row.monthlyAmountCents, row.active])
+  }, [row.monthlyAmountCents, row.active, touched])
 
   const putM = usePutAdminBillingCatalogModule({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (res) => {
         toast.success(`${row.label}: preço atualizado.`)
+        // Escreve já a linha confirmada na cache — antes de sair de `touched`
+        // — pela mesma razão do `ContaCard`: o `invalidateQueries` abaixo é
+        // assíncrono, e sair de `touched` antes disto deixava o efeito de
+        // sincronização correr com a lista ainda desatualizada.
+        qc.setQueryData<BillingCatalogModule[]>(getAdminBillingCatalogQueryKey(), (old) =>
+          old ? old.map((m) => (m.module === res.module ? { ...m, ...res } : m)) : old,
+        )
+        setTouched(false)
         qc.invalidateQueries({ queryKey: getAdminBillingCatalogQueryKey() })
         qc.invalidateQueries({ queryKey: getAdminBillingSubscriptionsQueryKey() })
       },
@@ -126,7 +144,10 @@ function CatalogRow({ row }: { row: BillingCatalogModule }) {
           icon="euro"
           inputMode="decimal"
           value={priceStr}
-          onChange={(e) => setPriceStr(e.target.value)}
+          onChange={(e) => {
+            setPriceStr(e.target.value)
+            setTouched(true)
+          }}
           aria-label={`Preço de ${row.label}`}
           className="tabular-nums"
         />
@@ -134,7 +155,13 @@ function CatalogRow({ row }: { row: BillingCatalogModule }) {
       </div>
 
       <label className="flex items-center gap-2 sm:pb-2">
-        <Toggle checked={active} onChange={setActive} />
+        <Toggle
+          checked={active}
+          onChange={(v: boolean) => {
+            setActive(v)
+            setTouched(true)
+          }}
+        />
         <span className="text-sm text-zinc-600 dark:text-zinc-300">{active ? 'Ativo' : 'Inativo'}</span>
       </label>
 
@@ -194,16 +221,25 @@ function TrialSettingsEditor() {
   const qc = useQueryClient()
   const { data, isLoading } = useGetAdminBillingSettings()
   const [daysStr, setDaysStr] = useState('14')
+  // Mesmo padrão do `touched` do `CatalogRow` acima / `ContaCard`
+  // (`Perfil.tsx`, commit `d1d1b11`): protege uma edição por guardar de um
+  // refetch em fundo (`staleTime: 0`) — sem isto o `dirty` abaixo (que
+  // compara com `data`) voltava a falso e o "Guardar" ficava morto.
+  const [touched, setTouched] = useState(false)
 
-  // Re-sincroniza o input quando os dados do servidor mudam (mesmo padrão do CatalogRow).
+  // Re-sincroniza o input com o servidor só enquanto está PRISTINE (mesmo padrão do CatalogRow).
   useEffect(() => {
-    if (data) setDaysStr(String(data.trialDays))
-  }, [data?.trialDays])
+    if (data && !touched) setDaysStr(String(data.trialDays))
+  }, [data?.trialDays, touched])
 
   const putM = usePutAdminBillingSettings({
     mutation: {
       onSuccess: (res) => {
         toast.success(`Período experimental atualizado — ${res?.trialDays} dias.`)
+        // Escreve já a resposta confirmada na cache — antes de sair de
+        // `touched` — pela mesma razão do `ContaCard`.
+        qc.setQueryData(getAdminBillingSettingsQueryKey(), (old: typeof data) => ({ ...old, ...res }))
+        setTouched(false)
         qc.invalidateQueries({ queryKey: getAdminBillingSettingsQueryKey() })
       },
       onError: (error) => toast.error(getApiError(error, 'Não foi possível guardar o período experimental.')),
@@ -239,7 +275,10 @@ function TrialSettingsEditor() {
               min={0}
               max={90}
               value={daysStr}
-              onChange={(e) => setDaysStr(e.target.value)}
+              onChange={(e) => {
+                setDaysStr(e.target.value)
+                setTouched(true)
+              }}
               className="tabular-nums"
             />
             {!valid && <span className="block text-xs text-red-500 mt-1">Introduz um número entre 0 e 90.</span>}

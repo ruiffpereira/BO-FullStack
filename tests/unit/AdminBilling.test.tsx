@@ -190,6 +190,35 @@ describe("AdminBillingTab — catálogo de preços", () => {
     fireEvent.click(screen.getByRole("button", { name: "Guardar Agenda" }));
     expect(putMutateMock).not.toHaveBeenCalled();
   });
+
+  // B10: mesmo bug do `ContaCard` (Perfil.tsx, commit d1d1b11) — um refetch em
+  // fundo do catálogo (staleTime:0; outra linha a gravar, ou o
+  // ExtendTrialModal, que invalida o MESMO query key ao estender um trial)
+  // apanhado a meio de uma edição de preço não pode apagar o que foi
+  // escrito nem matar o "Guardar" (disabled={!dirty}), porque isto é dinheiro.
+  it("um refetch em fundo a meio da edição não apaga o preço escrito nem desativa o Guardar", () => {
+    mockList(TENANTS);
+    mockCatalog(CATALOG);
+    const { rerender } = renderTab();
+
+    fireEvent.change(screen.getByLabelText("Preço de Agenda"), { target: { value: "20,00" } });
+    expect(screen.getByLabelText("Preço de Agenda")).toHaveValue("20,00");
+    expect(screen.getByRole("button", { name: "Guardar Agenda" })).toBeEnabled();
+
+    // Refetch em fundo do catálogo (ex.: outra linha gravou entretanto, ou o
+    // ExtendTrialModal invalidou a mesma query) — chega com um preço da
+    // Agenda diferente do que está no ecrã (mudança real do lado do
+    // servidor, não relacionada com a edição em curso).
+    mockCatalog(CATALOG.map((m) => (m.module === "agenda" ? { ...m, monthlyAmountCents: 1600 } : m)));
+    rerender(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <AdminBillingTab />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByLabelText("Preço de Agenda")).toHaveValue("20,00");
+    expect(screen.getByRole("button", { name: "Guardar Agenda" })).toBeEnabled();
+  });
 });
 
 describe("AdminBillingTab — período experimental (trialDays)", () => {
@@ -242,6 +271,31 @@ describe("AdminBillingTab — período experimental (trialDays)", () => {
 
     const btn = screen.getByRole("button", { name: /guardar período experimental/i });
     expect(btn).toBeDisabled();
+  });
+
+  // B10: mesmo bug do `ContaCard` (Perfil.tsx, commit d1d1b11) — um refetch em
+  // fundo desta query (staleTime:0) apanhado a meio da edição não pode apagar
+  // o valor escrito nem matar o "Guardar" (disabled={!dirty}).
+  it("um refetch em fundo a meio da edição não apaga o valor escrito nem desativa o Guardar", () => {
+    mockList(TENANTS);
+    mockSettings({ trialDays: 14 });
+    const { rerender } = renderTab();
+
+    fireEvent.change(screen.getByLabelText("Período experimental (dias)"), { target: { value: "30" } });
+    const btn = screen.getByRole("button", { name: /guardar período experimental/i });
+    expect(btn).toBeEnabled();
+
+    // Refetch em fundo (ex.: outro cartão a invalidar) — o servidor mudou
+    // entretanto para um valor diferente do que estava no ecrã antes da edição.
+    mockSettings({ trialDays: 21 });
+    rerender(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <AdminBillingTab />
+      </QueryClientProvider>,
+    );
+
+    expect((screen.getByLabelText("Período experimental (dias)") as HTMLInputElement).value).toBe("30");
+    expect(screen.getByRole("button", { name: /guardar período experimental/i })).toBeEnabled();
   });
 });
 

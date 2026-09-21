@@ -402,10 +402,22 @@ function LogoCard({ data }: { data?: GetUsersMe200 }) {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPasteMode, setLogoPasteMode] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Mesmo padrão do `touched` do `ContaCard` acima (commit `d1d1b11`):
+  // verdadeiro assim que o utilizador mexe no logótipo (cola um URL, escolhe
+  // um ficheiro novo ou remove o atual); só volta a falso depois do PUT
+  // confirmar, com a resposta já escrita na cache. Este cartão não tem
+  // `disabled={!dirty}` no botão — por isso o sintoma de um refetch em fundo
+  // (`staleTime: 0`; outro cartão desta página a gravar, ou uma resposta
+  // lenta de um "Guardar logótipo" anterior ainda a caminho) não é um botão
+  // morto, mas pior: repõe o logótipo antigo em silêncio, e "Guardar
+  // logótipo" fica sempre clicável para o voltar a persistir por cima da
+  // edição perdida.
+  const [touched, setTouched] = useState(false);
 
   useEffect(() => {
+    if (touched) return;
     setLogo(data?.logoUrl ?? "");
-  }, [data?.logoUrl]);
+  }, [data?.logoUrl, touched]);
 
   // Upload diferido (mesmo padrão do logótipo da Marca em `Website.tsx`): o
   // ficheiro escolhido só é enviado ao clicar "Guardar logótipo".
@@ -426,8 +438,17 @@ function LogoCard({ data }: { data?: GetUsersMe200 }) {
     updateMe.mutate(
       { data: { logoUrl } },
       {
-        onSuccess: () => {
+        onSuccess: (res) => {
           setLogoFile(null);
+          // Escreve já a resposta confirmada na cache — antes de sair de
+          // `touched` — pela mesma razão do `ContaCard`: o `invalidateQueries`
+          // abaixo é assíncrono, e sair de `touched` antes disto deixava o
+          // efeito de sincronização correr com o `data` ainda antigo.
+          qc.setQueryData(getUsersMeQueryKey(), (old?: GetUsersMe200) => ({
+            ...old,
+            ...res,
+          }));
+          setTouched(false);
           qc.invalidateQueries({ queryKey: getUsersMeQueryKey() });
           toast.success("Logótipo guardado.");
         },
@@ -444,10 +465,14 @@ function LogoCard({ data }: { data?: GetUsersMe200 }) {
         currentUrl={logo.trim() || null}
         deferred
         disabled={uploading || updateMe.isPending}
-        onFileSelected={(file) => setLogoFile(file)}
+        onFileSelected={(file) => {
+          setLogoFile(file);
+          setTouched(true);
+        }}
         onDeleted={() => {
           setLogo("");
           setLogoFile(null);
+          setTouched(true);
         }}
         label="Carregar logótipo"
       />
@@ -459,6 +484,7 @@ function LogoCard({ data }: { data?: GetUsersMe200 }) {
           onChange={(e: any) => {
             setLogo(e.target.value);
             setLogoFile(null);
+            setTouched(true);
           }}
         />
       ) : (

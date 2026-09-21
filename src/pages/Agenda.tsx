@@ -2269,14 +2269,27 @@ function ServicosPanel() {
   const defaultLang = langData?.default ?? "pt";
   const [localOrder, setLocalOrder] = useState<string[]>([]);
   const dragIndexRef = useRef<number | null>(null);
+  // Distingue "o arrasto acabou com drop" de "o arrasto foi cancelado" — o
+  // `handleDragEnd` dispara nos dois casos. Ver o comentário lá em baixo.
+  const droppedRef = useRef(false);
+  // Verdadeiro desde que um arrasto começa até o PATCH de reordenação
+  // confirmar (ou falhar) — mesmo padrão do `touched` do `ContaCard`
+  // (`Perfil.tsx`, commit `d1d1b11`). Sem isto, um refetch em fundo dos
+  // serviços (`staleTime: 0`; o toggle activo/inactivo de outro serviço
+  // desta MESMA lista, ou uma resposta lenta do PATCH anterior ainda a
+  // caminho) apanhado a meio de um arrasto — ou entre o "largar" e a
+  // confirmação — repunha a ordem do servidor por cima e "puxava o tapete"
+  // ao arrasto em curso, ou ao próximo arrasto iniciado antes do primeiro
+  // confirmar.
+  const [touched, setTouched] = useState(false);
 
   const { data: services = [], isLoading } = useGetScheduleServices();
   const invalidate = () =>
     qc.invalidateQueries({ queryKey: getScheduleServicesQueryKey() });
 
   useEffect(() => {
-    if (services.length) setLocalOrder(services.map((s) => s.serviceId));
-  }, [services]);
+    if (services.length && !touched) setLocalOrder(services.map((s) => s.serviceId));
+  }, [services, touched]);
 
   const orderedServices = localOrder
     .map((id) => services.find((s) => s.serviceId === id))
@@ -2285,9 +2298,13 @@ function ServicosPanel() {
   const reorder = useMutation({
     mutationFn: (order: string[]) =>
       patchScheduleServicesReorder({ order } as any),
-    onSuccess: () => invalidate(),
+    onSuccess: () => {
+      setTouched(false);
+      invalidate();
+    },
     onError: () => {
       toast.error("Erro ao reordenar");
+      setTouched(false);
       setLocalOrder(services.map((s) => s.serviceId));
     },
   });
@@ -2373,6 +2390,7 @@ function ServicosPanel() {
 
   const handleDragStart = (index: number) => {
     dragIndexRef.current = index;
+    setTouched(true);
   };
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
@@ -2385,11 +2403,26 @@ function ServicosPanel() {
     dragIndexRef.current = index;
   };
   const handleDrop = () => {
+    droppedRef.current = true;
     reorder.mutate(localOrder);
     dragIndexRef.current = null;
   };
+  // Dispara SEMPRE no fim de um arrasto, incluindo quando não houve drop
+  // válido (largado fora de um alvo, ou ESC) — e, no caso de ter havido drop,
+  // dispara DEPOIS do `handleDrop`. Sem distinguir os dois casos, um arrasto
+  // cancelado deixava o `touched` preso a `true` para o resto da sessão (a
+  // lista nunca mais sincronizava com o servidor, porque só o `onSuccess`/
+  // `onError` do PATCH o desliga, e nesse caminho não há PATCH nenhum) — e
+  // deixava por reverter a ordem que o `handleDragOver` já tinha mexido.
   const handleDragEnd = () => {
     dragIndexRef.current = null;
+    if (droppedRef.current) {
+      // Houve drop: o PATCH está a caminho e é ele que desliga o `touched`.
+      droppedRef.current = false;
+      return;
+    }
+    setLocalOrder(services.map((s) => s.serviceId));
+    setTouched(false);
   };
 
   return (

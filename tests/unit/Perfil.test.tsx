@@ -334,4 +334,31 @@ describe("Perfil — Logótipo", () => {
       expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
     );
   });
+
+  // B10: mesmo bug do `ContaCard` acima (commit d1d1b11) — um refetch em
+  // fundo de GET /users/me (staleTime:0; outro cartão desta página a
+  // gravar) apanhado a meio de uma edição de URL não pode repor o logótipo
+  // antigo. Este cartão nem tem `disabled={!dirty}` — sem o fix, o "Guardar
+  // logótipo" ficaria sempre pronto a persistir a reposição silenciosa por
+  // cima do que o utilizador escreveu.
+  it("um refetch em fundo a meio da escrita não apaga o URL do logótipo", () => {
+    const { rerender } = renderPerfil();
+    fireEvent.click(screen.getByText("ou cola um URL"));
+    fireEvent.change(screen.getByPlaceholderText("https://…/logo.png"), {
+      target: { value: "https://exemplo.pt/novo-logo.png" },
+    });
+
+    // Refetch em fundo — o servidor devolve um logoUrl diferente do que
+    // estava no ecrã antes desta edição (mudança real, não relacionada).
+    mockUserMe({ ...USER_ME_FIXTURE, logoUrl: "https://exemplo.pt/antigo-logo.png" });
+    rerender(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <Perfil />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByPlaceholderText("https://…/logo.png")).toHaveValue(
+      "https://exemplo.pt/novo-logo.png",
+    );
+  });
 });

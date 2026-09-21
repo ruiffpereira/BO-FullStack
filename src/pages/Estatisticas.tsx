@@ -8,14 +8,17 @@ import {
   useSiteAnalytics,
   useSetSiteDomain,
   type AnalyticsPeriod,
-  type PlausibleBreakdownRow,
+  type AnalyticsBreakdownRow,
+  type AnalyticsTrackingSnippet,
 } from '../hooks/useSiteAnalytics'
 
 /**
  * Página "Estatísticas do site" (core, todos os tenants). Lê o tráfego do site
- * público do tenant via a nossa API (Plausible auto-hospedado, server-side).
- * Estados: Plausible não configurado (admin) · sem domínio (pede domínio) ·
- * dashboard (KPIs + série de visitantes + páginas + origens).
+ * público do tenant via a nossa API (Umami auto-hospedado, server-side — o
+ * Plausible saiu do projeto em 2026-09-21).
+ * Estados: sem domínio (pede domínio) · com domínio mas sem site Umami ainda
+ * (reason "no-analytics-site") · dashboard (KPIs + série de visitantes +
+ * páginas + origens, com snippet copiável quando o tenant tem site externo).
  */
 
 const PRESETS: { key: AnalyticsPeriod; label: string }[] = [
@@ -52,7 +55,7 @@ function BreakdownList({
   labelKey,
   emptyLabel,
 }: {
-  rows: PlausibleBreakdownRow[]
+  rows: AnalyticsBreakdownRow[]
   labelKey: 'page' | 'source'
   emptyLabel: string
 }) {
@@ -112,10 +115,69 @@ function DomainForm({ initial = '' }: { initial?: string }) {
   )
 }
 
+/**
+ * Snippet copiável do script de tracking — para sites EXTERNOS (fora do
+ * site-engine, montados pelo dono: `tifas`, `gymnoprado`, `winterplateau`,
+ * `completepecasjr`). Um site do engine recebe o script automaticamente
+ * (injetado pelo renderer); um externo tem de o colar à mão no próprio HTML.
+ * Só aparece quando a API devolve `tracking` (i.e., o tenant tem
+ * `analyticsSiteId` provisionado E o Umami está configurado no servidor) —
+ * mostra-se sempre nesse caso, mesmo para um tenant do engine (inofensivo:
+ * `websiteId`/`src` já são públicos, vão no HTML de qualquer site do engine).
+ */
+function TrackingSnippetCard({ tracking }: { tracking: AnalyticsTrackingSnippet }) {
+  const [copied, setCopied] = useState(false)
+  const snippet = `<script defer src="${tracking.src}" data-website-id="${tracking.websiteId}"></script>`
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(snippet)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    } catch {
+      /* clipboard indisponível — ignora */
+    }
+  }
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-start gap-2">
+        <Icon name="link" className="w-4 h-4 text-accent mt-0.5 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">
+            Site fora da plataforma?
+          </h2>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
+            Se este site não é gerido por nós, cola este script no HTML do teu site para começares a receber estatísticas. Um site nosso já o tem automaticamente.
+          </p>
+          <div className="mt-3 flex items-end gap-2">
+            <Input
+              readOnly
+              value={snippet}
+              onFocus={(e: React.FocusEvent<HTMLInputElement>) => e.target.select()}
+              className="font-mono text-xs truncate cursor-text flex-1"
+            />
+            <Button
+              type="button"
+              variant={copied ? 'secondary' : 'primary'}
+              onClick={copy}
+              aria-label="Copiar script de estatísticas"
+              icon={copied ? 'check' : 'copy'}
+              className="shrink-0"
+            >
+              {copied ? 'Copiado' : 'Copiar'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
 export function Estatisticas() {
   const [period, setPeriod] = useState<AnalyticsPeriod>('month')
   const { data, isLoading } = useSiteAnalytics(period)
-  // Mesmo texto nos 3 estados (configurado/no-domain/no-plausible) exceto
+  // Mesmo texto nos 3 estados (configurado/no-domain/no-analytics-site) exceto
   // quando já há domínio guardado — chamado uma única vez, antes de qualquer
   // "return" condicional (regra dos hooks).
   usePageSubtitle(data?.domain ? `Tráfego de ${data.domain}.` : 'Tráfego do teu site público.')
@@ -138,14 +200,15 @@ export function Estatisticas() {
         </div>
       )
     }
-    // no-plausible (ou outro): a plataforma ainda não ligou o Plausible.
+    // no-analytics-site (ou outro): já há domínio, mas ainda não há um site
+    // de estatísticas provisionado para ele.
     return (
       <div className="space-y-4">
         <Card className="p-2">
           <EmptyState
             icon="trend"
-            title="Estatísticas ainda não configuradas"
-            desc="O administrador da plataforma precisa de ligar o serviço de estatísticas antes de esta página mostrar dados. Fala com o suporte."
+            title="Estatísticas ainda não disponíveis"
+            desc="Ainda não há um site de estatísticas para este domínio. Se acabaste de o definir, tenta recarregar dentro de alguns minutos; se o problema persistir, fala com o suporte."
           />
         </Card>
       </div>
@@ -180,6 +243,8 @@ export function Estatisticas() {
           </div>
         </Card>
       )}
+
+      {data?.tracking && <TrackingSnippetCard tracking={data.tracking} />}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

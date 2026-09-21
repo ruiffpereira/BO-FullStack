@@ -5,9 +5,9 @@ import type { SiteAnalyticsResponse } from "../../src/hooks/useSiteAnalytics";
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 //
 // A página Estatísticas tem 3 estados conduzidos por useSiteAnalytics:
-//  1) configured:false reason:"no-plausible" → empty state "ainda não configuradas"
-//  2) configured:false reason:"no-domain"    → formulário de domínio
-//  3) configured:true                         → KPIs + gráficos
+//  1) configured:false reason:"no-analytics-site" → empty state "ainda não disponíveis"
+//  2) configured:false reason:"no-domain"          → formulário de domínio
+//  3) configured:true                               → KPIs + gráficos (+ snippet se `tracking`)
 // Mockamos o módulo de hooks para controlar cada estado de forma isolada.
 
 const useSiteAnalyticsMock = vi.fn();
@@ -44,13 +44,13 @@ beforeEach(() => {
   useSetSiteDomainMock.mockReturnValue({ mutate: vi.fn(), isPending: false });
 });
 
-describe("Estatisticas — estado não configurado (no-plausible)", () => {
-  it("mostra o empty state 'ainda não configuradas' e não o formulário de domínio", () => {
-    mockAnalytics({ configured: false, reason: "no-plausible" });
+describe("Estatisticas — estado não configurado (no-analytics-site)", () => {
+  it("mostra o empty state 'ainda não disponíveis' e não o formulário de domínio", () => {
+    mockAnalytics({ configured: false, reason: "no-analytics-site" });
     render(<Estatisticas />);
 
     expect(
-      screen.getByText("Estatísticas ainda não configuradas"),
+      screen.getByText("Estatísticas ainda não disponíveis"),
     ).toBeInTheDocument();
     // Não pede o domínio neste estado
     expect(
@@ -71,7 +71,7 @@ describe("Estatisticas — estado sem domínio (no-domain)", () => {
     expect(screen.getByPlaceholderText("exemplo.pt")).toBeInTheDocument();
     // Não mostra o empty state de "não configuradas"
     expect(
-      screen.queryByText("Estatísticas ainda não configuradas"),
+      screen.queryByText("Estatísticas ainda não disponíveis"),
     ).not.toBeInTheDocument();
   });
 });
@@ -116,10 +116,48 @@ describe("Estatisticas — estado configurado (KPIs)", () => {
 
     // Não mostra nenhum dos estados de não-configuração
     expect(
-      screen.queryByText("Estatísticas ainda não configuradas"),
+      screen.queryByText("Estatísticas ainda não disponíveis"),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByText("Define o domínio do teu site"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("Estatisticas — snippet de tracking (sites fora da plataforma)", () => {
+  it("mostra o snippet copiável quando a API devolve `tracking`", () => {
+    mockAnalytics({
+      configured: true,
+      domain: "tifas.pt",
+      period: "30d",
+      aggregate: {},
+      timeseries: [],
+      topPages: [],
+      sources: [],
+      tracking: { websiteId: "abc-123", src: "https://umami.rufvision.com/script.js" },
+    });
+    render(<Estatisticas />);
+
+    expect(screen.getByText("Site fora da plataforma?")).toBeInTheDocument();
+    expect(
+      screen.getByDisplayValue(
+        '<script defer src="https://umami.rufvision.com/script.js" data-website-id="abc-123"></script>',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("NÃO mostra o snippet quando a API não devolve `tracking`", () => {
+    mockAnalytics({
+      configured: true,
+      domain: "exemplo.pt",
+      period: "30d",
+      aggregate: {},
+      timeseries: [],
+      topPages: [],
+      sources: [],
+    });
+    render(<Estatisticas />);
+
+    expect(screen.queryByText("Site fora da plataforma?")).not.toBeInTheDocument();
   });
 });

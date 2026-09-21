@@ -3,45 +3,60 @@ import { axiosInstance } from "@kubb/plugin-client/clients/axios";
 import { useAuth } from "../context/AuthContext";
 
 /**
- * Estatísticas do site público do tenant (Plausible auto-hospedado).
- * Bearer auto-injetado via authHeader(); tudo env-gated no servidor — a API key
- * do Plausible nunca chega ao browser. A API limita a query ao domínio do
- * próprio tenant (isolamento multi-tenant).
+ * Estatísticas do site público do tenant (Umami auto-hospedado — o Plausible
+ * saiu do projeto em 2026-09-21, sem caminho legado).
+ * Bearer auto-injetado via authHeader(); tudo env-gated no servidor — as
+ * credenciais do Umami nunca chegam ao browser. A API limita a leitura ao
+ * site do próprio tenant (`User.analyticsSiteId`), isolamento multi-tenant.
  */
 
-// Períodos suportados (alinhados com a Stats API do Plausible).
-// Nota: no Plausible, "7d"/"30d" vão até ONTEM (não incluem hoje); "day" (Hoje)
-// e "month" (Este mês) incluem o dia corrente — daí o default ser "month".
+// Períodos suportados (herdados da sintaxe da Stats API do Plausible — mantidos
+// por serem os que esta página já usa; a API traduz para o que o Umami espera).
+// Nota: "7d"/"30d" vão até ONTEM (não incluem hoje); "day" (Hoje) e "month"
+// (Este mês) incluem o dia corrente — daí o default ser "month".
 export type AnalyticsPeriod = "day" | "7d" | "30d" | "month" | "6mo";
 
-export interface PlausibleAggregate {
+export interface AnalyticsAggregate {
   visitors?: { value: number };
   pageviews?: { value: number };
   bounce_rate?: { value: number };
   visit_duration?: { value: number };
 }
 
-export interface PlausibleTimeseriesPoint {
+export interface AnalyticsTimeseriesPoint {
   date: string;
   visitors: number;
 }
 
-export interface PlausibleBreakdownRow {
-  // event:page → "page"; visit:source → "source"
+export interface AnalyticsBreakdownRow {
+  // page → "página"; source → "origem"
   page?: string;
   source?: string;
   visitors: number;
 }
 
+/** Par de tracking público de um website Umami — o snippet que um site
+ *  EXTERNO (fora do site-engine) cola no próprio HTML. Só presente quando o
+ *  tenant tem `analyticsSiteId` provisionado E o Umami está configurado no
+ *  servidor (nunca um segredo — ver `src/utils/umami.ts` na API). */
+export interface AnalyticsTrackingSnippet {
+  websiteId: string;
+  src: string;
+}
+
 export interface SiteAnalyticsResponse {
   configured: boolean;
-  reason?: "no-plausible" | "no-domain";
+  /** `no-domain`: tenant ainda não definiu domínio. `no-analytics-site`:
+   *  já tem domínio, mas ainda não há site Umami provisionado (sucede o
+   *  extinto `no-plausible`). */
+  reason?: "no-analytics-site" | "no-domain";
   domain?: string;
   period?: string;
-  aggregate?: PlausibleAggregate;
-  timeseries?: PlausibleTimeseriesPoint[];
-  topPages?: PlausibleBreakdownRow[];
-  sources?: PlausibleBreakdownRow[];
+  aggregate?: AnalyticsAggregate;
+  timeseries?: AnalyticsTimeseriesPoint[];
+  topPages?: AnalyticsBreakdownRow[];
+  sources?: AnalyticsBreakdownRow[];
+  tracking?: AnalyticsTrackingSnippet;
   error?: string;
 }
 

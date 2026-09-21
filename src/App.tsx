@@ -83,7 +83,7 @@ function App() {
   // (localStorage > sistema > dark) até autenticar, servidor > localStorage >
   // sistema depois de GET /users/me resolver — ver docstring do hook.
   const { theme, toggleTheme } = useThemeSync();
-  const { isAuthenticated, initializing } = useAuth();
+  const { isAuthenticated, initializing, reconnecting } = useAuth();
   const location = useLocation();
 
   useEffect(() => {
@@ -122,6 +122,28 @@ function App() {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
         <div className="h-8 w-8 rounded-full border-2 border-zinc-300 border-t-accent animate-spin dark:border-zinc-700 dark:border-t-accent" />
+      </div>
+    );
+  }
+
+  // B12 — o primeiro doRefresh já resolveu, mas sem veredito definitivo: uma
+  // falha transitória (timeout, rede, 5xx, 429) agendou um retry em vez de
+  // matar a sessão. Mostrar <Login/> aqui seria exactamente o bug do B12 — um
+  // utilizador com sessão válida a ser desautenticado por um soluço de rede.
+  // `reconnecting` cai sozinho para `false` (ver AuthContext) assim que
+  // houver veredito: autenticado, 401 duro, ou o orçamento de tentativas
+  // esgotar-se. `!isAuthenticated` é redundante com essa invariante (o
+  // AuthContext nunca deixa `reconnecting` verdadeiro depois de autenticar) —
+  // mas explícito aqui de propósito: uma sessão JÁ autenticada nunca deve
+  // ficar escondida atrás do ecrã de reconexão, aconteça o que acontecer.
+  if (reconnecting && !isAuthenticated) {
+    return (
+      <div
+        data-testid="reconnecting-screen"
+        className="min-h-[100dvh] flex flex-col items-center justify-center gap-3 bg-zinc-50 dark:bg-zinc-950"
+      >
+        <div className="h-8 w-8 rounded-full border-2 border-zinc-300 border-t-accent animate-spin dark:border-zinc-700 dark:border-t-accent" />
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">A restabelecer a ligação…</p>
       </div>
     );
   }

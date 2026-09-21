@@ -45,8 +45,8 @@ vi.mock("../../src/pages/Signup", () => ({
 
 import App from "../../src/App";
 
-function mockAuth(opts: { isAuthenticated: boolean; initializing: boolean }) {
-  authMock.mockReturnValue(opts);
+function mockAuth(opts: { isAuthenticated: boolean; initializing: boolean; reconnecting?: boolean }) {
+  authMock.mockReturnValue({ reconnecting: false, ...opts });
 }
 
 function renderApp(path: string) {
@@ -96,5 +96,50 @@ describe("App — /signup com sessão autenticada (FIX 6)", () => {
     renderApp("/setup-password");
 
     expect(screen.getByTestId("setup-password")).toBeInTheDocument();
+  });
+});
+
+// B12 — o AuthContext expõe um 3º estado (`reconnecting`) para o "ainda sem
+// veredito" (erro transitório no arranque): distinto de `initializing`
+// (nunca houve resposta nenhuma) e de "resolvido, sem sessão" (mostra
+// <Login/>). Ver src/context/AuthContext.tsx e tests/unit/AuthContext.test.tsx
+// (que exercitam o AuthContext a sério — aqui só se confirma o que o App.tsx
+// FAZ com o estado, com o AuthContext mockado, como o resto do ficheiro).
+describe("App — B12: o 3º estado 'reconnecting' nunca mostra <Login/>", () => {
+  it("initializing=false, reconnecting=true, isAuthenticated=false → ecrã de reconexão, NUNCA <Login/>", () => {
+    mockAuth({ isAuthenticated: false, initializing: false, reconnecting: true });
+    renderApp("/dashboard");
+
+    expect(screen.getByTestId("reconnecting-screen")).toBeInTheDocument();
+    expect(screen.queryByTestId("login")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("shell")).not.toBeInTheDocument();
+  });
+
+  it("reconnecting=false, isAuthenticated=false → volta ao <Login/> normal (veredito: sem sessão)", () => {
+    mockAuth({ isAuthenticated: false, initializing: false, reconnecting: false });
+    renderApp("/dashboard");
+
+    expect(screen.getByTestId("login")).toBeInTheDocument();
+    expect(screen.queryByTestId("reconnecting-screen")).not.toBeInTheDocument();
+  });
+
+  it("initializing=true tem sempre prioridade sobre reconnecting (spinner de arranque, não o ecrã de reconexão)", () => {
+    mockAuth({ isAuthenticated: false, initializing: true, reconnecting: true });
+    renderApp("/dashboard");
+
+    expect(screen.queryByTestId("reconnecting-screen")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("login")).not.toBeInTheDocument();
+  });
+
+  it("isAuthenticated=true ganha ao reconnecting (nunca esconde a Shell de uma sessão já autenticada)", () => {
+    // Invariante do AuthContext: reconnecting só é true enquanto isAuthenticated
+    // ainda é false. Mesmo assim, o App.tsx confirma os dois — se algum dia essa
+    // invariante partir, a app tem de continuar a mostrar a Shell, não o ecrã de
+    // reconexão, por cima de uma sessão que JÁ está autenticada.
+    mockAuth({ isAuthenticated: true, initializing: false, reconnecting: true });
+    renderApp("/dashboard");
+
+    expect(screen.getByTestId("shell")).toBeInTheDocument();
+    expect(screen.queryByTestId("reconnecting-screen")).not.toBeInTheDocument();
   });
 });

@@ -18,6 +18,24 @@ import type { GetUserpermissions200 } from "../gen/backoffice/types/GetUserpermi
 
 type Permission = GetUserpermissions200[number];
 
+/**
+ * B12 — resultado de `doRefresh`, explícito sobre QUAL ramo ocorreu (antes
+ * disto, `string | null` confundia "401 duro" com "soluço transitório": os
+ * dois casos de falha eram indistinguíveis para quem chamava).
+ * - `authenticated`: sessão confirmada, token novo pronto a usar.
+ * - `unauthenticated`: 401 duro — refresh token morto, sessão terminada
+ *   (`clearSession()` já correu). Veredito definitivo.
+ * - `transient`: erro de rede/servidor (timeout, 5xx, 429…) — a sessão em
+ *   memória não foi tocada; um retry já está agendado. NÃO é um veredito.
+ * - `stale`: esta chamada foi ultrapassada por um login/logout concorrente
+ *   (`authVersionRef` mudou a meio) — o resultado não interessa a ninguém.
+ */
+type RefreshOutcome =
+  | { kind: "authenticated"; accessToken: string }
+  | { kind: "unauthenticated" }
+  | { kind: "transient" }
+  | { kind: "stale" };
+
 interface AuthState {
   userId: string | null;
   username: string | null;
@@ -36,6 +54,19 @@ interface AuthCtx extends AuthState {
   loggingOut: boolean;
   error: string | null;
   initializing: boolean;
+  /**
+   * B12 — verdadeiro quando o arranque ainda NÃO tem veredito definitivo
+   * (nem sessão confirmada, nem 401 duro) porque a última tentativa de
+   * `doRefresh` falhou por um motivo transitório (timeout, rede, 5xx, 429) e
+   * um retry já está agendado. Só existe enquanto `initializing` já é falso
+   * (o `doRefresh` inicial já resolveu, de alguma forma) e `isAuthenticated`
+   * ainda é falso — nunca fica verdadeiro depois de uma sessão já ter sido
+   * estabelecida nesta aba (um soluço do refresh agendado em fundo continua
+   * silencioso, como sempre foi). É só sobre O QUE SE MOSTRA: enquanto for
+   * verdadeiro, a UI não deve mostrar `<Login/>` — mas também não concede
+   * acesso a conteúdo autenticado, isso continua a ser só `isAuthenticated`.
+   */
+  reconnecting: boolean;
   /**
    * Adota um accessToken NOVO na sessão atual sem passar por login/refresh —
    * usado pelo `PUT /users/me/password` (T3.2/T3.3, `Perfil.tsx`), que bump
@@ -73,6 +104,17 @@ const REFRESH_RETRY_MS = 30 * 1000;
 const REFRESH_MIN_DELAY_MS = 30 * 1000;
 const AUTH_REQUEST_TIMEOUT_MS = 5 * 1000;
 const AUTH_IDENTITY_STORAGE_KEY = "backoffice.auth.identity";
+// B12 — cadência e orçamento do "ainda sem veredicto" no arranque (ver
+// `doRefresh` abaixo). Só se aplica ENQUANTO a sessão desta aba nunca chegou a
+// um veredito definitivo (autenticada, 401 duro, ou desistência); uma vez
+// resolvida, o refresh de fundo volta à cadência normal (REFRESH_RETRY_MS,
+// 30s) — não há motivo para martelar o servidor de uma app já em uso.
+// 3 tentativas a 2s dão um orçamento máximo de ~(15s + 2s) × 3 ≈ 51s no pior
+// caso (cada tentativa pode gastar até AUTH_REQUEST_TIMEOUT_MS × 3 = 15s, a
+// cadeia csrf→refresh→permissões) — o suficiente para engolir um soluço real
+// de rede sem deixar o utilizador a fitar "a reconectar…" durante minutos.
+const RECONNECT_RETRY_MS = 2 * 1000;
+const MAX_RECONNECT_ATTEMPTS = 3;
 
 const emptyAuth: AuthState = {
   userId: null,
@@ -238,14 +280,22 @@ async function getBrowserPushSubscription(): Promise<PushSubscription | null> {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [auth, setAuth] = useState<AuthState>(emptyAuth);
   const [initializing, setInitializing] = useState(true);
+  const [reconnecting, setReconnecting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const refreshPromiseRef = useRef<Promise<string | null> | null>(null);
-  const doRefreshRef = useRef<(() => Promise<string | null>) | null>(null);
+  const refreshPromiseRef = useRef<Promise<RefreshOutcome> | null>(null);
+  const doRefreshRef = useRef<(() => Promise<RefreshOutcome>) | null>(null);
   const authRef = useRef<AuthState>(emptyAuth);
   const authVersionRef = useRef(0);
+  // B12 — só existem enquanto o arranque desta aba não teve um veredito
+  // definitivo. `bootstrapSettledRef` liga para sempre assim que esse
+  // veredito chega (autenticado, 401 duro, ou desistência do reconnect); a
+  // partir daí `doRefresh` volta a ser silencioso em falhas transitórias,
+  // como sempre foi para uma sessão já em uso.
+  const bootstrapSettledRef = useRef(false);
+  const reconnectAttemptsRef = useRef(0);
   // Ref estável para navegar a partir do interceptor de resposta (o toast do
   // gate de billing aponta para /faturacao) sem re-registar o interceptor.
   const navigate = useNavigate();
@@ -267,6 +317,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearStoredIdentity();
     setAuth(emptyAuth);
     queryClient.clear();
+    // B12 — uma sessão limpa é sempre um veredito definitivo (401 duro,
+    // logout, ou uma tentativa de login que falhou): nunca deve deixar a UI
+    // presa em "a reconectar…".
+    bootstrapSettledRef.current = true;
+    setReconnecting(false);
   }, []);
 
   // Arms a single timer that funnels through doRefresh(), so the scheduled
@@ -281,23 +336,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Single source of truth for refreshing the session. Guarded by
   // refreshPromiseRef so concurrent callers share one in-flight request.
-  const doRefresh = useCallback((): Promise<string | null> => {
+  //
+  // B12 — devolve um RefreshOutcome (não `string | null`) para o chamador
+  // saber QUAL ramo ocorreu, e mantém `reconnecting`/`bootstrapSettledRef`
+  // alinhados com esse veredito. A distinção só importa ENQUANTO o arranque
+  // desta aba ainda não resolveu (`!bootstrapSettledRef.current`): depois
+  // disso, uma falha transitória de um refresh em fundo continua 100%
+  // silenciosa, como sempre foi — não faz `reconnecting` reaparecer por cima
+  // de uma app já autenticada.
+  const doRefresh = useCallback((): Promise<RefreshOutcome> => {
     if (refreshPromiseRef.current) return refreshPromiseRef.current;
 
     const refreshVersion = authVersionRef.current;
-    refreshPromiseRef.current = (async () => {
+    refreshPromiseRef.current = (async (): Promise<RefreshOutcome> => {
       try {
         const nextAccessToken = await refreshSession();
-        // Hard 401 → refresh token is dead, end the session for good.
+        // Hard 401 → refresh token is dead, end the session for good. This
+        // IS a definitive verdict — settle the bootstrap even if it hadn't
+        // exhausted its reconnect budget yet.
         if (!nextAccessToken) {
           if (refreshVersion === authVersionRef.current) clearSession();
-          return null;
+          return { kind: "unauthenticated" };
         }
         // Session changed under us (login/logout) → discard this result.
-        if (refreshVersion !== authVersionRef.current) return null;
+        if (refreshVersion !== authVersionRef.current) return { kind: "stale" };
 
         const permissions = await fetchPermissions(nextAccessToken);
-        if (refreshVersion !== authVersionRef.current) return null;
+        if (refreshVersion !== authVersionRef.current) return { kind: "stale" };
 
         const identity = getIdentityFromJwt(nextAccessToken);
         const storedIdentity = readStoredIdentity();
@@ -317,17 +382,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           isAuthenticated: true,
         }));
         scheduleRefresh(nextAccessToken);
-        return nextAccessToken;
+        // Autenticado é sempre um veredito definitivo — também limpa um
+        // eventual "a reconectar…" deixado por tentativas anteriores.
+        bootstrapSettledRef.current = true;
+        setReconnecting(false);
+        return { kind: "authenticated", accessToken: nextAccessToken };
       } catch {
         // Network/permissions hiccup (not a 401) — keep the session and
         // retry shortly instead of logging the user out.
         if (refreshVersion === authVersionRef.current) {
+          let retryDelay = REFRESH_RETRY_MS;
+
+          if (!bootstrapSettledRef.current) {
+            reconnectAttemptsRef.current += 1;
+            if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+              // Orçamento de reconexão esgotado: desiste do bootstrap e
+              // mostra <Login/> — mas o retry por baixo continua a correr
+              // (agora à cadência normal): se a rede recuperar sozinha, o
+              // próximo sucesso autentica sem o utilizador tocar em nada.
+              bootstrapSettledRef.current = true;
+              setReconnecting(false);
+            } else {
+              setReconnecting(true);
+              retryDelay = RECONNECT_RETRY_MS;
+            }
+          }
+
           if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
           refreshTimerRef.current = setTimeout(() => {
             void doRefreshRef.current?.();
-          }, REFRESH_RETRY_MS);
+          }, retryDelay);
         }
-        return null;
+        return { kind: "transient" };
       } finally {
         refreshPromiseRef.current = null;
       }
@@ -369,12 +455,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const skipRefresh = isAuthEndpoint(url);
 
         if (is401 && !skipRefresh && !err.config?._retry) {
-          const nextAccessToken = await doRefresh();
-          if (nextAccessToken) {
+          const outcome = await doRefresh();
+          if (outcome.kind === "authenticated") {
             err.config._retry = true;
             err.config.withCredentials = true;
             err.config.headers = err.config.headers ?? {};
-            err.config.headers.Authorization = `Bearer ${nextAccessToken}`;
+            err.config.headers.Authorization = `Bearer ${outcome.accessToken}`;
             return axiosInstance(err.config);
           }
         }
@@ -391,6 +477,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
     );
 
+    // B12 — `initializing` só cobre a 1ª tentativa (qualquer que seja o
+    // desfecho); `doRefresh` já decidiu, internamente, se esse desfecho é um
+    // veredito definitivo ou um "ainda sem veredito" (`reconnecting`).
     doRefresh().finally(() => setInitializing(false));
 
     return () => {
@@ -554,6 +643,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loggingOut,
         error,
         initializing,
+        reconnecting,
         setAccessToken,
         updateIdentity,
       }}

@@ -5208,6 +5208,11 @@
                       "image",
                       "data"
                     ]
+                  },
+                  "sectionId": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Secção a que a entrada pertence; `null` = solta. O handler sempre aceitou este campo — faltava aqui, e por isso o cliente gerado não o tinha e quem o precisava passava a chamada por `as any` (2026-09-22). Ausente num upsert de entrada JÁ existente preserva a secção actual.\n"
                   }
                 }
               }
@@ -12368,6 +12373,13 @@
                     "type": "integer",
                     "example": 82,
                     "description": "Qualidade WebP entre 1 e 95"
+                  },
+                  "preset": {
+                    "type": "string",
+                    "enum": [
+                      "icon"
+                    ],
+                    "description": "`icon` devolve UMA variante quadrada de 512x512 em PNG (corte ao centro, `fit: cover`) em vez das 3 variantes WebP — é o ícone do negócio (tab do browser, atalho no telemovel, manifest da PWA). PNG porque o iOS ignora WebP no `apple-touch-icon`. Qualquer outro valor, ou nenhum, usa o caminho normal. `maxWidth`/`quality` sao ignorados neste preset.\n"
                   }
                 }
               }

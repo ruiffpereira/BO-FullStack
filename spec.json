@@ -4701,7 +4701,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Dados agregados + série temporal + páginas + origens, quando o tenant\ntem `User.analyticsSiteId` provisionado e o Umami está configurado no\nservidor. Inclui `tracking: {websiteId, src}` (público — o par que um\nsite EXTERNO, fora do site-engine, cola no próprio HTML como\n`<script defer src={src} data-website-id={websiteId}>`).\n\nSem site de estatísticas aplicável devolve `{ configured: false, reason }`:\n- `no-domain`: o tenant ainda não definiu um domínio (`PUT /analytics/site/domain`).\n- `no-analytics-site`: o tenant já tem domínio mas ainda não há um\n  website Umami provisionado para ele (Umami desligado no servidor,\n  ou o provisioning automático ainda não correu/falhou).\n"
+            "description": "Dados agregados + série temporal + páginas + origens, quando o tenant\ntem `User.analyticsSiteId` provisionado e o Umami está configurado no\nservidor.\n\n`tracking: {websiteId, src}` (público — o par que se cola no HTML como\n`<script defer src={src} data-website-id={websiteId}>`) só vem quando o\ndomínio medido é EXTERNO, isto é, não corresponde a nenhum host público\ndo Site do tenant no site-engine (subdomínio ou domínio próprio). Um site\ndo engine recebe o script automaticamente e NUNCA recebe `tracking`.\n\nSem site de estatísticas aplicável devolve `{ configured: false, reason }`:\n- `no-domain`: o tenant ainda não definiu um domínio (`PUT /analytics/site/domain`).\n- `no-analytics-site`: o tenant já tem domínio mas ainda não há um\n  website Umami provisionado para ele (Umami desligado no servidor,\n  ou o provisioning automático ainda não correu/falhou).\n"
           }
         }
       }

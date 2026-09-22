@@ -146,6 +146,8 @@ describe("Estatisticas — snippet de tracking (sites fora da plataforma)", () =
     ).toBeInTheDocument();
   });
 
+  // É o caso de um site DO ENGINE: desde 2026-09-22 a API omite `tracking`
+  // para quem já recebe o script injectado pelo renderer.
   it("NÃO mostra o snippet quando a API não devolve `tracking`", () => {
     mockAnalytics({
       configured: true,

@@ -117,13 +117,16 @@ function DomainForm({ initial = '' }: { initial?: string }) {
 
 /**
  * Snippet copiável do script de tracking — para sites EXTERNOS (fora do
- * site-engine, montados pelo dono: `tifas`, `gymnoprado`, `winterplateau`,
+ * site-engine, montados pelo dono: `tifas`, `winterplateau`,
  * `completepecasjr`). Um site do engine recebe o script automaticamente
  * (injetado pelo renderer); um externo tem de o colar à mão no próprio HTML.
- * Só aparece quando a API devolve `tracking` (i.e., o tenant tem
- * `analyticsSiteId` provisionado E o Umami está configurado no servidor) —
- * mostra-se sempre nesse caso, mesmo para um tenant do engine (inofensivo:
- * `websiteId`/`src` já são públicos, vão no HTML de qualquer site do engine).
+ *
+ * **Quem o vê é decisão da API, não desta página:** aparece exactamente quando
+ * `GET /analytics/site` devolve `tracking`, e a API só o devolve quando o
+ * domínio medido NÃO é servido pelo engine. Até 2026-09-22 vinha para toda a
+ * gente e esta caixa aparecia a tenants do engine, a mandá-los colar um script
+ * num HTML que não têm. Não reintroduzir aqui nenhuma condição própria — seria
+ * duplicar regra de negócio no frontend, e os dois lados acabariam a discordar.
  */
 function TrackingSnippetCard({ tracking }: { tracking: AnalyticsTrackingSnippet }) {
   const [copied, setCopied] = useState(false)

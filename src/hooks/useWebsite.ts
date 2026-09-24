@@ -19,11 +19,12 @@ import { postWebsitePublish } from "../gen/backoffice/hooks/usePostWebsitePublis
  * Bearer auto-injetado pelo interceptor do axiosInstance partilhado (ver
  * AuthContext.tsx) — o client gerado corre nesse mesmo axiosInstance.
  *
- * Tipos mantidos localmente (`as Site` em `useSite`/`useSaveSite`): B19 já
- * documenta `skin` no schema `Site` gerado, mas `theme`/`nav`/`pages`/`footer`
- * continuam tipados como `object`/`object[]` soltos (sem forma), não como
- * `SiteTheme`/`SiteNav`/`SitePage[]`/`SiteFooter` — o cast continua a fazer
- * falta por causa desses quatro, não do `skin` (que já resolvia sozinho).
+ * Os casts `as Site` CAÍRAM (2026-09-24, B20). O schema gerado passou a
+ * descrever `theme`/`nav`/`pages`/`footer` com a forma real, e o que faltava
+ * no fim era uma linha: `additionalProperties: true` nos mapas livres
+ * (`settings`, `data`, `footer`). Sem ela o OpenAPI gera o tipo OPACO `object`,
+ * que não é atribuível a `Record<string, unknown>` — e era só isso que obrigava
+ * a um cast em todo o `Site`.
  * `settings` **não existe** no schema gerado (nem na API — ver nota grande
  * mais abaixo, é lacuna de produto deliberada, não mexer).
  */
@@ -248,7 +249,7 @@ export function useSite() {
     queryKey: websiteKeys.site,
     enabled: isAuthenticated,
     staleTime: 0,
-    queryFn: async () => (await getWebsite()) as Site,
+    queryFn: async () => (await getWebsite()),
   });
 }
 
@@ -256,7 +257,7 @@ export function useSite() {
 export function useSaveSite() {
   const qc = useQueryClient();
   return useMutation<Site, unknown, SiteUpsert>({
-    mutationFn: async (input) => (await putWebsite(input)) as Site,
+    mutationFn: async (input) => (await putWebsite(input)),
     onSuccess: () => qc.invalidateQueries({ queryKey: websiteKeys.site }),
   });
 }
@@ -278,7 +279,7 @@ export function useCheckSubdomain() {
 export function useSetSubdomain() {
   const qc = useQueryClient();
   return useMutation<Site, unknown, string>({
-    mutationFn: async (value) => (await putWebsiteSubdomain({ value })) as Site,
+    mutationFn: async (value) => (await putWebsiteSubdomain({ value })),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: websiteKeys.site });
       qc.invalidateQueries({ queryKey: ["site-analytics"] });
@@ -315,7 +316,7 @@ export function useSetCustomDomain() {
 export function usePublishSite() {
   const qc = useQueryClient();
   return useMutation<Site, unknown, void>({
-    mutationFn: async () => (await postWebsitePublish()) as Site,
+    mutationFn: async () => (await postWebsitePublish()),
     onSuccess: () => qc.invalidateQueries({ queryKey: websiteKeys.site }),
   });
 }

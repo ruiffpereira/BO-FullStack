@@ -2413,24 +2413,163 @@
           },
           "theme": {
             "type": "object",
-            "nullable": true
+            "nullable": true,
+            "description": "SiteTheme (src/data/siteTemplates.ts) — coluna JSON opaca, sem validação em runtime; todos os campos são opcionais/nullable no próprio JSON.",
+            "properties": {
+              "preset": {
+                "type": "string",
+                "enum": [
+                  "slate",
+                  "sand",
+                  "ink",
+                  "mist"
+                ],
+                "nullable": true
+              },
+              "accent": {
+                "type": "string",
+                "nullable": true,
+                "description": "7 nomeados curados (blue/emerald/violet/amber/rose/teal/ink) OU um hex livre #rrggbb"
+              },
+              "font": {
+                "type": "string",
+                "enum": [
+                  "grotesk",
+                  "editorial",
+                  "modern",
+                  "warm",
+                  "serifbody",
+                  "plusjakarta",
+                  "standpair"
+                ],
+                "nullable": true
+              },
+              "logo": {
+                "type": "string",
+                "nullable": true
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "light",
+                  "dark"
+                ],
+                "nullable": true
+              }
+            }
           },
           "nav": {
             "type": "object",
             "nullable": true,
-            "description": "`null` no objeto 'vazio' devolvido por GET /website antes de o tenant ter Site; devolvido por PUT /website mas não gravável por esse endpoint (sem endpoint dedicado identificado)"
+            "description": "SiteNav (src/data/siteTemplates.ts). `null` no objeto 'vazio' devolvido por GET /website antes de o tenant ter Site; devolvido por PUT /website mas não gravável por esse endpoint (sem endpoint dedicado identificado).",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string",
+                      "description": "Alinhado ao renderer (site-engine/lib/nav.ts) — NÃO `href`"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "to"
+                  ]
+                }
+              },
+              "cta": {
+                "type": "object",
+                "nullable": true,
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "label",
+                  "to"
+                ]
+              }
+            }
           },
           "pages": {
             "type": "array",
+            "description": "SitePage[] (src/data/siteTemplates.ts). [] no objeto 'vazio'.",
             "items": {
-              "type": "object"
-            },
-            "description": "[] no objeto 'vazio'"
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "titleRef": {
+                  "type": "string",
+                  "description": "Chave CMS do título (texto traduzível, nunca inline)"
+                },
+                "inNav": {
+                  "type": "boolean"
+                },
+                "order": {
+                  "type": "integer"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "blocks": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string"
+                      },
+                      "variant": {
+                        "type": "string"
+                      },
+                      "contentRef": {
+                        "type": "string"
+                      },
+                      "settings": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "Livre — pode incluir `content: Record<chave, Record<string, unknown>>`"
+                      },
+                      "data": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "type"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "slug"
+              ]
+            }
           },
           "footer": {
             "type": "object",
             "nullable": true,
-            "description": "Devolvido mas não gravável por PUT /website (sem endpoint dedicado identificado)"
+            "additionalProperties": true,
+            "description": "SiteFooter (src/data/siteTemplates.ts) — mapa livre de chaves (`[key: string]: unknown`), sem forma fixa; ex. usado pelo template 'loja': { name, tagline, smallPrint }. Devolvido mas não gravável por PUT /website (sem endpoint dedicado identificado)."
           },
           "published": {
             "type": "boolean"
@@ -2459,6 +2598,7 @@
           "defaultLocale",
           "activeLocales",
           "theme",
+          "nav",
           "pages",
           "footer",
           "published",
@@ -3116,7 +3256,13 @@
                         "$ref": "#/components/schemas/AuditLog"
                       }
                     }
-                  }
+                  },
+                  "required": [
+                    "count",
+                    "page",
+                    "limit",
+                    "rows"
+                  ]
                 }
               }
             }
@@ -4884,7 +5030,7 @@
                     "domain": {
                       "type": "string",
                       "nullable": true,
-                      "description": "User.websiteDomain. Presente quando configured=true (sucesso ou erro do Umami); ausente quando configured=false"
+                      "description": "User.websiteDomain (`user?.websiteDomain ?? null` — nunca string vazia). Presente quando configured=true (sucesso ou erro do Umami); AUSENTE (não `null`) quando configured=false. A verdade é `string | null`, não `string | undefined`: quando o campo vem, pode legitimamente ser `null` (tenant sem domínio configurado no User mas com analyticsSiteId órfão) — um cast do frontend que trate `domain` como nunca-null está errado."
                     },
                     "period": {
                       "type": "string",
@@ -4999,7 +5145,10 @@
                       "type": "string",
                       "description": "Só presente quando configured=true e a chamada ao Umami falhou"
                     }
-                  }
+                  },
+                  "required": [
+                    "configured"
+                  ]
                 }
               }
             }
@@ -6703,11 +6852,36 @@
                 "7d",
                 "30d",
                 "90d",
-                "12m"
+                "12m",
+                "today",
+                "week",
+                "month",
+                "lastMonth",
+                "year",
+                "total",
+                "custom"
               ],
               "default": "30d"
             },
-            "description": "7d = last 7 days (grouped by day)\n30d = last 30 days (grouped by day)\n90d = last 90 days (grouped by week)\n12m = last 12 months (grouped by month)\n"
+            "description": "Conjunto real aceite por `parsePeriod` (src/utils/finance.ts), partilhado com o Financeiro — qualquer valor fora desta lista cai para `30d` (default silencioso do próprio `parsePeriod`, não um 400). `custom` exige `startDate`/`endDate`.\n"
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Só lido quando period=custom (ignorado com qualquer outro period)"
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Só lido quando period=custom (ignorado com qualquer outro period)"
           }
         ],
         "responses": {
@@ -6719,7 +6893,21 @@
                   "type": "object",
                   "properties": {
                     "period": {
-                      "type": "string"
+                      "type": "string",
+                      "enum": [
+                        "7d",
+                        "30d",
+                        "90d",
+                        "12m",
+                        "today",
+                        "week",
+                        "month",
+                        "lastMonth",
+                        "year",
+                        "total",
+                        "custom"
+                      ],
+                      "description": "O valor JÁ normalizado por `parsePeriod` (nunca o cru da query — um valor inválido devolve \"30d\" aqui, não o que veio no pedido)"
                     },
                     "schedule": {
                       "type": "object",
@@ -7082,7 +7270,11 @@
                         }
                       }
                     }
-                  }
+                  },
+                  "required": [
+                    "period",
+                    "expenses"
+                  ]
                 }
               }
             }
@@ -9788,7 +9980,12 @@
                           "type": "integer",
                           "description": "Membros que pagaram no mês anterior"
                         }
-                      }
+                      },
+                      "required": [
+                        "rate",
+                        "count",
+                        "base"
+                      ]
                     },
                     "retentionRate": {
                       "type": "number",
@@ -9813,7 +10010,11 @@
                           "recebido": {
                             "type": "number"
                           }
-                        }
+                        },
+                        "required": [
+                          "period",
+                          "recebido"
+                        ]
                       }
                     },
                     "waterfall": {
@@ -9843,10 +10044,33 @@
                           "liquido": {
                             "type": "number"
                           }
-                        }
+                        },
+                        "required": [
+                          "period",
+                          "novo",
+                          "expansao",
+                          "contracao",
+                          "perdido",
+                          "liquido"
+                        ]
                       }
                     }
-                  }
+                  },
+                  "required": [
+                    "mrr",
+                    "arr",
+                    "collectionRate",
+                    "activeMembers",
+                    "blockedMembers",
+                    "inactiveMembers",
+                    "inactiveAfterDays",
+                    "churn",
+                    "retentionRate",
+                    "avgLifetimeMonths",
+                    "ltv",
+                    "mrrTrend",
+                    "waterfall"
+                  ]
                 }
               }
             }
@@ -13702,15 +13926,112 @@
             "application/json": {
               "schema": {
                 "type": "object",
+                "description": "Mesma forma de `Site.theme`/`Site.pages` (ver o schema `Site`) — aqui repetida por ser o requestBody, nunca a resposta.",
                 "properties": {
                   "theme": {
                     "type": "object",
-                    "nullable": true
+                    "nullable": true,
+                    "properties": {
+                      "preset": {
+                        "type": "string",
+                        "enum": [
+                          "slate",
+                          "sand",
+                          "ink",
+                          "mist"
+                        ],
+                        "nullable": true
+                      },
+                      "accent": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "7 nomeados curados OU um hex livre #rrggbb"
+                      },
+                      "font": {
+                        "type": "string",
+                        "enum": [
+                          "grotesk",
+                          "editorial",
+                          "modern",
+                          "warm",
+                          "serifbody",
+                          "plusjakarta",
+                          "standpair"
+                        ],
+                        "nullable": true
+                      },
+                      "logo": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "mode": {
+                        "type": "string",
+                        "enum": [
+                          "light",
+                          "dark"
+                        ],
+                        "nullable": true
+                      }
+                    }
                   },
                   "pages": {
                     "type": "array",
                     "items": {
-                      "type": "object"
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "slug": {
+                          "type": "string"
+                        },
+                        "titleRef": {
+                          "type": "string"
+                        },
+                        "inNav": {
+                          "type": "boolean"
+                        },
+                        "order": {
+                          "type": "integer"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "blocks": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "variant": {
+                                "type": "string"
+                              },
+                              "contentRef": {
+                                "type": "string"
+                              },
+                              "settings": {
+                                "type": "object"
+                              },
+                              "data": {
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "slug"
+                      ]
                     }
                   },
                   "defaultLocale": {

@@ -12,12 +12,14 @@ import { expectBlockedRedirect, withSessionRetry } from "./fixtures/session";
  * O gating de UI é feito 100% pelo `Shell` (`src/components/Shell.tsx`):
  *  - a sidebar mostra `accessiblePaths` = /dashboard + módulos por permissão +
  *    CORE_PATHS (Clientes, Mensagens, Financeiro, Conteúdos, **Website**,
- *    Faturação, **Estatísticas** — acessíveis a QUALQUER tenant, sem permissão)
+ *    Faturação — acessíveis a QUALQUER tenant, sem permissão)
  *    + /admin, só para VIEW_ADMIN.
- *    `/estatisticas` esteve atrás de um gate TEMPORÁRIO de produto entre
+ *    As **Estatísticas** estiveram atrás de um gate TEMPORÁRIO de produto entre
  *    2026-07-08 e 2026-09-21 (`ADMIN_GATED_PATHS`, já apagado), à espera de o
  *    Umami estar provisionado para todos. A API sempre foi tenant-open — o
- *    gate era só de UI;
+ *    gate era só de UI. A 2026-09-24 saíram da sidebar de topo e passaram a
+ *    subitem de `/website` (`/website/estatisticas`): continuam core, mas quem
+ *    lhes dá acesso é agora o `/website`, que também é core;
  *  - o guard (useEffect) redireciona qualquer rota NÃO acessível para
  *    accessiblePaths[0] — que é sempre /dashboard (sempre acessível);
  *  - **T3.8 (2026-07-14, un-gate seletivo do `/website`):** `/website` voltou
@@ -65,10 +67,13 @@ function navItem(page: Page, name: string) {
 // "Website" voltou a core a 2026-07-14 (T3.8, un-gate seletivo): a página é
 // sempre acessível a todos; o gating de conteúdo (botão Publicar, editar
 // estrutura) é verificado em `tests/unit/Website.test.tsx`.
-// "Estatísticas" entrou em core a 2026-09-21: o gate TEMPORÁRIO de 2026-07-08
-// (`ADMIN_GATED_PATHS` no Shell.tsx) foi apagado, com a sua razão de ser — o
-// Umami ainda não provisionado para todos — resolvida. A API sempre foi core.
-const CORE_ITEMS = ["Clientes", "Mensagens", "Financeiro", "Conteúdos", "Website", "Estatísticas"];
+// "Estatísticas" SAIU desta lista a 2026-09-24: continua core, mas deixou de ser
+// item de topo — é subitem de "Website" (`SUBMENU['/website']`). Os subitens só
+// existem no DOM com o grupo expandido, e estes testes carregam o /dashboard,
+// onde ele está fechado. A acessibilidade passou a ser coberta pelo loop de
+// rotas core (`/website/estatisticas`), pelo teste do deep-link antigo, e pela
+// visibilidade do subitem no teste dedicado mais abaixo.
+const CORE_ITEMS = ["Clientes", "Mensagens", "Financeiro", "Conteúdos", "Website"];
 // Todos os itens de módulo (não-core, não-admin) — usados para verificar ocultação.
 const ALL_MODULE_ITEMS = ["Loja", "Agenda", "Ginásio"];
 // Rotas de módulo protegidas por permissão (o guard redireciona sem a permissão).
@@ -126,9 +131,8 @@ test.describe("RBAC matriz — sidebar por permissão (core + módulo próprio)"
             ).toBeVisible();
           }
 
-          // (3) NÃO vê os módulos que não são seus, nem o Admin. "Website" e
-          // "Estatísticas" são core — já cobertos por CORE_ITEMS acima, não
-          // entram aqui.
+          // (3) NÃO vê os módulos que não são seus, nem o Admin. "Website" é
+          // core — já coberto por CORE_ITEMS acima, não entra aqui.
           const escondidos = ALL_MODULE_ITEMS.filter((i) => i !== m.moduloItem);
           for (const item of [...escondidos, "Admin"]) {
             await expect(
@@ -173,15 +177,17 @@ test.describe("RBAC matriz — sidebar por permissão (core + módulo próprio)"
       // /website é core desde T3.8 (2026-07-14) — a raiz ("O meu site") é sempre
       // acessível. "Páginas" e "Marca" estão ESCONDIDAS dos clientes (2026-08-12,
       // VIEW_ADMIN) — ainda não prontas; testadas no redirect abaixo.
-      // /estatisticas entrou aqui a 2026-09-21 — deixou de estar atrás de
-      // VIEW_ADMIN.)
+      // As Estatísticas entraram aqui a 2026-09-21 (deixaram de estar atrás de
+      // VIEW_ADMIN) e mudaram de morada a 2026-09-24: passaram de item de topo
+      // a subitem do Website, em /website/estatisticas. Continuam core — o
+      // /estatisticas antigo redirecciona para cá.)
       for (const route of [
         "/clientes",
         "/financeiro",
         "/conteudos",
         "/despesas",
         "/website",
-        "/estatisticas",
+        "/website/estatisticas",
       ]) {
         await withSessionRetry(
           page,
@@ -214,8 +220,8 @@ test.describe("RBAC matriz — noaccess@e2e (sem componentes)", () => {
         for (const item of CORE_ITEMS) {
           await expect(navItem(page, item)).toBeVisible({ timeout: 10_000 });
         }
-        // Nenhum módulo, nenhum Admin. "Website" e "Estatísticas" NÃO entram
-        // aqui — são core (T3.8 e 2026-09-21), já cobertos acima.
+        // Nenhum módulo, nenhum Admin. "Website" NÃO entra aqui — é core
+        // (T3.8), já coberto acima.
         for (const item of [...ALL_MODULE_ITEMS, "Admin"]) {
           await expect(
             nav(page).getByRole("button", { name: item, exact: true }),
@@ -257,11 +263,55 @@ test.describe("RBAC matriz — noaccess@e2e (sem componentes)", () => {
     );
   });
 
-  // 2026-09-21: /estatisticas entrou em CORE_PATHS e o gate temporário de
-  // 2026-07-08 foi apagado. Este teste era o inverso — afirmava o redirect — e
-  // passa agora a provar o contrário: um tenant SEM permissão nenhuma abre a
-  // página e fica lá. A API sempre foi core; era só a UI que fechava.
-  test("/estatisticas é acessível sem VIEW_ADMIN (core desde 2026-09-21)", async ({ page, context }) => {
+  // 2026-09-21: as Estatísticas entraram em CORE_PATHS e o gate temporário de
+  // 2026-07-08 foi apagado. Este teste era o inverso — afirmava o redirect por
+  // falta de permissão — e passa agora a provar o contrário: um tenant SEM
+  // permissão nenhuma abre a página e fica lá. A API sempre foi core; era só a
+  // UI que fechava.
+  //
+  // 2026-09-24: mudaram de morada (subitem do Website). A asserção tem de ser
+  // ancorada em `/website/estatisticas$` — um `/\/estatisticas/` solto passaria
+  // nos DOIS mundos, porque o path novo contém o antigo, e deixaria de provar
+  // seja o que for.
+  test("/website/estatisticas é acessível sem VIEW_ADMIN (core desde 2026-09-21)", async ({ page, context }) => {
+    await loginAs(context, "noaccess@e2e");
+    await withSessionRetry(
+      page,
+      context,
+      "noaccess@e2e",
+      () => page.goto("/website/estatisticas"),
+      () =>
+        expect(page, "noaccess devia poder ficar em /website/estatisticas").toHaveURL(
+          /\/website\/estatisticas$/,
+          { timeout: 15_000 },
+        ),
+    );
+  });
+
+  // Substitui a asserção que "Estatísticas" tinha em CORE_ITEMS: deixou de ser
+  // botão de topo, por isso a prova de que um tenant sem permissões lá chega é
+  // vê-lo dentro do grupo Website expandido. Sem isto, tirá-lo do CORE_ITEMS
+  // teria removido cobertura em vez de a mudar de sítio.
+  test("Estatísticas aparece como subitem do Website (sem permissões)", async ({ page, context }) => {
+    await loginAs(context, "noaccess@e2e");
+    await withSessionRetry(
+      page,
+      context,
+      "noaccess@e2e",
+      () => page.goto("/website"),
+      async () => {
+        await expect(page).toHaveURL(/\/website/, { timeout: 15_000 });
+        await expect(
+          nav(page).getByRole("button", { name: "Estatísticas", exact: true }),
+          "o subitem Estatísticas devia estar visível com o grupo Website aberto",
+        ).toBeVisible({ timeout: 10_000 });
+      },
+    );
+  });
+
+  // Deep-link antigo: quem tenha /estatisticas guardado nos favoritos tem de
+  // continuar a chegar às Estatísticas, não a um 404 nem ao dashboard.
+  test("/estatisticas (path antigo) redirecciona para /website/estatisticas", async ({ page, context }) => {
     await loginAs(context, "noaccess@e2e");
     await withSessionRetry(
       page,
@@ -269,7 +319,7 @@ test.describe("RBAC matriz — noaccess@e2e (sem componentes)", () => {
       "noaccess@e2e",
       () => page.goto("/estatisticas"),
       () =>
-        expect(page, "noaccess devia poder ficar em /estatisticas").toHaveURL(/\/estatisticas/, {
+        expect(page, "o path antigo devia redireccionar").toHaveURL(/\/website\/estatisticas$/, {
           timeout: 15_000,
         }),
     );
@@ -389,7 +439,7 @@ test.describe("RBAC matriz — Website: Páginas + Marca escondidas dos clientes
 });
 
 test.describe("RBAC matriz — admin@e2e (acesso total)", () => {
-  test("sidebar mostra TODOS os módulos + Admin + core (Website e Estatísticas incl.)", async ({ page, context }) => {
+  test("sidebar mostra TODOS os módulos + Admin + core (Website incl.)", async ({ page, context }) => {
     await loginAs(context, "admin@e2e");
     await withSessionRetry(
       page,
@@ -411,7 +461,7 @@ test.describe("RBAC matriz — admin@e2e (acesso total)", () => {
     await loginAs(context, "admin@e2e");
     // /website/paginas confirma que o guard de submenu continua a servir os
     // subpaths de /website a quem tem VIEW_ADMIN (deep-link não expulsa).
-    for (const route of ["/loja", "/agenda", "/ginasio", "/admin", "/estatisticas", "/website", "/website/paginas"]) {
+    for (const route of ["/loja", "/agenda", "/ginasio", "/admin", "/website", "/website/estatisticas", "/website/paginas"]) {
       await withSessionRetry(
         page,
         context,

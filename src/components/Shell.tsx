@@ -16,7 +16,14 @@ import { useChatUnread } from '../hooks/useChat'
 import { SUBMENU, allowedSubitems, findRoot, type SubmenuItem } from '../lib/navigation'
 
 // Core: todos os tenants têm (sem permissão). Módulos: por permissão.
-const CORE_PATHS = ['/clientes', '/mensagens', '/financeiro', '/conteudos', '/website', '/faturacao', '/estatisticas']
+const CORE_PATHS = ['/clientes', '/mensagens', '/financeiro', '/conteudos', '/website', '/faturacao']
+// `/estatisticas` SAIU daqui a 2026-09-24: deixou de ser item de topo e passou a
+// subitem de `/website` (`SUBMENU['/website']`, `navigation.ts`), servido em
+// `/website/estatisticas`. Continua core — quem manda nisso agora é o `/website`,
+// que também é core; o path antigo redirecciona (App.tsx). Só mudou onde vive.
+//
+// O registo de porque deixou de estar atrás de um gate mantém-se, porque a razão
+// continua válida e é o que impede alguém de o voltar a fechar sem pensar:
 // `/estatisticas` entrou em CORE_PATHS a 2026-09-21, fechando o gate TEMPORÁRIO
 // de 2026-07-08 (`ADMIN_GATED_PATHS`, agora apagado). Esse gate existia por uma
 // razão concreta — "o Umami ainda não está provisionado para todos os tenants" —
@@ -47,11 +54,10 @@ const MODULE_PERM_TO_PATH: Record<string, string> = {
 
 // Ordem fixa de apresentação na sidebar (independente de core/módulos/admin).
 // Cada item só aparece se for acessível ao tenant (permissões + admin).
-const MENU_ORDER = ['/dashboard', '/estatisticas', '/admin', '/clientes', '/mensagens', '/conteudos', '/website', '/loja', '/agenda', '/ginasio', '/financeiro', '/faturacao']
+const MENU_ORDER = ['/dashboard', '/admin', '/clientes', '/mensagens', '/conteudos', '/website', '/loja', '/agenda', '/ginasio', '/financeiro', '/faturacao']
 
 const ROUTE_META: Record<string, { nome: string; icon: string }> = {
   '/dashboard':         { nome: 'Dashboard',  icon: 'dashboard' },
-  '/estatisticas':      { nome: 'Estatísticas', icon: 'trend' },
   '/financeiro':        { nome: 'Financeiro', icon: 'euro' },
   '/faturacao':         { nome: 'Faturação',  icon: 'card' },
   '/despesas':          { nome: 'Despesas',   icon: 'card' },
@@ -707,7 +713,12 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   // é core mas fora da sidebar (acede-se pelo menu do avatar, AvatarMenu) — pela
   // mesma razão entra como root extra, senão o guard expulsava-o para o dashboard
   // por não pertencer a nenhum item de `accessiblePaths`.
-  const guardRoots = [...accessiblePaths, '/despesas', '/perfil']
+  // "/estatisticas" (2026-09-24) entra pela MESMA razão do "/despesas": deixou
+  // de ser item da sidebar (passou a subitem de /website) mas continua a ser um
+  // deep-link válido que o App.tsx reescreve para /website/estatisticas. Sem
+  // estar aqui, o guard atirava-o para o dashboard ANTES de o <Navigate> correr
+  // — e o redirect nunca chegava a acontecer.
+  const guardRoots = [...accessiblePaths, '/despesas', '/perfil', '/estatisticas']
 
   // Redirige para rota acessível se a actual não o for; um SUBITEM sem permissão
   // (ex.: /financeiro/ginasio sem VIEW_GYM) cai no 1.º subitem permitido do MESMO

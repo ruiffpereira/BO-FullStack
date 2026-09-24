@@ -1102,14 +1102,18 @@ describe("Website — gate seletivo (T3.8: sem VIEW_SITE_BUILDER/VIEW_ADMIN)", (
     // (2026-08-12) — ainda não estão prontas; por agora todos os sites ficam
     // iguais. Só o dono (VIEW_ADMIN) as vê. VIEW_SITE_BUILDER NÃO as desbloqueia
     // (o self-serve tem essa permissão e continua a ser "cliente" para isto).
-    // Com só 1 subitem, o Shell mostra o Website como link simples (ver Shell).
-    expect(allowedSubitems("/website", () => false).map((i) => i.id)).toEqual(["site"]);
+    //
+    // 2026-09-24: "Estatísticas" entrou como subitem (sem perm — era core como
+    // item de topo e continua a sê-lo). Com isto o cliente passa a ter DOIS
+    // subitens, e o Website deixa de ser link simples no Shell para passar a
+    // menu expansível (condição `groupItems.length > 1`).
+    expect(allowedSubitems("/website", () => false).map((i) => i.id)).toEqual(["site", "stats"]);
     expect(
       allowedSubitems("/website", (name) => name === "VIEW_SITE_BUILDER").map((i) => i.id),
-    ).toEqual(["site"]);
+    ).toEqual(["site", "stats"]);
     expect(
       allowedSubitems("/website", (name) => name === "VIEW_ADMIN").map((i) => i.id),
-    ).toEqual(["site", "pages", "brand"]);
+    ).toEqual(["site", "stats", "pages", "brand"]);
   });
 
   it("'O meu site': esconde o botão Publicar mesmo com o setup completo, mantém estado/URL", () => {

@@ -300,6 +300,15 @@ function SiteStatusTab({
           )}
         </div>
 
+        {/* O formulário do subdomínio vive AQUI, dentro do mesmo cartão que
+            mostra o endereço (2026-09-24, pedido do dono). Antes eram três
+            cartões a dizer a mesma coisa — "Estado" com o endereço, "Subdomínio"
+            com o editor e a pré-visualização, e "Endereço atual" a repetir o
+            endereço pela terceira vez. Ver o endereço e mudá-lo é uma tarefa só;
+            separá-los obrigava o tenant a comparar dois sítios para perceber o
+            que ia mudar. */}
+        <SubdomainForm site={site} canEditStructure={canEditStructure} />
+
         {/* T3.8: sem VIEW_SITE_BUILDER/VIEW_ADMIN não há botão Publicar — o
             site é montado e publicado pela equipa RufVision; o tenant só
             afina conteúdo/marca (estado, URL e pré-visualização mantêm-se). */}
@@ -373,7 +382,7 @@ function SiteStatusTab({
 
     <PreviewPanel refreshKey={siteUpdatedAt} />
 
-    <DomainSection site={site} canEditStructure={canEditStructure} />
+    {CUSTOM_DOMAIN_UI && <CustomDomainCard site={site} />}
     </div>
   );
 }
@@ -1293,7 +1302,7 @@ function customDomainIssue(raw: string, rootHost: string): string | null {
  */
 const CUSTOM_DOMAIN_UI = false;
 
-function DomainSection({ site, canEditStructure }: { site: Site; canEditStructure: boolean }) {
+function SubdomainForm({ site, canEditStructure }: { site: Site; canEditStructure: boolean }) {
   const check = useCheckSubdomain();
   const claim = useSetSubdomain();
   const [value, setValue] = useState(site.subdomain ?? "");
@@ -1353,10 +1362,10 @@ function DomainSection({ site, canEditStructure }: { site: Site; canEditStructur
   if (!canEditStructure) return null;
 
   return (
-    <div className="space-y-5">
-    <div className="grid gap-5 lg:grid-cols-3">
-      <Card className="p-5 lg:col-span-2">
-        <SectionTitle>Subdomínio</SectionTitle>
+    <div className="mt-4 border-t border-zinc-200/80 dark:border-zinc-800 pt-4">
+        <p className="text-[13px] text-zinc-500 mb-2">
+          {site.subdomain ? "Mudar o subdomínio" : "Reclamar um subdomínio"}
+        </p>
         <div className="flex items-end gap-2 flex-wrap">
           <div className="flex-1 min-w-[200px]">
             <Input
@@ -1400,7 +1409,7 @@ function DomainSection({ site, canEditStructure }: { site: Site; canEditStructur
             ))}
         </div>
 
-        {trimmed && (
+        {trimmed && trimmed !== (site.subdomain ?? "") && (
           <p className="text-[13px] text-zinc-500 mt-3">
             O teu site ficará em{" "}
             <span className="font-mono text-zinc-900 dark:text-zinc-100">
@@ -1408,21 +1417,6 @@ function DomainSection({ site, canEditStructure }: { site: Site; canEditStructur
             </span>
           </p>
         )}
-      </Card>
-
-      <Card className="p-5">
-        <SectionTitle>Endereço atual</SectionTitle>
-        {site.subdomain ? (
-          <p className="font-mono text-sm text-zinc-900 dark:text-zinc-100 break-all">
-            {siteUrl(site.subdomain)}
-          </p>
-        ) : (
-          <p className="text-sm text-zinc-400">Ainda sem subdomínio.</p>
-        )}
-      </Card>
-    </div>
-
-    {CUSTOM_DOMAIN_UI && <CustomDomainCard site={site} />}
     </div>
   );
 }

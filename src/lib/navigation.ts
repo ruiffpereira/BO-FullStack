@@ -68,6 +68,16 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     // "O meu site"). Com só 1 subitem permitido, o Shell mostra o Website como
     // link simples, não como menu expansível (condição `groupItems.length > 1`).
     { id: "site", label: "O meu site", path: "/website" },
+    // Estatísticas desceu de item de topo da sidebar para subitem daqui
+    // (2026-09-24, pedido do dono). É tráfego DO site — vivia ao lado do
+    // Website a falar da mesma coisa. Sem `perm`: era core em `CORE_PATHS` e
+    // continua a sê-lo; o que mudou foi só onde se clica.
+    //
+    // ⚠ Efeito de lado real: até aqui um cliente sem VIEW_ADMIN só tinha UM
+    // subitem permitido em `/website` ("O meu site"), e o Shell mostrava o
+    // Website como link simples (condição `groupItems.length > 1`). Com este,
+    // passa a ter dois — o Website passa a menu expansível para toda a gente.
+    { id: "stats", label: "Estatísticas", path: "/website/estatisticas" },
     { id: "pages", label: "Páginas", path: "/website/paginas", perm: "VIEW_ADMIN" },
     { id: "brand", label: "Marca", path: "/website/marca", perm: "VIEW_ADMIN" },
   ],

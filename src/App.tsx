@@ -157,7 +157,9 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/estatisticas" element={<Estatisticas />} />
+        {/* Deep-link antigo: as Estatísticas passaram a subitem do Website a
+            2026-09-24. Quem tenha a rota antiga em favoritos continua a chegar. */}
+        <Route path="/estatisticas" element={<Navigate to="/website/estatisticas" replace />} />
         <Route path="/financeiro" element={<LegacyTabEntry root="/financeiro" param="vista"><FinanceiroPage view="negocio" /></LegacyTabEntry>} />
         <Route path="/financeiro/agenda" element={<FinanceiroPage view="agenda" />} />
         <Route path="/financeiro/loja" element={<FinanceiroPage view="loja" />} />
@@ -190,6 +192,7 @@ function App() {
         <Route path="/conteudos/emails" element={<Conteudos view="emails" />} />
         <Route path="/conteudos/notificacoes" element={<Conteudos view="notificacoes" />} />
         <Route path="/website" element={<Website view="site" />} />
+        <Route path="/website/estatisticas" element={<Estatisticas />} />
         <Route path="/website/paginas" element={<Website view="pages" />} />
         <Route path="/website/marca" element={<Website view="brand" />} />
         {/* Redirect legacy routes to /website */}

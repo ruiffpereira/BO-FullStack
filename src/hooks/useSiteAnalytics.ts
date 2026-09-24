@@ -15,10 +15,17 @@ import { putAnalyticsSiteDomain } from "../gen/backoffice/hooks/usePutAnalyticsS
  * API limita a leitura ao site do próprio tenant (`User.analyticsSiteId`),
  * isolamento multi-tenant.
  *
- * Casts de fronteira: o spec documenta as respostas destas 3 rotas como
- * `any` (schema não descrito no Swagger — lacuna conhecida), por isso o
- * `as Tipo` abaixo é necessário; os tipos locais (`SiteAnalyticsResponse`/
- * `SiteDomainResponse`) são os mesmos de antes da migração.
+ * B19: `GET /analytics/site/domain` e `PUT /analytics/site/domain` passaram a
+ * documentar a resposta (`{ websiteDomain: string | null }`, campo
+ * obrigatório) — idêntica à local `SiteDomainResponse`, por isso os casts
+ * dessas duas caíram.
+ *
+ * `GET /analytics/site` continua com cast: o schema documenta `configured`
+ * como opcional (`configured?: boolean`) embora o runtime o devolva sempre —
+ * falta o `required: ["configured"]` no `@swagger` do controller. `domain`
+ * também está tipado `string | null` no gerado contra `string | undefined`
+ * localmente (`SiteAnalyticsResponse.domain?: string`) — mais uma
+ * incompatibilidade por trás da primeira que o `tsc` reporta.
  */
 
 // Períodos suportados (herdados da sintaxe da Stats API do Plausible — mantidos
@@ -94,7 +101,7 @@ export function useSiteDomain() {
   return useQuery<SiteDomainResponse>({
     queryKey: DOMAIN_KEY,
     enabled: isAuthenticated,
-    queryFn: async () => (await getAnalyticsSiteDomain()) as SiteDomainResponse,
+    queryFn: async () => await getAnalyticsSiteDomain(),
   });
 }
 
@@ -102,7 +109,7 @@ export function useSiteDomain() {
 export function useSetSiteDomain() {
   const qc = useQueryClient();
   return useMutation<SiteDomainResponse, unknown, string>({
-    mutationFn: async (domain: string) => (await putAnalyticsSiteDomain({ domain })) as SiteDomainResponse,
+    mutationFn: async (domain: string) => await putAnalyticsSiteDomain({ domain }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: DOMAIN_KEY });
       qc.invalidateQueries({ queryKey: ["site-analytics"] });

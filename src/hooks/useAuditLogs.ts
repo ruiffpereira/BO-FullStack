@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { getAuditLogs as getAuditLogsGen } from "../gen/backoffice/hooks/useGetAuditLogs.js";
-import type { GetAuditLogsQueryParams } from "../gen/backoffice/types/GetAuditLogs.js";
 import { getHealth } from "../gen/backoffice/hooks/useGetHealth.js";
 
 export interface Actor {
@@ -73,12 +72,14 @@ export function useAuditLogs(filters: AuditFilters = {}) {
     queryKey: ["audit-logs", filters],
     enabled: isAuthenticated,
     queryFn: async () => {
-      // Os filtros locais usam string para `success`/`errors` (compat com a UI
-      // existente); o QueryParams gerado documenta-os como boolean — o axios
-      // serializa os dois da mesma forma na query string, daí a ponte via
-      // `unknown` em vez de mudar a UI que consome `AuditFilters`.
-      const params = clean({ ...filters }) as unknown as GetAuditLogsQueryParams;
+      // B19: `success`/`errors` passaram de boolean a string no QueryParams
+      // gerado — já não precisa de ponte de tipos (o `clean()` abaixo já
+      // devolve algo compatível, sem cast).
+      const params = clean({ ...filters });
       const data = await getAuditLogsGen(params);
+      // Cast ainda necessário: `GetAuditLogs200` tem `count`/`page`/`limit`/
+      // `rows` todos opcionais (nenhum `required` no schema), apesar de o
+      // runtime devolver sempre o envelope completo — falta corrigir na API.
       return data as Paginated<AuditLog>;
     },
   });

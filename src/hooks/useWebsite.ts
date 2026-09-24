@@ -18,9 +18,14 @@ import { postWebsitePublish } from "../gen/backoffice/hooks/usePostWebsitePublis
  *   POST /website/publish                 → 200 | 400 { error }
  * Bearer auto-injetado pelo interceptor do axiosInstance partilhado (ver
  * AuthContext.tsx) — o client gerado corre nesse mesmo axiosInstance.
- * Tipos mantidos localmente: o spec ainda não documenta `settings`/`skin` no
- * corpo do PUT /website nem alguns campos do GET (o runtime já os aceita/devolve,
- * só o Swagger está atrasado — fora do âmbito desta migração, que é só Backoffice).
+ *
+ * Tipos mantidos localmente (`as Site` em `useSite`/`useSaveSite`): B19 já
+ * documenta `skin` no schema `Site` gerado, mas `theme`/`nav`/`pages`/`footer`
+ * continuam tipados como `object`/`object[]` soltos (sem forma), não como
+ * `SiteTheme`/`SiteNav`/`SitePage[]`/`SiteFooter` — o cast continua a fazer
+ * falta por causa desses quatro, não do `skin` (que já resolvia sozinho).
+ * `settings` **não existe** no schema gerado (nem na API — ver nota grande
+ * mais abaixo, é lacuna de produto deliberada, não mexer).
  */
 
 // ── Tipos (espelham o Site da API) ───────────────────────────────────────────

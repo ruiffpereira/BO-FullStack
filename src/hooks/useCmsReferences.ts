@@ -1,8 +1,6 @@
-import fetch from "@kubb/plugin-client/clients/axios";
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "../context/AuthContext";
-
-import { API_BASE as BASE } from "../lib/env";
+import { getCmsEntriesKeyReferences } from "../gen/backoffice/hooks/useGetCmsEntriesKeyReferences.js";
+import { getCmsEntriesReferencesCounts } from "../gen/backoffice/hooks/useGetCmsEntriesReferencesCounts.js";
 
 export interface CmsReference {
   productId?: string;
@@ -24,50 +22,40 @@ export interface CmsReferences {
   gym: GymReference[];
 }
 
-export async function fetchCmsReferences(
-  key: string,
-  headers: Record<string, string>,
-): Promise<CmsReferences> {
-  const res = await fetch<CmsReferences, Error, unknown>({
-    method: "GET",
-    url: `/cms/entries/${encodeURIComponent(key)}/references`,
-    baseURL: BASE,
-    headers,
-  });
-  return res.data;
+/**
+ * GET /cms/entries/{key}/references — migrado (B18) para o client gerado
+ * pelo Kubb. Bearer injetado pelo interceptor do `axiosInstance` partilhado
+ * (AuthContext.tsx), por isso `authHeader()` deixou de ser preciso.
+ */
+export async function fetchCmsReferences(key: string): Promise<CmsReferences> {
+  return await getCmsEntriesKeyReferences(key);
 }
 
 export function useCmsReferences(key: string | null, enabled = true) {
-  const { authHeader } = useAuth();
-  const headers = authHeader();
   return useQuery({
     queryKey: ["cms-references", key],
-    queryFn: () => fetchCmsReferences(key!, headers),
+    queryFn: () => fetchCmsReferences(key!),
     enabled: !!key && enabled,
     staleTime: 30_000,
   });
 }
 
-export async function fetchCmsReferencesCounts(
-  keys: string[],
-  headers: Record<string, string>,
-): Promise<Record<string, number>> {
+/**
+ * GET /cms/entries/references-counts — migrado (B18) para o client gerado.
+ * As keys vão RAW (não pré-codificadas) no param `keys`: o axios já as
+ * codifica ao montar a query string — pré-codificar aqui duplicaria o
+ * `encodeURIComponent` (ex.: "," → "%2C" → "%252C") e o servidor deixaria de
+ * as conseguir separar.
+ */
+export async function fetchCmsReferencesCounts(keys: string[]): Promise<Record<string, number>> {
   if (keys.length === 0) return {};
-  const res = await fetch<Record<string, number>, Error, unknown>({
-    method: "GET",
-    url: `/cms/entries/references-counts?keys=${keys.map(encodeURIComponent).join(",")}`,
-    baseURL: BASE,
-    headers,
-  });
-  return res.data;
+  return await getCmsEntriesReferencesCounts({ keys: keys.join(",") });
 }
 
 export function useCmsReferencesCounts(keys: string[]) {
-  const { authHeader } = useAuth();
-  const headers = authHeader();
   return useQuery({
     queryKey: ["cms-references-counts", keys.slice().sort().join(",")],
-    queryFn: () => fetchCmsReferencesCounts(keys, headers),
+    queryFn: () => fetchCmsReferencesCounts(keys),
     enabled: keys.length > 0,
   });
 }

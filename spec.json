@@ -2366,9 +2366,108 @@
           "unread"
         ]
       },
+      "Site": {
+        "type": "object",
+        "description": "O 'Site JSON' de um tenant (Site Engine): tema, navegação, páginas, rodapé, línguas, domínio e estado de publicação — GET /website e PUT /website devolvem exactamente esta forma. Sem Site ainda criado, GET /website devolve um objeto 'vazio' que NÃO tem todos estes campos (ver nota em cada um). PUT /website só grava theme/pages/defaultLocale/activeLocales (ver EDITABLE_FIELDS no controller) — os restantes campos aqui são devolvidos mas não graváveis por esse endpoint.",
+        "properties": {
+          "siteId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "null no objeto 'vazio' (tenant ainda sem Site)"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Ausente no objeto 'vazio' devolvido por GET /website quando o tenant ainda não tem Site"
+          },
+          "subdomain": {
+            "type": "string",
+            "nullable": true,
+            "description": "Definido só via PUT /website/subdomain"
+          },
+          "customDomain": {
+            "type": "string",
+            "nullable": true,
+            "description": "Definido só via PUT /website/custom-domain — nunca por PUT /website"
+          },
+          "template": {
+            "type": "string",
+            "nullable": true,
+            "description": "Template que semeou o site (informativo); devolvido mas não gravável por PUT /website"
+          },
+          "skin": {
+            "type": "string",
+            "nullable": true,
+            "description": "Variante visual de bloco (ex.: 'tifas'); devolvido mas não gravável por PUT /website"
+          },
+          "defaultLocale": {
+            "type": "string",
+            "example": "pt"
+          },
+          "activeLocales": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "theme": {
+            "type": "object",
+            "nullable": true
+          },
+          "nav": {
+            "type": "object",
+            "nullable": true,
+            "description": "`null` no objeto 'vazio' devolvido por GET /website antes de o tenant ter Site; devolvido por PUT /website mas não gravável por esse endpoint (sem endpoint dedicado identificado)"
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "[] no objeto 'vazio'"
+          },
+          "footer": {
+            "type": "object",
+            "nullable": true,
+            "description": "Devolvido mas não gravável por PUT /website (sem endpoint dedicado identificado)"
+          },
+          "published": {
+            "type": "boolean"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Ausente no objeto 'vazio' devolvido por GET /website quando o tenant ainda não tem Site"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Ausente no objeto 'vazio' devolvido por GET /website quando o tenant ainda não tem Site"
+          }
+        },
+        "required": [
+          "siteId",
+          "subdomain",
+          "customDomain",
+          "template",
+          "defaultLocale",
+          "activeLocales",
+          "theme",
+          "pages",
+          "footer",
+          "published",
+          "publishedAt"
+        ]
+      },
       "SiteTemplate": {
         "type": "object",
-        "description": "Template de arranque do site público (fonte única na API, T19). O picker do Backoffice grava `site` diretamente via PUT /website; o signup semeia o `Site` do tenant a partir do template da vertical.",
+        "description": "Template de arranque do site público (fonte única na API, T19). O picker do Backoffice grava `site` diretamente via PUT /website (só theme/pages/defaultLocale/activeLocales são de facto persistidos por esse endpoint — ver `Site`); o signup semeia o `Site` do tenant a partir do template da vertical (caminho que não passa pela allowlist do PUT).",
         "properties": {
           "id": {
             "type": "string",
@@ -2391,7 +2490,7 @@
           },
           "site": {
             "type": "object",
-            "description": "Subconjunto do Site aceite por PUT /website (theme/nav/pages/footer/defaultLocale/activeLocales/template).",
+            "description": "Payload de arranque do Site (theme/nav/pages/footer/defaultLocale/activeLocales/template) — usado pelo signup para semear a linha directamente; via PUT /website só theme/pages/defaultLocale/activeLocales seriam persistidos.",
             "properties": {
               "template": {
                 "type": "string",
@@ -2934,16 +3033,24 @@
             "name": "success",
             "in": "query",
             "schema": {
-              "type": "boolean"
-            }
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "description": "Comparado como STRING literal ('true'/'false') no controller — qualquer outro valor (incl. um boolean serializado de outra forma) é ignorado, sem filtrar"
           },
           {
             "name": "errors",
             "in": "query",
             "schema": {
-              "type": "boolean"
+              "type": "string",
+              "enum": [
+                "true"
+              ]
             },
-            "description": "Só erros de sistema (5xx)"
+            "description": "Só erros de sistema (5xx). Comparado como STRING literal 'true' — qualquer outro valor é ignorado, sem filtrar"
           },
           {
             "name": "from",
@@ -4757,7 +4864,148 @@
         ],
         "responses": {
           "200": {
-            "description": "Dados agregados + série temporal + páginas + origens, quando o tenant\ntem `User.analyticsSiteId` provisionado e o Umami está configurado no\nservidor.\n\n`tracking: {websiteId, src}` (público — o par que se cola no HTML como\n`<script defer src={src} data-website-id={websiteId}>`) só vem quando o\ndomínio medido é EXTERNO, isto é, não corresponde a nenhum host público\ndo Site do tenant no site-engine (subdomínio ou domínio próprio). Um site\ndo engine recebe o script automaticamente e NUNCA recebe `tracking`.\n\nSem site de estatísticas aplicável devolve `{ configured: false, reason }`:\n- `no-domain`: o tenant ainda não definiu um domínio (`PUT /analytics/site/domain`).\n- `no-analytics-site`: o tenant já tem domínio mas ainda não há um\n  website Umami provisionado para ele (Umami desligado no servidor,\n  ou o provisioning automático ainda não correu/falhou).\n"
+            "description": "Dados agregados + série temporal + páginas + origens, quando o tenant\ntem `User.analyticsSiteId` provisionado e o Umami está configurado no\nservidor.\n\n`tracking: {websiteId, src}` (público — o par que se cola no HTML como\n`<script defer src={src} data-website-id={websiteId}>`) só vem quando o\ndomínio medido é EXTERNO, isto é, não corresponde a nenhum host público\ndo Site do tenant no site-engine (subdomínio ou domínio próprio). Um site\ndo engine recebe o script automaticamente e NUNCA recebe `tracking`.\n\nSem site de estatísticas aplicável devolve `{ configured: false, reason }`:\n- `no-domain`: o tenant ainda não definiu um domínio (`PUT /analytics/site/domain`).\n- `no-analytics-site`: o tenant já tem domínio mas ainda não há um\n  website Umami provisionado para ele (Umami desligado no servidor,\n  ou o provisioning automático ainda não correu/falhou).\n\nErro do Umami ao consultar (offline, id inválido, credenciais erradas):\n`configured: true` + `error` preenchido, mas SEM `aggregate`/`timeseries`/\n`topPages`/`sources` (o pedido nunca chega a ter esses dados — não vêm\nnulos, ficam simplesmente ausentes).\n",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "type": "string",
+                      "enum": [
+                        "no-domain",
+                        "no-analytics-site"
+                      ],
+                      "description": "Só presente quando configured=false"
+                    },
+                    "domain": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "User.websiteDomain. Presente quando configured=true (sucesso ou erro do Umami); ausente quando configured=false"
+                    },
+                    "period": {
+                      "type": "string",
+                      "enum": [
+                        "day",
+                        "7d",
+                        "30d",
+                        "month",
+                        "6mo",
+                        "12mo"
+                      ],
+                      "description": "Presente quando configured=true (sucesso ou erro do Umami)"
+                    },
+                    "aggregate": {
+                      "type": "object",
+                      "description": "Só presente no caminho de sucesso (configured=true, sem error)",
+                      "properties": {
+                        "visitors": {
+                          "type": "object",
+                          "properties": {
+                            "value": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "pageviews": {
+                          "type": "object",
+                          "properties": {
+                            "value": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "bounce_rate": {
+                          "type": "object",
+                          "description": "%",
+                          "properties": {
+                            "value": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "visit_duration": {
+                          "type": "object",
+                          "description": "segundos",
+                          "properties": {
+                            "value": {
+                              "type": "number"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "timeseries": {
+                      "type": "array",
+                      "description": "Só presente no caminho de sucesso",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "date": {
+                            "type": "string"
+                          },
+                          "visitors": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "topPages": {
+                      "type": "array",
+                      "description": "Só presente no caminho de sucesso",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "page": {
+                            "type": "string"
+                          },
+                          "visitors": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "sources": {
+                      "type": "array",
+                      "description": "Só presente no caminho de sucesso",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "source": {
+                            "type": "string"
+                          },
+                          "visitors": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "tracking": {
+                      "type": "object",
+                      "description": "Só presente quando o domínio medido é EXTERNO ao site-engine (ver descrição acima)",
+                      "properties": {
+                        "websiteId": {
+                          "type": "string"
+                        },
+                        "src": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "error": {
+                      "type": "string",
+                      "description": "Só presente quando configured=true e a chamada ao Umami falhou"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erro interno (ex.: falha a ler o User)"
           }
         }
       }
@@ -4775,7 +5023,23 @@
         ],
         "responses": {
           "200": {
-            "description": "Domínio atual do site do tenant"
+            "description": "Domínio atual do site do tenant (User.websiteDomain)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "websiteDomain": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "websiteDomain"
+                  ]
+                }
+              }
+            }
           }
         }
       },
@@ -4808,7 +5072,23 @@
         },
         "responses": {
           "200": {
-            "description": "Domínio guardado (normalizado)"
+            "description": "Domínio guardado (normalizado; mesma forma de GET /analytics/site/domain)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "websiteDomain": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "websiteDomain"
+                  ]
+                }
+              }
+            }
           },
           "401": {
             "description": "Não autenticado"
@@ -4817,7 +5097,7 @@
             "description": "Utilizador não encontrado"
           },
           "409": {
-            "description": "Domínio já usado por outro tenant (não identifica de quem é)"
+            "description": "Domínio já usado por outro tenant (não identifica de quem é). Corpo: `{ error: \"domain_taken\", value: string }`\n"
           }
         }
       }
@@ -5180,6 +5460,454 @@
           },
           "404": {
             "description": "Tenant não encontrado"
+          }
+        }
+      }
+    },
+    "/cms/entries/references-counts": {
+      "get": {
+        "summary": "Contar, para cada key pedida, quantas entidades a referenciam (produtos, serviços, ginásio)",
+        "description": "Exige `authenticateToken` + `billingGate` (sem efeito em GET, só bloqueia mutações) + `authorizePermissions([\"VIEW_CMS\"])` — quem tem a permissão `Admin` salta a verificação de componente. `keys` é uma lista separada por vírgulas na query string; sem `keys` (ou vazio depois de trim), devolve `{}` sem tocar na BD. Uma key conta se aparecer em `contentKey` OU em `descriptionKey` de Product/Service; keys que comecem por `gym.` também contam ExerciseCatalog/MuscleGroup/WorkoutTemplate/Plano. Toda key pedida aparece na resposta (mesmo com contagem 0); keys não pedidas nunca aparecem.\n",
+        "tags": [
+          "CMS"
+        ],
+        "parameters": [
+          {
+            "name": "keys",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Lista de keys separadas por vírgula",
+            "example": "hero.title,footer.text"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mapa key → nº de referências (objeto vazio se keys não for enviado)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer"
+                  },
+                  "example": {
+                    "hero.title": 2,
+                    "footer.text": 0
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sem token válido"
+          },
+          "403": {
+            "description": "Sem a permissão VIEW_CMS"
+          },
+          "500": {
+            "description": "Erro ao obter contagens de referências"
+          }
+        }
+      }
+    },
+    "/cms/entries/{key}/references": {
+      "get": {
+        "summary": "Listar as entidades concretas (produtos, serviços, ginásio) que referenciam uma key",
+        "description": "Exige `authenticateToken` + `billingGate` (sem efeito em GET, só bloqueia mutações) + `authorizePermissions([\"VIEW_CMS\"])` — quem tem a permissão `Admin` salta a verificação de componente. Um produto/serviço entra na lista se `key` corresponder ao seu `contentKey` OU ao seu `descriptionKey`; o `name` devolvido é sempre resolvido a partir do `contentKey` PRÓPRIO da entidade (o nome \"principal\"), não da key pedida — se `key` só bateu no `descriptionKey`, `name` continua a ser o nome do produto/serviço, não a descrição. `gym` só é preenchido quando `key` começa por `gym.`. Sem correspondências, devolve 200 com arrays vazios (nunca 404).\n",
+        "tags": [
+          "CMS"
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "hero.title"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Entidades que referenciam a key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "products": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "productId": {
+                            "type": "string"
+                          },
+                          "contentKey": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "descriptionKey": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Nome resolvido via CMS a partir do contentKey do produto (língua padrão do tenant); cai para o próprio contentKey se não houver tradução, ou '' se contentKey for null.\n"
+                          }
+                        },
+                        "required": [
+                          "productId",
+                          "contentKey",
+                          "descriptionKey",
+                          "name"
+                        ]
+                      }
+                    },
+                    "services": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "serviceId": {
+                            "type": "string"
+                          },
+                          "contentKey": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "descriptionKey": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Igual a products[].name, mas resolvido a partir do serviço"
+                          }
+                        },
+                        "required": [
+                          "serviceId",
+                          "contentKey",
+                          "descriptionKey",
+                          "name"
+                        ]
+                      }
+                    },
+                    "gym": {
+                      "type": "array",
+                      "description": "Só preenchido quando key começa por 'gym.'",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "exerciseId / muscleGroupId / templateId / planoId, consoante type"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "exercise",
+                              "group",
+                              "treino",
+                              "plano"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type",
+                          "name"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "products",
+                    "services",
+                    "gym"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sem token válido"
+          },
+          "403": {
+            "description": "Sem a permissão VIEW_CMS"
+          },
+          "500": {
+            "description": "Erro ao obter referências"
+          }
+        }
+      }
+    },
+    "/cms/email-templates": {
+      "get": {
+        "summary": "Listar os templates de email editáveis, com os valores atuais do tenant por língua",
+        "description": "Só `authenticateToken` — ao contrário de `/cms/entries` e `/cms/sections`, NÃO exige a permissão `VIEW_CMS` (nem passa pelo `billingGate`, irrelevante em GET). Qualquer utilizador do backoffice autenticado do tenant pode listar, mesmo sem a permissão de CMS. `locales` vem de `User.languages` (ou `[defaultLanguage]` se o tenant não tiver línguas escolhidas). Para cada template, `localeValues` tem uma entrada por língua de `locales` com o valor guardado no CMS (`\"\"` se a entrada ainda não existir — não é o `defaultSubject`/ `defaultBody`, a UI decide o fallback). A gravação usa o upsert normal do CMS (`PUT /cms/entries`) com as chaves `email.<key>.assunto` / `email.<key>.corpo`.\n",
+        "tags": [
+          "CMS"
+        ],
+        "responses": {
+          "200": {
+            "description": "Templates de email",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "locales": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "pt",
+                        "en"
+                      ]
+                    },
+                    "defaultLocale": {
+                      "type": "string",
+                      "example": "pt"
+                    },
+                    "templates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "enum": [
+                              "confirmacao",
+                              "cancelamento",
+                              "atualizacao",
+                              "boasvindas",
+                              "encomenda",
+                              "lembrete"
+                            ]
+                          },
+                          "label": {
+                            "type": "string",
+                            "example": "Confirmação de marcação"
+                          },
+                          "placeholders": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Placeholders {{nome}} disponíveis neste template (só documentação/ajuda)"
+                          },
+                          "permissions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Componentes RBAC (ex. VIEW_SCHEDULE) que tornam este email relevante para o tenant — informativo, para a UI decidir que templates mostrar. NÃO é a permissão exigida para chamar este endpoint (este não exige nenhuma).\n"
+                          },
+                          "defaultSubject": {
+                            "type": "string"
+                          },
+                          "defaultBody": {
+                            "type": "string"
+                          },
+                          "subjectKey": {
+                            "type": "string",
+                            "description": "Chave CMS do assunto: email.<key>.assunto"
+                          },
+                          "bodyKey": {
+                            "type": "string",
+                            "description": "Chave CMS do corpo: email.<key>.corpo"
+                          },
+                          "localeValues": {
+                            "type": "object",
+                            "description": "Uma entrada por língua de locales, chaveada pelo código da língua",
+                            "additionalProperties": {
+                              "type": "object",
+                              "properties": {
+                                "subject": {
+                                  "type": "string",
+                                  "description": "'' se a entrada CMS ainda não existir para esta língua"
+                                },
+                                "body": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "subject",
+                                "body"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "label",
+                          "placeholders",
+                          "permissions",
+                          "defaultSubject",
+                          "defaultBody",
+                          "subjectKey",
+                          "bodyKey",
+                          "localeValues"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "locales",
+                    "defaultLocale",
+                    "templates"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sem token válido"
+          },
+          "500": {
+            "description": "Erro ao obter templates de email"
+          }
+        }
+      }
+    },
+    "/cms/notification-templates": {
+      "get": {
+        "summary": "Listar os templates de NOTIFICAÇÃO (push + in-app) editáveis, com os valores atuais do tenant por língua",
+        "description": "Espelho de `GET /cms/email-templates` (título+corpo em vez de assunto+corpo, sem HTML). Só `authenticateToken` — ao contrário de `/cms/entries` e `/cms/sections`, NÃO exige a permissão `VIEW_CMS` (nem passa pelo `billingGate`, irrelevante em GET). Qualquer utilizador do backoffice autenticado do tenant pode listar, mesmo sem a permissão de CMS. `locales` vem de `User.languages` (ou `[defaultLanguage]` se o tenant não tiver línguas escolhidas). `localeValues` tem uma entrada por língua de `locales` com o valor guardado no CMS (`\"\"` se a entrada ainda não existir — não é o `defaultTitle`/`defaultBody`). A gravação usa o upsert normal do CMS (`PUT /cms/entries`) com as chaves `notif.<key>.titulo` / `notif.<key>.corpo`.\n",
+        "tags": [
+          "CMS"
+        ],
+        "responses": {
+          "200": {
+            "description": "Templates de notificação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "locales": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "pt",
+                        "en"
+                      ]
+                    },
+                    "defaultLocale": {
+                      "type": "string",
+                      "example": "pt"
+                    },
+                    "templates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "enum": [
+                              "novo_plano",
+                              "plano_alterado",
+                              "mensalidade_aviso",
+                              "mensalidade_ultimo_dia",
+                              "mensalidade_atraso",
+                              "marcacao_confirmada",
+                              "marcacao_alterada",
+                              "marcacao_cancelada",
+                              "marcacao_lembrete"
+                            ]
+                          },
+                          "label": {
+                            "type": "string",
+                            "example": "Novo plano (ginásio)"
+                          },
+                          "placeholders": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Placeholders {{nome}} disponíveis neste template (só documentação/ajuda)"
+                          },
+                          "permissions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Componentes RBAC (VIEW_GYM ou VIEW_SCHEDULE) que tornam esta notificação relevante para o tenant — informativo, para a UI decidir que templates mostrar. NÃO é a permissão exigida para chamar este endpoint (este não exige nenhuma).\n"
+                          },
+                          "defaultTitle": {
+                            "type": "string"
+                          },
+                          "defaultBody": {
+                            "type": "string"
+                          },
+                          "titleKey": {
+                            "type": "string",
+                            "description": "Chave CMS do título: notif.<key>.titulo"
+                          },
+                          "bodyKey": {
+                            "type": "string",
+                            "description": "Chave CMS do corpo: notif.<key>.corpo"
+                          },
+                          "localeValues": {
+                            "type": "object",
+                            "description": "Uma entrada por língua de locales, chaveada pelo código da língua",
+                            "additionalProperties": {
+                              "type": "object",
+                              "properties": {
+                                "title": {
+                                  "type": "string",
+                                  "description": "'' se a entrada CMS ainda não existir para esta língua"
+                                },
+                                "body": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "title",
+                                "body"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "label",
+                          "placeholders",
+                          "permissions",
+                          "defaultTitle",
+                          "defaultBody",
+                          "titleKey",
+                          "bodyKey",
+                          "localeValues"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "locales",
+                    "defaultLocale",
+                    "templates"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sem token válido"
+          },
+          "500": {
+            "description": "Erro ao obter templates de notificação"
           }
         }
       }
@@ -6251,6 +6979,102 @@
                                 "type": "integer"
                               },
                               "totalDiscount": {
+                                "type": "number"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "gym": {
+                      "type": "object",
+                      "description": "Gym (mensalidades) revenue analytics (VIEW_GYM required)",
+                      "properties": {
+                        "period": {
+                          "type": "object",
+                          "properties": {
+                            "revenue": {
+                              "type": "number",
+                              "description": "Soma de GymPayment.amount pago (status=paid, paidAt) no período"
+                            },
+                            "revenuePrevious": {
+                              "type": "number"
+                            },
+                            "revenueGrowth": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "revenueByPeriod": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "date": {
+                                "type": "string"
+                              },
+                              "revenue": {
+                                "type": "number"
+                              }
+                            }
+                          }
+                        },
+                        "activeMembers": {
+                          "type": "integer",
+                          "description": "Membros com GymMembership.subscriptionId definido (independente de período)"
+                        }
+                      }
+                    },
+                    "expenses": {
+                      "type": "object",
+                      "description": "Expenses analytics — sempre incluído (módulo \"core\", todos os tenants)",
+                      "properties": {
+                        "period": {
+                          "type": "object",
+                          "properties": {
+                            "total": {
+                              "type": "number"
+                            },
+                            "totalPrevious": {
+                              "type": "number"
+                            },
+                            "totalGrowth": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "byCategory": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "categoryId": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "Nome da categoria, ou \"Sem categoria\"/\"—\" quando categoryId é null ou já não existe"
+                              },
+                              "color": {
+                                "type": "string",
+                                "example": "#71717A"
+                              },
+                              "total": {
+                                "type": "number"
+                              }
+                            }
+                          }
+                        },
+                        "expensesByPeriod": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "date": {
+                                "type": "string"
+                              },
+                              "amount": {
                                 "type": "number"
                               }
                             }
@@ -8905,7 +9729,7 @@
     },
     "/gym/mensalidade/analytics": {
       "get": {
-        "summary": "Análise de mensalidades (MRR, churn, retenção, LTV, tendência do MRR)",
+        "summary": "Análise de mensalidades (MRR, churn, retenção, LTV, tendência do MRR, waterfall)",
         "tags": [
           "GymMensalidade"
         ],
@@ -8924,13 +9748,30 @@
                   "properties": {
                     "mrr": {
                       "type": "number",
-                      "description": "Soma dos preços das subscrições ativas"
+                      "description": "Soma dos preços das subscrições ativas atribuídas a membros ativos (computeMrr)"
+                    },
+                    "arr": {
+                      "type": "number",
+                      "description": "mrr × 12"
+                    },
+                    "collectionRate": {
+                      "type": "number",
+                      "description": "% do MRR já recebido no mês corrente (recebido/mrr × 100; 100 se mrr=0 e recebido>0, senão 0)"
                     },
                     "activeMembers": {
                       "type": "integer"
                     },
                     "blockedMembers": {
                       "type": "integer"
+                    },
+                    "inactiveMembers": {
+                      "type": "integer",
+                      "description": "Membros ativos (subscrição ativa, não 'só paga') sem treino registado (WorkoutLog) nos últimos `inactiveAfterDays` dias"
+                    },
+                    "inactiveAfterDays": {
+                      "type": "integer",
+                      "example": 14,
+                      "description": "Janela (dias) usada para calcular inactiveMembers"
                     },
                     "churn": {
                       "type": "object",
@@ -8961,6 +9802,7 @@
                     },
                     "mrrTrend": {
                       "type": "array",
+                      "description": "Últimos 6 períodos (mais antigo → mais recente)",
                       "items": {
                         "type": "object",
                         "properties": {
@@ -8969,6 +9811,36 @@
                             "example": "2026-06"
                           },
                           "recebido": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "waterfall": {
+                      "type": "array",
+                      "description": "Movimento do MRR (recebido) por período: novo (clientes sem pagamento no período anterior) + expansão (pagou mais que no período anterior) − contração (pagou menos, ainda pagou) − perdido (pagava, deixou de pagar). `liquido` = soma dos quatro. Mesmos 6 períodos de `mrrTrend`.\n",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "period": {
+                            "type": "string",
+                            "example": "2026-06"
+                          },
+                          "novo": {
+                            "type": "number"
+                          },
+                          "expansao": {
+                            "type": "number"
+                          },
+                          "contracao": {
+                            "type": "number",
+                            "description": "≤ 0"
+                          },
+                          "perdido": {
+                            "type": "number",
+                            "description": "≤ 0"
+                          },
+                          "liquido": {
                             "type": "number"
                           }
                         }
@@ -12788,6 +13660,7 @@
     "/website": {
       "get": {
         "summary": "Obtém o site do tenant autenticado (vazio se ainda não existe)",
+        "description": "Sem Site ainda criado, devolve um objeto \"vazio\" por defeito (NÃO cria a linha) — esse objeto tem MENOS campos do que um Site real: falta `userId`, `skin`, `createdAt`, `updatedAt` (ver `Site` — cada campo nota se falta no objeto vazio).\n",
         "tags": [
           "Website"
         ],
@@ -12798,7 +13671,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Configuração do site (ou objeto vazio com siteId null)"
+            "description": "Configuração do site (ou objeto vazio com siteId null quando o tenant ainda não tem Site)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Site"
+                }
+              }
+            }
           },
           "401": {
             "description": "Não autenticado"
@@ -12806,7 +13686,8 @@
         }
       },
       "put": {
-        "summary": "Cria ou actualiza campos editáveis do site (theme, nav, pages, footer, defaultLocale, activeLocales, template)",
+        "summary": "Cria ou actualiza os campos editáveis do site (theme, pages, defaultLocale, activeLocales)",
+        "description": "Só os 4 campos abaixo são graváveis por este endpoint (`EDITABLE_FIELDS`, allowlist anti mass-assignment) — qualquer outro campo enviado no body (`nav`, `footer`, `template`, `skin`, `customDomain`, `subdomain`, `published`, `userId`, ou o `settings` ainda inexistente na API) é SILENCIOSAMENTE IGNORADO, nunca persistido (testado em `tests/backoffice/site.test.ts`, \"PUT ignores mass-assignment...\"). `nav` e `footer` têm endpoints/UI próprios mas NÃO passam por aqui apesar de o nome poder sugerir o contrário — `customDomain`/`subdomain` têm endpoints DEDICADOS (`PUT /website/custom-domain`, `PUT /website/subdomain`).\n",
         "tags": [
           "Website"
         ],
@@ -12826,19 +13707,11 @@
                     "type": "object",
                     "nullable": true
                   },
-                  "nav": {
-                    "type": "object",
-                    "nullable": true
-                  },
                   "pages": {
                     "type": "array",
                     "items": {
                       "type": "object"
                     }
-                  },
-                  "footer": {
-                    "type": "object",
-                    "nullable": true
                   },
                   "defaultLocale": {
                     "type": "string",
@@ -12849,10 +13722,6 @@
                     "items": {
                       "type": "string"
                     }
-                  },
-                  "template": {
-                    "type": "string",
-                    "nullable": true
                   }
                 }
               }
@@ -12861,7 +13730,14 @@
         },
         "responses": {
           "200": {
-            "description": "Site actualizado"
+            "description": "Site actualizado (devolve o Site completo, incluindo campos não editáveis por este endpoint)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Site"
+                }
+              }
+            }
           },
           "401": {
             "description": "Não autenticado"

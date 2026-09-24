@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { getDashboard as getDashboardGen } from "../gen/backoffice/hooks/useGetDashboard.js";
-import type { GetDashboardQueryParams } from "../gen/backoffice/types/GetDashboard.js";
 
 export type DashboardPeriod = "7d" | "30d" | "90d" | "12m" | "today" | "week" | "month" | "lastMonth" | "year" | "total" | "custom";
 
@@ -97,11 +96,15 @@ export interface DashboardData {
 
 /**
  * GET /dashboard?period= — analytics agregadas por módulo acessível.
- * Migrado (B18) para o client gerado. `DashboardPeriod` é mais largo (inclui
- * "today"/"week"/"month"/… usados também pelo Financeiro) do que o enum de 4
- * valores que o spec documenta para este endpoint — cast pragmático via
- * `unknown`, o runtime sempre aceitou o valor tal como estava. O gen também
- * não documenta `gym`/`expenses` no corpo da resposta (o runtime devolve-os).
+ * Migrado (B18) para o client gerado. O param `period` já não precisa de
+ * cast: `GetDashboardQueryParams` tem `period` opcional, por isso o `tsc`
+ * aceita o objeto largo (com `startDate`/`endDate` extra, para "custom") sem
+ * reclamar (B19 não mudou isto — nunca foi preciso).
+ *
+ * O cast na RESPOSTA continua a ser preciso (B19 só corrigiu `gym`/`expenses`,
+ * que passaram a estar documentados): `GetDashboard200.period` é `string`
+ * solto (não o enum de 4 valores), incompatível com o `DashboardPeriod` local
+ * mais largo ("today"/"week"/"month"/… usados também pelo Financeiro).
  */
 export function useDashboard(period: DashboardPeriod = "30d", customStart?: string, customEnd?: string) {
   const { isAuthenticated } = useAuth();
@@ -115,7 +118,7 @@ export function useDashboard(period: DashboardPeriod = "30d", customStart?: stri
         params.startDate = customStart;
         params.endDate = customEnd;
       }
-      const data = await getDashboardGen(params as unknown as GetDashboardQueryParams);
+      const data = await getDashboardGen(params);
       return data as DashboardData;
     },
   });

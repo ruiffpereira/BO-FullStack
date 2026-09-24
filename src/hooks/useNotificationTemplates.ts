@@ -1,8 +1,5 @@
-import fetch from "@kubb/plugin-client/clients/axios";
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "../context/AuthContext";
-
-import { API_BASE as BASE } from "../lib/env";
+import { getCmsNotificationTemplates } from "../gen/backoffice/hooks/useGetCmsNotificationTemplates.js";
 
 export interface NotificationTemplate {
   key: string;
@@ -23,19 +20,17 @@ export interface NotificationTemplatesResponse {
   templates: NotificationTemplate[];
 }
 
+/**
+ * GET /cms/notification-templates — migrado (B18) para o client gerado pelo
+ * Kubb: a rota ganhou `@swagger` e deixou de precisar do `url`/`baseURL`
+ * escritos à mão. O Bearer continua a ser injetado pelo interceptor do
+ * `axiosInstance` partilhado (AuthContext.tsx), por isso `authHeader()`
+ * deixou de ser preciso.
+ */
 export function useNotificationTemplates() {
-  const { authHeader } = useAuth();
   return useQuery({
     queryKey: ["notification-templates"],
-    queryFn: async () => {
-      const res = await fetch<NotificationTemplatesResponse, Error, unknown>({
-        method: "GET",
-        url: `/cms/notification-templates`,
-        baseURL: BASE,
-        headers: authHeader(),
-      });
-      return res.data;
-    },
+    queryFn: async (): Promise<NotificationTemplatesResponse> => await getCmsNotificationTemplates(),
     staleTime: 30_000,
   });
 }

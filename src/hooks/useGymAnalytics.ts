@@ -34,9 +34,13 @@ export interface GymAnalytics {
 
 /**
  * GET /gym/mensalidade/analytics — churn / retenção / LTV / MRR trend do tenant.
- * Migrado (B18) para o client gerado. Tipo local mantido: o spec ainda não
- * documenta `inactiveMembers`/`inactiveAfterDays`/`waterfall` (o runtime já os
- * devolve — atraso do Swagger, fora do âmbito desta migração de Backoffice).
+ * Migrado (B18) para o client gerado. B19 já documenta todos os campos
+ * (`arr`/`collectionRate`/`inactiveMembers`/`inactiveAfterDays`/`waterfall`
+ * incluídos), mas NENHUM está marcado `required` no schema — o gerado tem
+ * `mrr?`, `arr?`, … todos opcionais, e o `tsc` só reporta o primeiro (`mrr`)
+ * porque a checagem de assignability pára no primeiro campo incompatível.
+ * O runtime sempre devolve o objeto completo; falta o `required: [...]` no
+ * `@swagger` do controller — cast mantido até isso ser corrigido na API.
  */
 export function useGymAnalytics() {
   const { isAuthenticated } = useAuth();

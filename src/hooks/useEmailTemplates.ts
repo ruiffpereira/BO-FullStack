@@ -1,8 +1,5 @@
-import fetch from "@kubb/plugin-client/clients/axios";
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "../context/AuthContext";
-
-import { API_BASE as BASE } from "../lib/env";
+import { getCmsEmailTemplates } from "../gen/backoffice/hooks/useGetCmsEmailTemplates.js";
 
 export interface EmailTemplate {
   key: string;
@@ -23,19 +20,16 @@ export interface EmailTemplatesResponse {
   templates: EmailTemplate[];
 }
 
+/**
+ * GET /cms/email-templates — migrado (B18) para o client gerado pelo Kubb: a
+ * rota ganhou `@swagger` e deixou de precisar do `url`/`baseURL` escritos à
+ * mão. O Bearer continua a ser injetado pelo interceptor do `axiosInstance`
+ * partilhado (AuthContext.tsx), por isso `authHeader()` deixou de ser preciso.
+ */
 export function useEmailTemplates() {
-  const { authHeader } = useAuth();
   return useQuery({
     queryKey: ["email-templates"],
-    queryFn: async () => {
-      const res = await fetch<EmailTemplatesResponse, Error, unknown>({
-        method: "GET",
-        url: `/cms/email-templates`,
-        baseURL: BASE,
-        headers: authHeader(),
-      });
-      return res.data;
-    },
+    queryFn: async (): Promise<EmailTemplatesResponse> => await getCmsEmailTemplates(),
     staleTime: 30_000,
   });
 }

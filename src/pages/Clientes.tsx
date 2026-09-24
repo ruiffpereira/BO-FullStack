@@ -16,13 +16,14 @@ import { useGetCustomersIdHistory, getCustomersIdHistoryQueryKey } from '../gen/
 import { postCustomers } from '../gen/backoffice/hooks/usePostCustomers.js'
 import { patchCustomersId } from '../gen/backoffice/hooks/usePatchCustomersId.js'
 import { putScheduleAppointmentsId } from '../gen/backoffice/hooks/usePutScheduleAppointmentsId.js'
+import { getCustomersIdExport } from '../gen/backoffice/hooks/useGetCustomersIdExport.js'
+import { deleteCustomersId } from '../gen/backoffice/hooks/useDeleteCustomersId.js'
 import type { Customer } from '../gen/backoffice/types/Customer.js'
 import type { Appointment } from '../gen/backoffice/types/Appointment.js'
 import { ApptModal } from '../components/ApptModal.js'
 import { ClienteMensalidade } from './GymMensalidade'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { LeadsInbox } from './clientes/LeadsInbox'
-import { axiosInstance } from '@kubb/plugin-client/clients/axios'
 import { colorFromName } from '../lib/avatarColor'
 import { apptStatusView } from '../lib/apptStatus'
 
@@ -181,8 +182,12 @@ export function Clientes({ view }: { view: ClientesView }) {
   const exportData = async (c: Customer) => {
     try {
       setExporting(true)
-      const res = await axiosInstance.get(`/customers/${c.customerId}/export`, { responseType: 'blob' })
-      const url = URL.createObjectURL(res.data as Blob)
+      // O endpoint devolve um blob (ficheiro JSON), não JSON estruturado — o
+      // `RequestConfig` do client gerado aceita `responseType` (subset do
+      // AxiosRequestConfig), passado direto para o mesmo axiosInstance; o
+      // wrapper gerado já devolve `res.data` desembrulhado.
+      const blob = await getCustomersIdExport(c.customerId, { responseType: 'blob' })
+      const url = URL.createObjectURL(blob as Blob)
       const a = document.createElement('a')
       a.href = url
       a.download = `dados-cliente-${c.customerId}.json`
@@ -199,7 +204,7 @@ export function Clientes({ view }: { view: ClientesView }) {
   }
 
   const eraseMut = useMutation({
-    mutationFn: (id: string) => axiosInstance.delete(`/customers/${id}`),
+    mutationFn: (id: string) => deleteCustomersId(id),
     onSuccess: () => {
       toast.success('Dados pessoais anonimizados (RGPD)')
       qc.invalidateQueries({ queryKey: getCustomersQueryKey() })

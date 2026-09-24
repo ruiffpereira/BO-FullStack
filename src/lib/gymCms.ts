@@ -5,6 +5,7 @@
 // separado): se não houver `contentKey`, gera-se um e grava-se o nome padrão.
 import { putCmsEntries } from '../gen/backoffice/hooks/usePutCmsEntries.js'
 import { getCmsEntriesQueryKey } from '../gen/backoffice/hooks/useGetCmsEntries.js'
+import { getCmsSearchQueryKey } from '../gen/backoffice/hooks/useGetCmsSearch.js'
 import { queryClient } from './queryClient'
 
 /** Gera uma chave CMS estável para um contexto (ex: gym, service, product). */
@@ -24,8 +25,10 @@ export async function ensureCmsName(
   const key = contentKey || genCmsKey(context)
   await putCmsEntries({ key, locale: defaultLang, value: name.trim(), type: 'text' })
   // Só ao CRIAR uma entrada nova: refresca a pesquisa/listagem para aparecer sem refresh.
+  // Chave gerada pelo Kubb — bate com a leitura de useCmsSearch.ts (useGetCmsSearch),
+  // que também usa getCmsSearchQueryKey(); prefixo, cobre qualquer combinação de params.
   if (isNew) {
-    queryClient.invalidateQueries({ queryKey: ['cms-search'] })
+    queryClient.invalidateQueries({ queryKey: getCmsSearchQueryKey() })
     queryClient.invalidateQueries({ queryKey: getCmsEntriesQueryKey() })
   }
   return key

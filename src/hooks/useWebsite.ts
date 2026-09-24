@@ -1,16 +1,26 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { axiosInstance } from "@kubb/plugin-client/clients/axios";
 import { useAuth } from "../context/AuthContext";
+import { getWebsite } from "../gen/backoffice/hooks/useGetWebsite.js";
+import { putWebsite } from "../gen/backoffice/hooks/usePutWebsite.js";
+import { getWebsiteSubdomainCheck } from "../gen/backoffice/hooks/useGetWebsiteSubdomainCheck.js";
+import { putWebsiteSubdomain } from "../gen/backoffice/hooks/usePutWebsiteSubdomain.js";
+import { putWebsiteCustomDomain } from "../gen/backoffice/hooks/usePutWebsiteCustomDomain.js";
+import { postWebsitePublish } from "../gen/backoffice/hooks/usePostWebsitePublish.js";
 
 /**
  * Website (site público do tenant, renderizado pelo site-engine à parte).
- * Endpoints manuais (sem Kubb), tipos definidos localmente:
+ * Migrado (B18) para os clients gerados pelo Kubb:
  *   GET  /website                         → Site (ou default vazio)
  *   PUT  /website                         → upsert (theme/nav/pages/footer/…/template)
  *   GET  /website/subdomain/check?value=  → { value, available, reason? }
  *   PUT  /website/subdomain               → { value } → 200 | 400 | 409
+ *   PUT  /website/custom-domain           → { value } → 200 | 400 | 409
  *   POST /website/publish                 → 200 | 400 { error }
- * Bearer auto-injetado via authHeader().
+ * Bearer auto-injetado pelo interceptor do axiosInstance partilhado (ver
+ * AuthContext.tsx) — o client gerado corre nesse mesmo axiosInstance.
+ * Tipos mantidos localmente: o spec ainda não documenta `settings`/`skin` no
+ * corpo do PUT /website nem alguns campos do GET (o runtime já os aceita/devolve,
+ * só o Swagger está atrasado — fora do âmbito desta migração, que é só Backoffice).
  */
 
 // ── Tipos (espelham o Site da API) ───────────────────────────────────────────
@@ -228,31 +238,20 @@ export const websiteKeys = {
 
 /** GET /website — o Site do tenant (ou o default vazio devolvido pela API). */
 export function useSite() {
-  const { authHeader, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   return useQuery<Site>({
     queryKey: websiteKeys.site,
     enabled: isAuthenticated,
     staleTime: 0,
-    queryFn: async () => {
-      const res = await axiosInstance.get<Site>("/website", {
-        headers: authHeader(),
-      });
-      return res.data;
-    },
+    queryFn: async () => (await getWebsite()) as Site,
   });
 }
 
 /** PUT /website — upsert do Site (só campos editáveis). Invalida a query. */
 export function useSaveSite() {
-  const { authHeader } = useAuth();
   const qc = useQueryClient();
   return useMutation<Site, unknown, SiteUpsert>({
-    mutationFn: async (input) => {
-      const res = await axiosInstance.put<Site>("/website", input, {
-        headers: authHeader(),
-      });
-      return res.data;
-    },
+    mutationFn: async (input) => (await putWebsite(input)) as Site,
     onSuccess: () => qc.invalidateQueries({ queryKey: websiteKeys.site }),
   });
 }
@@ -262,13 +261,9 @@ export function useSaveSite() {
  * Devolve uma função — o debounce fica a cargo do componente.
  */
 export function useCheckSubdomain() {
-  const { authHeader } = useAuth();
   return async (value: string): Promise<SubdomainCheck> => {
-    const res = await axiosInstance.get<SubdomainCheck>("/website/subdomain/check", {
-      headers: authHeader(),
-      params: { value },
-    });
-    return res.data;
+    const data = await getWebsiteSubdomainCheck({ value });
+    return data as SubdomainCheck;
   };
 }
 
@@ -276,17 +271,9 @@ export function useCheckSubdomain() {
  *  A API sincroniza também o domínio das Estatísticas (User.websiteDomain),
  *  por isso invalida-se a cache do site-analytics. */
 export function useSetSubdomain() {
-  const { authHeader } = useAuth();
   const qc = useQueryClient();
   return useMutation<Site, unknown, string>({
-    mutationFn: async (value) => {
-      const res = await axiosInstance.put<Site>(
-        "/website/subdomain",
-        { value },
-        { headers: authHeader() },
-      );
-      return res.data;
-    },
+    mutationFn: async (value) => (await putWebsiteSubdomain({ value })) as Site,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: websiteKeys.site });
       qc.invalidateQueries({ queryKey: ["site-analytics"] });
@@ -309,17 +296,9 @@ export interface CustomDomainResult {
  * a cache `site-analytics`.
  */
 export function useSetCustomDomain() {
-  const { authHeader } = useAuth();
   const qc = useQueryClient();
   return useMutation<CustomDomainResult, unknown, string | null>({
-    mutationFn: async (value) => {
-      const res = await axiosInstance.put<CustomDomainResult>(
-        "/website/custom-domain",
-        { value },
-        { headers: authHeader() },
-      );
-      return res.data;
-    },
+    mutationFn: async (value) => (await putWebsiteCustomDomain({ value })) as CustomDomainResult,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: websiteKeys.site });
       qc.invalidateQueries({ queryKey: ["site-analytics"] });
@@ -329,17 +308,9 @@ export function useSetCustomDomain() {
 
 /** POST /website/publish — publica o site. Invalida a query. */
 export function usePublishSite() {
-  const { authHeader } = useAuth();
   const qc = useQueryClient();
   return useMutation<Site, unknown, void>({
-    mutationFn: async () => {
-      const res = await axiosInstance.post<Site>(
-        "/website/publish",
-        {},
-        { headers: authHeader() },
-      );
-      return res.data;
-    },
+    mutationFn: async () => (await postWebsitePublish()) as Site,
     onSuccess: () => qc.invalidateQueries({ queryKey: websiteKeys.site }),
   });
 }

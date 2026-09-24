@@ -1,10 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { axiosInstance } from "@kubb/plugin-client/clients/axios";
 import { useAuth } from "../context/AuthContext";
+import { getIntegrationsGoogleStatus } from "../gen/backoffice/hooks/useGetIntegrationsGoogleStatus.js";
+import { getIntegrationsGoogleReviews } from "../gen/backoffice/hooks/useGetIntegrationsGoogleReviews.js";
+import { getIntegrationsGoogleConnect } from "../gen/backoffice/hooks/useGetIntegrationsGoogleConnect.js";
+import { postIntegrationsGoogleDisconnect } from "../gen/backoffice/hooks/usePostIntegrationsGoogleDisconnect.js";
+import { putIntegrationsGooglePlace } from "../gen/backoffice/hooks/usePutIntegrationsGooglePlace.js";
 
 /**
  * Integração Google (Calendar sync + Reviews) por tenant.
- * Bearer auto-injetado via authHeader(); tudo env-gated no servidor.
+ * Migrado para os clients gerados pelo Kubb — o `axiosInstance` partilhado
+ * (interceptor posto pelo `AuthContext`) já injeta `Authorization`, `baseURL`
+ * e `withCredentials` em TODOS os pedidos, incluindo os dos clients gerados
+ * (correm no mesmo `axiosInstance`) — por isso `authHeader()` deixou de ser
+ * preciso aqui. Os tipos locais (`GoogleStatus`/`GoogleReview`/
+ * `GoogleReviewsResponse`) mantêm-se: o spec marca os campos como opcionais/
+ * nullable (contrato genérico), mas o servidor devolve sempre o objeto
+ * completo nestas respostas de sucesso — os `as Tipo` abaixo são esse cast
+ * de fronteira. As query keys mantêm-se EXACTAMENTE como antes da migração
+ * (não as dos hooks gerados) para não desalinhar nenhuma invalidação.
  */
 
 export interface GoogleStatus {
@@ -37,73 +50,52 @@ const STATUS_KEY = ["google-integration", "status"];
 const REVIEWS_KEY = ["google-integration", "reviews"];
 
 export function useGoogleStatus() {
-  const { authHeader, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   return useQuery<GoogleStatus>({
     queryKey: STATUS_KEY,
     enabled: isAuthenticated,
-    queryFn: async () => {
-      const res = await axiosInstance.get<GoogleStatus>("/integrations/google/status", {
-        headers: authHeader(),
-        withCredentials: true,
-      });
-      return res.data;
-    },
+    queryFn: async () => (await getIntegrationsGoogleStatus()) as GoogleStatus,
   });
 }
 
 export function useGoogleReviews(enabled: boolean) {
-  const { authHeader, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   return useQuery<GoogleReviewsResponse>({
     queryKey: REVIEWS_KEY,
     enabled: isAuthenticated && enabled,
-    queryFn: async () => {
-      const res = await axiosInstance.get<GoogleReviewsResponse>("/integrations/google/reviews", {
-        headers: authHeader(),
-        withCredentials: true,
-      });
-      return res.data;
-    },
+    queryFn: async () => (await getIntegrationsGoogleReviews()) as GoogleReviewsResponse,
   });
 }
 
 /** Devolve o URL de consentimento OAuth para redirecionar o browser. */
 export function useGoogleConnect() {
-  const { authHeader } = useAuth();
   return useMutation<string>({
     mutationFn: async () => {
-      const res = await axiosInstance.get<{ url: string }>("/integrations/google/connect", {
-        headers: authHeader(),
-        withCredentials: true,
-      });
-      return res.data.url;
+      const data = await getIntegrationsGoogleConnect();
+      // O spec marca `url` como opcional (contrato genérico), mas uma resposta
+      // 200 desta rota traz sempre o URL — falha alto e explícito em vez de
+      // deixar `window.location.href = undefined` silencioso no chamador.
+      if (!data.url) throw new Error("O servidor não devolveu o URL de autorização Google.");
+      return data.url;
     },
   });
 }
 
 export function useGoogleDisconnect() {
-  const { authHeader } = useAuth();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      await axiosInstance.post("/integrations/google/disconnect", null, {
-        headers: authHeader(),
-        withCredentials: true,
-      });
+      await postIntegrationsGoogleDisconnect();
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: STATUS_KEY }),
   });
 }
 
 export function useSetGooglePlace() {
-  const { authHeader } = useAuth();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (placeId: string) => {
-      await axiosInstance.put(
-        "/integrations/google/place",
-        { placeId },
-        { headers: authHeader(), withCredentials: true },
-      );
+      await putIntegrationsGooglePlace({ placeId });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: STATUS_KEY });

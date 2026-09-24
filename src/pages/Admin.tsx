@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { getApiError } from "../lib/apiError";
-import { useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
-import { API_BASE } from "../lib/env";
 import { Icon } from "../ui/icons.jsx";
 import { VERTICALS } from "../lib/verticals";
 import {
@@ -26,6 +25,7 @@ import { usePagination, Pagination } from "../components/Pagination";
 import { usePostUsersRegister } from "../gen/backoffice/hooks/usePostUsersRegister.js";
 import { usePutUsers } from "../gen/backoffice/hooks/usePutUsers.js";
 import { useDeleteUsersUserid } from "../gen/backoffice/hooks/useDeleteUsersUserid.js";
+import { usePostUsersUseridSendReset } from "../gen/backoffice/hooks/usePostUsersUseridSendReset.js";
 import {
   useGetPermissions,
   getPermissionsQueryKey,
@@ -284,13 +284,12 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
       onError: (error) => toast.error(getApiError(error)),
     },
   });
-  const sendResetM = useMutation({
-    mutationFn: async (userId: string) => {
-      const res = await fetch(`${API_BASE}/users/${userId}/send-reset`, { method: 'POST', headers })
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Erro') }
+  const sendResetM = usePostUsersUseridSendReset({
+    client: { headers },
+    mutation: {
+      onSuccess: () => toast.success('Email de reset enviado'),
+      onError: (error) => toast.error(getApiError(error)),
     },
-    onSuccess: () => toast.success('Email de reset enviado'),
-    onError: (e: any) => toast.error(e.message),
   })
 
   const openEdit = (u: User) => {
@@ -376,7 +375,7 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
                     title="Enviar email de reset de password"
                     icon="key"
                     label="Reset password"
-                    onClick={() => sendResetM.mutate(u.userId)}
+                    onClick={() => sendResetM.mutate({ userId: u.userId })}
                   />
                   <IconButton
                     icon="edit"

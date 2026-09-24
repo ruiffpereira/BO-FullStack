@@ -1,12 +1,22 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { axiosInstance } from "@kubb/plugin-client/clients/axios";
 import { useAuth } from "../context/AuthContext";
+import { getChatSupportMessages } from "../gen/backoffice/hooks/useGetChatSupportMessages.js";
+import { postChatSupportMessages } from "../gen/backoffice/hooks/usePostChatSupportMessages.js";
+import { postChatSupportRead } from "../gen/backoffice/hooks/usePostChatSupportRead.js";
+import { getAdminChatConversations } from "../gen/backoffice/hooks/useGetAdminChatConversations.js";
+import { getAdminChatConversationsTenantuseridMessages } from "../gen/backoffice/hooks/useGetAdminChatConversationsTenantuseridMessages.js";
+import { postAdminChatConversationsTenantuseridMessages } from "../gen/backoffice/hooks/usePostAdminChatConversationsTenantuseridMessages.js";
+import { postAdminChatConversationsTenantuseridRead } from "../gen/backoffice/hooks/usePostAdminChatConversationsTenantuseridRead.js";
 
 /**
- * Chat de suporte (Admin ↔ tenant). Endpoints manuais (sem Kubb):
+ * Chat de suporte (Admin ↔ tenant). Migrado (B18) para os clients gerados pelo
+ * Kubb — os paths deixaram de estar escritos à mão:
  *  Tenant: GET/POST /chat/support/messages · POST /chat/support/read
  *  Admin:  GET /admin/chat/conversations · GET/POST /admin/chat/conversations/:id/messages · POST .../read
- * Tipos definidos localmente (espelham os schemas OpenAPI Chat* da API).
+ * Tipos mantidos localmente (em vez dos gerados): os gerados marcam como
+ * opcionais campos que a API devolve sempre (ex.: `unread`) e não incluem os
+ * campos só-de-cliente (`pending`/`failed`) usados pelo envio otimista — os
+ * `as` abaixo fazem a ponte, o payload em runtime não muda.
  */
 
 export type SenderRole = "admin" | "tenant";
@@ -73,40 +83,28 @@ export const chatKeys = {
 // ── Tenant ───────────────────────────────────────────────────────────────────
 
 export function useSupportThread(enabled = true) {
-  const { authHeader, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   return useQuery<ChatThread>({
     queryKey: chatKeys.support,
     enabled: isAuthenticated && enabled,
     staleTime: 0,
-    queryFn: async () => {
-      const res = await axiosInstance.get<ChatThread>("/chat/support/messages", {
-        headers: authHeader(),
-      });
-      return res.data;
-    },
+    queryFn: async () => (await getChatSupportMessages()) as ChatThread,
   });
 }
 
 export function useSendSupportMessage() {
-  const { authHeader } = useAuth();
   const qc = useQueryClient();
   return useMutation<ChatMessage, unknown, MessageInput>({
-    mutationFn: async (input) => {
-      const res = await axiosInstance.post<ChatMessage>("/chat/support/messages", input, {
-        headers: authHeader(),
-      });
-      return res.data;
-    },
+    mutationFn: async (input) => (await postChatSupportMessages(input)) as ChatMessage,
     onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.support }),
   });
 }
 
 export function useMarkSupportRead() {
-  const { authHeader } = useAuth();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      await axiosInstance.post("/chat/support/read", {}, { headers: authHeader() });
+      await postChatSupportRead();
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.support }),
   });
@@ -115,49 +113,33 @@ export function useMarkSupportRead() {
 // ── Admin ────────────────────────────────────────────────────────────────────
 
 export function useAdminConversations(search = "", enabled = true) {
-  const { authHeader, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   return useQuery<ConversationsResponse>({
     queryKey: chatKeys.adminConversations(search),
     enabled: isAuthenticated && enabled,
     staleTime: 0,
-    queryFn: async () => {
-      const res = await axiosInstance.get<ConversationsResponse>("/admin/chat/conversations", {
-        headers: authHeader(),
-        params: search ? { search } : undefined,
-      });
-      return res.data;
-    },
+    queryFn: async () =>
+      (await getAdminChatConversations(search ? { search } : undefined)) as ConversationsResponse,
   });
 }
 
 export function useAdminThread(tenantUserId: string | null) {
-  const { authHeader, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   return useQuery<ChatThread>({
     queryKey: chatKeys.adminThread(tenantUserId ?? ""),
     enabled: isAuthenticated && !!tenantUserId,
     staleTime: 0,
-    queryFn: async () => {
-      const res = await axiosInstance.get<ChatThread>(
-        `/admin/chat/conversations/${tenantUserId}/messages`,
-        { headers: authHeader() },
-      );
-      return res.data;
-    },
+    queryFn: async () =>
+      // `enabled` garante que a queryFn só corre com tenantUserId definido.
+      (await getAdminChatConversationsTenantuseridMessages(tenantUserId as string)) as ChatThread,
   });
 }
 
 export function useSendAdminMessage(tenantUserId: string) {
-  const { authHeader } = useAuth();
   const qc = useQueryClient();
   return useMutation<ChatMessage, unknown, MessageInput>({
-    mutationFn: async (input) => {
-      const res = await axiosInstance.post<ChatMessage>(
-        `/admin/chat/conversations/${tenantUserId}/messages`,
-        input,
-        { headers: authHeader() },
-      );
-      return res.data;
-    },
+    mutationFn: async (input) =>
+      (await postAdminChatConversationsTenantuseridMessages(tenantUserId, input)) as ChatMessage,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: chatKeys.adminThread(tenantUserId) });
       qc.invalidateQueries({ queryKey: ["chat", "admin", "conversations"] });
@@ -166,15 +148,10 @@ export function useSendAdminMessage(tenantUserId: string) {
 }
 
 export function useMarkAdminRead() {
-  const { authHeader } = useAuth();
   const qc = useQueryClient();
   return useMutation<void, unknown, string>({
     mutationFn: async (tenantUserId) => {
-      await axiosInstance.post(
-        `/admin/chat/conversations/${tenantUserId}/read`,
-        {},
-        { headers: authHeader() },
-      );
+      await postAdminChatConversationsTenantuseridRead(tenantUserId);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["chat", "admin", "conversations"] }),
   });
@@ -185,17 +162,17 @@ export function useMarkAdminRead() {
 export async function fetchOlderMessages(
   scope: { kind: "support" } | { kind: "admin"; tenantUserId: string },
   before: string,
-  authHeader: () => Record<string, string>,
+  _authHeader: () => Record<string, string>,
 ): Promise<ChatThread> {
-  const url =
+  // `_authHeader` mantém-se na assinatura por compatibilidade com o chamador
+  // (ChatConversationView.tsx, fora do âmbito desta migração) — deixou de ser
+  // necessário: o client gerado corre no mesmo axiosInstance partilhado cujo
+  // interceptor (AuthContext.tsx) já injeta o Authorization.
+  const data =
     scope.kind === "support"
-      ? "/chat/support/messages"
-      : `/admin/chat/conversations/${scope.tenantUserId}/messages`;
-  const res = await axiosInstance.get<ChatThread>(url, {
-    headers: authHeader(),
-    params: { before },
-  });
-  return res.data;
+      ? await getChatSupportMessages({ before })
+      : await getAdminChatConversationsTenantuseridMessages(scope.tenantUserId, { before });
+  return data as ChatThread;
 }
 
 /**

@@ -9,6 +9,7 @@ import {
   useGetCmsEntries,
   getCmsEntriesQueryKey,
 } from "../../gen/backoffice/hooks/useGetCmsEntries.js";
+import { getCmsSearchQueryKey } from "../../gen/backoffice/hooks/useGetCmsSearch.js";
 import { deleteCmsEntries } from "../../gen/backoffice/hooks/useDeleteCmsEntries.js";
 import { getBlockEntryKeys, type CmsEntry } from "../../lib/siteCms";
 import type { SitePage, SiteBlock } from "../../hooks/useWebsite";
@@ -183,7 +184,8 @@ export function PageBlocksSection({
         .then(() => {
           // Invalidate queries on success
           queryClient.invalidateQueries({ queryKey: getCmsEntriesQueryKey() });
-          queryClient.invalidateQueries({ queryKey: ["cms-search"] });
+          // Chave gerada pelo Kubb — bate com a leitura de useCmsSearch.ts (useGetCmsSearch).
+          queryClient.invalidateQueries({ queryKey: getCmsSearchQueryKey() });
         })
         .catch((err) => {
           console.error("Erro ao apagar conteúdo do bloco no CMS:", err);

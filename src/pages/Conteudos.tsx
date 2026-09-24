@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
-import axios from "axios";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import {
   DndContext,
@@ -19,7 +18,6 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 import { getApiError } from "../lib/apiError";
-import { API_BASE } from "../lib/env";
 import { pickImageFile, supportsFilePicker } from "../lib/filePicker";
 import { useAuth } from "../context/AuthContext";
 import { Icon } from "../ui/icons.jsx";
@@ -52,6 +50,8 @@ import { useDeleteCmsEntriesKey } from "../gen/backoffice/hooks/useDeleteCmsEntr
 import { deleteCmsEntries } from "../gen/backoffice/hooks/useDeleteCmsEntries.js";
 import { postCmsSections } from "../gen/backoffice/hooks/usePostCmsSections.js";
 import { patchCmsSectionsId } from "../gen/backoffice/hooks/usePatchCmsSectionsId.js";
+import { patchCmsSectionsReorder } from "../gen/backoffice/hooks/usePatchCmsSectionsReorder.js";
+import { patchCmsEntriesReorder } from "../gen/backoffice/hooks/usePatchCmsEntriesReorder.js";
 import { useDeleteCmsSectionsId } from "../gen/backoffice/hooks/useDeleteCmsSectionsId.js";
 import { uploadImage } from "../gen/backoffice/hooks/useUploadImage.js";
 import { useNavigate } from "react-router-dom";
@@ -1369,18 +1369,15 @@ export function Conteudos({ view }: { view: ConteudosView }) {
       }),
     );
 
-    axios
-      .patch(
-        `${API_BASE}/cms/sections/reorder`,
-        {
-          orders: reordered.map((s, i) => ({ id: s.sectionId, sortOrder: i })),
-        },
-        { headers: authHeader() },
-      )
-      .catch(() => {
-        toast.error("Erro ao reordenar secções");
-        qc.invalidateQueries({ queryKey: getCmsSectionsQueryKey() });
-      });
+    patchCmsSectionsReorder(
+      {
+        orders: reordered.map((s, i) => ({ id: s.sectionId, sortOrder: i })),
+      },
+      { headers: authHeader() },
+    ).catch(() => {
+      toast.error("Erro ao reordenar secções");
+      qc.invalidateQueries({ queryKey: getCmsSectionsQueryKey() });
+    });
   }
 
   function handleEntryDragEnd(event: DragEndEvent) {
@@ -1394,16 +1391,13 @@ export function Conteudos({ view }: { view: ConteudosView }) {
     const newOrder = arrayMove(orderedKeys, oldIdx, newIdx);
     setOrderedKeys(newOrder);
 
-    axios
-      .patch(
-        `${API_BASE}/cms/entries/reorder`,
-        { orders: newOrder.map((key, i) => ({ key, sortOrder: i })) },
-        { headers: authHeader() },
-      )
-      .catch(() => {
-        toast.error("Erro ao reordenar entradas");
-        setOrderedKeys(orderedKeys);
-      });
+    patchCmsEntriesReorder(
+      { orders: newOrder.map((key, i) => ({ key, sortOrder: i })) },
+      { headers: authHeader() },
+    ).catch(() => {
+      toast.error("Erro ao reordenar entradas");
+      setOrderedKeys(orderedKeys);
+    });
   }
 
   const importMut = useMutation({

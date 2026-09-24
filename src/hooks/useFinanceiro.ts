@@ -1,7 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
-import { axiosInstance } from '@kubb/plugin-client/clients/axios'
 import { useAuth } from '../context/AuthContext'
 import type { DashboardPeriod } from './useDashboard'
+import { getFinanceiroNegocio } from '../gen/backoffice/hooks/useGetFinanceiroNegocio.js'
+import { getFinanceiroAgenda } from '../gen/backoffice/hooks/useGetFinanceiroAgenda.js'
+import { getFinanceiroLoja } from '../gen/backoffice/hooks/useGetFinanceiroLoja.js'
+import { postGymMensalidadeBulkPay } from '../gen/backoffice/hooks/usePostGymMensalidadeBulkPay.js'
+import { postGymMensalidadeRemind } from '../gen/backoffice/hooks/usePostGymMensalidadeRemind.js'
+import { patchGymMensalidadeCustomersCustomeridPayOnly } from '../gen/backoffice/hooks/usePatchGymMensalidadeCustomersCustomeridPayOnly.js'
+
+// Migrado (B18) para os clients gerados pelo Kubb — ver secção "Mutations do
+// ginásio" para a nota sobre `authHeader` mantido por compatibilidade.
 
 export type VatMode = 'com' | 'sem'
 
@@ -64,14 +72,24 @@ export interface NegocioFinance {
   }
 }
 
+// path → função gerada. Mantém a MESMA query key de sempre
+// (['financeiro', path, ...]) — só a chamada HTTP deixou de ter o path à mão.
+const financeiroFetchers = {
+  negocio: getFinanceiroNegocio,
+  agenda: getFinanceiroAgenda,
+  loja: getFinanceiroLoja,
+} as const
+
+type FinanceiroPath = keyof typeof financeiroFetchers
+
 function useFinanceQuery<T>(
-  path: string,
+  path: FinanceiroPath,
   period: DashboardPeriod,
   iva: VatMode,
   customStart?: string,
   customEnd?: string,
 ) {
-  const { authHeader, isAuthenticated } = useAuth()
+  const { isAuthenticated } = useAuth()
   const isCustomValid = period !== 'custom' || (!!customStart && !!customEnd)
   return useQuery<T>({
     queryKey: ['financeiro', path, period, iva, customStart, customEnd],
@@ -82,12 +100,13 @@ function useFinanceQuery<T>(
         params.startDate = customStart
         params.endDate = customEnd
       }
-      const res = await axiosInstance.get<T>(`/financeiro/${path}`, {
-        params,
-        headers: authHeader(),
-        withCredentials: true,
-      })
-      return res.data
+      // Os QueryParams gerados diferem ligeiramente entre os 3 endpoints (ex.:
+      // `negocio` nem documenta `iva`) — cast pragmático, o runtime dos 3
+      // sempre aceitou estes campos da mesma forma.
+      const fetcher = financeiroFetchers[path] as unknown as (
+        params?: Record<string, string>,
+      ) => Promise<T>
+      return fetcher(params)
     },
   })
 }
@@ -100,16 +119,20 @@ export const useLojaFinance = (period: DashboardPeriod = 'month', iva: VatMode =
   useFinanceQuery<LojaFinance>('loja', period, iva, s, e)
 
 // ── Mutations do ginásio (cobrança em massa / lembretes) ──
-export async function gymBulkMarkPaid(authHeader: () => Record<string, string>, body: { customerIds: string[]; period?: string; method?: string }) {
-  const res = await axiosInstance.post('/gym/mensalidade/bulk-pay', body, { headers: authHeader(), withCredentials: true })
-  return res.data as { period: string; paid: number }
+// `authHeader` mantém-se nos parâmetros por compatibilidade com GymMensalidade.tsx
+// (fora do âmbito desta migração) — deixou de ser necessário: o client gerado
+// corre no mesmo axiosInstance partilhado cujo interceptor (AuthContext.tsx)
+// já injeta o Authorization.
+export async function gymBulkMarkPaid(_authHeader: () => Record<string, string>, body: { customerIds: string[]; period?: string; method?: string }) {
+  const data = await postGymMensalidadeBulkPay(body)
+  return data as { period: string; paid: number }
 }
-export async function gymRemind(authHeader: () => Record<string, string>, body: { customerIds?: string[]; period?: string }) {
-  const res = await axiosInstance.post('/gym/mensalidade/remind', body, { headers: authHeader(), withCredentials: true })
-  return res.data as { period: string; sent: number }
+export async function gymRemind(_authHeader: () => Record<string, string>, body: { customerIds?: string[]; period?: string }) {
+  const data = await postGymMensalidadeRemind(body)
+  return data as { period: string; sent: number }
 }
 /** Marca/desmarca o cliente como "só paga" (fora das estatísticas de assiduidade). */
-export async function gymSetPayOnly(authHeader: () => Record<string, string>, customerId: string, payOnly: boolean) {
-  const res = await axiosInstance.patch(`/gym/mensalidade/customers/${customerId}/pay-only`, { payOnly }, { headers: authHeader(), withCredentials: true })
-  return res.data as { payOnly: boolean }
+export async function gymSetPayOnly(_authHeader: () => Record<string, string>, customerId: string, payOnly: boolean) {
+  const data = await patchGymMensalidadeCustomersCustomeridPayOnly(customerId, { payOnly })
+  return data as { payOnly: boolean }
 }

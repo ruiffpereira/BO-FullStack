@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { axiosInstance } from "@kubb/plugin-client/clients/axios";
+import { getUsers } from "../../gen/backoffice/hooks/useGetUsers.js";
 import { Icon } from "../../ui/icons.jsx";
 import { Avatar, Button, Modal, Input, EmptyState } from "../../ui/ui.jsx";
 import { useAuth } from "../../context/AuthContext";
@@ -38,8 +38,7 @@ function useUsersPicker(enabled: boolean) {
     queryKey: ["chat", "users-picker"],
     enabled: isAuthenticated && enabled,
     queryFn: async () => {
-      const res = await axiosInstance.get("/users", { headers: authHeader() });
-      const data: any = res.data;
+      const data: any = await getUsers({ headers: authHeader() });
       const arr = Array.isArray(data) ? data : (data?.users ?? []);
       return arr as UserRow[];
     },

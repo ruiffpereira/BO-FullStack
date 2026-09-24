@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Icon } from '../ui/icons.jsx'
 import { Button, Input } from '../ui/ui.jsx'
-import { API_BASE } from '../lib/env'
+import { getApiError } from '../lib/apiError'
+import { postUsersSetupPassword } from '../gen/backoffice/hooks/usePostUsersSetupPassword.js'
 
 export function SetupPassword({ theme, onToggleTheme }: { theme: string; onToggleTheme: () => void }) {
   const params = new URLSearchParams(window.location.search)
@@ -30,16 +31,13 @@ export function SetupPassword({ theme, onToggleTheme }: { theme: string; onToggl
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`${API_BASE}/users/setup-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, password }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Erro desconhecido')
+      // Página pública (sem sessão) — o token de setup É a credencial. O
+      // interceptor do AuthContext já trata `/users/setup-password` como
+      // SKIP_401 e nunca lhe acrescenta Authorization.
+      await postUsersSetupPassword({ token, password })
       setDone(true)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(getApiError(err, 'Erro desconhecido'))
     } finally {
       setLoading(false)
     }

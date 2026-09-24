@@ -90,6 +90,29 @@ interface AuthCtx extends AuthState {
 
 const AuthContext = createContext<AuthCtx | null>(null);
 
+/**
+ * ⚠ EXCEPÇÃO DELIBERADA ao "Kubb everywhere" (2026-09-24). Os paths de auth
+ * deste ficheiro ficam em strings, e não vêm dos clients gerados. Não é
+ * esquecimento — não os migres.
+ *
+ * PORQUÊ. As funções geradas pelo Kubb devolvem `res.data` e **descartam o
+ * status HTTP**. O bootstrap de sessão daqui ramifica precisamente por ele:
+ *
+ *     validateStatus: (s) => (s >= 200 && s < 300) || s === 401
+ *     if (res.status === 401) return null;   // veredito DEFINITIVO
+ *
+ * Sem o status, a única alternativa seria deixar o 401 lançar e apanhá-lo — e
+ * aí um **erro de rede** ficaria indistinguível de **sessão expirada**. Essa
+ * distinção é o que sustenta tudo o resto: uma é transitória e faz retry
+ * (`reconnecting`), a outra termina a sessão. Confundi-las dá logout a quem só
+ * teve um soluço de rede, ou uma app presa a tentar renovar uma sessão morta.
+ *
+ * `SKIP_401` é, além disso, uma lista de POLÍTICA (onde um 401 não pode
+ * disparar o interceptor de refresh, para não entrar em ciclo) — não é uma
+ * lista de chamadas. Mesmo com clients gerados continuaria a existir.
+ *
+ * O resto do Backoffice está migrado; a excepção é só esta.
+ */
 const SKIP_401 = [
   "/csrf-token",
   "/users/login",

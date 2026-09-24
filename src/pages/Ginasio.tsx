@@ -23,11 +23,11 @@ import { usePageSubtitle } from '../context/PageMetaContext'
 import { usePagination, Pagination } from '../components/Pagination'
 import { LineChart, DonutChart } from '../ui/charts.jsx'
 import { useGetCustomers } from '../gen/backoffice/hooks/useGetCustomers.js'
-import { useGetGymExercises } from '../gen/backoffice/hooks/useGetGymExercises.js'
+import { useGetGymExercises, getGymExercisesQueryKey } from '../gen/backoffice/hooks/useGetGymExercises.js'
 import { postGymExercises } from '../gen/backoffice/hooks/usePostGymExercises.js'
 import { putGymExercisesId } from '../gen/backoffice/hooks/usePutGymExercisesId.js'
 import { deleteGymExercisesId } from '../gen/backoffice/hooks/useDeleteGymExercisesId.js'
-import { useGetGymPrograms } from '../gen/backoffice/hooks/useGetGymPrograms.js'
+import { useGetGymPrograms, getGymProgramsQueryKey } from '../gen/backoffice/hooks/useGetGymPrograms.js'
 import { postGymProgramsProgramidWorkouts } from '../gen/backoffice/hooks/usePostGymProgramsProgramidWorkouts.js'
 import { putGymProgramsId } from '../gen/backoffice/hooks/usePutGymProgramsId.js'
 import { patchGymProgramsIdActive } from '../gen/backoffice/hooks/usePatchGymProgramsIdActive.js'
@@ -40,18 +40,18 @@ import { ensureCmsName } from '../lib/gymCms'
 import { useGetSettingsLanguages } from '../hooks/useSettingsLanguages'
 import { putGymWorkoutsId } from '../gen/backoffice/hooks/usePutGymWorkoutsId.js'
 import { deleteGymWorkoutsId } from '../gen/backoffice/hooks/useDeleteGymWorkoutsId.js'
-import { useGetGymWorkoutTemplates } from '../gen/backoffice/hooks/useGetGymWorkoutTemplates.js'
+import { useGetGymWorkoutTemplates, getGymWorkoutTemplatesQueryKey } from '../gen/backoffice/hooks/useGetGymWorkoutTemplates.js'
 import { postGymWorkoutTemplates } from '../gen/backoffice/hooks/usePostGymWorkoutTemplates.js'
 import { putGymWorkoutTemplatesId } from '../gen/backoffice/hooks/usePutGymWorkoutTemplatesId.js'
 import { deleteGymWorkoutTemplatesId } from '../gen/backoffice/hooks/useDeleteGymWorkoutTemplatesId.js'
-import { useGetGymPlanos } from '../gen/backoffice/hooks/useGetGymPlanos.js'
+import { useGetGymPlanos, getGymPlanosQueryKey } from '../gen/backoffice/hooks/useGetGymPlanos.js'
 import { postGymPlanos } from '../gen/backoffice/hooks/usePostGymPlanos.js'
 import { putGymPlanosId } from '../gen/backoffice/hooks/usePutGymPlanosId.js'
 import { deleteGymPlanosId } from '../gen/backoffice/hooks/useDeleteGymPlanosId.js'
 import { postGymPlanosIdAssign } from '../gen/backoffice/hooks/usePostGymPlanosIdAssign.js'
 import type { GymPlano } from '../gen/backoffice/types/GymPlano.js'
 import { useGetGymClientsCustomeridStats } from '../gen/backoffice/hooks/useGetGymClientsCustomeridStats.js'
-import { useGetGymMuscleGroups } from '../gen/backoffice/hooks/useGetGymMuscleGroups.js'
+import { useGetGymMuscleGroups, getGymMuscleGroupsQueryKey } from '../gen/backoffice/hooks/useGetGymMuscleGroups.js'
 import { postGymMuscleGroups } from '../gen/backoffice/hooks/usePostGymMuscleGroups.js'
 import { putGymMuscleGroupsId } from '../gen/backoffice/hooks/usePutGymMuscleGroupsId.js'
 import { deleteGymMuscleGroupsId } from '../gen/backoffice/hooks/useDeleteGymMuscleGroupsId.js'
@@ -390,7 +390,9 @@ function GrupoModal({ grupo, onClose }: { grupo: Group | null; onClose: () => vo
   const [novoSubKey, setNovoSubKey] = useState<string | null>(null)
   const [editingSub, setEditingSub] = useState<string | null>(null)
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: [{ url: '/gym/muscle-groups' }] })
+  // Chave gerada pelo Kubb — garante que continua a bater com a query de leitura
+  // (useGetGymMuscleGroups) mesmo que o path mude no spec.
+  const invalidate = () => qc.invalidateQueries({ queryKey: getGymMuscleGroupsQueryKey() })
   const addSub = () => { if (!novoSubName.trim()) return; setSubs((s) => [...s, { uid: newUid(), name: novoSubName.trim(), contentKey: novoSubKey }]); setNovoSubName(''); setNovoSubKey(null) }
   const delSub = (sd: SubDraft) => {
     if (sd.muscleGroupId) setRemovedIds((r) => [...r, sd.muscleGroupId!])
@@ -571,7 +573,9 @@ function CatalogoTab() {
 
   const subs = groups.filter((g) => g.parentId === groupId)
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: [{ url: '/gym/exercises' }] })
+  // Chave gerada pelo Kubb — garante que continua a bater com a query de leitura
+  // (useGetGymExercises) mesmo que o path mude no spec.
+  const invalidate = () => qc.invalidateQueries({ queryKey: getGymExercisesQueryKey() })
 
   const toPresetDraft = (p: GymExercisePreset): PresetDraft => ({
     id: p.id || newUid(),
@@ -1228,7 +1232,9 @@ function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved, onCre
       return postGymWorkoutTemplates(body)
     },
     onSuccess: (result) => {
-      qc.invalidateQueries({ queryKey: [{ url: '/gym/workout-templates' }] })
+      // Chave gerada pelo Kubb — garante que continua a bater com a query de
+      // leitura (useGetGymWorkoutTemplates) mesmo que o path mude no spec.
+      qc.invalidateQueries({ queryKey: getGymWorkoutTemplatesQueryKey() })
       if (!template && onCreated && result) onCreated(result)
       onSaved(); onClose()
       toast.success(template ? 'Treino atualizado' : 'Treino criado')
@@ -1315,7 +1321,9 @@ function TreinosTab() {
 
   const remove = useMutation({
     mutationFn: (id: string) => deleteGymWorkoutTemplatesId(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: [{ url: '/gym/workout-templates' }] }); toast.success('Treino eliminado') },
+    // Chave gerada pelo Kubb — garante que continua a bater com a query de leitura
+    // (useGetGymWorkoutTemplates) mesmo que o path mude no spec.
+    onSuccess: () => { qc.invalidateQueries({ queryKey: getGymWorkoutTemplatesQueryKey() }); toast.success('Treino eliminado') },
     onError: (e) => toast.error(getApiError(e)),
   })
 
@@ -1887,7 +1895,9 @@ function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
       if (plano) return putGymPlanosId(plano.id, body)
       return postGymPlanos(body)
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: [{ url: '/gym/planos' }] }); onSaved(); onClose(); toast.success(plano ? 'Plano atualizado' : 'Plano criado') },
+    // Chave gerada pelo Kubb — garante que continua a bater com a query de leitura
+    // (useGetGymPlanos) mesmo que o path mude no spec.
+    onSuccess: () => { qc.invalidateQueries({ queryKey: getGymPlanosQueryKey() }); onSaved(); onClose(); toast.success(plano ? 'Plano atualizado' : 'Plano criado') },
     onError: (e) => toast.error(getApiError(e)),
   })
 
@@ -2026,7 +2036,9 @@ function PlanosTab() {
   const [confirmDel, setConfirmDel] = useState<GymPlano | null>(null)
   const [q, setQ] = useState('')
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: [{ url: '/gym/planos' }] })
+  // Chave gerada pelo Kubb — garante que continua a bater com a query de leitura
+  // (useGetGymPlanos) mesmo que o path mude no spec.
+  const invalidate = () => qc.invalidateQueries({ queryKey: getGymPlanosQueryKey() })
   const remove = useMutation({
     mutationFn: (id: string) => deleteGymPlanosId(id),
     onSuccess: () => { invalidate(); toast.success('Plano eliminado') },
@@ -2434,7 +2446,10 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
         }
       }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: [{ url: '/gym/programs' }] }); toast.success('Plano do cliente atualizado'); onSaved(); onClose() },
+    // Chave gerada pelo Kubb — garante que continua a bater com a query de leitura
+    // (useGetGymPrograms) mesmo que o path mude no spec. Prefixo: invalida também
+    // as leituras filtradas por customerId.
+    onSuccess: () => { qc.invalidateQueries({ queryKey: getGymProgramsQueryKey() }); toast.success('Plano do cliente atualizado'); onSaved(); onClose() },
     onError: (e) => toast.error(getApiError(e)),
   })
 
@@ -2589,7 +2604,10 @@ function AtribuirPlanoModal({ open, customer, planos, onClose, onSaved }: {
   const erroData = ate < de
   const assign = useMutation({
     mutationFn: () => postGymPlanosIdAssign(sel!, { customerId: customer!.customerId, startDate: de || null, endDate: ate || null }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: [{ url: '/gym/programs' }] }); toast.success('Plano atribuído ao cliente'); onSaved(); onClose() },
+    // Chave gerada pelo Kubb — garante que continua a bater com a query de leitura
+    // (useGetGymPrograms) mesmo que o path mude no spec. Prefixo: invalida também
+    // as leituras filtradas por customerId.
+    onSuccess: () => { qc.invalidateQueries({ queryKey: getGymProgramsQueryKey() }); toast.success('Plano atribuído ao cliente'); onSaved(); onClose() },
     onError: (e) => toast.error(getApiError(e)),
   })
   return (
@@ -2643,7 +2661,10 @@ function ClienteProgresso({ customer, onBack, onAtribuir, onEditar }: { customer
   const patchActive = useMutation({
     mutationFn: (id: string) => patchGymProgramsIdActive(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [{ url: '/gym/programs' }] })
+      // Chave gerada pelo Kubb — garante que continua a bater com a query de
+      // leitura (useGetGymPrograms) mesmo que o path mude no spec. Prefixo:
+      // invalida também as leituras filtradas por customerId.
+      qc.invalidateQueries({ queryKey: getGymProgramsQueryKey() })
       toast.success('Plano ativado')
     },
     onError: (e) => toast.error(getApiError(e)),
@@ -2652,7 +2673,10 @@ function ClienteProgresso({ customer, onBack, onAtribuir, onEditar }: { customer
   const deleteProgram = useMutation({
     mutationFn: (id: string) => deleteGymProgramsId(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [{ url: '/gym/programs' }] })
+      // Chave gerada pelo Kubb — garante que continua a bater com a query de
+      // leitura (useGetGymPrograms) mesmo que o path mude no spec. Prefixo:
+      // invalida também as leituras filtradas por customerId.
+      qc.invalidateQueries({ queryKey: getGymProgramsQueryKey() })
       setDeleteConfirm(null)
       toast.success('Programa eliminado')
     },

@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
-import { axiosInstance } from "@kubb/plugin-client/clients/axios";
 import { useAuth } from "../context/AuthContext";
+import { getPushVapidPublicKey } from "../gen/backoffice/hooks/useGetPushVapidPublicKey.js";
+import { postPushSubscribe } from "../gen/backoffice/hooks/usePostPushSubscribe.js";
+import { postPushUnsubscribe } from "../gen/backoffice/hooks/usePostPushUnsubscribe.js";
+import type { PostPushSubscribeMutationRequest } from "../gen/backoffice/types/PostPushSubscribe.js";
+
+/**
+ * Migrado para os clients gerados pelo Kubb. Bearer/baseURL/withCredentials
+ * já vêm do interceptor do `axiosInstance` partilhado (AuthContext.tsx) — o
+ * client gerado corre nesse mesmo `axiosInstance`, por isso já não se passa
+ * `withCredentials` à mão nestas chamadas.
+ */
 
 function isIOSDevice(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -23,6 +33,21 @@ function urlB64ToUint8Array(base64String: string): Uint8Array {
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
   const raw = atob(base64);
   return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+/**
+ * `PushSubscriptionJSON` (lib.dom) tipa `endpoint`/`keys` como opcionais —
+ * uma subscrição real do browser tem sempre os dois, mas o guarda evita um
+ * cast às cegas para `PostPushSubscribeMutationRequest` (que os exige).
+ * Devolve `null` quando a subscrição do browser vem incompleta (nunca deveria
+ * acontecer em runtime, mas mantém o tipo honesto).
+ */
+function toSubscribePayload(json: PushSubscriptionJSON): PostPushSubscribeMutationRequest | null {
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return null;
+  return {
+    endpoint: json.endpoint,
+    keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
+  };
 }
 
 export function usePushSubscription() {
@@ -71,11 +96,14 @@ export function usePushSubscription() {
       return false;
     }
     try {
-      const { data } = await axiosInstance.get<{ publicKey: string }>(
-        "/push/vapid-public-key",
-        { withCredentials: true },
-      );
-      const applicationServerKey = urlB64ToUint8Array(data.publicKey)
+      const { publicKey } = await getPushVapidPublicKey();
+      // Spec marca `publicKey` como opcional (contrato genérico), mas uma
+      // resposta 200 desta rota traz sempre a chave — a alternativa (503)
+      // já rejeita a promise antes de chegarmos aqui.
+      if (!publicKey) {
+        throw new Error("O servidor não devolveu a chave pública VAPID.");
+      }
+      const applicationServerKey = urlB64ToUint8Array(publicKey)
         .buffer as ArrayBuffer;
 
       const registration = await navigator.serviceWorker.ready;
@@ -86,15 +114,11 @@ export function usePushSubscription() {
           applicationServerKey,
         }));
 
-      const json = sub.toJSON();
-      await axiosInstance.post(
-        "/push/subscribe",
-        {
-          endpoint: json.endpoint,
-          keys: json.keys,
-        },
-        { withCredentials: true },
-      );
+      const payload = toSubscribePayload(sub.toJSON());
+      if (!payload) {
+        throw new Error("Subscrição push inválida (faltam endpoint/keys).");
+      }
+      await postPushSubscribe(payload);
 
       setPermission("granted");
       return true;
@@ -114,13 +138,7 @@ export function usePushSubscription() {
       const registration = await navigator.serviceWorker.ready;
       const sub = await registration.pushManager.getSubscription();
       if (!sub) return;
-      await axiosInstance.post(
-        "/push/unsubscribe",
-        {
-          endpoint: sub.endpoint,
-        },
-        { withCredentials: true },
-      );
+      await postPushUnsubscribe({ endpoint: sub.endpoint });
       await sub.unsubscribe();
       setPermission(
         typeof Notification !== "undefined"
@@ -169,17 +187,8 @@ export function usePushSubscription() {
     navigator.serviceWorker.ready.then(async (reg) => {
       const existing = await reg.pushManager.getSubscription();
       if (existing) {
-        const json = existing.toJSON();
-        axiosInstance
-          .post(
-            "/push/subscribe",
-            {
-              endpoint: json.endpoint,
-              keys: json.keys,
-            },
-            { withCredentials: true },
-          )
-          .catch(() => {});
+        const payload = toSubscribePayload(existing.toJSON());
+        if (payload) postPushSubscribe(payload).catch(() => {});
         return;
       }
       subscribe().catch(() => {});

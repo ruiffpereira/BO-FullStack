@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { axiosInstance } from "@kubb/plugin-client/clients/axios";
 import { useAuth } from "../context/AuthContext";
+import { getDashboard as getDashboardGen } from "../gen/backoffice/hooks/useGetDashboard.js";
+import type { GetDashboardQueryParams } from "../gen/backoffice/types/GetDashboard.js";
 
 export type DashboardPeriod = "7d" | "30d" | "90d" | "12m" | "today" | "week" | "month" | "lastMonth" | "year" | "total" | "custom";
 
@@ -94,9 +95,16 @@ export interface DashboardData {
   expenses?: ExpensesStats;
 }
 
-/** GET /dashboard?period= — analytics agregadas por módulo acessível. */
+/**
+ * GET /dashboard?period= — analytics agregadas por módulo acessível.
+ * Migrado (B18) para o client gerado. `DashboardPeriod` é mais largo (inclui
+ * "today"/"week"/"month"/… usados também pelo Financeiro) do que o enum de 4
+ * valores que o spec documenta para este endpoint — cast pragmático via
+ * `unknown`, o runtime sempre aceitou o valor tal como estava. O gen também
+ * não documenta `gym`/`expenses` no corpo da resposta (o runtime devolve-os).
+ */
 export function useDashboard(period: DashboardPeriod = "30d", customStart?: string, customEnd?: string) {
-  const { authHeader, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const isCustomValid = period !== "custom" || (!!customStart && !!customEnd);
   return useQuery<DashboardData>({
     queryKey: ["dashboard", period, customStart, customEnd],
@@ -107,12 +115,8 @@ export function useDashboard(period: DashboardPeriod = "30d", customStart?: stri
         params.startDate = customStart;
         params.endDate = customEnd;
       }
-      const res = await axiosInstance.get<DashboardData>("/dashboard", {
-        params,
-        headers: authHeader(),
-        withCredentials: true,
-      });
-      return res.data;
+      const data = await getDashboardGen(params as unknown as GetDashboardQueryParams);
+      return data as DashboardData;
     },
   });
 }

@@ -1,14 +1,24 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { axiosInstance } from "@kubb/plugin-client/clients/axios";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
+import { getAnalyticsSite } from "../gen/backoffice/hooks/useGetAnalyticsSite.js";
+import { getAnalyticsSiteDomain } from "../gen/backoffice/hooks/useGetAnalyticsSiteDomain.js";
+import { putAnalyticsSiteDomain } from "../gen/backoffice/hooks/usePutAnalyticsSiteDomain.js";
 
 /**
  * Estatísticas do site público do tenant (Umami auto-hospedado — o Plausible
  * saiu do projeto em 2026-09-21, sem caminho legado).
- * Bearer auto-injetado via authHeader(); tudo env-gated no servidor — as
- * credenciais do Umami nunca chegam ao browser. A API limita a leitura ao
- * site do próprio tenant (`User.analyticsSiteId`), isolamento multi-tenant.
+ * Migrado para os clients gerados pelo Kubb. Bearer auto-injetado pelo
+ * interceptor do `axiosInstance` partilhado (AuthContext.tsx) — o client
+ * gerado corre nesse mesmo `axiosInstance`, por isso `authHeader()` deixou
+ * de ser preciso aqui. As credenciais do Umami nunca chegam ao browser. A
+ * API limita a leitura ao site do próprio tenant (`User.analyticsSiteId`),
+ * isolamento multi-tenant.
+ *
+ * Casts de fronteira: o spec documenta as respostas destas 3 rotas como
+ * `any` (schema não descrito no Swagger — lacuna conhecida), por isso o
+ * `as Tipo` abaixo é necessário; os tipos locais (`SiteAnalyticsResponse`/
+ * `SiteDomainResponse`) são os mesmos de antes da migração.
  */
 
 // Períodos suportados (herdados da sintaxe da Stats API do Plausible — mantidos
@@ -70,49 +80,29 @@ const DOMAIN_KEY = ["site-analytics", "domain"];
 
 /** GET /analytics/site?period= — estatísticas agregadas + séries + listas. */
 export function useSiteAnalytics(period: AnalyticsPeriod) {
-  const { authHeader, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   return useQuery<SiteAnalyticsResponse>({
     queryKey: analyticsKey(period),
     enabled: isAuthenticated,
-    queryFn: async () => {
-      const res = await axiosInstance.get<SiteAnalyticsResponse>(
-        `/analytics/site?period=${encodeURIComponent(period)}`,
-        { headers: authHeader(), withCredentials: true },
-      );
-      return res.data;
-    },
+    queryFn: async () => (await getAnalyticsSite({ period })) as SiteAnalyticsResponse,
   });
 }
 
 /** GET /analytics/site/domain — domínio atual do site do tenant. */
 export function useSiteDomain() {
-  const { authHeader, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   return useQuery<SiteDomainResponse>({
     queryKey: DOMAIN_KEY,
     enabled: isAuthenticated,
-    queryFn: async () => {
-      const res = await axiosInstance.get<SiteDomainResponse>(
-        "/analytics/site/domain",
-        { headers: authHeader(), withCredentials: true },
-      );
-      return res.data;
-    },
+    queryFn: async () => (await getAnalyticsSiteDomain()) as SiteDomainResponse,
   });
 }
 
 /** PUT /analytics/site/domain — guarda o domínio (normalizado no servidor). */
 export function useSetSiteDomain() {
-  const { authHeader } = useAuth();
   const qc = useQueryClient();
   return useMutation<SiteDomainResponse, unknown, string>({
-    mutationFn: async (domain: string) => {
-      const res = await axiosInstance.put<SiteDomainResponse>(
-        "/analytics/site/domain",
-        { domain },
-        { headers: authHeader(), withCredentials: true },
-      );
-      return res.data;
-    },
+    mutationFn: async (domain: string) => (await putAnalyticsSiteDomain({ domain })) as SiteDomainResponse,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: DOMAIN_KEY });
       qc.invalidateQueries({ queryKey: ["site-analytics"] });
@@ -122,6 +112,9 @@ export function useSetSiteDomain() {
     // Passou a importar a 2026-09-21, quando a API ganhou o 409 `domain_taken`
     // (um domínio já reclamado por outro tenant) e esta página deixou de ser
     // só do dono — `/estatisticas` passou a `CORE_PATHS` em `Shell.tsx`.
+    // A função gerada continua a REJEITAR (throw) em não-2xx tal como o
+    // axiosInstance manual — não usa `validateStatus` para resolver o 401/409
+    // como resposta normal — por isso este catch por status continua válido.
     onError: (err: unknown) => {
       const status = (err as { response?: { status?: number } })?.response?.status;
       const code = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;

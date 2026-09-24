@@ -9,6 +9,7 @@ import {
   useGetCmsEntries,
   getCmsEntriesQueryKey,
 } from "../../gen/backoffice/hooks/useGetCmsEntries.js";
+import { getCmsSearchQueryKey } from "../../gen/backoffice/hooks/useGetCmsSearch.js";
 import { putCmsEntries } from "../../gen/backoffice/hooks/usePutCmsEntries.js";
 import { deleteCmsEntries } from "../../gen/backoffice/hooks/useDeleteCmsEntries.js";
 import {
@@ -142,7 +143,8 @@ export function BlockContentModal({
 
       // Invalidate CMS + Site queries to reflect changes (PreviewPanel will re-mint token)
       queryClient.invalidateQueries({ queryKey: getCmsEntriesQueryKey() });
-      queryClient.invalidateQueries({ queryKey: ["cms-search"] });
+      // Chave gerada pelo Kubb — bate com a leitura de useCmsSearch.ts (useGetCmsSearch).
+      queryClient.invalidateQueries({ queryKey: getCmsSearchQueryKey() });
       queryClient.invalidateQueries({ queryKey: websiteKeys.site });
 
       // Success — close modal (onSave called without arguments, content stays in CMS only)

@@ -4,8 +4,22 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { getNotificationsQueryKey } from "./useNotifications";
+import { getEventsStreamQueryKey } from "../gen/backoffice/hooks/useGetEventsStream.js";
+import { getScheduleAppointmentsQueryKey } from "../gen/backoffice/hooks/useGetScheduleAppointments.js";
+import { getOrdersQueryKey } from "../gen/backoffice/hooks/useGetOrders.js";
 
 import { API_BASE } from "../lib/env";
+
+// /events/stream é SSE — uma ligação longa lida com fetch + ReadableStream.
+// O client gerado pelo Kubb é axios, que não serve para consumir um stream
+// (não expõe o `body` como ReadableStream da mesma forma, e fecharia a
+// ligação prematuramente); por isso este hook continua a usar `fetch` nativo.
+// O que dá para tirar da string é o PATH em si: em vez de o escrever à mão,
+// reaproveita-se a queryKey gerada pelo Kubb para este endpoint (o 1º elemento
+// é sempre `{ url: "/events/stream" }` — mesma convenção usada em todos os
+// outros hooks gerados), para que uma mudança de path no spec continue a
+// partir o build em vez de partir só em produção.
+const EVENTS_STREAM_PATH = getEventsStreamQueryKey()[0].url;
 
 export function useSSE() {
   const { accessToken, isAuthenticated } = useAuth();
@@ -26,7 +40,7 @@ export function useSSE() {
       abortRef.current = controller;
 
       try {
-        const res = await fetch(`${API_BASE}/events/stream`, {
+        const res = await fetch(`${API_BASE}${EVENTS_STREAM_PATH}`, {
           credentials: "include",
           headers: { Authorization: `Bearer ${accessToken}` },
           signal: controller.signal,
@@ -77,17 +91,20 @@ export function useSSE() {
         queryClient.invalidateQueries({ queryKey: getNotificationsQueryKey() });
 
         // Also refresh the relevant data list
+        // Chaves geradas pelo Kubb — mantêm-se a bater com as queries de leitura
+        // (useGetScheduleAppointments / useGetOrders) mesmo que o path mude no
+        // spec. É prefixo: invalida também as leituras com params (from/to, etc.).
         const notifType = event.data?.type;
         if (notifType === "booking") {
-          queryClient.invalidateQueries({ queryKey: [{ url: "/schedule/appointments" }] });
+          queryClient.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() });
         } else if (notifType === "order") {
-          queryClient.invalidateQueries({ queryKey: [{ url: "/orders" }] });
+          queryClient.invalidateQueries({ queryKey: getOrdersQueryKey() });
         }
       }
 
       // Backoffice appointment update (status change, etc.) — refresh list only
       if (event.type === "appointments_refresh") {
-        queryClient.invalidateQueries({ queryKey: [{ url: "/schedule/appointments" }] });
+        queryClient.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() });
       }
 
       // Chat de suporte — nova mensagem OU leitura do outro lado ("visto" em

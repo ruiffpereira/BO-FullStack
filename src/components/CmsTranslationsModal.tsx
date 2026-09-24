@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { Modal, Button } from '../ui/ui.jsx'
 import { LangFlag } from '../utils/langFlag'
 import { useGetCmsEntries, getCmsEntriesQueryKey } from '../gen/backoffice/hooks/useGetCmsEntries.js'
+import { getCmsSearchQueryKey } from '../gen/backoffice/hooks/useGetCmsSearch.js'
 import { putCmsEntries } from '../gen/backoffice/hooks/usePutCmsEntries.js'
 import { useGetSettingsLanguages } from '../hooks/useSettingsLanguages'
 
@@ -62,7 +63,8 @@ export function CmsTranslationsModal({
       // Refresca listas/autocomplete e devolve o novo valor da língua padrão ao pai,
       // para a caixa (CmsCombo) refletir já o nome editado.
       qc.invalidateQueries({ queryKey: getCmsEntriesQueryKey() })
-      qc.invalidateQueries({ queryKey: ['cms-search'] })
+      // Chave gerada pelo Kubb — bate com a leitura de useCmsSearch.ts (useGetCmsSearch).
+      qc.invalidateQueries({ queryKey: getCmsSearchQueryKey() })
       onSaved?.(translations[defaultLang]?.trim() ?? '')
       toast.success('Traduções guardadas')
       onClose()

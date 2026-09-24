@@ -1,42 +1,32 @@
-import fetch from "@kubb/plugin-client/clients/axios";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { useAuth } from "../context/AuthContext";
+import {
+  getCmsSearch,
+  getCmsSearchQueryKey,
+} from "../gen/backoffice/hooks/useGetCmsSearch.js";
+import type { GetCmsSearchQueryParams } from "../gen/backoffice/types/GetCmsSearch.js";
 
-import { API_BASE as BASE } from "../lib/env";
-
-export interface CmsSearchResult {
-  key: string;
-  label: string;
-  sectionName: string | null | undefined;
-}
-
-export async function fetchCmsSearch(
-  params: { q?: string; context?: string; lang?: string },
-  headers: Record<string, string>,
-): Promise<CmsSearchResult[]> {
-  const search = new URLSearchParams();
-  if (params.q) search.set("q", params.q);
-  if (params.context) search.set("context", params.context);
-  if (params.lang) search.set("lang", params.lang);
-
-  const res = await fetch<CmsSearchResult[], Error, unknown>({
-    method: "GET",
-    url: `/cms/search?${search.toString()}`,
-    baseURL: BASE,
-    headers,
-  });
-  return res.data;
-}
-
+/**
+ * Wrapper fino sobre o hook gerado pelo Kubb (`useGetCmsSearch`). Existe só
+ * para acrescentar `staleTime`/`placeholderData` (evita "piscar" resultados
+ * enquanto o utilizador escreve) — o fetch e a queryKey são os GERADOS, para
+ * que as invalidações espalhadas pelo código (`getCmsSearchQueryKey()`)
+ * continuem sempre a bater com esta leitura, mesmo que o path mude no spec.
+ * Antes deste ficheiro montava `/cms/search?${query}` à mão; agora os
+ * parâmetros vão em `params`, como o client gerado espera.
+ *
+ * `context` fica `string` (não o enum gerado) porque o CmsCombo — único
+ * consumidor — recebe o contexto como prop genérica de vários sítios da app;
+ * o valor continua a ser sempre um dos contextos válidos, só não vale a pena
+ * apertar o tipo aqui só por causa deste ponto.
+ */
 export function useGetCmsSearch(
   params: { q?: string; context?: string; lang?: string },
   options?: { query?: { enabled?: boolean } },
 ) {
-  const { authHeader } = useAuth();
-  const headers = authHeader();
+  const genParams = params as GetCmsSearchQueryParams;
   return useQuery({
-    queryKey: ["cms-search", params.q, params.context, params.lang],
-    queryFn: () => fetchCmsSearch(params, headers),
+    queryKey: getCmsSearchQueryKey(genParams),
+    queryFn: () => getCmsSearch(genParams),
     enabled: options?.query?.enabled ?? true,
     staleTime: 30_000,
     // Mantém os resultados anteriores enquanto refaz a pesquisa (evita "piscar").

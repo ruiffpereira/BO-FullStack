@@ -1,8 +1,11 @@
-import fetch from "@kubb/plugin-client/clients/axios";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
+import { getSettingsLanguages, getSettingsLanguagesQueryKey } from "../gen/backoffice/hooks/useGetSettingsLanguages.js";
+import { putSettingsLanguages as putSettingsLanguagesGen } from "../gen/backoffice/hooks/usePutSettingsLanguages.js";
 
-import { API_BASE as BASE } from "../lib/env";
+// Migrado (B18) para os clients gerados pelo Kubb. A query key gerada
+// (`[{ url: "/settings/languages" }]`) já era, por coincidência, idêntica à
+// key manual de antes — reexportamo-la directamente, sem trocar consumidores.
 
 export interface AvailableLanguage {
   code: string;
@@ -16,41 +19,13 @@ export interface LanguageSettings {
   default: string;
 }
 
-export const getSettingsLanguagesQueryKey = () =>
-  [{ url: "/settings/languages" }] as const;
-
-export async function fetchSettingsLanguages(
-  headers: Record<string, string>,
-): Promise<LanguageSettings> {
-  const res = await fetch<LanguageSettings, Error, unknown>({
-    method: "GET",
-    url: "/settings/languages",
-    baseURL: BASE,
-    headers,
-  });
-  return res.data;
-}
-
-export async function putSettingsLanguages(
-  body: { languages: string[]; default?: string },
-  headers: Record<string, string>,
-): Promise<{ languages: string[]; default: string }> {
-  const res = await fetch<{ languages: string[]; default: string }, Error, unknown>({
-    method: "PUT",
-    url: "/settings/languages",
-    baseURL: BASE,
-    headers,
-    data: body,
-  });
-  return res.data;
-}
+export { getSettingsLanguagesQueryKey };
 
 export function useGetSettingsLanguages() {
-  const { authHeader, isAuthenticated } = useAuth();
-  const headers = authHeader();
+  const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: getSettingsLanguagesQueryKey(),
-    queryFn: () => fetchSettingsLanguages(headers),
+    queryFn: async () => (await getSettingsLanguages()) as LanguageSettings,
     staleTime: 5 * 60 * 1000,
     enabled: isAuthenticated,
   });
@@ -58,10 +33,9 @@ export function useGetSettingsLanguages() {
 
 export function usePutSettingsLanguages() {
   const qc = useQueryClient();
-  const { authHeader } = useAuth();
   return useMutation({
     mutationFn: (body: { languages: string[]; default?: string }) =>
-      putSettingsLanguages(body, authHeader()),
+      putSettingsLanguagesGen(body) as Promise<{ languages: string[]; default: string }>,
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: getSettingsLanguagesQueryKey() }),
   });

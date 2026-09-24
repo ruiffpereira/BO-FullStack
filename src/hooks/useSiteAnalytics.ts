@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { getAnalyticsSite } from "../gen/backoffice/hooks/useGetAnalyticsSite.js";
 import { getAnalyticsSiteDomain } from "../gen/backoffice/hooks/useGetAnalyticsSiteDomain.js";
 import { putAnalyticsSiteDomain } from "../gen/backoffice/hooks/usePutAnalyticsSiteDomain.js";
+import type { GetAnalyticsSite200 } from "../gen/backoffice/types/GetAnalyticsSite.js";
 
 /**
  * Estatísticas do site público do tenant (Umami auto-hospedado — o Plausible
@@ -20,17 +21,11 @@ import { putAnalyticsSiteDomain } from "../gen/backoffice/hooks/usePutAnalyticsS
  * obrigatório) — idêntica à local `SiteDomainResponse`, por isso os casts
  * dessas duas caíram.
  *
- * `GET /analytics/site` continua com cast: o schema documenta `configured`
- * ⚠ O cast do `GET /analytics/site` já NÃO é por lacuna do spec. O B20
- * (2026-09-24) pôs `configured` em `required` e o gerado passou a tê-lo
- * obrigatório; o `domain` foi alinhado aqui para `string | null`, que é o que a
- * API devolve mesmo (`user?.websiteDomain ?? null` — assumir "nunca null" era
- * um bug à espera de acontecer).
- *
- * O que continua a obrigar ao cast são DOIS tipos a descrever a mesma resposta:
- * o gerado e este `SiteAnalyticsResponse` local, fixado pelo `useQuery<...>`. A
- * saída é o local passar a alias do gerado — refactor à parte, toca no
- * `Estatisticas.tsx`.
+ * B20 (2026-09-24) fechou o último: `GET /analytics/site` já não tem cast. O
+ * spec pôs `configured` em `required`, e os tipos locais passaram a derivar do
+ * gerado em vez de o duplicarem — ver o bloco de tipos abaixo. Nenhuma das três
+ * chamadas deste ficheiro faz `as` sobre a resposta; se voltar a ser preciso um,
+ * o problema está no spec ou num tipo duplicado, não no frontend.
  */
 
 // Períodos suportados (herdados da sintaxe da Stats API do Plausible — mantidos
@@ -39,52 +34,38 @@ import { putAnalyticsSiteDomain } from "../gen/backoffice/hooks/usePutAnalyticsS
 // (Este mês) incluem o dia corrente — daí o default ser "month".
 export type AnalyticsPeriod = "day" | "7d" | "30d" | "month" | "6mo";
 
-export interface AnalyticsAggregate {
-  visitors?: { value: number };
-  pageviews?: { value: number };
-  bounce_rate?: { value: number };
-  visit_duration?: { value: number };
-}
+/**
+ * A resposta é O TIPO GERADO, não uma cópia. Havia duas descrições da mesma
+ * resposta — a gerada e uma `interface` escrita à mão aqui — e era a segunda,
+ * fixada pelo `useQuery<...>`, que obrigava ao cast no `queryFn`. Os campos
+ * abaixo derivam-se do gerado (`NonNullable<...>`/indexação), por isso um
+ * `pnpm kubb` que mude o contrato parte o `tsc` em vez de passar em silêncio.
+ *
+ * O gerado é mais fraco de propósito: tudo o que depende de ramo
+ * (`configured`, erro do Umami, domínio externo) é opcional, porque é mesmo
+ * opcional na resposta. Era esse o bug que o cast escondia.
+ */
+export type SiteAnalyticsResponse = GetAnalyticsSite200;
 
-export interface AnalyticsTimeseriesPoint {
-  date: string;
-  visitors: number;
-}
+export type AnalyticsAggregate = NonNullable<GetAnalyticsSite200["aggregate"]>;
 
-export interface AnalyticsBreakdownRow {
-  // page → "página"; source → "origem"
-  page?: string;
-  source?: string;
-  visitors: number;
-}
+export type AnalyticsTimeseriesPoint = NonNullable<GetAnalyticsSite200["timeseries"]>[number];
+
+/**
+ * `topPages` e `sources` são tipos DISTINTOS no gerado (um tem `page`, o outro
+ * `source`), mas a `BreakdownList` do `Estatisticas.tsx` serve os dois e indexa
+ * por `r[labelKey]`. A intersecção dá `{ page?, source?, visitors? }` — a forma
+ * que a lista precisa — e continua a aceitar qualquer um dos dois arrays, já
+ * que o campo em falta é opcional de cada lado.
+ */
+export type AnalyticsBreakdownRow = NonNullable<GetAnalyticsSite200["topPages"]>[number] &
+  NonNullable<GetAnalyticsSite200["sources"]>[number];
 
 /** Par de tracking público de um website Umami — o snippet que um site
  *  EXTERNO (fora do site-engine) cola no próprio HTML. Só presente quando o
  *  tenant tem `analyticsSiteId` provisionado E o Umami está configurado no
  *  servidor (nunca um segredo — ver `src/utils/umami.ts` na API). */
-export interface AnalyticsTrackingSnippet {
-  websiteId: string;
-  src: string;
-}
-
-export interface SiteAnalyticsResponse {
-  configured: boolean;
-  /** `no-domain`: tenant ainda não definiu domínio. `no-analytics-site`:
-   *  já tem domínio, mas ainda não há site Umami provisionado (sucede o
-   *  extinto `no-plausible`). */
-  reason?: "no-analytics-site" | "no-domain";
-  /** `string | null` e não `string | undefined`: a API devolve
-   *  `user?.websiteDomain ?? null`, ou seja NULL explícito quando não há
-   *  domínio. Assumir "nunca null" era o que obrigava ao cast aqui. */
-  domain?: string | null;
-  period?: string;
-  aggregate?: AnalyticsAggregate;
-  timeseries?: AnalyticsTimeseriesPoint[];
-  topPages?: AnalyticsBreakdownRow[];
-  sources?: AnalyticsBreakdownRow[];
-  tracking?: AnalyticsTrackingSnippet;
-  error?: string;
-}
+export type AnalyticsTrackingSnippet = NonNullable<GetAnalyticsSite200["tracking"]>;
 
 export interface SiteDomainResponse {
   websiteDomain: string | null;
@@ -99,12 +80,7 @@ export function useSiteAnalytics(period: AnalyticsPeriod) {
   return useQuery<SiteAnalyticsResponse>({
     queryKey: analyticsKey(period),
     enabled: isAuthenticated,
-    // O cast fica — e NÃO por lacuna do spec (o B20 já pôs `configured` em
-    // `required`). Fica porque há DOIS tipos a descrever a mesma resposta: o
-    // gerado e o local `SiteAnalyticsResponse`, que o `useQuery<...>` fixa. A
-    // saída limpa é o local passar a ser um alias do gerado — refactor à parte,
-    // que toca no `Estatisticas.tsx`.
-    queryFn: async () => (await getAnalyticsSite({ period })) as SiteAnalyticsResponse,
+    queryFn: async () => await getAnalyticsSite({ period }),
   });
 }
 

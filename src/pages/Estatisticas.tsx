@@ -70,7 +70,7 @@ function BreakdownList({
           <li key={`${label}-${i}`} className="relative">
             <div className="flex items-center justify-between text-sm gap-3">
               <span className="truncate text-zinc-700 dark:text-zinc-200" title={label}>{label}</span>
-              <span className="tabular-nums text-zinc-500 shrink-0">{fmtInt(r.visitors)}</span>
+              <span className="tabular-nums text-zinc-500 shrink-0">{fmtInt(r.visitors ?? 0)}</span>
             </div>
             <div className="mt-1 h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
               <div className="h-full rounded-full bg-accent/70" style={{ width: `${Math.max(3, ((r.visitors || 0) / max) * 100)}%` }} />
@@ -130,6 +130,12 @@ function DomainForm({ initial = '' }: { initial?: string }) {
  */
 function TrackingSnippetCard({ tracking }: { tracking: AnalyticsTrackingSnippet }) {
   const [copied, setCopied] = useState(false)
+  // `src`/`websiteId` são opcionais no contrato (o objeto `tracking` só vem
+  // inteiro ou não vem de todo). Sem esta guarda, um par incompleto passava no
+  // `tsc` — interpolação aceita `undefined` — e dava ao tenant um snippet com
+  // `data-website-id="undefined"` para colar no site. Melhor não mostrar caixa
+  // nenhuma do que mandar colar um script partido.
+  if (!tracking.src || !tracking.websiteId) return null
   const snippet = `<script defer src="${tracking.src}" data-website-id="${tracking.websiteId}"></script>`
 
   const copy = async () => {
@@ -189,7 +195,7 @@ export function Estatisticas() {
   const series = useMemo(() => {
     const ts = data?.timeseries ?? []
     return {
-      labels: ts.map((p) => shortLabel(p.date)),
+      labels: ts.map((p) => shortLabel(p.date ?? '')),
       series: [{ values: ts.map((p) => p.visitors ?? 0), label: 'Visitantes' }],
     }
   }, [data])

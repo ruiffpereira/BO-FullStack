@@ -117,7 +117,15 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     // clientes" no Ginásio (T2.5). (Deixou de ser a ÚNICA — `/website`
     // também gate por subitem desde T3.8, só que Template/Domínio, ver
     // `SUBMENU['/website']` acima.)
-    { id: "website", label: "Site público", path: "/conteudos" },
+    // `VIEW_CMS` acrescentado em 2026-09-24: esta aba lê e escreve `/cms/entries`,
+    // que a API gateia por essa permissão (routes/index.ts). Sem `perm` aqui, um
+    // utilizador sem VIEW_CMS via a aba e levava 403 ao abri-la — não perde
+    // capacidade nenhuma com isto, deixa só de ver uma porta fechada.
+    //
+    // ⚠ NÃO acrescentar o mesmo a "Emails"/"Notificações": esses lêem
+    // `/cms/{email,notification}-templates`, que exigem só sessão iniciada. A UI
+    // e a API concordam aí de propósito — são dados de referência, como Línguas.
+    { id: "website", label: "Site público", path: "/conteudos", perm: "VIEW_CMS" },
     { id: "product", label: "Produtos", path: "/conteudos/produtos", perm: "VIEW_PRODUCTS" },
     { id: "service", label: "Serviços", path: "/conteudos/servicos", perm: "VIEW_SCHEDULE" },
     { id: "gym", label: "Ginásio (nomes)", path: "/conteudos/ginasio", perm: "VIEW_GYM" },

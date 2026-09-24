@@ -21,11 +21,16 @@ import { putAnalyticsSiteDomain } from "../gen/backoffice/hooks/usePutAnalyticsS
  * dessas duas caíram.
  *
  * `GET /analytics/site` continua com cast: o schema documenta `configured`
- * como opcional (`configured?: boolean`) embora o runtime o devolva sempre —
- * falta o `required: ["configured"]` no `@swagger` do controller. `domain`
- * também está tipado `string | null` no gerado contra `string | undefined`
- * localmente (`SiteAnalyticsResponse.domain?: string`) — mais uma
- * incompatibilidade por trás da primeira que o `tsc` reporta.
+ * ⚠ O cast do `GET /analytics/site` já NÃO é por lacuna do spec. O B20
+ * (2026-09-24) pôs `configured` em `required` e o gerado passou a tê-lo
+ * obrigatório; o `domain` foi alinhado aqui para `string | null`, que é o que a
+ * API devolve mesmo (`user?.websiteDomain ?? null` — assumir "nunca null" era
+ * um bug à espera de acontecer).
+ *
+ * O que continua a obrigar ao cast são DOIS tipos a descrever a mesma resposta:
+ * o gerado e este `SiteAnalyticsResponse` local, fixado pelo `useQuery<...>`. A
+ * saída é o local passar a alias do gerado — refactor à parte, toca no
+ * `Estatisticas.tsx`.
  */
 
 // Períodos suportados (herdados da sintaxe da Stats API do Plausible — mantidos
@@ -68,7 +73,10 @@ export interface SiteAnalyticsResponse {
    *  já tem domínio, mas ainda não há site Umami provisionado (sucede o
    *  extinto `no-plausible`). */
   reason?: "no-analytics-site" | "no-domain";
-  domain?: string;
+  /** `string | null` e não `string | undefined`: a API devolve
+   *  `user?.websiteDomain ?? null`, ou seja NULL explícito quando não há
+   *  domínio. Assumir "nunca null" era o que obrigava ao cast aqui. */
+  domain?: string | null;
   period?: string;
   aggregate?: AnalyticsAggregate;
   timeseries?: AnalyticsTimeseriesPoint[];
@@ -91,6 +99,11 @@ export function useSiteAnalytics(period: AnalyticsPeriod) {
   return useQuery<SiteAnalyticsResponse>({
     queryKey: analyticsKey(period),
     enabled: isAuthenticated,
+    // O cast fica — e NÃO por lacuna do spec (o B20 já pôs `configured` em
+    // `required`). Fica porque há DOIS tipos a descrever a mesma resposta: o
+    // gerado e o local `SiteAnalyticsResponse`, que o `useQuery<...>` fixa. A
+    // saída limpa é o local passar a ser um alias do gerado — refactor à parte,
+    // que toca no `Estatisticas.tsx`.
     queryFn: async () => (await getAnalyticsSite({ period })) as SiteAnalyticsResponse,
   });
 }

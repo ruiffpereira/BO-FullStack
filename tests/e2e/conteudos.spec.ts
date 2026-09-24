@@ -54,25 +54,35 @@ guest.describe("Conteúdos — gating por subitem (T2.6)", () => {
   guest.use({ storageState: { cookies: [], origins: [] } });
 
   guest(
-    "limited@e2e (só VIEW_PRODUCTS) em /conteudos/ginasio redireciona ao 1.º subitem permitido (/conteudos)",
+    "limited@e2e (só VIEW_PRODUCTS) em /conteudos/ginasio redireciona ao 1.º subitem permitido (/conteudos/produtos)",
     async ({ page, context }) => {
       await loginAs(context, "limited@e2e");
       await page.goto("/conteudos/ginasio");
-      // "Site público" (sem perm) é sempre o 1.º subitem — mesmo para quem só
-      // tem VIEW_PRODUCTS, é ele que o guard do Shell.tsx escolhe (nunca
-      // "Produtos": o guard não sabe qual seria "mais relevante" para o user,
-      // só percorre SUBMENU["/conteudos"] por ordem e pega o 1.º permitido).
-      await expect(page).toHaveURL(/\/conteudos$/, { timeout: 15_000 });
+      // O guard do Shell.tsx não escolhe o "mais relevante" para o utilizador:
+      // percorre SUBMENU["/conteudos"] por ordem e pega o 1.º PERMITIDO.
+      //
+      // Até 2026-09-24 isso dava sempre "Site público" (`/conteudos`), que não
+      // tinha `perm`. Ganhou `perm: "VIEW_CMS"` — a API gateia `/cms/entries`
+      // por essa permissão, e sem ela o utilizador via a aba só para levar 403.
+      // O `limited@e2e` não tem VIEW_CMS, por isso o 1.º permitido passou a ser
+      // "Produtos". Se este teste voltar a esperar `/conteudos`, é sinal de que
+      // o gate do "Site público" caiu — verificar contra `routes/index.ts` da
+      // API antes de mudar o teste.
+      await expect(page).toHaveURL(/\/conteudos\/produtos$/, { timeout: 15_000 });
     },
   );
 
   guest(
-    "limited@e2e vê Produtos mas não Serviços/Ginásio (nomes) no submenu",
+    "limited@e2e vê Produtos mas não Site público/Serviços/Ginásio (nomes) no submenu",
     async ({ page, context }) => {
       await loginAs(context, "limited@e2e");
       await page.goto("/conteudos");
       const p = new ConteudosPage(page);
       await expect(p.tab("Produtos")).toBeVisible({ timeout: 10_000 });
+      // "Site público" entrou aqui em 2026-09-24 com o `perm: "VIEW_CMS"`. É o
+      // único destes três que gateia uma aba que ANTES era visível a toda a
+      // gente — sem esta asserção, cair o gate não partia teste nenhum.
+      await expect(p.tab("Site público")).toHaveCount(0);
       await expect(p.tab("Serviços")).toHaveCount(0);
       await expect(p.tab("Ginásio (nomes)")).toHaveCount(0);
     },

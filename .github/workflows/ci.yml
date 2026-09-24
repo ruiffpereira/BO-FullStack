@@ -137,6 +137,23 @@ jobs:
           sudo chmod 600 /etc/wireguard/wg0.conf
           sudo wg-quick up wg0
 
+          # Esperar pelo HANDSHAKE, não só pela interface. `wg-quick up` devolve
+          # 0 mesmo com chaves erradas ou rota impossível — só configura. Sem
+          # este check, qualquer problema de túnel aparecia 30s depois como um
+          # timeout do curl, indistinguível de "o Coolify está em baixo".
+          for i in $(seq 1 10); do
+            hs=$(sudo wg show wg0 latest-handshakes | awk '{print $2}' | head -1)
+            [ -n "$hs" ] && [ "$hs" != "0" ] && break
+            sleep 3
+          done
+          if [ -z "$hs" ] || [ "$hs" = "0" ]; then
+            echo "::error::Túnel sem handshake ao fim de 30s. Causas prováveis: AllowedIPs estreito demais (tem de ser 0.0.0.0/0 — ver nota acima), peer apagado no wg-easy, ou Endpoint/porta UDP inalcançável."
+            sudo wg show wg0
+            exit 1
+          fi
+          echo "Handshake OK."
+          sudo wg show wg0 | sed 's/(none)//'
+
       # Carimba o SHA real na env build-time SOURCE_COMMIT da app (o Nixpacks passa-a
       # como --build-arg; o write-version.mjs lê-a). O Coolify não injeta o commit
       # sozinho, por isso é o CI que o mete. Não-fatal: se falhar, o smoke degrada

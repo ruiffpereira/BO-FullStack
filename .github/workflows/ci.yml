@@ -119,6 +119,24 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
+      # O painel do Coolify não é público (vive dentro da WireGuard) — é o
+      # runner que entra na rede, em vez de expormos o plano de controlo.
+      # Racional completo e armadilhas (AllowedIPs estreito, DNS/--resolve) no
+      # workflow do site-engine, que é o canónico. Setup: ../CI-SETUP.md.
+      - name: Entrar na rede WireGuard (o painel do Coolify não é público)
+        env:
+          WG_CONFIG: ${{ secrets.WIREGUARD_CONFIG }}
+        run: |
+          if [ -z "$WG_CONFIG" ]; then
+            echo "::error::Falta o secret WIREGUARD_CONFIG — o runner não alcança o Coolify."
+            exit 1
+          fi
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq wireguard-tools
+          printf '%s\n' "$WG_CONFIG" | sudo tee /etc/wireguard/wg0.conf > /dev/null
+          sudo chmod 600 /etc/wireguard/wg0.conf
+          sudo wg-quick up wg0
+
       # Carimba o SHA real na env build-time SOURCE_COMMIT da app (o Nixpacks passa-a
       # como --build-arg; o write-version.mjs lê-a). O Coolify não injeta o commit
       # sozinho, por isso é o CI que o mete. Não-fatal: se falhar, o smoke degrada

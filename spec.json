@@ -4590,6 +4590,62 @@
         }
       }
     },
+    "/users/setup-password": {
+      "post": {
+        "summary": "Definir a password pela primeira vez a partir do token de setup recebido por email",
+        "description": "Endpoint público (sem auth) — o token de setup enviado por `POST /users/{userId}/send-setup` ou `POST /users/signup` funciona como credencial de uma só utilização. Limitado por `authRateLimit`.\n",
+        "tags": [
+          "Users"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token",
+                  "password"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "description": "Token de setup recebido por email"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password definida com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Token/password em falta, password com menos de 8 caracteres, ou token inválido/expirado (já usado)"
+          },
+          "500": {
+            "description": "Falha ao definir a password"
+          }
+        }
+      }
+    },
     "/userpermissions": {
       "post": {
         "summary": "Check if the current user has access to given components",
@@ -5226,6 +5282,68 @@
         }
       }
     },
+    "/cms/entries/reorder": {
+      "patch": {
+        "summary": "Reordenar entradas de conteúdo em bulk (define sortOrder de cada uma)",
+        "tags": [
+          "CMS"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "orders"
+                ],
+                "properties": {
+                  "orders": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "key",
+                        "sortOrder"
+                      ],
+                      "properties": {
+                        "key": {
+                          "type": "string"
+                        },
+                        "sortOrder": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Entradas reordenadas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "updated": {
+                      "type": "integer",
+                      "description": "Nº de entradas recebidas em orders (não confirma que pertenciam ao tenant)"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "orders em falta ou vazio"
+          }
+        }
+      }
+    },
     "/cms/entries/{key}": {
       "delete": {
         "summary": "Eliminar uma key e todas as suas traduções",
@@ -5429,6 +5547,70 @@
         "responses": {
           "201": {
             "description": "Secção criada"
+          }
+        }
+      }
+    },
+    "/cms/sections/reorder": {
+      "patch": {
+        "summary": "Reordenar secções em bulk (define sortOrder de cada uma)",
+        "tags": [
+          "CMSSections"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "orders"
+                ],
+                "properties": {
+                  "orders": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "sortOrder"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "description": "sectionId"
+                        },
+                        "sortOrder": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Secções reordenadas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "updated": {
+                      "type": "integer",
+                      "description": "Nº de entradas recebidas em orders (não confirma que pertenciam ao tenant)"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "orders em falta ou vazio"
           }
         }
       }
@@ -10915,6 +11097,282 @@
         }
       }
     },
+    "/integrations/google/status": {
+      "get": {
+        "summary": "Estado da ligação Google do tenant autenticado",
+        "description": "Nunca falha com erro — se a decifra dos tokens guardados rebentar (linha corrompida), degrada para `connected: false` em vez de 500 (fica registado para investigação).\n",
+        "tags": [
+          "Integrations"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado da integração",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "connected": {
+                      "type": "boolean"
+                    },
+                    "calendarId": {
+                      "type": "string",
+                      "example": "primary"
+                    },
+                    "placeId": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "connectedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "configured": {
+                      "type": "boolean",
+                      "description": "false = servidor sem GOOGLE_CLIENT_ID/SECRET"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sem token válido"
+          },
+          "403": {
+            "description": "Sem a permissão VIEW_ADMIN"
+          }
+        }
+      }
+    },
+    "/integrations/google/connect": {
+      "get": {
+        "summary": "Construir o URL de consentimento OAuth do Google (Calendar)",
+        "description": "O `state` do OAuth é um JWT assinado (10 min) que transporta o `userId` — necessário porque o callback (`GET /integrations/google/callback`) não recebe o Bearer.\n",
+        "tags": [
+          "Integrations"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "URL de consentimento Google",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Google não configurado no servidor (faltam as env vars)"
+          },
+          "401": {
+            "description": "Sem token válido"
+          },
+          "403": {
+            "description": "Sem a permissão VIEW_ADMIN"
+          },
+          "500": {
+            "description": "Erro ao iniciar ligação Google"
+          }
+        }
+      }
+    },
+    "/integrations/google/disconnect": {
+      "post": {
+        "summary": "Desligar a integração Google do tenant autenticado",
+        "description": "Limpa os tokens (access/refresh/expiry/scopes/connectedAt) mas mantém a linha da GoogleIntegration.",
+        "tags": [
+          "Integrations"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Integração desligada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sem token válido"
+          },
+          "403": {
+            "description": "Sem a permissão VIEW_ADMIN"
+          },
+          "500": {
+            "description": "Erro ao desligar integração Google"
+          }
+        }
+      }
+    },
+    "/integrations/google/place": {
+      "put": {
+        "summary": "Definir o Place ID do Google (usado pelas Reviews) do tenant",
+        "description": "`placeId` vazio/omitido limpa o valor guardado (`null`). Faz `findOrCreate` da GoogleIntegration se o tenant ainda não tinha nenhuma linha.\n",
+        "tags": [
+          "Integrations"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "placeId": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Place ID guardado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "placeId": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sem token válido"
+          },
+          "403": {
+            "description": "Sem a permissão VIEW_ADMIN"
+          },
+          "500": {
+            "description": "Erro ao guardar Place ID"
+          }
+        }
+      }
+    },
+    "/integrations/google/reviews": {
+      "get": {
+        "summary": "Obter as reviews do Google do Place configurado do tenant",
+        "description": "Env-gated: sem `placeId` guardado ou sem `GOOGLE_PLACES_API_KEY` no servidor devolve `{ configured: false, reviews: [] }` (200 — nunca 400/503). Nunca rebenta com 500: um erro a chamar a Places API (ou a própria excepção) também degrada para 200 com `error` preenchido.\n",
+        "tags": [
+          "Integrations"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reviews do Place (ou `configured:false`/`error` se algo falhar)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "rating": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "total": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "reviews": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "author_name": {
+                            "type": "string"
+                          },
+                          "rating": {
+                            "type": "number"
+                          },
+                          "text": {
+                            "type": "string"
+                          },
+                          "relative_time_description": {
+                            "type": "string"
+                          },
+                          "profile_photo_url": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "time": {
+                            "type": "integer",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sem token válido"
+          },
+          "403": {
+            "description": "Sem a permissão VIEW_ADMIN"
+          }
+        }
+      }
+    },
     "/leads": {
       "get": {
         "summary": "Listar leads do tenant",
@@ -11162,6 +11620,175 @@
           },
           "404": {
             "description": "Notificação não encontrada"
+          }
+        }
+      }
+    },
+    "/push/vapid-public-key": {
+      "get": {
+        "summary": "Obter a chave pública VAPID para registar uma subscrição de Web Push",
+        "tags": [
+          "Push"
+        ],
+        "responses": {
+          "200": {
+            "description": "Chave pública VAPID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "publicKey": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Web Push não configurado (faltam VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY)"
+          }
+        }
+      }
+    },
+    "/push/subscribe": {
+      "post": {
+        "summary": "Registar (ou reatribuir) uma subscrição de Web Push deste dispositivo ao utilizador autenticado",
+        "description": "Upsert pelo `endpoint` (não pela combinação utilizador+endpoint): um endpoint pertence sempre a um só utilizador. Se o dispositivo já tinha subscrição de outro utilizador (ou de um cliente da PWA), esta é reatribuída ao utilizador autenticado.\n",
+        "tags": [
+          "Push"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "endpoint",
+                  "keys"
+                ],
+                "properties": {
+                  "endpoint": {
+                    "type": "string"
+                  },
+                  "keys": {
+                    "type": "object",
+                    "required": [
+                      "p256dh",
+                      "auth"
+                    ],
+                    "properties": {
+                      "p256dh": {
+                        "type": "string"
+                      },
+                      "auth": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Subscrição guardada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "endpoint ou keys em falta"
+          },
+          "500": {
+            "description": "Erro ao guardar subscrição"
+          }
+        }
+      }
+    },
+    "/push/unsubscribe": {
+      "post": {
+        "summary": "Remover a subscrição de Web Push deste dispositivo",
+        "description": "Apaga apenas a subscrição do `endpoint` pertencente ao utilizador autenticado. Um endpoint de OUTRO utilizador é ignorado silenciosamente — devolve sempre 200, mesmo sem linhas apagadas (não revela se o endpoint pertence a outro tenant).\n",
+        "tags": [
+          "Push"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "endpoint"
+                ],
+                "properties": {
+                  "endpoint": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Subscrição removida (ou nada a remover)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "endpoint em falta"
+          },
+          "500": {
+            "description": "Erro ao remover subscrição"
+          }
+        }
+      }
+    },
+    "/events/stream": {
+      "get": {
+        "summary": "Stream de eventos em tempo real (Server-Sent Events) do utilizador autenticado",
+        "description": "Ligação SSE de longa duração — a resposta nunca fecha por si (o cliente mantém-na aberta e o servidor envia um `: ping` de keep-alive a cada 25s). O primeiro evento enviado é sempre `data: {\"type\":\"connected\"}`. Fecha quando o cliente desliga (`req.on(\"close\")`) ou quando o token deixa de ser válido. Usado para notificar o Backoffice de eventos do tenant (ex.: notificações novas) sem polling.\n",
+        "tags": [
+          "Notifications"
+        ],
+        "responses": {
+          "200": {
+            "description": "Stream aberto — `Content-Type text/event-stream`, ligação mantida indefinidamente",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "example": "data: {\"type\":\"connected\"}\n\n"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sem token válido"
           }
         }
       }
@@ -11570,6 +12197,85 @@
           },
           "400": {
             "description": "Datas inválidas ou período demasiado longo"
+          }
+        }
+      }
+    },
+    "/schedule/calendar": {
+      "get": {
+        "summary": "Obter (gerando na 1.ª vez) o URL de subscrição do feed .ics da agenda",
+        "description": "Se o tenant ainda não tem `calendarToken`, gera um novo. O `url` devolvido aponta para o feed público `GET /schedule/calendar/{token}.ics` (sem login — o token é o segredo).\n",
+        "tags": [
+          "Calendar"
+        ],
+        "responses": {
+          "200": {
+            "description": "URLs de subscrição",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "https://..."
+                    },
+                    "webcalUrl": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "webcal://... (subscrição directa no cliente de calendário)"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          },
+          "500": {
+            "description": "Erro ao obter o calendário"
+          }
+        }
+      }
+    },
+    "/schedule/calendar/rotate": {
+      "post": {
+        "summary": "Rodar o token do feed .ics (invalida a subscrição antiga)",
+        "description": "Gera um novo `calendarToken`, substituindo o anterior — qualquer subscrição feita com o token antigo passa a devolver 404.",
+        "tags": [
+          "Calendar"
+        ],
+        "responses": {
+          "200": {
+            "description": "Novo URL de subscrição",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "webcalUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erro ao regenerar o token"
           }
         }
       }
@@ -12755,6 +13461,10 @@
       "description": "Templates de treino reutilizáveis (backoffice)"
     },
     {
+      "name": "Integrations",
+      "description": "Integração Google por tenant (Calendar sync + Reviews via Places API). Env-gated — sem GOOGLE_CLIENT_ID/SECRET a API corre na mesma, só devolve `configured: false`. Todos os endpoints (exceto o callback OAuth) exigem `authenticateToken` + `authorizePermissions([\"VIEW_ADMIN\"])`.\n"
+    },
+    {
       "name": "Leads",
       "description": "Leads/orçamentos capturados no site público do tenant (backoffice)"
     },
@@ -12763,12 +13473,20 @@
       "description": "Notificações do utilizador autenticado"
     },
     {
+      "name": "Push",
+      "description": "Web Push (VAPID) do Backoffice — opcional; desligado sem as duas chaves VAPID configuradas"
+    },
+    {
       "name": "Appointments",
       "description": "Gestão de marcações (backoffice)"
     },
     {
       "name": "BlockedSlots",
       "description": "Gestão de dias/horas bloqueadas"
+    },
+    {
+      "name": "Calendar",
+      "description": "URL de subscrição (.ics) do feed da agenda do tenant, por token pessoal"
     },
     {
       "name": "Services",

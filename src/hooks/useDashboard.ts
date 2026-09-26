@@ -1,98 +1,28 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { getDashboard as getDashboardGen } from "../gen/backoffice/hooks/useGetDashboard.js";
+import type { GetDashboard200, GetDashboard200PeriodEnum } from "../gen/backoffice/types/GetDashboard.js";
 
-export type DashboardPeriod = "7d" | "30d" | "90d" | "12m" | "today" | "week" | "month" | "lastMonth" | "year" | "total" | "custom";
+/**
+ * Tipos DERIVADOS do gerado, nunca uma `interface` à mão ao lado: dois tipos a
+ * descrever a mesma resposta foi o que segurou o cast do `/analytics/site`
+ * (B20) — o gerado corrigia-se e o local continuava a mentir. Mesmo padrão do
+ * `useGymAnalytics.ts`.
+ */
+export type DashboardData = GetDashboard200;
+export type DashboardPeriod = GetDashboard200PeriodEnum;
 
-export interface RevenuePoint {
-  date: string;
-  revenue: number;
-  orders?: number;
-}
+export type ScheduleStats = NonNullable<DashboardData["schedule"]>;
+export type EcommerceStats = NonNullable<DashboardData["ecommerce"]>;
+export type GymStats = NonNullable<DashboardData["gym"]>;
+export type ExpensesStats = DashboardData["expenses"];
 
-export interface ScheduleStats {
-  period: {
-    total: number;
-    byStatus: Record<string, number>;
-    revenue: number;
-    revenuePrevious: number;
-    revenueGrowth: number | null;
-    countGrowth: number | null;
-  };
-  completionRate: number;
-  cancellationRate: number;
-  avgRevenue: number;
-  upcomingToday: number;
-  upcomingWeek: number;
-  revenueByPeriod: RevenuePoint[];
-  topServices: {
-    serviceId: string;
-    name: string | null;
-    color: string | null;
-    count: number;
-    revenue: number;
-  }[];
-  busyDays: { dayOfWeek: number; day: string; count: number }[];
-  busyHours: { hour: number; label: string; count: number }[];
-}
-
-export interface EcommerceStats {
-  period: {
-    orders: number;
-    revenue: number;
-    revenuePrevious: number;
-    revenueGrowth: number | null;
-    ordersGrowth: number | null;
-    avgOrderValue: number;
-    byStatus: Record<string, number>;
-  };
-  revenueByPeriod: RevenuePoint[];
-  topProducts: {
-    productId: string;
-    name: string | null;
-    stock: number | null;
-    totalQty: number;
-    totalRevenue: number;
-  }[];
-  topCategories: { categoryId: string; name: string; revenue: number }[];
-  customers: {
-    total: number;
-    new: number;
-    newPrevious: number;
-    newGrowth: number | null;
-    byPeriod: { date: string; count: number }[];
-  };
-  stockAlerts: { name: string; reference: string; stock: number }[];
-  couponUsage: { code: string; uses: number; totalDiscount: number }[];
-}
-
-export interface ExpensesStats {
-  period: {
-    total: number;
-    totalPrevious: number;
-    totalGrowth: number | null;
-  };
-  byCategory: { categoryId: string | null; name: string; color: string; total: number }[];
-  expensesByPeriod: { date: string; amount: number }[];
-}
-
-export interface GymStats {
-  period: {
-    revenue: number;
-    revenuePrevious: number;
-    revenueGrowth: number | null;
-  };
-  revenueByPeriod: RevenuePoint[];
-  activeMembers: number;
-}
-
-export interface DashboardData {
-  period: DashboardPeriod;
-  schedule?: ScheduleStats;
-  ecommerce?: EcommerceStats;
-  gym?: GymStats;
-  expenses?: ExpensesStats;
-}
+/**
+ * `orders` só existe no `revenueByPeriod` do `ecommerce` (não no de
+ * `schedule`/`gym`) — mantido opcional aqui para continuar a servir os três,
+ * como antes da migração.
+ */
+export type RevenuePoint = ScheduleStats["revenueByPeriod"][number] & { orders?: number };
 
 /**
  * GET /dashboard?period= — analytics agregadas por módulo acessível.
@@ -101,12 +31,11 @@ export interface DashboardData {
  * aceita o objeto largo (com `startDate`/`endDate` extra, para "custom") sem
  * reclamar (B19 não mudou isto — nunca foi preciso).
  *
- * O cast na RESPOSTA continua a ser preciso — mas já não pelo `period`, que
- * passou a enum de 11 valores (API@68f8036). Medido a 2026-09-26 (B20): o
- * schema de `schedule.period` no `@swagger` **não declara** `revenuePrevious`
- * (que o controller devolve e o Dashboard usa) e não tem `required` nos
- * campos. Falta corrigir isso na API; a seguir o cast e as interfaces locais
- * caem, derivadas do gerado (padrão do `useGymAnalytics.ts`).
+ * O cast na RESPOSTA caiu (B20): o schema de `schedule.period` no `@swagger`
+ * passou a declarar `revenuePrevious` (que o controller já devolvia e o
+ * Dashboard já usava) e `required` em todos os campos de `schedule`,
+ * `ecommerce`, `gym` e `expenses` — os tipos locais acima derivam agora do
+ * gerado em vez de uma `interface` à parte.
  */
 export function useDashboard(period: DashboardPeriod = "30d", customStart?: string, customEnd?: string) {
   const { isAuthenticated } = useAuth();
@@ -120,8 +49,7 @@ export function useDashboard(period: DashboardPeriod = "30d", customStart?: stri
         params.startDate = customStart;
         params.endDate = customEnd;
       }
-      const data = await getDashboardGen(params);
-      return data as DashboardData;
+      return await getDashboardGen(params);
     },
   });
 }

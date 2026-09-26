@@ -1005,16 +1005,55 @@
             "format": "date-time"
           },
           "actor": {
-            "$ref": "#/components/schemas/User"
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AuditLogActor"
+              }
+            ],
+            "description": "Utilizador que executou a ação (LEFT JOIN pelo userId); null quando o userId é null (ex.: tentativa de login com email inexistente) ou o utilizador foi entretanto apagado (SET NULL)"
           }
         },
         "required": [
           "auditLogId",
+          "userId",
+          "actorName",
           "method",
           "path",
+          "resourceType",
+          "resourceId",
           "statusCode",
           "success",
-          "createdAt"
+          "ip",
+          "userAgent",
+          "requestBody",
+          "responseBody",
+          "durationMs",
+          "message",
+          "stack",
+          "createdAt",
+          "actor"
+        ]
+      },
+      "AuditLogActor": {
+        "type": "object",
+        "description": "Forma reduzida do User devolvida em AuditLog.actor — o controller só seleciona userId/name/email (nunca username/languages/permissions).",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "name",
+          "email"
         ]
       },
       "GymMuscleGroup": {
@@ -6925,14 +6964,27 @@
                             "revenue": {
                               "type": "number"
                             },
+                            "revenuePrevious": {
+                              "type": "number"
+                            },
                             "revenueGrowth": {
                               "type": "number",
+                              "nullable": true,
                               "description": "% change vs previous period"
                             },
                             "countGrowth": {
-                              "type": "number"
+                              "type": "number",
+                              "nullable": true
                             }
-                          }
+                          },
+                          "required": [
+                            "total",
+                            "byStatus",
+                            "revenue",
+                            "revenuePrevious",
+                            "revenueGrowth",
+                            "countGrowth"
+                          ]
                         },
                         "completionRate": {
                           "type": "number"
@@ -6960,7 +7012,11 @@
                               "revenue": {
                                 "type": "number"
                               }
-                            }
+                            },
+                            "required": [
+                              "date",
+                              "revenue"
+                            ]
                           }
                         },
                         "topServices": {
@@ -6972,10 +7028,12 @@
                                 "type": "string"
                               },
                               "name": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "color": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "count": {
                                 "type": "integer"
@@ -6983,7 +7041,14 @@
                               "revenue": {
                                 "type": "number"
                               }
-                            }
+                            },
+                            "required": [
+                              "serviceId",
+                              "name",
+                              "color",
+                              "count",
+                              "revenue"
+                            ]
                           }
                         },
                         "busyDays": {
@@ -7001,7 +7066,12 @@
                               "count": {
                                 "type": "integer"
                               }
-                            }
+                            },
+                            "required": [
+                              "dayOfWeek",
+                              "day",
+                              "count"
+                            ]
                           }
                         },
                         "busyHours": {
@@ -7019,10 +7089,27 @@
                               "count": {
                                 "type": "integer"
                               }
-                            }
+                            },
+                            "required": [
+                              "hour",
+                              "label",
+                              "count"
+                            ]
                           }
                         }
-                      }
+                      },
+                      "required": [
+                        "period",
+                        "completionRate",
+                        "cancellationRate",
+                        "avgRevenue",
+                        "upcomingToday",
+                        "upcomingWeek",
+                        "revenueByPeriod",
+                        "topServices",
+                        "busyDays",
+                        "busyHours"
+                      ]
                     },
                     "ecommerce": {
                       "type": "object",
@@ -7037,11 +7124,16 @@
                             "revenue": {
                               "type": "number"
                             },
-                            "revenueGrowth": {
+                            "revenuePrevious": {
                               "type": "number"
                             },
+                            "revenueGrowth": {
+                              "type": "number",
+                              "nullable": true
+                            },
                             "ordersGrowth": {
-                              "type": "number"
+                              "type": "number",
+                              "nullable": true
                             },
                             "avgOrderValue": {
                               "type": "number"
@@ -7049,7 +7141,16 @@
                             "byStatus": {
                               "type": "object"
                             }
-                          }
+                          },
+                          "required": [
+                            "orders",
+                            "revenue",
+                            "revenuePrevious",
+                            "revenueGrowth",
+                            "ordersGrowth",
+                            "avgOrderValue",
+                            "byStatus"
+                          ]
                         },
                         "revenueByPeriod": {
                           "type": "array",
@@ -7065,7 +7166,12 @@
                               "orders": {
                                 "type": "integer"
                               }
-                            }
+                            },
+                            "required": [
+                              "date",
+                              "revenue",
+                              "orders"
+                            ]
                           }
                         },
                         "topProducts": {
@@ -7077,7 +7183,12 @@
                                 "type": "string"
                               },
                               "name": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "stock": {
+                                "type": "integer",
+                                "nullable": true
                               },
                               "totalQty": {
                                 "type": "integer"
@@ -7085,7 +7196,14 @@
                               "totalRevenue": {
                                 "type": "number"
                               }
-                            }
+                            },
+                            "required": [
+                              "productId",
+                              "name",
+                              "stock",
+                              "totalQty",
+                              "totalRevenue"
+                            ]
                           }
                         },
                         "topCategories": {
@@ -7102,7 +7220,12 @@
                               "revenue": {
                                 "type": "number"
                               }
-                            }
+                            },
+                            "required": [
+                              "categoryId",
+                              "name",
+                              "revenue"
+                            ]
                           }
                         },
                         "customers": {
@@ -7114,8 +7237,12 @@
                             "new": {
                               "type": "integer"
                             },
+                            "newPrevious": {
+                              "type": "integer"
+                            },
                             "newGrowth": {
-                              "type": "number"
+                              "type": "number",
+                              "nullable": true
                             },
                             "byPeriod": {
                               "type": "array",
@@ -7128,30 +7255,44 @@
                                   "count": {
                                     "type": "integer"
                                   }
-                                }
+                                },
+                                "required": [
+                                  "date",
+                                  "count"
+                                ]
                               }
                             }
-                          }
+                          },
+                          "required": [
+                            "total",
+                            "new",
+                            "newPrevious",
+                            "newGrowth",
+                            "byPeriod"
+                          ]
                         },
                         "stockAlerts": {
                           "type": "array",
-                          "description": "Products with stock ≤ 5",
+                          "description": "Products with stock ≤ 5 (sem productId — o controller não o devolve)",
                           "items": {
                             "type": "object",
                             "properties": {
-                              "productId": {
-                                "type": "string"
-                              },
                               "name": {
                                 "type": "string"
                               },
                               "reference": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "stock": {
                                 "type": "integer"
                               }
-                            }
+                            },
+                            "required": [
+                              "name",
+                              "reference",
+                              "stock"
+                            ]
                           }
                         },
                         "couponUsage": {
@@ -7169,10 +7310,24 @@
                               "totalDiscount": {
                                 "type": "number"
                               }
-                            }
+                            },
+                            "required": [
+                              "code",
+                              "uses",
+                              "totalDiscount"
+                            ]
                           }
                         }
-                      }
+                      },
+                      "required": [
+                        "period",
+                        "revenueByPeriod",
+                        "topProducts",
+                        "topCategories",
+                        "customers",
+                        "stockAlerts",
+                        "couponUsage"
+                      ]
                     },
                     "gym": {
                       "type": "object",
@@ -7189,9 +7344,15 @@
                               "type": "number"
                             },
                             "revenueGrowth": {
-                              "type": "number"
+                              "type": "number",
+                              "nullable": true
                             }
-                          }
+                          },
+                          "required": [
+                            "revenue",
+                            "revenuePrevious",
+                            "revenueGrowth"
+                          ]
                         },
                         "revenueByPeriod": {
                           "type": "array",
@@ -7204,14 +7365,23 @@
                               "revenue": {
                                 "type": "number"
                               }
-                            }
+                            },
+                            "required": [
+                              "date",
+                              "revenue"
+                            ]
                           }
                         },
                         "activeMembers": {
                           "type": "integer",
                           "description": "Membros com GymMembership.subscriptionId definido (independente de período)"
                         }
-                      }
+                      },
+                      "required": [
+                        "period",
+                        "revenueByPeriod",
+                        "activeMembers"
+                      ]
                     },
                     "expenses": {
                       "type": "object",
@@ -7227,9 +7397,15 @@
                               "type": "number"
                             },
                             "totalGrowth": {
-                              "type": "number"
+                              "type": "number",
+                              "nullable": true
                             }
-                          }
+                          },
+                          "required": [
+                            "total",
+                            "totalPrevious",
+                            "totalGrowth"
+                          ]
                         },
                         "byCategory": {
                           "type": "array",
@@ -7251,7 +7427,13 @@
                               "total": {
                                 "type": "number"
                               }
-                            }
+                            },
+                            "required": [
+                              "categoryId",
+                              "name",
+                              "color",
+                              "total"
+                            ]
                           }
                         },
                         "expensesByPeriod": {
@@ -7265,10 +7447,19 @@
                               "amount": {
                                 "type": "number"
                               }
-                            }
+                            },
+                            "required": [
+                              "date",
+                              "amount"
+                            ]
                           }
                         }
-                      }
+                      },
+                      "required": [
+                        "period",
+                        "byCategory",
+                        "expensesByPeriod"
+                      ]
                     }
                   },
                   "required": [

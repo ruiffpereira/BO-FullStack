@@ -62,6 +62,47 @@ export class AdminPage {
     await this.submitUserForm();
   }
 
+  // ── Users: apagar tenant (confirmação forte, B8 — hard delete) ─────────────
+  // O botão "Eliminar" (trash, aria-label "Eliminar") abre um modal que exige
+  // escrever o email do tenant antes de "Apagar definitivamente" ficar activo.
+
+  async openDeleteUserModal(rowText: string) {
+    const row = await this.findUserRow(rowText);
+    await row.getByRole("button", { name: "Eliminar" }).click();
+    await this.page.waitForSelector('[role="dialog"]', { timeout: 5_000 });
+  }
+
+  /**
+   * A tabela de utilizadores pagina client-side (10/página, `usePagination`) —
+   * a seed do e2e já tem 14+ tenants, por isso um utilizador recém-criado pode
+   * cair na 2ª página. Percorre as páginas até encontrar a linha.
+   */
+  private async findUserRow(rowText: string) {
+    for (let i = 0; i < 5; i++) {
+      const row = this.page.locator("tr").filter({ hasText: rowText }).first();
+      if (await row.count()) return row;
+      const next = this.page.getByRole("button", { name: "Página seguinte" });
+      if ((await next.count()) === 0 || (await next.isDisabled())) break;
+      await next.click();
+      await this.page.waitForTimeout(300);
+    }
+    return this.page.locator("tr").filter({ hasText: rowText }).first();
+  }
+
+  deleteConfirmInput() {
+    return this.page.locator('[role="dialog"] input').first();
+  }
+
+  deleteConfirmButton() {
+    return this.page.getByRole("button", { name: /apagar definitivamente/i });
+  }
+
+  async deleteUser(rowText: string, email: string) {
+    await this.openDeleteUserModal(rowText);
+    await this.deleteConfirmInput().fill(email);
+    await this.deleteConfirmButton().click();
+  }
+
   // ── Permissions ───────────────────────────────────────────────────────────
 
   async deletePermission(name: string) {

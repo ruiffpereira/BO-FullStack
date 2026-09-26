@@ -236,7 +236,13 @@ function UserFormFields({
   );
 }
 
-function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
+function UtilizadoresTab({
+  headers,
+  currentUserId,
+}: {
+  headers: Record<string, string>;
+  currentUserId: string | null;
+}) {
   const qc = useQueryClient();
   const { data: users = [], isLoading } = useGetUsers({ client: { headers } });
   const pgUsers = usePagination(users as User[]);
@@ -249,6 +255,9 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selected, setSelected] = useState<User | null>(null);
   const [form, setForm] = useState<UserForm>(emptyUserForm);
+  // Confirmação forte do apagar tenant (B8, hard delete): o admin tem de
+  // escrever o email do tenant para o botão destrutivo ficar activo.
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState("");
 
   const createM = usePostUsersRegister({
     client: { headers },
@@ -277,11 +286,30 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
     client: { headers },
     mutation: {
       onSuccess: () => {
-        toast.success("Eliminado");
+        toast.success("Tenant eliminado definitivamente");
+        // Só fecha o modal (e limpa o estado da confirmação) no sucesso — em
+        // erro fica aberto, para o admin poder tentar de novo sem reabrir.
         setDeleteOpen(false);
+        setSelected(null);
+        setDeleteConfirmEmail("");
         invalidate();
       },
-      onError: (error) => toast.error(getApiError(error)),
+      onError: (error) => {
+        const status = error?.response?.status;
+        if (status === 400) {
+          // O admin tentou apagar-se a si próprio (a API bloqueia mesmo que a
+          // UI já esconda essa ação — cinto e suspensórios).
+          toast.error("Não podes apagar a tua própria conta.");
+        } else if (status === 502) {
+          // Cancelamento no Stripe falhou → a API garante que nada foi
+          // apagado (o commit da BD só corre depois do Stripe confirmar).
+          toast.error("Falha no Stripe — nada foi apagado. Tenta novamente.");
+        } else {
+          toast.error(
+            getApiError(error, "Não foi possível eliminar o tenant. Tenta novamente."),
+          );
+        }
+      },
     },
   });
   const sendResetM = usePostUsersUseridSendReset({
@@ -306,6 +334,15 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
     });
     setEditOpen(true);
   };
+
+  // Comparação case-insensitive (com trim) do email de confirmação: o que
+  // interessa é provar que o admin sabe qual é o tenant que vai desaparecer,
+  // não testar se ele escreveu a caixa exacta das letras — copiar/colar de
+  // sítios diferentes (a tabela, um email, o Stripe) já basta para variar
+  // maiúsculas, e isso não deve bloquear uma ação já de si difícil de repetir.
+  const isDeleteConfirmed =
+    !!selected &&
+    deleteConfirmEmail.trim().toLowerCase() === selected.email.trim().toLowerCase();
 
   return (
     <div className="space-y-4">
@@ -385,11 +422,19 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
                   <IconButton
                     icon="trash"
                     label="Eliminar"
+                    title={
+                      u.userId === currentUserId
+                        ? "Não podes eliminar a tua própria conta."
+                        : "Eliminar tenant"
+                    }
+                    disabled={u.userId === currentUserId}
                     onClick={() => {
+                      if (u.userId === currentUserId) return;
                       setSelected(u);
+                      setDeleteConfirmEmail("");
                       setDeleteOpen(true);
                     }}
-                    className="hover:text-red-500"
+                    className={`hover:text-red-500 ${u.userId === currentUserId ? "opacity-40 cursor-not-allowed" : ""}`}
                   />
                 </div>
               </td>
@@ -479,28 +524,58 @@ function UtilizadoresTab({ headers }: { headers: Record<string, string> }) {
       <Modal
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
-        title="Eliminar utilizador"
+        title={
+          selected
+            ? `Eliminar "${selected.name}" definitivamente?`
+            : "Eliminar tenant"
+        }
+        subtitle={selected?.email}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setDeleteOpen(false)}>
+            <Button
+              variant="ghost"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleteM.isPending}
+            >
               Cancelar
             </Button>
             <Button
               variant="danger"
-              disabled={deleteM.isPending}
+              isLoading={deleteM.isPending}
+              disabled={!isDeleteConfirmed || deleteM.isPending}
               onClick={() =>
                 selected && deleteM.mutate({ userId: selected.userId })
               }
             >
-              {deleteM.isPending ? "A eliminar…" : "Eliminar"}
+              Apagar definitivamente
             </Button>
           </>
         }
       >
-        <p className="text-sm text-zinc-600 dark:text-zinc-300">
-          Tens a certeza que queres eliminar <strong>{selected?.name}</strong>?
-          Esta acção não pode ser desfeita.
-        </p>
+        <div className="space-y-4">
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">
+            Vais eliminar definitivamente este tenant e tudo o que lhe pertence:
+          </p>
+          <ul className="space-y-1 text-sm text-zinc-600 dark:text-zinc-300 list-disc list-inside">
+            <li>Todos os dados deste tenant, em todos os módulos</li>
+            <li>Os clientes deste tenant</li>
+            <li>O site público e o subdomínio</li>
+            <li>As fotos e vídeos enviados</li>
+            <li>A subscrição — é cancelada no Stripe</li>
+          </ul>
+          <div className="rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50/60 dark:bg-red-950/30 p-3.5">
+            <p className="text-sm font-semibold text-red-700 dark:text-red-400">
+              Isto é irreversível. Não há recuperação.
+            </p>
+          </div>
+          <Input
+            label="Escreve o email do tenant para confirmar"
+            value={deleteConfirmEmail}
+            onChange={(e: any) => setDeleteConfirmEmail(e.target.value)}
+            placeholder={selected?.email}
+            autoComplete="off"
+          />
+        </div>
       </Modal>
 
     </div>
@@ -1591,7 +1666,7 @@ export type AdminView =
   | "faturacao" | "integracoes" | "atividade" | "sistema";
 
 export function Admin({ view }: { view: AdminView }) {
-  const { authHeader } = useAuth();
+  const { authHeader, userId } = useAuth();
   const headers = authHeader();
   usePageSubtitle("Gere utilizadores, permissões e componentes.");
 
@@ -1614,7 +1689,9 @@ export function Admin({ view }: { view: AdminView }) {
 
   return (
     <div>
-      {view === "utilizadores" && <UtilizadoresTab headers={headers} />}
+      {view === "utilizadores" && (
+        <UtilizadoresTab headers={headers} currentUserId={userId} />
+      )}
       {view === "permissoes" && <PermissoesTab headers={headers} />}
       {view === "componentes" && <ComponentesTab headers={headers} />}
       {view === "tokens" && <TokensTab headers={headers} />}

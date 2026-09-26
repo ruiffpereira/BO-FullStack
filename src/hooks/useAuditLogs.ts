@@ -77,9 +77,11 @@ export function useAuditLogs(filters: AuditFilters = {}) {
       // devolve algo compatível, sem cast).
       const params = clean({ ...filters });
       const data = await getAuditLogsGen(params);
-      // Cast ainda necessário: `GetAuditLogs200` tem `count`/`page`/`limit`/
-      // `rows` todos opcionais (nenhum `required` no schema), apesar de o
-      // runtime devolver sempre o envelope completo — falta corrigir na API.
+      // Cast ainda necessário (medido a 2026-09-26, B20): o ENVELOPE já está
+      // certo (`count`/`page`/`limit`/`rows` em `required`, API@68f8036), mas o
+      // schema de cada linha (`AuditLog`) continua sem `required` — `userId`,
+      // `method`, … saem todos opcionais no gerado. Falta o `required` nesse
+      // schema, no `@swagger` da API.
       return data as Paginated<AuditLog>;
     },
   });

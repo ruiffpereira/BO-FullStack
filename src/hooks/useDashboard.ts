@@ -101,10 +101,12 @@ export interface DashboardData {
  * aceita o objeto largo (com `startDate`/`endDate` extra, para "custom") sem
  * reclamar (B19 não mudou isto — nunca foi preciso).
  *
- * O cast na RESPOSTA continua a ser preciso (B19 só corrigiu `gym`/`expenses`,
- * que passaram a estar documentados): `GetDashboard200.period` é `string`
- * solto (não o enum de 4 valores), incompatível com o `DashboardPeriod` local
- * mais largo ("today"/"week"/"month"/… usados também pelo Financeiro).
+ * O cast na RESPOSTA continua a ser preciso — mas já não pelo `period`, que
+ * passou a enum de 11 valores (API@68f8036). Medido a 2026-09-26 (B20): o
+ * schema de `schedule.period` no `@swagger` **não declara** `revenuePrevious`
+ * (que o controller devolve e o Dashboard usa) e não tem `required` nos
+ * campos. Falta corrigir isso na API; a seguir o cast e as interfaces locais
+ * caem, derivadas do gerado (padrão do `useGymAnalytics.ts`).
  */
 export function useDashboard(period: DashboardPeriod = "30d", customStart?: string, customEnd?: string) {
   const { isAuthenticated } = useAuth();

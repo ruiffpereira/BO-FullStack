@@ -25,6 +25,37 @@ test.describe("Admin — Utilizadores", () => {
 
     await admin.expectToastVisible();
   });
+
+  test("apagar tenant exige confirmação forte pelo email — botão só ativa quando bate, sucesso remove o tenant", async ({ page }) => {
+    const admin = new AdminPage(page);
+    await admin.goto();
+
+    // Tenant descartável, criado só para este teste (o e2e da API de `main`
+    // ainda faz o delete antigo, mas responde 200 igual ao hard delete de B8 —
+    // este spec tem de funcionar contra as duas).
+    const username = `deltest_${Date.now()}`;
+    const email = `del_${Date.now()}@example.com`;
+    await admin.createUser({ username, email });
+    await page.waitForTimeout(1_000);
+
+    await admin.openDeleteUserModal(username);
+    const confirmBtn = admin.deleteConfirmButton();
+    await expect(confirmBtn).toBeDisabled();
+
+    // Email errado — continua desactivado.
+    await admin.deleteConfirmInput().fill("email-errado@example.com");
+    await expect(confirmBtn).toBeDisabled();
+
+    // Email certo (o do tenant recém-criado) — activa.
+    await admin.deleteConfirmInput().fill(email);
+    await expect(confirmBtn).toBeEnabled();
+
+    await confirmBtn.click();
+
+    // Sucesso: o modal fecha e aparece um toast.
+    await expect(page.locator('[role="dialog"]')).toHaveCount(0, { timeout: 10_000 });
+    await admin.expectToastVisible();
+  });
 });
 
 test.describe("Admin — Permissões", () => {

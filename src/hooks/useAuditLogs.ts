@@ -2,45 +2,25 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { getAuditLogs as getAuditLogsGen } from "../gen/backoffice/hooks/useGetAuditLogs.js";
 import { getHealth } from "../gen/backoffice/hooks/useGetHealth.js";
+import type { AuditLog as GenAuditLog } from "../gen/backoffice/types/AuditLog.js";
+import type { AuditLogActor } from "../gen/backoffice/types/AuditLogActor.js";
+import type { GetAuditLogs200 } from "../gen/backoffice/types/GetAuditLogs.js";
 
-export interface Actor {
-  userId: string;
-  name: string;
-  email: string;
-}
+/**
+ * Tipos DERIVADOS do gerado, nunca uma `interface` à mão ao lado: dois tipos a
+ * descrever a mesma resposta foi o que segurou o cast do `/analytics/site`
+ * (B20) — o gerado corrigia-se e o local continuava a mentir.
+ */
+export type Actor = AuditLogActor;
 
 /**
  * Registo unificado de atividade: uma ação de backoffice, um evento de
  * autenticação ou um erro de servidor (5xx). Nos erros, `message`/`stack`
  * vêm preenchidos (a antiga tabela ErrorLogs foi fundida nesta).
  */
-export interface AuditLog {
-  auditLogId: string;
-  userId: string | null;
-  actorName: string | null;
-  method: string;
-  path: string;
-  resourceType: string | null;
-  resourceId: string | null;
-  statusCode: number;
-  success: boolean;
-  ip: string | null;
-  userAgent: string | null;
-  requestBody: Record<string, unknown> | null;
-  responseBody: Record<string, unknown> | null;
-  durationMs: number | null;
-  message: string | null;
-  stack: string | null;
-  createdAt: string;
-  actor?: Actor | null;
-}
+export type AuditLog = GenAuditLog;
 
-export interface Paginated<T> {
-  count: number;
-  page: number;
-  limit: number;
-  rows: T[];
-}
+export type Paginated<T> = Omit<GetAuditLogs200, "rows"> & { rows: T[] };
 
 export interface AuditFilters {
   page?: number;
@@ -76,11 +56,12 @@ export function useAuditLogs(filters: AuditFilters = {}) {
       // gerado — já não precisa de ponte de tipos (o `clean()` abaixo já
       // devolve algo compatível, sem cast).
       const params = clean({ ...filters });
-      const data = await getAuditLogsGen(params);
-      // Cast ainda necessário: `GetAuditLogs200` tem `count`/`page`/`limit`/
-      // `rows` todos opcionais (nenhum `required` no schema), apesar de o
-      // runtime devolver sempre o envelope completo — falta corrigir na API.
-      return data as Paginated<AuditLog>;
+      // Cast caiu (B20): o schema de cada linha (`AuditLog`) passou a
+      // declarar `required` em todos os campos no `@swagger` da API — a par
+      // do envelope (`count`/`page`/`limit`/`rows`, já corrigido em
+      // API-FullStack@68f8036) — `getAuditLogsGen` devolve `GetAuditLogs200`,
+      // já compatível com `Paginated<AuditLog>` sem cast.
+      return await getAuditLogsGen(params);
     },
   });
 }

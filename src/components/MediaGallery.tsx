@@ -1,4 +1,6 @@
+import { useRef, useState } from 'react'
 import { Button } from '../ui/ui.jsx'
+import { Icon } from '../ui/icons.jsx'
 import { uploadImage } from '../gen/backoffice/hooks/useUploadImage.js'
 import { uploadVideo } from '../gen/backoffice/hooks/useUploadVideo.js'
 
@@ -88,10 +90,10 @@ export function MediaGallery({
               {m.type === 'image' ? (
                 <img src={m.url} alt="" className="w-full h-full object-cover" />
               ) : (
-                <video src={m.url} className="w-full h-full object-cover" muted playsInline />
+                <VideoThumb url={m.url} />
               )}
               {m.type === 'video' && (
-                <span className="absolute bottom-1 left-1 text-[9px] px-1 rounded bg-black/60 text-white">vídeo</span>
+                <span className="absolute top-1 left-1 text-[9px] px-1 rounded bg-black/60 text-white pointer-events-none">vídeo</span>
               )}
               {m.pending && (
                 <span className="absolute bottom-1 right-1 text-[9px] px-1 rounded bg-amber-500/90 text-white">por guardar</span>
@@ -107,6 +109,49 @@ export function MediaGallery({
             </div>
           ))}
         </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Preview de vídeo reproduzível: começa parado (poster no 1º frame, sem
+ * controlos) e só mostra a barra nativa depois de um clique — mantém o grid
+ * limpo mas permite ver o vídeo sem sair do formulário nem partir o upload
+ * diferido (o `src` continua a ser o `blob:`/URL já escolhido).
+ */
+function VideoThumb({ url }: { url: string }) {
+  const ref = useRef<HTMLVideoElement>(null)
+  const [playing, setPlaying] = useState(false)
+
+  const toggle = () => {
+    const el = ref.current
+    if (!el) return
+    if (el.paused) { el.play(); setPlaying(true) } else { el.pause(); setPlaying(false) }
+  }
+
+  return (
+    <div className="relative w-full h-full">
+      <video
+        ref={ref}
+        src={url}
+        className="w-full h-full object-cover"
+        controls={playing}
+        muted
+        playsInline
+        preload="metadata"
+        onPause={() => setPlaying(false)}
+        onClick={(e) => { if (!playing) { e.preventDefault(); toggle() } }}
+      />
+      {!playing && (
+        <button
+          type="button"
+          onClick={toggle}
+          className="absolute inset-0 flex items-center justify-center bg-black/10 hover:bg-black/20 transition"
+          aria-label="Reproduzir vídeo"
+        >
+          <Icon name="play" className="w-6 h-6 text-white drop-shadow" />
+        </button>
       )}
     </div>
   )

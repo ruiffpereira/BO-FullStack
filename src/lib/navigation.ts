@@ -31,7 +31,11 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     { id: "agenda", label: "Agenda", path: "/financeiro/agenda", perm: "VIEW_SCHEDULE" },
     { id: "loja", label: "Loja", path: "/financeiro/loja", perm: "VIEW_PRODUCTS" },
     { id: "ginasio", label: "Ginásio", path: "/financeiro/ginasio", perm: "VIEW_GYM" },
-    { id: "despesas", label: "Despesas", path: "/financeiro/despesas" },
+    // `VIEW_EXPENSES` acrescentado (B5): esta aba lê/escreve `/expenses`, que a
+    // API gateia por essa permissão (routes/index.ts). Sem `perm` aqui, um
+    // tenant criado pelo admin sem essa permissão via o subitem, entrava e
+    // levava 403 em todos os hooks — `Despesas.tsx` não tratava `isError`.
+    { id: "despesas", label: "Despesas", path: "/financeiro/despesas", perm: "VIEW_EXPENSES" },
   ],
   "/loja": [
     { id: "produtos", label: "Produtos", path: "/loja" },
@@ -42,8 +46,17 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     // Label do âncora ("Lista", não "Clientes") por desenho — evita duplicar o
     // nome acessível do próprio item pai da sidebar quando o acordeão está
     // expandido (mesmo motivo por trás de "O Negócio"/"Produtos" acima).
-    { id: "clientes", label: "Lista", path: "/clientes" },
-    { id: "leads", label: "Leads", path: "/clientes/leads" },
+    //
+    // `VIEW_CUSTOMERS` acrescentado a AMBOS os subitens (B5): tanto `/customers`
+    // como `/leads` exigem essa permissão na API (routes/index.ts) — um tenant
+    // criado pelo admin sem ela via o item "Clientes" na sidebar (é core,
+    // sempre visível) e levava "Erro ao carregar clientes" ao entrar. Como não
+    // há aqui nenhum subitem sem `perm` a servir de fallback (ao contrário do
+    // Financeiro/Conteúdos), o guard do `Shell.tsx` trata a raiz inteira como
+    // indisponível quando `allowedSubitems` devolve vazio, e cai para o
+    // dashboard — não fica preso a mostrar um erro.
+    { id: "clientes", label: "Lista", path: "/clientes", perm: "VIEW_CUSTOMERS" },
+    { id: "leads", label: "Leads", path: "/clientes/leads", perm: "VIEW_CUSTOMERS" },
   ],
   "/agenda": [
     // Label do âncora ("Calendário", não "Agenda") pelo mesmo motivo dos

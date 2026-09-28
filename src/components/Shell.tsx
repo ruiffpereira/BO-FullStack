@@ -696,10 +696,13 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
     ...(isAdmin ? ['/admin'] : []),
   ])
   // …apresentadas pela ordem fixa de MENU_ORDER (extras desconhecidos vão para o fim).
+  // Um root com SUBMENU mas sem NENHUM subitem permitido (ex.: /clientes sem
+  // VIEW_CUSTOMERS — "Lista" e "Leads" exigem-na as duas) sai daqui: some da
+  // sidebar e, por já não ser root, o guard abaixo redirecciona o deep-link.
   const accessiblePaths = [
     ...MENU_ORDER.filter((p) => accessible.has(p)),
     ...[...accessible].filter((p) => !MENU_ORDER.includes(p)),
-  ]
+  ].filter((p) => !SUBMENU[p]?.length || allowedSubitems(p, hasPermission).length > 0)
 
   // Fecha o drawer ao navegar
   useEffect(() => { setDrawer(false) }, [location.pathname])

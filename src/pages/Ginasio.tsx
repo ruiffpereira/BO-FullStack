@@ -512,6 +512,33 @@ function GrupoModal({ grupo, onClose }: { grupo: Group | null; onClose: () => vo
   )
 }
 
+// Miniatura da linha de exercício: 1.ª media (imagem/frame de vídeo) quando
+// existir, com contador se houver mais; sem media, mantém o quadrado de cor
+// do grupo (comportamento de sempre).
+function ExerciseThumb({ media, fallbackColor }: { media?: GymExercise['media']; fallbackColor: string }) {
+  const first = media?.[0]
+  if (!first) return <span className="w-9 h-9 rounded-lg shrink-0" style={{ background: fallbackColor }} />
+  return (
+    <span className="relative w-9 h-9 rounded-lg shrink-0 overflow-hidden bg-zinc-100 dark:bg-zinc-800">
+      {first.type === 'image' ? (
+        <img src={first.url} alt="" className="w-full h-full object-cover" />
+      ) : (
+        <>
+          <video src={first.url} className="w-full h-full object-cover" muted preload="metadata" />
+          <span className="absolute inset-0 flex items-center justify-center bg-black/10">
+            <Icon name="play" className="w-3.5 h-3.5 text-white drop-shadow" />
+          </span>
+        </>
+      )}
+      {media!.length > 1 && (
+        <span className="absolute bottom-0 right-0 text-[8px] leading-tight px-1 rounded-tl bg-black/60 text-white">
+          +{media!.length - 1}
+        </span>
+      )}
+    </span>
+  )
+}
+
 function CatalogoTab() {
   const qc = useQueryClient()
   const { data, isLoading } = useGetGymExercises()
@@ -729,7 +756,7 @@ function CatalogoTab() {
               {pg.pageItems.map((e) => (
                 <Card key={e.exerciseId} className="overflow-hidden">
                   <div className="flex items-center gap-3 p-3.5 cursor-pointer hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30" onClick={() => startEdit(e)}>
-                    <span className="w-9 h-9 rounded-lg shrink-0" style={{ background: colorOf(e.muscleGroup) }} />
+                    <ExerciseThumb media={e.media} fallbackColor={colorOf(e.muscleGroup)} />
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-zinc-900 dark:text-white truncate">{e.name}</p>
                       <p className="text-xs text-zinc-400">{e.muscleGroup}{e.subGroup ? ` · ${e.subGroup}` : ''}</p>

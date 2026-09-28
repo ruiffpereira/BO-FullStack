@@ -126,6 +126,13 @@ function Modal({ open, onClose, title, subtitle, children, footer, width = 'max-
   const modalIdRef = useRefUI(null);
   const panelRef = useRefUI(null);
   const savedActiveElementRef = useRefUI(null);
+  // ⚠ O `onClose` vive numa ref e NÃO nas deps do efeito: quase todos os
+  // chamadores passam `() => setOpen(false)`, uma função nova a cada render.
+  // Com ele nas deps, cada letra escrita num input re-renderizava o pai →
+  // cleanup (foco devolvido ao botão que abriu) + re-run (foco no painel) → o
+  // input perdia o foco à 1.ª letra e a modal parecia bloqueada.
+  const onCloseRef = useRefUI(onClose);
+  onCloseRef.current = onClose;
 
   // Gera um ID único para este modal ao montar (open -> true).
   if (open && !modalIdRef.current) {
@@ -153,7 +160,7 @@ function Modal({ open, onClose, title, subtitle, children, footer, width = 'max-
       if (modalStack[modalStack.length - 1] !== modalId) return;
       if (e.key === 'Escape') {
         e.preventDefault();
-        onClose();
+        onCloseRef.current();
       }
       if (e.key === 'Tab') {
         trapTabFocus(e, panelRef.current);
@@ -171,7 +178,7 @@ function Modal({ open, onClose, title, subtitle, children, footer, width = 'max-
         savedActiveElementRef.current.focus();
       }
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

@@ -7,8 +7,10 @@ test.use({ storageState: { cookies: [], origins: [] } });
 
 const nav = (page: Page) => page.locator("nav").first();
 
-// Matriz de permissões: cada user só tem 1 componente. Core (Clientes/Financeiro/
-// Conteúdos) é acessível a todos; os módulos (Loja/Agenda/Ginásio) são por permissão.
+// Matriz de permissões: cada user só tem 1 componente. Core (Financeiro/Conteúdos)
+// é acessível a todos; os módulos (Loja/Agenda/Ginásio) são por permissão.
+// "Clientes" é core mas os seus dois subitens exigem VIEW_CUSTOMERS (B5) — nenhum
+// destes users a tem, por isso não o vêem (matriz completa em rbac-matriz.spec.ts).
 const MATRIX = [
   { user: "limited@e2e", modulo: "Loja", path: "/loja", esconde: ["Agenda", "Ginásio", "Admin"], bloqueadas: ["/agenda", "/ginasio", "/admin"] },
   { user: "agenda@e2e", modulo: "Agenda", path: "/agenda", esconde: ["Loja", "Ginásio", "Admin"], bloqueadas: ["/loja", "/ginasio", "/admin"] },
@@ -25,9 +27,10 @@ test.describe("RBAC — matriz de permissões na UI", () => {
         m.user,
         () => page.goto(m.path),
         async () => {
-          // Vê o seu módulo + os core (Clientes, Financeiro, Conteúdos).
+          // Vê o seu módulo + um core; não vê Clientes (sem VIEW_CUSTOMERS).
           await expect(nav(page).getByRole("button", { name: m.modulo, exact: true })).toBeVisible({ timeout: 10_000 });
-          await expect(nav(page).getByRole("button", { name: "Clientes", exact: true })).toBeVisible();
+          await expect(nav(page).getByRole("button", { name: "Financeiro", exact: true })).toBeVisible();
+          await expect(nav(page).getByRole("button", { name: "Clientes", exact: true })).toHaveCount(0);
           // Não vê os módulos sem permissão.
           for (const hidden of m.esconde) {
             await expect(nav(page).getByRole("button", { name: hidden, exact: true })).toHaveCount(0);

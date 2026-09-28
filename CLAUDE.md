@@ -116,12 +116,12 @@ Detalhe de cada página em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
 | Página | Rotas | Permissão |
 |---|---|---|
 | `Dashboard.tsx` | `/` | qualquer |
-| `Clientes.tsx` | `/clientes` · `/clientes/leads` | **core** |
+| `Clientes.tsx` | `/clientes` · `/clientes/leads` | **core**, mas os dois subitens exigem `VIEW_CUSTOMERS` → sem ela sai da sidebar |
 | `Mensagens.tsx` | `/mensagens` | **core** (chat de suporte) |
 | `Conteudos.tsx` | `/conteudos` · `/produtos` · `/servicos` · `/ginasio` · `/linguas` · `/emails` · `/notificacoes` | **core**, com gating **por subitem** |
 | `Website.tsx` | `/website` · `/website/paginas` · `/website/marca` | **core** + `canEditStructure` dentro da página |
 | `Faturacao.tsx` | `/faturacao` | **core** |
-| `FinanceiroPage.tsx` | `/financeiro` · `/agenda` · `/loja` · `/ginasio` · `/despesas` | **core**, subitens gated |
+| `FinanceiroPage.tsx` | `/financeiro` · `/agenda` · `/loja` · `/ginasio` · `/despesas` | **core**, subitens gated (Despesas → `VIEW_EXPENSES`) |
 | `Perfil.tsx` | `/perfil` | **core, fora da sidebar** (menu do avatar) |
 | `Agenda.tsx` | `/agenda` · `/marcacoes` · `/servicos` · `/config` | `VIEW_SCHEDULE` |
 | `Loja.tsx` | `/loja` · `/encomendas` · `/categorias` | `VIEW_PRODUCTS` |
@@ -134,7 +134,11 @@ Detalhe de cada página em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
 
 - **Core (todos, sem permissão):** Dashboard · Clientes · Mensagens · Financeiro · Conteúdos ·
   Website · Faturação. No backend, `/customers`, `/expenses`, `/cms`, `/dashboard`, `/analytics`,
-  `/chat/support` e `/website` só exigem `authenticateToken` (dados scoped por `userId`).
+  `/chat/support` e `/website` só exigem `authenticateToken` (dados scoped por `userId`) — **excepto**
+  `/customers`/`/leads` (`VIEW_CUSTOMERS`) e `/expenses` (`VIEW_EXPENSES`), que o self-serve concede
+  mas um tenant criado pelo Admin pode não ter. Os subitens levam a `perm` correspondente.
+- **Root sem nenhum subitem permitido sai do `accessiblePaths`** (some da sidebar; o guard trata o
+  deep-link como rota desconhecida). É o caso de Clientes sem `VIEW_CUSTOMERS` (B5).
 - **Módulos (por permissão, `MODULE_PERM_TO_PATH`):** Agenda · Loja · Ginásio. **Admin** à parte, e
   **Estatísticas** temporariamente também (`ADMIN_GATED_PATHS`).
 - **Ordem da sidebar** (`MENU_ORDER`) é um array fixo; o que não estiver listado vai para o fim.

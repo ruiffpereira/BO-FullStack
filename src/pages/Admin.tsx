@@ -61,6 +61,7 @@ import {
   useSetGooglePlace,
 } from "../hooks/useGoogleIntegration";
 import { AdminBillingTab } from "../components/AdminBilling";
+import { FEATURES } from "../lib/features";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 function TableWrapper({ children }: { children: React.ReactNode }) {
@@ -1529,7 +1530,8 @@ function IntegracoesTab() {
 
   return (
     <div className="space-y-6">
-      {/* Google Calendar */}
+      {/* Google Calendar — escondido por agora (lib/features.ts) */}
+      {FEATURES.googleCalendar && (
       <Card className="p-5">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
@@ -1575,6 +1577,7 @@ function IntegracoesTab() {
           </div>
         )}
       </Card>
+      )}
 
       {/* Google Reviews */}
       <Card className="p-5">

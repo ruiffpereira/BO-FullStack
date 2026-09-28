@@ -39,6 +39,11 @@ vi.mock("../../src/components/Login", () => ({
 vi.mock("../../src/pages/SetupPassword", () => ({
   SetupPassword: () => <div data-testid="setup-password">setup-password</div>,
 }));
+// O /signup está escondido em produção (lib/features.ts). Os testes do FIX 6
+// descrevem o comportamento com ele LIGADO (continua válido para quando voltar);
+// o bloco "escondido" abaixo desliga-o. Objecto mutável, lido pelo App a cada render.
+const features = vi.hoisted(() => ({ FEATURES: { signup: true, googleCalendar: false } }));
+vi.mock("../../src/lib/features", () => features);
 vi.mock("../../src/pages/Signup", () => ({
   Signup: () => <div data-testid="signup">signup</div>,
 }));
@@ -63,6 +68,17 @@ function renderApp(path: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  features.FEATURES.signup = true;
+});
+
+describe("App — /signup escondido (FEATURES.signup = false, estado actual)", () => {
+  it("visitante em /signup não vê o formulário — cai no login", () => {
+    features.FEATURES.signup = false;
+    mockAuth({ isAuthenticated: false, initializing: false });
+    renderApp("/signup");
+
+    expect(screen.queryByTestId("signup")).not.toBeInTheDocument();
+  });
 });
 
 describe("App — /signup com sessão autenticada (FIX 6)", () => {

@@ -89,6 +89,7 @@ import {
 import { Combobox } from "../components/Combobox";
 import { CalendarSubscribeCard } from "../components/CalendarSubscribeCard";
 import { useNow } from "../hooks/useNow";
+import { FEATURES } from "../lib/features";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const AG_H_START = 0; // grelha cobre o dia todo (00:00–24:00)
@@ -2012,7 +2013,7 @@ function CalendarioView() {
             Nova marcação
           </GuardButton>
         </Card>
-        <CalendarSubscribeCard />
+        {FEATURES.googleCalendar && <CalendarSubscribeCard />}
         <Card className="p-4">
           <h3 className="font-semibold text-zinc-900 dark:text-white text-sm flex items-center gap-2 mb-3">
             <Icon name="calendar" className="w-4 h-4 text-accent" />

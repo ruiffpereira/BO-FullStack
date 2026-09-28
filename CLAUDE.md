@@ -128,7 +128,7 @@ Detalhe de cada página em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
 | `Ginasio.tsx` | `/ginasio` · `/treinos` · `/planos` · `/clientes` | `VIEW_GYM` |
 | `Admin.tsx` | `/admin` + 7 subrotas | `VIEW_ADMIN` |
 | `Estatisticas.tsx` | `/estatisticas` | `VIEW_ADMIN` — **gate temporário de UI** (2026-07-08); a API continua tenant-open. Reverter = devolvê-la a `CORE_PATHS` |
-| `Login` · `SetupPassword` · `Signup` | `/login` · `/setup-password` · `/signup` | **público** (standalone, sem Shell) |
+| `Login` · `SetupPassword` · `Signup` | `/login` · `/setup-password` · `/signup` | **público** (standalone, sem Shell). **`/signup` escondido** (`FEATURES.signup = false`, `src/lib/features.ts`): redirecciona para o login e o link "Criar conta" sai |
 
 ### Navegação (`Shell.tsx` + `src/lib/navigation.ts`)
 
@@ -156,6 +156,13 @@ Detalhe de cada página em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
 > RBAC/e2e**. Por isso "Lista" (não "Clientes") em `/clientes`; "Progresso de clientes" em
 > `/ginasio/clientes`; "Site público"/"Produtos"/"Serviços"/"Ginásio (nomes)" nos subitens de
 > `/conteudos`. Os subitens só existem no DOM quando o grupo está expandido — nunca escondidos por CSS.
+
+---
+
+## Funcionalidades escondidas (`src/lib/features.ts`)
+
+Decisão do dono (2026-09-28): `signup` (registo self-serve) e `googleCalendar` (cartão em Admin →
+Integrações e cartão de subscrição na Agenda) estão a `false`. O código fica; voltar = pôr a `true`.
 
 ---
 

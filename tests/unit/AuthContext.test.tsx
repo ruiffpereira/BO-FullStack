@@ -13,17 +13,33 @@ import { MemoryRouter } from "react-router-dom";
 // sem servidor. `usePostUsersLogin` fica por mockar de propósito: nenhum
 // destes testes chama `login()`.
 const axiosPostMock = vi.fn();
-vi.mock("@kubb/plugin-client/clients/axios", () => ({
-  axiosInstance: {
-    defaults: {} as Record<string, unknown>,
-    post: (...args: unknown[]) => axiosPostMock(...args),
-    interceptors: {
-      request: { use: vi.fn(() => 1), eject: vi.fn() },
-      response: { use: vi.fn(() => 2), eject: vi.fn() },
+// B5 — chamada capturada da retentativa do interceptor de resposta
+// (`return axiosInstance(err.config)`, AuthContext.tsx ~487): a instância
+// mockada tem de ser CHAMÁVEL como função (não só um objeto com `.post`),
+// senão essa linha rebenta com "axiosInstance is not a function".
+const axiosCallMock = vi.fn();
+// Guarda o `onRejected` passado a `interceptors.response.use(...)` — é o
+// handler 401 real do AuthContext (single-flight de refresh + SKIP_401),
+// invocado directamente pelos testes abaixo para simular pedidos de negócio
+// que levam 401 em simultâneo, sem precisar de um servidor.
+const responseInterceptorRef: { current: ((err: any) => Promise<any>) | null } = { current: null };
+
+vi.mock("@kubb/plugin-client/clients/axios", () => {
+  const axiosInstanceMock: any = (...args: unknown[]) => axiosCallMock(...args);
+  axiosInstanceMock.defaults = {} as Record<string, unknown>;
+  axiosInstanceMock.post = (...args: unknown[]) => axiosPostMock(...args);
+  axiosInstanceMock.interceptors = {
+    request: { use: vi.fn(() => 1), eject: vi.fn() },
+    response: {
+      use: vi.fn((_onFulfilled: unknown, onRejected: (err: any) => Promise<any>) => {
+        responseInterceptorRef.current = onRejected;
+        return 2;
+      }),
+      eject: vi.fn(),
     },
-  },
-  default: vi.fn(),
-}));
+  };
+  return { axiosInstance: axiosInstanceMock, default: vi.fn() };
+});
 
 const getCsrfTokenMock = vi.fn();
 vi.mock("../../src/gen/backoffice/hooks/useGetCsrfToken", () => ({
@@ -71,6 +87,7 @@ function state() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  responseInterceptorRef.current = null;
   getCsrfTokenMock.mockResolvedValue({ csrfToken: "csrf-token-abc" });
   getUserpermissionsMock.mockResolvedValue([]);
 });
@@ -148,4 +165,76 @@ describe("AuthContext — B12, os três estados do arranque (doRefresh)", () => 
     await waitFor(() => expect(state().reconnecting).toBe("false"), { timeout: 6_000 });
     expect(state().authenticated).toBe("false");
   }, 10_000);
+});
+
+describe("AuthContext — interceptor de resposta 401 (single-flight de refresh, B5)", () => {
+  // Autentica o bootstrap (fora do interceptor) para chegar a um estado
+  // estável de sessão válida — os testes abaixo simulam pedidos de NEGÓCIO
+  // (não o próprio /users/refresh) que levam 401 depois disso.
+  async function bootstrapAuthenticated() {
+    axiosPostMock.mockResolvedValue({ status: 200, data: { accessToken: "initial.token.value" } });
+    renderAuth();
+    await waitFor(() => expect(state().authenticated).toBe("true"));
+    axiosPostMock.mockClear();
+    axiosCallMock.mockClear();
+  }
+
+  it("várias chamadas de negócio com 401 em simultâneo → um SÓ refresh, todas repetidas com o token novo", async () => {
+    await bootstrapAuthenticated();
+    expect(responseInterceptorRef.current).not.toBeNull();
+
+    axiosPostMock.mockResolvedValueOnce({ status: 200, data: { accessToken: "refreshed.token.value" } });
+    getUserpermissionsMock.mockResolvedValueOnce([]);
+    axiosCallMock.mockResolvedValue({ data: "ok" });
+
+    const err1: any = { config: { url: "/customers", headers: {} }, response: { status: 401 } };
+    const err2: any = { config: { url: "/expenses", headers: {} }, response: { status: 401 } };
+    const err3: any = { config: { url: "/schedule/appointments", headers: {} }, response: { status: 401 } };
+
+    // Disparados sem `await` entre eles — simula três hooks/mutations
+    // diferentes a levar 401 na mesma janela (o cenário real do B5).
+    const interceptor = responseInterceptorRef.current!;
+    const p1 = interceptor(err1);
+    const p2 = interceptor(err2);
+    const p3 = interceptor(err3);
+    await Promise.all([p1, p2, p3]);
+
+    const refreshCalls = axiosPostMock.mock.calls.filter((c) => c[0] === "/users/refresh");
+    expect(refreshCalls).toHaveLength(1);
+
+    // As TRÊS chamadas originais são repetidas (retry), cada uma com o token novo.
+    expect(axiosCallMock).toHaveBeenCalledTimes(3);
+    for (const call of axiosCallMock.mock.calls) {
+      expect((call[0] as any).headers.Authorization).toBe("Bearer refreshed.token.value");
+    }
+  });
+
+  it("refresh falhado (401 duro) durante um pedido de negócio → logout limpo, sem repetir o pedido", async () => {
+    await bootstrapAuthenticated();
+
+    axiosPostMock.mockResolvedValueOnce({ status: 401, data: {} }); // refresh token morto
+
+    const err: any = { config: { url: "/customers", headers: {} }, response: { status: 401 } };
+    await expect(responseInterceptorRef.current!(err)).rejects.toBe(err);
+
+    // Não repete o pedido original — a sessão morreu, não faz sentido retentar.
+    expect(axiosCallMock).not.toHaveBeenCalled();
+    // Logout limpo: a sessão em memória é limpa (isAuthenticated volta a false).
+    await waitFor(() => expect(state().authenticated).toBe("false"));
+  });
+
+  it.each(["/csrf-token", "/users/login", "/users/refresh", "/users/logout", "/users/setup-password"])(
+    "SKIP_401: 401 em %s NUNCA dispara refresh nem repete o pedido",
+    async (path) => {
+      await bootstrapAuthenticated();
+
+      const err: any = { config: { url: path, headers: {} }, response: { status: 401 } };
+      await expect(responseInterceptorRef.current!(err)).rejects.toBe(err);
+
+      // Nenhum POST /users/refresh disparado por causa deste 401.
+      const refreshCalls = axiosPostMock.mock.calls.filter((c) => c[0] === "/users/refresh");
+      expect(refreshCalls).toHaveLength(0);
+      expect(axiosCallMock).not.toHaveBeenCalled();
+    },
+  );
 });

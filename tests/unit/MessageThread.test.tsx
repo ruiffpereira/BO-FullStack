@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MessageThread } from "../../src/components/chat/MessageThread";
-import type { ChatMessage } from "../../src/hooks/useChat";
+import type { ChatAttachment, ChatMessage } from "../../src/hooks/useChat";
 
 let counter = 0;
 function msg(over: Partial<ChatMessage>): ChatMessage {
@@ -78,5 +78,37 @@ describe("MessageThread", () => {
       messages: [msg({ senderRole: "tenant", body: "Falhou", failed: true })],
     });
     expect(screen.getByText("Não enviada")).toBeInTheDocument();
+  });
+
+  // `isSafeHttpUrl` (MessageThread.tsx) — anti-XSS: só http(s) é clicável. Um
+  // anexo com URL javascript:/data: renderiza como texto simples (ícone +
+  // nome), nunca como <a href>, senão um clique executava o URL malicioso.
+  it("anexo com URL javascript: não renderiza link clicável", () => {
+    const attachments: ChatAttachment[] = [{ url: "javascript:alert(1)", name: "Malicioso.txt" }];
+    renderThread({
+      messages: [msg({ senderRole: "tenant", body: null, attachments })],
+    });
+    expect(screen.getByText("Malicioso.txt")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("anexo com URL data: não renderiza link clicável", () => {
+    const attachments: ChatAttachment[] = [
+      { url: "data:text/html,<script>alert(1)</script>", name: "Falso.pdf" },
+    ];
+    renderThread({
+      messages: [msg({ senderRole: "tenant", body: null, attachments })],
+    });
+    expect(screen.getByText("Falso.pdf")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("anexo com URL https: renderiza link clicável normal", () => {
+    const attachments: ChatAttachment[] = [{ url: "https://example.com/ficheiro.pdf", name: "Ficheiro.pdf" }];
+    renderThread({
+      messages: [msg({ senderRole: "tenant", body: null, attachments })],
+    });
+    const link = screen.getByRole("link", { name: /Ficheiro\.pdf/ });
+    expect(link).toHaveAttribute("href", "https://example.com/ficheiro.pdf");
   });
 });

@@ -73,7 +73,10 @@ function navItem(page: Page, name: string) {
 // onde ele está fechado. A acessibilidade passou a ser coberta pelo loop de
 // rotas core (`/website/estatisticas`), pelo teste do deep-link antigo, e pela
 // visibilidade do subitem no teste dedicado mais abaixo.
-const CORE_ITEMS = ["Clientes", "Mensagens", "Financeiro", "Conteúdos", "Website"];
+// "Clientes" SAIU daqui (B5): os seus dois únicos subitens exigem VIEW_CUSTOMERS,
+// e um root sem nenhum subitem permitido sai da sidebar (`accessiblePaths` no
+// Shell.tsx) — só o vê quem tem a permissão. Verificado à parte, abaixo.
+const CORE_ITEMS = ["Mensagens", "Financeiro", "Conteúdos", "Website"];
 // Todos os itens de módulo (não-core, não-admin) — usados para verificar ocultação.
 const ALL_MODULE_ITEMS = ["Loja", "Agenda", "Ginásio"];
 // Rotas de módulo protegidas por permissão (o guard redireciona sem a permissão).
@@ -90,16 +93,20 @@ interface Row {
   moduloItem?: string;
   /** Rota do seu módulo (undefined = core-only). */
   moduloPath?: string;
+  /** A ÚNICA permissão deste user single-perm — usada para saber se tem
+   * VIEW_CUSTOMERS/VIEW_EXPENSES (subitens gated dentro de páginas CORE,
+   * B5) sem duplicar a matriz de novo. */
+  perm: string;
 }
 
 const MATRIX: Row[] = [
-  { user: "limited@e2e", moduloItem: "Loja", moduloPath: "/loja" },
-  { user: "agenda@e2e", moduloItem: "Agenda", moduloPath: "/agenda" },
-  { user: "gym@e2e", moduloItem: "Ginásio", moduloPath: "/ginasio" },
-  { user: "customers@e2e" }, // só VIEW_CUSTOMERS → core-only
-  { user: "cms@e2e" }, // só VIEW_CMS → core-only
-  { user: "expenses@e2e" }, // só VIEW_EXPENSES → core-only
-  { user: "stats@e2e" }, // só VIEW_STATS → core-only
+  { user: "limited@e2e", moduloItem: "Loja", moduloPath: "/loja", perm: "VIEW_PRODUCTS" },
+  { user: "agenda@e2e", moduloItem: "Agenda", moduloPath: "/agenda", perm: "VIEW_SCHEDULE" },
+  { user: "gym@e2e", moduloItem: "Ginásio", moduloPath: "/ginasio", perm: "VIEW_GYM" },
+  { user: "customers@e2e", perm: "VIEW_CUSTOMERS" }, // só VIEW_CUSTOMERS → core-only
+  { user: "cms@e2e", perm: "VIEW_CMS" }, // só VIEW_CMS → core-only
+  { user: "expenses@e2e", perm: "VIEW_EXPENSES" }, // só VIEW_EXPENSES → core-only
+  { user: "stats@e2e", perm: "VIEW_STATS" }, // só VIEW_STATS → core-only
 ];
 
 test.describe("RBAC matriz — sidebar por permissão (core + módulo próprio)", () => {
@@ -123,6 +130,13 @@ test.describe("RBAC matriz — sidebar por permissão (core + módulo próprio)"
               `${m.user} devia ver o item core "${item}"`,
             ).toBeVisible({ timeout: 10_000 });
           }
+
+          // (1b) "Clientes" só com VIEW_CUSTOMERS (B5) — sem ela o item não pode
+          // aparecer como link morto que atira para o dashboard.
+          await expect(
+            navItem(page, "Clientes"),
+            `${m.user} ${m.perm === "VIEW_CUSTOMERS" ? "devia" : "NÃO devia"} ver "Clientes"`,
+          ).toHaveCount(m.perm === "VIEW_CUSTOMERS" ? 1 : 0, { timeout: 10_000 });
 
           // (2) Vê o seu módulo (se tiver um).
           if (m.moduloItem) {
@@ -173,22 +187,20 @@ test.describe("RBAC matriz — sidebar por permissão (core + módulo próprio)"
     test(`${m.user}: as páginas CORE são acessíveis (não redirecionam)`, async ({ page, context }) => {
       await loginAs(context, m.user);
       // Core é acessível a todos os tenants — nenhuma destas rotas deve redirecionar
-      // para /dashboard. (/despesas é deep-link do Financeiro, também permitido.
-      // /website é core desde T3.8 (2026-07-14) — a raiz ("O meu site") é sempre
-      // acessível. "Páginas" e "Marca" estão ESCONDIDAS dos clientes (2026-08-12,
-      // VIEW_ADMIN) — ainda não prontas; testadas no redirect abaixo.
-      // As Estatísticas entraram aqui a 2026-09-21 (deixaram de estar atrás de
-      // VIEW_ADMIN) e mudaram de morada a 2026-09-24: passaram de item de topo
-      // a subitem do Website, em /website/estatisticas. Continuam core — o
-      // /estatisticas antigo redirecciona para cá.)
-      for (const route of [
-        "/clientes",
-        "/financeiro",
-        "/conteudos",
-        "/despesas",
-        "/website",
-        "/website/estatisticas",
-      ]) {
+      // para /dashboard. /website é core desde T3.8 (2026-07-14) — a raiz ("O meu
+      // site") é sempre acessível. "Páginas" e "Marca" estão ESCONDIDAS dos
+      // clientes (2026-08-12, VIEW_ADMIN) — ainda não prontas; testadas no
+      // redirect abaixo. As Estatísticas entraram aqui a 2026-09-21 (deixaram de
+      // estar atrás de VIEW_ADMIN) e mudaram de morada a 2026-09-24: passaram de
+      // item de topo a subitem do Website, em /website/estatisticas. Continuam
+      // core — o /estatisticas antigo redirecciona para cá.
+      //
+      // NOTA (B5): /clientes e /despesas SAÍRAM desta lista incondicional —
+      // "Clientes" e "Financeiro" continuam CORE (item sempre na sidebar), mas os
+      // seus ÚNICOS subitens reais (`Lista`/`Leads` em /clientes, `Despesas` em
+      // /financeiro/despesas) exigem VIEW_CUSTOMERS/VIEW_EXPENSES na API — quem
+      // não as tem é redireccionado (guard do Shell.tsx), testado abaixo por user.
+      for (const route of ["/financeiro", "/conteudos", "/website", "/website/estatisticas"]) {
         await withSessionRetry(
           page,
           context,
@@ -202,6 +214,62 @@ test.describe("RBAC matriz — sidebar por permissão (core + módulo próprio)"
         );
       }
     });
+
+    // /clientes exige VIEW_CUSTOMERS nos DOIS subitens (Lista e Leads, os únicos
+    // que existem) — sem nenhum permitido, o guard trata a raiz como
+    // indisponível e cai no dashboard (mesma semântica de uma rota desconhecida).
+    if (m.perm === "VIEW_CUSTOMERS") {
+      test(`${m.user}: /clientes é acessível (tem VIEW_CUSTOMERS)`, async ({ page, context }) => {
+        await loginAs(context, m.user);
+        await withSessionRetry(
+          page,
+          context,
+          m.user,
+          () => page.goto("/clientes"),
+          () => expect(page, `${m.user} devia poder ficar em /clientes`).toHaveURL(/\/clientes/, { timeout: 15_000 }),
+        );
+      });
+    } else {
+      test(`${m.user}: /clientes SEM VIEW_CUSTOMERS redirecciona para /dashboard`, async ({ page, context }) => {
+        await loginAs(context, m.user);
+        await expectBlockedRedirect(page, context, m.user, "/clientes");
+      });
+    }
+
+    // /financeiro/despesas exige VIEW_EXPENSES — sem ela, o guard de SUBITEM cai
+    // no 1.º subitem permitido do MESMO pai ("O Negócio", /financeiro), não no
+    // dashboard: /financeiro continua acessível a todos (tem subitens sem `perm`).
+    if (m.perm === "VIEW_EXPENSES") {
+      test(`${m.user}: /financeiro/despesas é acessível (tem VIEW_EXPENSES)`, async ({ page, context }) => {
+        await loginAs(context, m.user);
+        await withSessionRetry(
+          page,
+          context,
+          m.user,
+          () => page.goto("/financeiro/despesas"),
+          () =>
+            expect(page, `${m.user} devia poder ficar em /financeiro/despesas`).toHaveURL(
+              /\/financeiro\/despesas/,
+              { timeout: 15_000 },
+            ),
+        );
+      });
+    } else {
+      test(`${m.user}: /financeiro/despesas SEM VIEW_EXPENSES redirecciona para /financeiro`, async ({ page, context }) => {
+        await loginAs(context, m.user);
+        await withSessionRetry(
+          page,
+          context,
+          m.user,
+          () => page.goto("/financeiro/despesas"),
+          () =>
+            expect(
+              page,
+              `${m.user} NÃO devia ficar em /financeiro/despesas`,
+            ).toHaveURL(/\/financeiro$/, { timeout: 15_000 }),
+        );
+      });
+    }
   }
 });
 
@@ -220,6 +288,8 @@ test.describe("RBAC matriz — noaccess@e2e (sem componentes)", () => {
         for (const item of CORE_ITEMS) {
           await expect(navItem(page, item)).toBeVisible({ timeout: 10_000 });
         }
+        // Sem VIEW_CUSTOMERS → "Clientes" fora da sidebar (B5).
+        await expect(navItem(page, "Clientes")).toHaveCount(0);
         // Nenhum módulo, nenhum Admin. "Website" NÃO entra aqui — é core
         // (T3.8), já coberto acima.
         for (const item of [...ALL_MODULE_ITEMS, "Admin"]) {
@@ -249,17 +319,53 @@ test.describe("RBAC matriz — noaccess@e2e (sem componentes)", () => {
   });
 
   test("core permanece acessível (cai em rota mínima, não em erro)", async ({ page, context }) => {
+    // /financeiro (não /clientes, B5): "O Negócio" não tem `perm` nenhuma, é o
+    // fallback do próprio grupo — continua acessível a qualquer tenant, ao
+    // contrário de /clientes, cujos DOIS únicos subitens agora exigem
+    // VIEW_CUSTOMERS (ver testes dedicados abaixo).
     await loginAs(context, "noaccess@e2e");
     await withSessionRetry(
       page,
       context,
       "noaccess@e2e",
-      () => page.goto("/clientes"),
+      () => page.goto("/financeiro"),
       async () => {
-        await expect(page).toHaveURL(/\/clientes/, { timeout: 15_000 });
+        await expect(page).toHaveURL(/\/financeiro/, { timeout: 15_000 });
         // Título só existe no topbar (h2, Shell.tsx) — a página já não tem h1 próprio.
-        await expect(page.getByRole("heading", { name: "Clientes", level: 2 })).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByRole("heading", { name: "Financeiro", level: 2 })).toBeVisible({ timeout: 10_000 });
       },
+    );
+  });
+
+  // B5: um tenant criado pelo admin sem VIEW_CUSTOMERS via o item "Clientes" na
+  // sidebar (continua CORE, sempre visível) mas os seus dois únicos subitens
+  // reais (Lista/Leads) exigem essa permissão na API — sem ela, o guard trata a
+  // raiz como indisponível (nenhum subitem sobra) e cai no dashboard, em vez de
+  // deixar a página renderizar e bater num "Erro ao carregar clientes".
+  test("guard: /clientes SEM VIEW_CUSTOMERS redirecciona para /dashboard", async ({ page, context }) => {
+    await loginAs(context, "noaccess@e2e");
+    await expectBlockedRedirect(page, context, "noaccess@e2e", "/clientes");
+  });
+
+  test("guard: /clientes/leads SEM VIEW_CUSTOMERS também redirecciona para /dashboard", async ({ page, context }) => {
+    await loginAs(context, "noaccess@e2e");
+    await expectBlockedRedirect(page, context, "noaccess@e2e", "/clientes/leads");
+  });
+
+  // B5: /financeiro/despesas exige VIEW_EXPENSES — sem ela, o guard de SUBITEM
+  // (não a raiz inteira, que continua acessível por "O Negócio") cai no 1.º
+  // subitem permitido do mesmo grupo: /financeiro.
+  test("guard: /financeiro/despesas SEM VIEW_EXPENSES redirecciona para /financeiro", async ({ page, context }) => {
+    await loginAs(context, "noaccess@e2e");
+    await withSessionRetry(
+      page,
+      context,
+      "noaccess@e2e",
+      () => page.goto("/financeiro/despesas"),
+      () =>
+        expect(page, "noaccess NÃO devia ficar em /financeiro/despesas").toHaveURL(/\/financeiro$/, {
+          timeout: 15_000,
+        }),
     );
   });
 

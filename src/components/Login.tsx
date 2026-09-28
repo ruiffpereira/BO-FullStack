@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Icon } from '../ui/icons.jsx'
 import { Input, Button, IconButton } from '../ui/ui.jsx'
 import { useAuth } from '../context/AuthContext'
+import { FEATURES } from '../lib/features'
 
 interface Props {
   theme: 'light' | 'dark'
@@ -114,12 +115,14 @@ export function Login({ theme, onToggleTheme }: Props) {
               <Button type="submit" size="lg" className="w-full" disabled={loading}>
                 {loading ? 'A entrar…' : 'Entrar'}
               </Button>
-              <p className="text-center text-sm text-zinc-500 mt-2">
-                Não tens conta?{' '}
-                <Link to="/signup" className="text-accent font-medium hover:underline">
-                  Criar conta
-                </Link>
-              </p>
+              {FEATURES.signup && (
+                <p className="text-center text-sm text-zinc-500 mt-2">
+                  Não tens conta?{' '}
+                  <Link to="/signup" className="text-accent font-medium hover:underline">
+                    Criar conta
+                  </Link>
+                </p>
+              )}
             </form>
           </div>
         </div>

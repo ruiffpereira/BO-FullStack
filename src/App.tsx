@@ -20,6 +20,7 @@ import { Website } from "./pages/Website";
 import { Faturacao } from "./pages/Faturacao";
 import { Perfil } from "./pages/Perfil";
 import { resolveLegacyTabTarget } from "./lib/navigation";
+import { FEATURES } from "./lib/features";
 
 /**
  * Entrada genérica de uma página com submenu (T1.2 — piloto Financeiro;
@@ -104,6 +105,10 @@ function App() {
   // Public routes — accessible without authentication
   if (location.pathname === "/setup-password") {
     return <SetupPassword theme={theme} onToggleTheme={toggleTheme} />;
+  }
+  if (location.pathname === "/signup" && !FEATURES.signup) {
+    // Registo self-serve escondido (lib/features.ts) — o link antigo cai no login.
+    return <Navigate to="/" replace />;
   }
   if (location.pathname === "/signup") {
     // Um tenant já autenticado que caia em /signup (ex.: link antigo, aba

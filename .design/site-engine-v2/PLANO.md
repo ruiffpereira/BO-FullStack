@@ -29,10 +29,35 @@ O tenant escolhe no Backoffice:
 - **modo** — claro ou escuro.
 - **letra** — uma de poucas opções.
 
-O servidor converte a escolha em variáveis CSS (a partir de `tailwindcss/colors`) e os componentes
-usam sempre as mesmas classes (`bg-primary-600`, `text-neutral-100`…). O tifas fica com
+O servidor converte a escolha em variáveis CSS (a partir de `tailwindcss/colors`). O tifas fica com
 `principal: red`, `neutra: zinc`, `modo: escuro`, letra Plus Jakarta Sans — as cores Tailwind mais
 próximas das dele (decisão do dono: só paleta, não hex livre).
+
+### Requisito do dono: mudar o tema muda TUDO
+
+Textos, ícones, fundos, cartões, bordas, contorno de foco, campos, hover, desactivado, gráficos do
+gym — tudo acompanha. Como se garante:
+
+- **Nenhum componente escolhe uma cor.** Usa um **papel**, e o tema decide o que cada papel vale:
+
+  | Papel | Uso |
+  |---|---|
+  | `fundo` · `superficie` | página · cartões, modais, menus |
+  | `texto` · `texto-suave` | texto normal · secundário |
+  | `borda` | bordas, divisórias, contorno de campos |
+  | `principal` · `principal-texto` | botões, links, ícones de destaque · texto em cima deles |
+  | `foco` | contorno de navegação por teclado |
+  | `perigo` · `sucesso` | erros · confirmações (fixos, fora da escolha do tenant) |
+
+  Escreve-se `bg-superficie border-borda text-texto`, nunca `bg-zinc-900` nem `#202028`. Ícones
+  com `currentColor`, para herdarem a cor do texto.
+- **Teste que proíbe cores directas** (`text-white`, `border-gray-200`, `#hex`…) no código da agenda
+  e do gym — é o que impede um pormenor de ficar com a cor antiga.
+- **Contraste calculado**: `principal-texto` é branco ou preto conforme a cor principal, para
+  cumprir WCAG AA (um amarelo leva texto preto).
+- **Claro e escuro saem das mesmas escolhas**: escuro usa os tons 900–950 da neutra no fundo,
+  claro os 50–100.
+- **Olhar antes de fechar a fase**: capturas em 3–4 temas, claro e escuro. Os testes não vêem cor.
 
 ## Fases
 

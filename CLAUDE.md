@@ -41,13 +41,12 @@ A API tem de estar no URL de `VITE_API_BASE_URL` (dev: `http://localhost:3001/ap
 >
 > **Superfície (este repo) — DUAS camadas que têm de listar o MESMO conjunto:** `REQUIRED_ENVS` em
 > **`vite.config.ts`** (falha o build/dev antes de qualquer código correr) **+** [`src/lib/env.ts`](src/lib/env.ts)
-> (único ponto de leitura em runtime; `required()` como backstop; exporta `API_BASE`/`SITE_ROOT_URL`).
+> (único ponto de leitura em runtime; `required()` como backstop; exporta `API_BASE`).
 > Uma env nova entra nas **duas**, nunca só numa.
 
 | Env | Para quê | Dev | Prod |
 |---|---|---|---|
 | `VITE_API_BASE_URL` | Base da API | `http://localhost:3001/api` | URL real |
-| `VITE_SITE_ROOT_URL` | Base pública dos sites dos tenants (`{sub}.{host}`) | `http://localhost:3000` | ex. `https://rufvision.com` |
 
 - **Onde vivem os valores:** dev → `.env.development` (commitado) · e2e → `.env.test` (gitignored, o
   CI gera) · **prod → build-time variables no Coolify** (as `VITE_*` ficam embutidas no bundle **no
@@ -103,7 +102,7 @@ src/
   hooks/          — hooks manuais (não gerados)
   gen/backoffice/ — GERADO pelo Kubb — nunca editar à mão
   context/        — AuthContext (JWT + refresh automático)
-  lib/            — env, navigation (SUBMENU), blockCatalog, siteCms, apptStatus, billingStatus…
+  lib/            — env, navigation (SUBMENU), apptStatus, billingStatus…
   templates/ types/ utils/
 ```
 
@@ -119,7 +118,6 @@ Detalhe de cada página em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
 | `Clientes.tsx` | `/clientes` · `/clientes/leads` | **core**, mas os dois subitens exigem `VIEW_CUSTOMERS` → sem ela sai da sidebar |
 | `Mensagens.tsx` | `/mensagens` | **core** (chat de suporte) |
 | `Conteudos.tsx` | `/conteudos` · `/produtos` · `/servicos` · `/ginasio` · `/linguas` · `/emails` · `/notificacoes` | **core**, com gating **por subitem** |
-| `Website.tsx` | `/website` · `/website/paginas` · `/website/marca` | **core** + `canEditStructure` dentro da página |
 | `Faturacao.tsx` | `/faturacao` | **core** |
 | `FinanceiroPage.tsx` | `/financeiro` · `/agenda` · `/loja` · `/ginasio` · `/despesas` | **core**, subitens gated (Despesas → `VIEW_EXPENSES`) |
 | `Perfil.tsx` | `/perfil` | **core, fora da sidebar** (menu do avatar) |
@@ -127,20 +125,19 @@ Detalhe de cada página em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
 | `Loja.tsx` | `/loja` · `/encomendas` · `/categorias` | `VIEW_PRODUCTS` |
 | `Ginasio.tsx` | `/ginasio` · `/treinos` · `/planos` · `/clientes` | `VIEW_GYM` |
 | `Admin.tsx` | `/admin` + 7 subrotas | `VIEW_ADMIN` |
-| `Estatisticas.tsx` | `/estatisticas` | `VIEW_ADMIN` — **gate temporário de UI** (2026-07-08); a API continua tenant-open. Reverter = devolvê-la a `CORE_PATHS` |
+| `Estatisticas.tsx` | `/estatisticas` | **core** (Umami, tenant-open na API). Item de topo próprio desde B35 — a página `Website.tsx` (site-engine) saiu; `/website` e `/website/estatisticas` ficam como redirects de compatibilidade |
 | `Login` · `SetupPassword` · `Signup` | `/login` · `/setup-password` · `/signup` | **público** (standalone, sem Shell). **`/signup` escondido** (`FEATURES.signup = false`, `src/lib/features.ts`): redirecciona para o login e o link "Criar conta" sai |
 
 ### Navegação (`Shell.tsx` + `src/lib/navigation.ts`)
 
 - **Core (todos, sem permissão):** Dashboard · Clientes · Mensagens · Financeiro · Conteúdos ·
-  Website · Faturação. No backend, `/customers`, `/expenses`, `/cms`, `/dashboard`, `/analytics`,
-  `/chat/support` e `/website` só exigem `authenticateToken` (dados scoped por `userId`) — **excepto**
+  Estatísticas · Faturação. No backend, `/customers`, `/expenses`, `/cms`, `/dashboard`, `/analytics`
+  e `/chat/support` só exigem `authenticateToken` (dados scoped por `userId`) — **excepto**
   `/customers`/`/leads` (`VIEW_CUSTOMERS`) e `/expenses` (`VIEW_EXPENSES`), que o self-serve concede
   mas um tenant criado pelo Admin pode não ter. Os subitens levam a `perm` correspondente.
 - **Root sem nenhum subitem permitido sai do `accessiblePaths`** (some da sidebar; o guard trata o
   deep-link como rota desconhecida). É o caso de Clientes sem `VIEW_CUSTOMERS` (B5).
-- **Módulos (por permissão, `MODULE_PERM_TO_PATH`):** Agenda · Loja · Ginásio. **Admin** à parte, e
-  **Estatísticas** temporariamente também (`ADMIN_GATED_PATHS`).
+- **Módulos (por permissão, `MODULE_PERM_TO_PATH`):** Agenda · Loja · Ginásio. **Admin** à parte.
 - **Ordem da sidebar** (`MENU_ORDER`) é um array fixo; o que não estiver listado vai para o fim.
 - **Submenus:** `SUBMENU: Record<path, SubmenuItem[]>` em `src/lib/navigation.ts` é a **fonte única**
   (`perm` aceita `string | string[]`; array = OR). `allowedSubitems` filtra, `findRoot` resolve a que
@@ -148,7 +145,8 @@ Detalhe de cada página em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
   Grupo que sobre com **1 só** subitem permitido é mostrado como link simples, não como expansível.
 - **Guard de rotas por prefixo:** um pathname sob um root acessível é válido. Um subitem sem
   permissão redirecciona para o 1.º subitem permitido do **mesmo pai**, nunca para o dashboard.
-  `/despesas` e `/perfil` entram em `guardRoots` como roots extra (senão o guard expulsa-os).
+  `/despesas` e `/perfil` entram em `guardRoots` como roots extra (senão o guard expulsa-os) — como
+  `/website`, que só existe para os redirects legacy de compatibilidade (B35) chegarem a `/estatisticas`.
 
 > ⚠ **Regra crítica — labels de subitens nunca duplicam nomes acessíveis da sidebar.** Quando um
 > grupo expande, subitens e itens de módulo coexistem no mesmo `<nav>`: um subitem homónimo de um

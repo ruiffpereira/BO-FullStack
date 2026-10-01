@@ -18,7 +18,6 @@ const servicesMock = vi.fn();
 const workingHoursMock = vi.fn();
 const gymSubsMock = vi.fn();
 const productsMock = vi.fn();
-const siteMock = vi.fn();
 
 // useGetCustomers recebe as opções (query.enabled) — encaminhamos para o mock
 // para podermos verificar, no FIX 5, que o hook não é ativado sem VIEW_CUSTOMERS.
@@ -36,9 +35,6 @@ vi.mock("../../src/gen/backoffice/hooks/useGetGymSubscriptions.js", () => ({
 }));
 vi.mock("../../src/gen/backoffice/hooks/useGetProducts.js", () => ({
   useGetProducts: () => productsMock(),
-}));
-vi.mock("../../src/hooks/useWebsite.js", () => ({
-  useSite: () => siteMock(),
 }));
 
 import { FirstValueChecklist } from "../../src/components/FirstValueChecklist";
@@ -71,7 +67,6 @@ beforeEach(() => {
   workingHoursMock.mockReturnValue({ data: [] });
   gymSubsMock.mockReturnValue({ data: [] });
   productsMock.mockReturnValue({ data: { rows: [], count: 0 } });
-  siteMock.mockReturnValue({ data: { subdomain: null }, isLoading: false });
 });
 
 describe("FirstValueChecklist — checklist por vertical", () => {
@@ -84,11 +79,10 @@ describe("FirstValueChecklist — checklist por vertical", () => {
     expect(screen.getByText("Partilha o link de marcação com os teus clientes")).toBeInTheDocument();
   });
 
-  it("VIEW_GYM: mostra os passos do ginásio (incl. subdomínio)", () => {
+  it("VIEW_GYM: mostra os passos do ginásio", () => {
     mockAuth(["VIEW_GYM", "VIEW_CUSTOMERS"]);
     renderChecklist();
 
-    expect(screen.getByText("Reclamar o subdomínio")).toBeInTheDocument();
     expect(screen.getByText("Cria a tua primeira subscrição")).toBeInTheDocument();
     expect(screen.getByText("Adiciona o teu primeiro cliente")).toBeInTheDocument();
     expect(screen.getByText("Regista a primeira cobrança")).toBeInTheDocument();
@@ -115,34 +109,6 @@ describe("FirstValueChecklist — checklist por vertical", () => {
     renderChecklist();
     expect(screen.getByText("Cria o teu primeiro serviço")).toBeInTheDocument();
     expect(screen.queryByText("Cria a tua primeira subscrição")).not.toBeInTheDocument();
-  });
-});
-
-describe("FirstValueChecklist — subdomínio (novo item do ginásio)", () => {
-  it("mostra 'Reclamar o subdomínio' como não concluído quando sem subdomínio (VIEW_GYM)", () => {
-    mockAuth(["VIEW_GYM"]); // sem VIEW_CUSTOMERS
-    siteMock.mockReturnValue({ data: { subdomain: null }, isLoading: false });
-    renderChecklist();
-
-    expect(screen.getByText("Reclamar o subdomínio")).toBeInTheDocument();
-    expect(screen.getByText("0/3 concluídos")).toBeInTheDocument(); // subdomínio + subscrição + cobrança (sem cliente, sem VIEW_CUSTOMERS)
-  });
-
-  it("marca 'Reclamar o subdomínio' como concluído quando tem subdomínio", () => {
-    mockAuth(["VIEW_GYM"]);
-    siteMock.mockReturnValue({ data: { subdomain: "meu-ginasio" }, isLoading: false });
-    renderChecklist();
-
-    expect(screen.getByText("1/3 concluídos")).toBeInTheDocument(); // subdomínio feito, subscrição + cobrança não
-  });
-
-  it("não bloqueia o checklist enquanto o site está carregando", () => {
-    mockAuth(["VIEW_GYM"]);
-    siteMock.mockReturnValue({ data: null, isLoading: true });
-    renderChecklist();
-
-    // Deve aparecer o checklist, sem causar erro
-    expect(screen.getByText("Primeiros passos")).toBeInTheDocument();
   });
 });
 
@@ -176,11 +142,10 @@ describe("FirstValueChecklist — 'Regista a primeira cobrança' não regride en
     mockAuth(["VIEW_GYM", "VIEW_CUSTOMERS"]);
     gymSubsMock.mockReturnValue({ data: [{ subscriptionId: "sub1" }] });
     customersMock.mockReturnValue({ data: { count: 2, rows: [] } });
-    siteMock.mockReturnValue({ data: { subdomain: "meu-ginasio" }, isLoading: false });
     renderChecklist();
 
-    // Subdomínio + subscrição + cliente concluídos, cobrança nunca auto-completa (3/4, não 4/4).
-    expect(screen.getByText("3/4 concluídos")).toBeInTheDocument();
+    // Subscrição + cliente concluídos, cobrança nunca auto-completa (2/3, não 3/3).
+    expect(screen.getByText("2/3 concluídos")).toBeInTheDocument();
     expect(screen.getByText("Regista a primeira cobrança")).toBeInTheDocument();
   });
 
@@ -188,15 +153,14 @@ describe("FirstValueChecklist — 'Regista a primeira cobrança' não regride en
     mockAuth(["VIEW_GYM", "VIEW_CUSTOMERS"]);
     gymSubsMock.mockReturnValue({ data: [{ subscriptionId: "sub1" }] });
     customersMock.mockReturnValue({ data: { count: 2, rows: [] } });
-    siteMock.mockReturnValue({ data: { subdomain: "meu-ginasio" }, isLoading: false });
     const { unmount } = renderChecklist();
-    expect(screen.getByText("3/4 concluídos")).toBeInTheDocument();
+    expect(screen.getByText("2/3 concluídos")).toBeInTheDocument();
     unmount();
 
     // Uma segunda montagem (equivalente a "o mês seguinte") mostra exatamente o
     // mesmo estado — nada regride porque o item nunca dependeu do mês corrente.
     renderChecklist();
-    expect(screen.getByText("3/4 concluídos")).toBeInTheDocument();
+    expect(screen.getByText("2/3 concluídos")).toBeInTheDocument();
   });
 });
 

@@ -16,7 +16,6 @@ import { Ginasio } from "./pages/Ginasio";
 import { FinanceiroPage } from "./pages/FinanceiroPage";
 import { Estatisticas } from "./pages/Estatisticas";
 import { Mensagens } from "./pages/Mensagens";
-import { Website } from "./pages/Website";
 import { Faturacao } from "./pages/Faturacao";
 import { Perfil } from "./pages/Perfil";
 import { resolveLegacyTabTarget } from "./lib/navigation";
@@ -162,9 +161,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
-        {/* Deep-link antigo: as Estatísticas passaram a subitem do Website a
-            2026-09-24. Quem tenha a rota antiga em favoritos continua a chegar. */}
-        <Route path="/estatisticas" element={<Navigate to="/website/estatisticas" replace />} />
+        <Route path="/estatisticas" element={<Estatisticas />} />
         <Route path="/financeiro" element={<LegacyTabEntry root="/financeiro" param="vista"><FinanceiroPage view="negocio" /></LegacyTabEntry>} />
         <Route path="/financeiro/agenda" element={<FinanceiroPage view="agenda" />} />
         <Route path="/financeiro/loja" element={<FinanceiroPage view="loja" />} />
@@ -196,15 +193,10 @@ function App() {
         <Route path="/conteudos/linguas" element={<Conteudos view="linguas" />} />
         <Route path="/conteudos/emails" element={<Conteudos view="emails" />} />
         <Route path="/conteudos/notificacoes" element={<Conteudos view="notificacoes" />} />
-        <Route path="/website" element={<Website view="site" />} />
-        <Route path="/website/estatisticas" element={<Estatisticas />} />
-        <Route path="/website/paginas" element={<Website view="pages" />} />
-        <Route path="/website/marca" element={<Website view="brand" />} />
-        {/* Redirect legacy routes to /website */}
-        <Route path="/website/template" element={<Navigate to="/website" replace />} />
-        <Route path="/website/rodape-nav" element={<Navigate to="/website" replace />} />
-        <Route path="/website/dominio" element={<Navigate to="/website" replace />} />
-        <Route path="/website/definicoes" element={<Navigate to="/website" replace />} />
+        {/* Site-engine desligado (B35): a página Website saiu, ficam só os
+            redirects para quem tinha o link antigo guardado. */}
+        <Route path="/website" element={<Navigate to="/estatisticas" replace />} />
+        <Route path="/website/estatisticas" element={<Navigate to="/estatisticas" replace />} />
         <Route path="/admin" element={<AdminEntry />} />
         <Route path="/admin/permissoes" element={<Admin view="permissoes" />} />
         <Route path="/admin/componentes" element={<Admin view="componentes" />} />

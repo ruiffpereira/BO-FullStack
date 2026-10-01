@@ -21,6 +21,3 @@ function required(name: string): string {
 
 /** Base da API (ex.: https://api.dominio.com/api · dev: http://localhost:3001/api). */
 export const API_BASE = required("VITE_API_BASE_URL");
-
-/** Base pública dos sites dos tenants (ex.: https://rufvision.com · dev: http://localhost:3000). */
-export const SITE_ROOT_URL = required("VITE_SITE_ROOT_URL");

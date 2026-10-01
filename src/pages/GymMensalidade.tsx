@@ -16,7 +16,6 @@ import { LineChart, Waterfall } from '../ui/charts.jsx'
 import { useGymAnalytics } from '../hooks/useGymAnalytics'
 import { useAuth } from '../context/AuthContext'
 import { useWriteGuard } from '../hooks/useWriteGuard'
-import { useSite } from '../hooks/useWebsite'
 import { gymBulkMarkPaid, gymRemind, gymSetPayOnly } from '../hooks/useFinanceiro'
 import { InfoDot } from '../components/financeiro/kit'
 import { INFO } from '../components/financeiro/info'
@@ -213,15 +212,15 @@ export function ConvidarSocioModal({ onClose, onInvited }: { onClose: () => void
     },
     onSuccess: (res) => {
       onInvited()
-      if (res?.emailSent === false) {
-        toast.warning('Conta criada, mas o email não seguiu. Verifica a configuração de email.')
-      } else {
-        toast.success(res?.alreadyInvited ? 'Sócio já tinha sido convidado' : 'Convite enviado por email')
-      }
+      // Sem domínio do site a API não tem link para pôr no email — não o envia.
       // TODO(spec): appUrl pode estar ausente no tipo gerado até agora; cast se necessário.
       const appUrl = (res as any)?.appUrl
       if (appUrl === null) {
-        toast.warning('O tenant ainda não tem subdomínio — o convite foi enviado com o endereço antigo. Reclama o subdomínio em Website → Domínio.')
+        toast.warning('Conta criada, mas o convite não foi enviado: define o domínio do site em Estatísticas.')
+      } else if (res?.emailSent === false) {
+        toast.warning('Conta criada, mas o email não seguiu. Verifica a configuração de email.')
+      } else {
+        toast.success(res?.alreadyInvited ? 'Sócio já tinha sido convidado' : 'Convite enviado por email')
       }
       onClose()
     },
@@ -832,20 +831,20 @@ function AnaliseView() {
  * Hook para guardar o convite de sócio: retorna um objeto com `readOnly`,
  * `reason`, e `message` (em PT-PT) a apontar para o CTA de resolver.
  *
- * Verifica 3 condições (prioridade):
- * 1. Sem subdomínio → "sócios precisam do endereço da app"
- * 2. Sem subscrições ativas → "cria uma subscrição primeiro"
- * 3. Write-guard de billing → "subscrição da plataforma em atraso"
+ * Verifica 2 condições (prioridade):
+ * 1. Sem subscrições ativas → "cria uma subscrição primeiro"
+ * 2. Write-guard de billing → "subscrição da plataforma em atraso"
+ *
+ * Já teve um 3.º motivo (aviso de subdomínio em falta) — saiu no B35 com o
+ * site-engine: o link do convite usa agora o `User.websiteDomain` do lado da
+ * API, esta página não precisa de avisar nada sobre isso.
  */
 function useInviteGuard() {
-  const { data: site, isLoading: siteLoading } = useSite()
   const { data: subsData } = useGetGymSubscriptions()
   const writeGuard = useWriteGuard()
 
   const subs = (subsData ?? []) as Sub[]
   const activeSubs = subs.filter((s) => s.active)
-
-  // ── BLOQUEIOS a sério (valem seja qual for o alojamento da app do sócio) ──
 
   // Sem plano nenhum no catálogo o convite não tem o que atribuir.
   if (!activeSubs.length) {
@@ -853,7 +852,6 @@ function useInviteGuard() {
       readOnly: true,
       reason: 'subscriptions',
       message: 'Cria uma subscrição ativa no catálogo antes de convidar sócios.',
-      warning: '',
     }
   }
 
@@ -862,43 +860,15 @@ function useInviteGuard() {
       readOnly: true,
       reason: 'billing',
       message: writeGuard.message,
-      warning: '',
     }
   }
 
-  // ── AVISO, não bloqueio: falta de subdomínio ──────────────────────────
-  //
-  // ⚠️ Isto ERA um bloqueio (2026-08-20) e foi um erro meu. A premissa era "a app
-  // do sócio vive em {subdomain}.{host}, logo sem subdomínio o convite é um beco
-  // sem saída" — verdade para um ginásio alojado no site-engine, FALSO para um
-  // ginásio cuja app é um deploy standalone com o seu próprio domínio (é o caso
-  // do ginásio real, servido hoje pelo deploy do gymnoprado, que não tem
-  // subdomínio reclamado). O bloqueio impedia os convites de sócios desse
-  // ginásio — uma regressão num fluxo que funcionava.
-  //
-  // O Backoffice NÃO consegue distinguir com fiabilidade "app no engine" de
-  // "app em deploy próprio", por isso não deve decidir por bloqueio a partir de
-  // informação incompleta. Mantém-se a informação, que é útil para um ginásio
-  // novo no engine, mas o convite segue.
-  if (!siteLoading && !site?.subdomain) {
-    return {
-      readOnly: false,
-      reason: 'subdomain',
-      message: '',
-      warning:
-        'Ainda não reclamaste um subdomínio. Se a app dos teus sócios é a do site (Website → O meu site), reclama-o antes de convidar — é o endereço que eles vão usar. Se tens uma app própria, ignora este aviso.',
-    }
-  }
-
-  return { readOnly: false, reason: null as string | null, message: '', warning: '' }
+  return { readOnly: false, reason: null as string | null, message: '' }
 }
 
 /**
- * Botão "Convidar sócio" com guard multinível: subdomínio + subscrições + billing.
+ * Botão "Convidar sócio" com guard: subscrições ativas + billing.
  * Usa o mesmo padrão do `GuardButton`, mas com múltiplos motivos de bloqueio.
- *
- * O wrapper (`<span>`) segura o title para o tooltip aparecer no hover,
- * igual ao `GuardButton`.
  */
 export function InviteGymMemberButton({
   onInviteClick,
@@ -910,16 +880,8 @@ export function InviteGymMemberButton({
   const guard = useInviteGuard()
 
   if (!guard.readOnly) {
-    // Com aviso (ex.: sem subdomínio) o botão continua ACTIVO — só leva o
-    // motivo no `title`. Ver o comentário no `useInviteGuard`.
     return (
-      <Button
-        size="sm"
-        icon="mail"
-        onClick={onInviteClick}
-        disabled={disabled}
-        title={guard.warning || undefined}
-      >
+      <Button size="sm" icon="mail" onClick={onInviteClick} disabled={disabled}>
         Convidar sócio
       </Button>
     )

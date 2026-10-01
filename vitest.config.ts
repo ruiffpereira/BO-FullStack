@@ -19,7 +19,6 @@ export default defineConfig({
     // explícitos para os testes de componentes (não há servidor).
     env: {
       VITE_API_BASE_URL: "http://localhost:3001/api",
-      VITE_SITE_ROOT_URL: "http://localhost:3000",
     },
   },
 });

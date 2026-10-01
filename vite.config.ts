@@ -7,7 +7,7 @@ import path from 'path'
 // Coolify falha o deploy em vez de embutir um valor errado no bundle.
 // Valores por ambiente: prod = build-time variables no Coolify ·
 // dev = .env.development (commitado) · e2e = .env.test.
-const REQUIRED_ENVS = ['VITE_API_BASE_URL', 'VITE_SITE_ROOT_URL']
+const REQUIRED_ENVS = ['VITE_API_BASE_URL']
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, '')

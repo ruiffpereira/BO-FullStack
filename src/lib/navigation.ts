@@ -7,9 +7,9 @@
  * de rotas (prefixo + redirect do subitem sem permissão), e (c) o título do
  * topbar para subpaths.
  *
- * Financeiro (T1.2, piloto), Loja (T2.1), Clientes (T2.2), Website (T2.3),
- * Admin (T2.4), Ginásio (T2.5), Agenda (T2.7) e Conteúdos (T2.6) já estão
- * migradas — as 8 páginas com tabs de topo do brief (`.design/shell-nav-perfil/
+ * Financeiro (T1.2, piloto), Loja (T2.1), Clientes (T2.2), Admin (T2.4),
+ * Ginásio (T2.5), Agenda (T2.7) e Conteúdos (T2.6) já estão migradas — as
+ * páginas com tabs de topo do brief (`.design/shell-nav-perfil/
  * DESIGN_BRIEF.md`) estão todas neste mapa.
  */
 
@@ -19,8 +19,7 @@ export interface SubmenuItem {
   path: string;
   /**
    * Permissão(ões) exigida(s) para este subitem (ex.: VIEW_GYM). Sem perm =
-   * sempre visível. Um array é OR — basta UMA das permissões (ex.: Website
-   * "Template"/"Domínio", T3.8: `VIEW_SITE_BUILDER` OU `VIEW_ADMIN`).
+   * sempre visível. Um array é OR — basta UMA das permissões.
    */
   perm?: string | string[];
 }
@@ -67,33 +66,6 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     { id: "servicos", label: "Serviços", path: "/agenda/servicos" },
     { id: "config", label: "Configurações", path: "/agenda/config" },
   ],
-  "/website": [
-    // Label do âncora ("O meu site", não "Website") pelo mesmo motivo dos
-    // outros grupos acima. A página nunca usou `?tab=` (sem deep-link legacy
-    // a redirecionar aqui, T2.3). Vistas: "O meu site" (com DomainSection
-    // dentro, só visível com VIEW_SITE_BUILDER/VIEW_ADMIN). "Páginas" e "Marca"
-    // estão ESCONDIDAS dos clientes (2026-08-12, decisão do dono): ainda NÃO
-    // estão prontas para o cliente — por agora todos os sites ficam iguais (a
-    // estrutura/tema semeados pela vertical; o TEXTO edita-se em Conteúdos →
-    // Site público). Ficam só para o dono (VIEW_ADMIN) continuar a afiná-las; o
-    // guard do Shell redireciona um cliente que faça deep-link a
-    // /website/paginas|/website/marca para o 1.º subitem permitido (/website =
-    // "O meu site"). Com só 1 subitem permitido, o Shell mostra o Website como
-    // link simples, não como menu expansível (condição `groupItems.length > 1`).
-    { id: "site", label: "O meu site", path: "/website" },
-    // Estatísticas desceu de item de topo da sidebar para subitem daqui
-    // (2026-09-24, pedido do dono). É tráfego DO site — vivia ao lado do
-    // Website a falar da mesma coisa. Sem `perm`: era core em `CORE_PATHS` e
-    // continua a sê-lo; o que mudou foi só onde se clica.
-    //
-    // ⚠ Efeito de lado real: até aqui um cliente sem VIEW_ADMIN só tinha UM
-    // subitem permitido em `/website` ("O meu site"), e o Shell mostrava o
-    // Website como link simples (condição `groupItems.length > 1`). Com este,
-    // passa a ter dois — o Website passa a menu expansível para toda a gente.
-    { id: "stats", label: "Estatísticas", path: "/website/estatisticas" },
-    { id: "pages", label: "Páginas", path: "/website/paginas", perm: "VIEW_ADMIN" },
-    { id: "brand", label: "Marca", path: "/website/marca", perm: "VIEW_ADMIN" },
-  ],
   "/admin": [
     // Label do âncora ("Utilizadores", não "Admin") pelo mesmo motivo dos
     // outros grupos acima. Sem `?tab=` legacy a redirecionar aqui — o único
@@ -135,11 +107,9 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     // dos itens homónimos da sidebar, sempre visíveis quando o subitem
     // também está — para produtos/serviços/ginásio a MESMA permissão que
     // gate o subitem gate também o item de módulo, por isso a colisão era
-    // garantida; para o site público, o item `/website` é core (sempre
+    // garantida; para o site público, o item `/conteudos` é core (sempre
     // visível a qualquer tenant). Mesmo problema e solução do "Progresso de
-    // clientes" no Ginásio (T2.5). (Deixou de ser a ÚNICA — `/website`
-    // também gate por subitem desde T3.8, só que Template/Domínio, ver
-    // `SUBMENU['/website']` acima.)
+    // clientes" no Ginásio (T2.5).
     // `VIEW_CMS` acrescentado em 2026-09-24: esta aba lê e escreve `/cms/entries`,
     // que a API gateia por essa permissão (routes/index.ts). Sem `perm` aqui, um
     // utilizador sem VIEW_CMS via a aba e levava 403 ao abri-la — não perde

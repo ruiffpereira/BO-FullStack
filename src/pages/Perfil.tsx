@@ -419,7 +419,7 @@ function LogoCard({ data }: { data?: GetUsersMe200 }) {
     setLogo(data?.logoUrl ?? "");
   }, [data?.logoUrl, touched]);
 
-  // Upload diferido (mesmo padrão do logótipo da Marca em `Website.tsx`): o
+  // Upload diferido (mesmo padrão de Ginásio/Loja/Conteúdos, ver CLAUDE.md): o
   // ficheiro escolhido só é enviado ao clicar "Guardar logótipo".
   const onSave = async () => {
     let logoUrl: string | null = logo.trim() || null;

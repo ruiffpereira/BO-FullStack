@@ -2405,314 +2405,6 @@
           "unread"
         ]
       },
-      "Site": {
-        "type": "object",
-        "description": "O 'Site JSON' de um tenant (Site Engine): tema, navegação, páginas, rodapé, línguas, domínio e estado de publicação — GET /website e PUT /website devolvem exactamente esta forma. Sem Site ainda criado, GET /website devolve um objeto 'vazio' que NÃO tem todos estes campos (ver nota em cada um). PUT /website só grava theme/pages/defaultLocale/activeLocales (ver EDITABLE_FIELDS no controller) — os restantes campos aqui são devolvidos mas não graváveis por esse endpoint.",
-        "properties": {
-          "siteId": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true,
-            "description": "null no objeto 'vazio' (tenant ainda sem Site)"
-          },
-          "userId": {
-            "type": "string",
-            "format": "uuid",
-            "description": "Ausente no objeto 'vazio' devolvido por GET /website quando o tenant ainda não tem Site"
-          },
-          "subdomain": {
-            "type": "string",
-            "nullable": true,
-            "description": "Definido só via PUT /website/subdomain"
-          },
-          "customDomain": {
-            "type": "string",
-            "nullable": true,
-            "description": "Definido só via PUT /website/custom-domain — nunca por PUT /website"
-          },
-          "template": {
-            "type": "string",
-            "nullable": true,
-            "description": "Template que semeou o site (informativo); devolvido mas não gravável por PUT /website"
-          },
-          "skin": {
-            "type": "string",
-            "nullable": true,
-            "description": "Variante visual de bloco (ex.: 'tifas'); devolvido mas não gravável por PUT /website"
-          },
-          "defaultLocale": {
-            "type": "string",
-            "example": "pt"
-          },
-          "activeLocales": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "theme": {
-            "type": "object",
-            "nullable": true,
-            "description": "SiteTheme (src/data/siteTemplates.ts) — coluna JSON opaca, sem validação em runtime; todos os campos são opcionais/nullable no próprio JSON.",
-            "properties": {
-              "preset": {
-                "type": "string",
-                "enum": [
-                  "slate",
-                  "sand",
-                  "ink",
-                  "mist"
-                ],
-                "nullable": true
-              },
-              "accent": {
-                "type": "string",
-                "nullable": true,
-                "description": "7 nomeados curados (blue/emerald/violet/amber/rose/teal/ink) OU um hex livre #rrggbb"
-              },
-              "font": {
-                "type": "string",
-                "enum": [
-                  "grotesk",
-                  "editorial",
-                  "modern",
-                  "warm",
-                  "serifbody",
-                  "plusjakarta",
-                  "standpair"
-                ],
-                "nullable": true
-              },
-              "logo": {
-                "type": "string",
-                "nullable": true
-              },
-              "mode": {
-                "type": "string",
-                "enum": [
-                  "light",
-                  "dark"
-                ],
-                "nullable": true
-              }
-            }
-          },
-          "nav": {
-            "type": "object",
-            "nullable": true,
-            "description": "SiteNav (src/data/siteTemplates.ts). `null` no objeto 'vazio' devolvido por GET /website antes de o tenant ter Site; devolvido por PUT /website mas não gravável por esse endpoint (sem endpoint dedicado identificado).",
-            "properties": {
-              "items": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "label": {
-                      "type": "string"
-                    },
-                    "to": {
-                      "type": "string",
-                      "description": "Alinhado ao renderer (site-engine/lib/nav.ts) — NÃO `href`"
-                    }
-                  },
-                  "required": [
-                    "label",
-                    "to"
-                  ]
-                }
-              },
-              "cta": {
-                "type": "object",
-                "nullable": true,
-                "properties": {
-                  "label": {
-                    "type": "string"
-                  },
-                  "to": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "label",
-                  "to"
-                ]
-              }
-            }
-          },
-          "pages": {
-            "type": "array",
-            "description": "SitePage[] (src/data/siteTemplates.ts). [] no objeto 'vazio'.",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "slug": {
-                  "type": "string"
-                },
-                "titleRef": {
-                  "type": "string",
-                  "description": "Chave CMS do título (texto traduzível, nunca inline)"
-                },
-                "inNav": {
-                  "type": "boolean"
-                },
-                "order": {
-                  "type": "integer"
-                },
-                "kind": {
-                  "type": "string"
-                },
-                "blocks": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string"
-                      },
-                      "type": {
-                        "type": "string"
-                      },
-                      "variant": {
-                        "type": "string"
-                      },
-                      "contentRef": {
-                        "type": "string"
-                      },
-                      "settings": {
-                        "type": "object",
-                        "additionalProperties": true,
-                        "description": "Livre — pode incluir `content: Record<chave, Record<string, unknown>>`"
-                      },
-                      "data": {
-                        "type": "object",
-                        "additionalProperties": true
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "type"
-                    ]
-                  }
-                }
-              },
-              "required": [
-                "id",
-                "slug"
-              ]
-            }
-          },
-          "footer": {
-            "type": "object",
-            "nullable": true,
-            "additionalProperties": true,
-            "description": "SiteFooter (src/data/siteTemplates.ts) — mapa livre de chaves (`[key: string]: unknown`), sem forma fixa; ex. usado pelo template 'loja': { name, tagline, smallPrint }. Devolvido mas não gravável por PUT /website (sem endpoint dedicado identificado)."
-          },
-          "published": {
-            "type": "boolean"
-          },
-          "publishedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Ausente no objeto 'vazio' devolvido por GET /website quando o tenant ainda não tem Site"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Ausente no objeto 'vazio' devolvido por GET /website quando o tenant ainda não tem Site"
-          }
-        },
-        "required": [
-          "siteId",
-          "subdomain",
-          "customDomain",
-          "template",
-          "defaultLocale",
-          "activeLocales",
-          "theme",
-          "nav",
-          "pages",
-          "footer",
-          "published",
-          "publishedAt"
-        ]
-      },
-      "SiteTemplate": {
-        "type": "object",
-        "description": "Template de arranque do site público (fonte única na API, T19). O picker do Backoffice grava `site` diretamente via PUT /website (só theme/pages/defaultLocale/activeLocales são de facto persistidos por esse endpoint — ver `Site`); o signup semeia o `Site` do tenant a partir do template da vertical (caminho que não passa pela allowlist do PUT).",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Chave estável (= Site.template)",
-            "example": "agenda"
-          },
-          "label": {
-            "type": "string",
-            "description": "Nome apresentado no cartão",
-            "example": "Barbearia"
-          },
-          "vertical": {
-            "type": "string",
-            "description": "Rótulo da vertical",
-            "example": "Barbearia · marcações"
-          },
-          "description": {
-            "type": "string",
-            "description": "Descrição curta para o cartão"
-          },
-          "site": {
-            "type": "object",
-            "description": "Payload de arranque do Site (theme/nav/pages/footer/defaultLocale/activeLocales/template) — usado pelo signup para semear a linha directamente; via PUT /website só theme/pages/defaultLocale/activeLocales seriam persistidos.",
-            "properties": {
-              "template": {
-                "type": "string",
-                "nullable": true
-              },
-              "theme": {
-                "type": "object",
-                "nullable": true
-              },
-              "defaultLocale": {
-                "type": "string"
-              },
-              "activeLocales": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "nav": {
-                "type": "object",
-                "nullable": true
-              },
-              "pages": {
-                "type": "array",
-                "items": {
-                  "type": "object"
-                }
-              },
-              "footer": {
-                "type": "object",
-                "nullable": true
-              }
-            }
-          }
-        },
-        "required": [
-          "id",
-          "label",
-          "vertical",
-          "description",
-          "site"
-        ]
-      },
       "BillingSubscription": {
         "type": "object",
         "description": "Estado da subscrição da plataforma do tenant + derivados da política de acesso (platform billing, T3).",
@@ -3776,7 +3468,7 @@
             }
           },
           "400": {
-            "description": "Component with this name already exists"
+            "description": "Component with this name already exists, or one or more `selectPermissions` ids do not exist"
           },
           "500": {
             "description": "Error creating component"
@@ -3882,6 +3574,9 @@
         "responses": {
           "200": {
             "description": "Component and permissions updated successfully"
+          },
+          "400": {
+            "description": "One or more `selectPermissions` ids do not exist, or the new name is already in use"
           },
           "404": {
             "description": "Component not found"
@@ -4395,6 +4090,22 @@
           },
           "400": {
             "description": "Corpo inválido (zod) ou módulo desconhecido/inativo no catálogo."
+          },
+          "403": {
+            "description": "Signup self-serve FECHADO (`SIGNUP_ENABLED` não é `\"true\"` — ver `src/config.ts`).\nO guard corre ANTES da validação zod, por isso responde sempre este 403,\nmesmo com corpo inválido/vazio.\n",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "signup_disabled"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -4447,6 +4158,22 @@
           },
           "400": {
             "description": "Corpo inválido (zod)."
+          },
+          "403": {
+            "description": "Signup self-serve FECHADO (`SIGNUP_ENABLED` não é `\"true\"` — ver `src/config.ts`).\nO guard corre ANTES da validação zod, por isso responde sempre este 403,\nmesmo com corpo inválido/vazio.\n",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "signup_disabled"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -4812,9 +4539,15 @@
     },
     "/users/{userId}": {
       "delete": {
-        "summary": "Delete a user",
+        "summary": "Apagar um tenant — HARD DELETE, irreversível (B8, 2026-09-26)",
+        "description": "Apaga TUDO o que pertence ao tenant (as ~49 tabelas ligadas ao seu `userId`, filhos antes dos pais, numa única transacção) — sem soft delete, sem lixeira, sem forma de recuperar. Só o admin da plataforma pode chamar este endpoint, e nunca contra a própria conta.\nOrdem das operações (corrigida 2026-09-26 — o Stripe já não é tocado antes de abrir a transacção; ver o porquê no comentário do handler): 1. Abre uma transacção e apaga tudo na BD (as ~49 tabelas do tenant). 2. SÓ DEPOIS, ainda dentro da MESMA transacção e antes do commit,\n   cancela a subscrição Stripe do tenant (se houver). Se o\n   cancelamento falhar, a transacção é revertida — nada é apagado,\n   nem na BD nem no Stripe (502). O Stripe Customer **nunca** é\n   apagado — as faturas emitidas vivem lá e têm obrigação legal de\n   retenção de 10 anos. (Janela residual, rara e inevitável: se o\n   `commit` falhar DEPOIS de o Stripe já ter confirmado o\n   cancelamento, fica registado para reconciliação manual — 500.)\n3. Grava uma entrada no audit log presa ao admin (id do tenant + nome\n   do negócio — nunca email/telefone do tenant).\n4. Best-effort (nunca falha o pedido nem muda o 200): apaga os\n   ficheiros do tenant no storage, o website no Umami, e revoga o\n   token OAuth da Google. Falhas ficam só logadas — repete-se com\n   `scripts/purgeTenantExternal.ts`.\n",
         "tags": [
           "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
         ],
         "parameters": [
           {
@@ -4822,19 +4555,32 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "format": "uuid"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "User deleted successfully"
+            "description": "Tenant apagado com sucesso (irreversível)"
+          },
+          "400": {
+            "description": "Um admin não pode apagar a própria conta"
+          },
+          "403": {
+            "description": "Sem a permissão VIEW_ADMIN"
           },
           "404": {
-            "description": "User not found"
+            "description": "Tenant não encontrado, OU userId com formato inválido (nunca 500 — a forma é validada antes de qualquer leitura/escrita)"
+          },
+          "409": {
+            "description": "A subscrição Stripe do tenant já não está num estado cancelável"
           },
           "500": {
-            "description": "User deletion failed"
+            "description": "Falha ao apagar o tenant (transacção revertida), OU o Stripe cancelou com sucesso mas o commit da BD falhou depois (janela residual rara — fica registada para reconciliação manual)"
+          },
+          "502": {
+            "description": "Falha ao cancelar a subscrição Stripe — a transacção da BD foi revertida, nada foi apagado"
           }
         }
       }
@@ -5049,7 +4795,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Dados agregados + série temporal + páginas + origens, quando o tenant\ntem `User.analyticsSiteId` provisionado e o Umami está configurado no\nservidor.\n\n`tracking: {websiteId, src}` (público — o par que se cola no HTML como\n`<script defer src={src} data-website-id={websiteId}>`) só vem quando o\ndomínio medido é EXTERNO, isto é, não corresponde a nenhum host público\ndo Site do tenant no site-engine (subdomínio ou domínio próprio). Um site\ndo engine recebe o script automaticamente e NUNCA recebe `tracking`.\n\nSem site de estatísticas aplicável devolve `{ configured: false, reason }`:\n- `no-domain`: o tenant ainda não definiu um domínio (`PUT /analytics/site/domain`).\n- `no-analytics-site`: o tenant já tem domínio mas ainda não há um\n  website Umami provisionado para ele (Umami desligado no servidor,\n  ou o provisioning automático ainda não correu/falhou).\n\nErro do Umami ao consultar (offline, id inválido, credenciais erradas):\n`configured: true` + `error` preenchido, mas SEM `aggregate`/`timeseries`/\n`topPages`/`sources` (o pedido nunca chega a ter esses dados — não vêm\nnulos, ficam simplesmente ausentes).\n",
+            "description": "Dados agregados + série temporal + páginas + origens, quando o tenant\ntem `User.analyticsSiteId` provisionado e o Umami está configurado no\nservidor.\n\n`tracking: {websiteId, src}` (público — o par que se cola no HTML como\n`<script defer src={src} data-website-id={websiteId}>`) vem sempre que\nhouver um website Umami provisionado — o tenant cola o snippet à mão no\nseu site (site-engine desligado, B35).\n\nSem site de estatísticas aplicável devolve `{ configured: false, reason }`:\n- `no-domain`: o tenant ainda não definiu um domínio (`PUT /analytics/site/domain`).\n- `no-analytics-site`: o tenant já tem domínio mas ainda não há um\n  website Umami provisionado para ele (Umami desligado no servidor,\n  ou o provisioning automático ainda não correu/falhou).\n\nErro do Umami ao consultar (offline, id inválido, credenciais erradas):\n`configured: true` + `error` preenchido, mas SEM `aggregate`/`timeseries`/\n`topPages`/`sources` (o pedido nunca chega a ter esses dados — não vêm\nnulos, ficam simplesmente ausentes).\n",
             "content": {
               "application/json": {
                 "schema": {
@@ -5170,7 +4916,7 @@
                     },
                     "tracking": {
                       "type": "object",
-                      "description": "Só presente quando o domínio medido é EXTERNO ao site-engine (ver descrição acima)",
+                      "description": "Só presente quando há um website Umami provisionado (ver descrição acima)",
                       "properties": {
                         "websiteId": {
                           "type": "string"
@@ -5233,7 +4979,7 @@
       },
       "put": {
         "summary": "Definir o domínio do site do tenant",
-        "description": "Grava `User.websiteDomain` (normalizado — sem protocolo/`www.`/path/espaços, minúsculas) para o tenant autenticado. Recusa com **409** se o domínio, já normalizado e comparado de forma case-insensitive, já pertencer a OUTRO tenant — via `User.websiteDomain`, `Site.customDomain`, ou (quando o valor tem a forma `<slug>.<PLATFORM_ROOT_DOMAIN>`) `Site.subdomain`. É a MESMA verificação de `GET /website/subdomain/check` / `PUT /website/subdomain` (`hostTakenByOtherTenant`, partilhada em `src/utils/siteDomainOwnership.ts`) — os dois endpoints nunca discordam sobre o que está \"livre\". A resposta 409 não identifica nem confirma a existência do outro tenant. Nunca bloqueia o dono contra o SEU PRÓPRIO domínio actual, nem contra limpar (`domain: \"\"` → `websiteDomain: null`).\n",
+        "description": "Grava `User.websiteDomain` (normalizado — sem protocolo/`www.`/path/espaços, minúsculas) para o tenant autenticado. Recusa com **409** se o domínio, já normalizado e comparado de forma case-insensitive, já pertencer a OUTRO tenant (`User.websiteDomain`, `hostTakenByOtherTenant` em `src/utils/siteDomainOwnership.ts`). A resposta 409 não identifica nem confirma a existência do outro tenant. Nunca bloqueia o dono contra o SEU PRÓPRIO domínio actual, nem contra limpar (`domain: \"\"` → `websiteDomain: null`).\n",
         "tags": [
           "Analytics"
         ],
@@ -12441,7 +12187,7 @@
     "/integrations/google/connect": {
       "get": {
         "summary": "Construir o URL de consentimento OAuth do Google (Calendar)",
-        "description": "O `state` do OAuth é um JWT assinado (10 min) que transporta o `userId` — necessário porque o callback (`GET /integrations/google/callback`) não recebe o Bearer.\n",
+        "description": "O `state` do OAuth é um JWT assinado (10 min) que transporta o `userId` — necessário porque o callback (`GET /integrations/google/callback`) não recebe o Bearer. Emite também um cookie HttpOnly de curta duração com um nonce que o callback exige de volta — sem ele (ex.: o consentimento é completado noutro browser), o callback aborta sem tocar em nada.\n",
         "tags": [
           "Integrations"
         ],
@@ -14024,413 +13770,6 @@
         }
       }
     },
-    "/website/custom-domain": {
-      "put": {
-        "summary": "Define ou limpa o domínio próprio do tenant (Site.customDomain)",
-        "description": "`value: null` limpa o domínio. Um hostname válido é normalizado (minúsculas, sem esquema/porta/path) e não pode ser o domínio raiz da plataforma nem um subdomínio dele (esse espaço público é `PUT /website/subdomain`). Ao definir com sucesso, sincroniza o domínio das Estatísticas (`User.websiteDomain`, provisiona o site de estatísticas) e revalida o cache ISR do renderer (se o site já estiver publicado). **409 alargado (2026-09-21):** \"já usado por outro tenant\" cobre agora não só `Site.customDomain`, mas também `User.websiteDomain` de outro tenant — a mesma verificação de `GET /website/subdomain/check` / `PUT /website/subdomain` e de `PUT /analytics/site/domain` (`hostTakenByOtherTenant`, partilhada), para os três endpoints nunca discordarem sobre o que está \"livre\".\n",
-        "tags": [
-          "Website"
-        ],
-        "security": [
-          {
-            "adminBearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "value"
-                ],
-                "properties": {
-                  "value": {
-                    "type": "string",
-                    "nullable": true,
-                    "example": "minhabarbearia.pt"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Domínio definido/limpo"
-          },
-          "400": {
-            "description": "Hostname inválido, ou é o domínio raiz da plataforma (ou subdomínio dele)"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "409": {
-            "description": "Domínio já usado por outro tenant — via `Site.customDomain` OU `User.websiteDomain` (alargado 2026-09-21; não identifica de quem é)\n"
-          }
-        }
-      }
-    },
-    "/website": {
-      "get": {
-        "summary": "Obtém o site do tenant autenticado (vazio se ainda não existe)",
-        "description": "Sem Site ainda criado, devolve um objeto \"vazio\" por defeito (NÃO cria a linha) — esse objeto tem MENOS campos do que um Site real: falta `userId`, `skin`, `createdAt`, `updatedAt` (ver `Site` — cada campo nota se falta no objeto vazio).\n",
-        "tags": [
-          "Website"
-        ],
-        "security": [
-          {
-            "adminBearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Configuração do site (ou objeto vazio com siteId null quando o tenant ainda não tem Site)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Site"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Não autenticado"
-          }
-        }
-      },
-      "put": {
-        "summary": "Cria ou actualiza os campos editáveis do site (theme, pages, defaultLocale, activeLocales)",
-        "description": "Só os 4 campos abaixo são graváveis por este endpoint (`EDITABLE_FIELDS`, allowlist anti mass-assignment) — qualquer outro campo enviado no body (`nav`, `footer`, `template`, `skin`, `customDomain`, `subdomain`, `published`, `userId`, ou o `settings` ainda inexistente na API) é SILENCIOSAMENTE IGNORADO, nunca persistido (testado em `tests/backoffice/site.test.ts`, \"PUT ignores mass-assignment...\"). `nav` e `footer` têm endpoints/UI próprios mas NÃO passam por aqui apesar de o nome poder sugerir o contrário — `customDomain`/`subdomain` têm endpoints DEDICADOS (`PUT /website/custom-domain`, `PUT /website/subdomain`).\n",
-        "tags": [
-          "Website"
-        ],
-        "security": [
-          {
-            "adminBearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "description": "Mesma forma de `Site.theme`/`Site.pages` (ver o schema `Site`) — aqui repetida por ser o requestBody, nunca a resposta.",
-                "properties": {
-                  "theme": {
-                    "type": "object",
-                    "nullable": true,
-                    "properties": {
-                      "preset": {
-                        "type": "string",
-                        "enum": [
-                          "slate",
-                          "sand",
-                          "ink",
-                          "mist"
-                        ],
-                        "nullable": true
-                      },
-                      "accent": {
-                        "type": "string",
-                        "nullable": true,
-                        "description": "7 nomeados curados OU um hex livre #rrggbb"
-                      },
-                      "font": {
-                        "type": "string",
-                        "enum": [
-                          "grotesk",
-                          "editorial",
-                          "modern",
-                          "warm",
-                          "serifbody",
-                          "plusjakarta",
-                          "standpair"
-                        ],
-                        "nullable": true
-                      },
-                      "logo": {
-                        "type": "string",
-                        "nullable": true
-                      },
-                      "mode": {
-                        "type": "string",
-                        "enum": [
-                          "light",
-                          "dark"
-                        ],
-                        "nullable": true
-                      }
-                    }
-                  },
-                  "pages": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string"
-                        },
-                        "slug": {
-                          "type": "string"
-                        },
-                        "titleRef": {
-                          "type": "string"
-                        },
-                        "inNav": {
-                          "type": "boolean"
-                        },
-                        "order": {
-                          "type": "integer"
-                        },
-                        "kind": {
-                          "type": "string"
-                        },
-                        "blocks": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string"
-                              },
-                              "type": {
-                                "type": "string"
-                              },
-                              "variant": {
-                                "type": "string"
-                              },
-                              "contentRef": {
-                                "type": "string"
-                              },
-                              "settings": {
-                                "type": "object"
-                              },
-                              "data": {
-                                "type": "object"
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "type"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "slug"
-                      ]
-                    }
-                  },
-                  "defaultLocale": {
-                    "type": "string",
-                    "example": "pt"
-                  },
-                  "activeLocales": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Site actualizado (devolve o Site completo, incluindo campos não editáveis por este endpoint)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Site"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Não autenticado"
-          }
-        }
-      }
-    },
-    "/website/subdomain/check": {
-      "get": {
-        "summary": "Verifica se um subdomínio está disponível",
-        "description": "\"Disponível\" significa: não reservado (infra da plataforma) E não usado por OUTRO tenant — quer tenha sido reclamado pelo site-engine (`Site.subdomain`), quer seja o endereço de um site EXTERNO montado pelo dono (`User.websiteDomain` ou `Site.customDomain` a coincidir com `<slug>.<PLATFORM_ROOT_DOMAIN>`). Concorda sempre com `PUT /website/subdomain` — o que aqui se diz disponível, lá é aceite.\n",
-        "tags": [
-          "Website"
-        ],
-        "security": [
-          {
-            "adminBearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "value",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Subdomínio a verificar (será normalizado para slug)"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Resultado da verificação (available, reason)"
-          },
-          "401": {
-            "description": "Não autenticado"
-          }
-        }
-      }
-    },
-    "/website/subdomain": {
-      "put": {
-        "summary": "Reclama o subdomínio para o tenant (sincroniza o domínio das Estatísticas se este estava vazio/localhost)",
-        "description": "409 se o subdomínio já estiver ocupado por OUTRO tenant — engine (`Site.subdomain`) OU site EXTERNO (`User.websiteDomain`/`Site.customDomain` a coincidir com `<slug>.<PLATFORM_ROOT_DOMAIN>`), a mesma verificação de `GET /website/subdomain/check`. Nunca bloqueia o dono contra o SEU próprio `websiteDomain`/`customDomain` — só contra os de outros `userId`.\n",
-        "tags": [
-          "Website"
-        ],
-        "security": [
-          {
-            "adminBearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "value"
-                ],
-                "properties": {
-                  "value": {
-                    "type": "string",
-                    "example": "minha-barbearia"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Subdomínio atribuído"
-          },
-          "400": {
-            "description": "Subdomínio inválido ou reservado"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "409": {
-            "description": "Subdomínio já usado por outro tenant (engine ou site externo)"
-          }
-        }
-      }
-    },
-    "/website/publish": {
-      "post": {
-        "summary": "Publica o site do tenant (exige subdomínio + pelo menos uma página)",
-        "tags": [
-          "Website"
-        ],
-        "security": [
-          {
-            "adminBearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Site publicado"
-          },
-          "400": {
-            "description": "Sem site (no_site), sem subdomínio (no_subdomain) ou sem páginas (no_pages)"
-          },
-          "401": {
-            "description": "Não autenticado"
-          }
-        }
-      }
-    },
-    "/website/templates": {
-      "get": {
-        "summary": "Lista os templates de arranque do site (fonte única, T19) — id/label/vertical/descrição + o payload Site de cada",
-        "tags": [
-          "Website"
-        ],
-        "security": [
-          {
-            "adminBearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Lista dos templates disponíveis (agenda/gym/loja)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SiteTemplate"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Não autenticado"
-          }
-        }
-      }
-    },
-    "/website/preview-token": {
-      "post": {
-        "summary": "Emite um token de pré-visualização curto (30 min) do PRÓPRIO rascunho do tenant",
-        "description": "O renderer consome o token em `GET /websites/site/preview?token=` (público) e devolve o Site do tenant independentemente de `published` — para o tenant ver o rascunho antes de publicar. O token é assinado com um segredo dedicado (nunca o JWT_SECRET de autenticação normal) e leva `purpose: \"site-preview\"` — não serve como Bearer token de nenhum outro endpoint autenticado.\n",
-        "tags": [
-          "Website"
-        ],
-        "security": [
-          {
-            "adminBearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Token emitido",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "token": {
-                      "type": "string",
-                      "description": "JWT curto (30 min), âmbito só de leitura do rascunho do próprio tenant"
-                    },
-                    "url": {
-                      "type": "string",
-                      "description": "URL completo do preview no renderer (RENDERER_URL, se configurado; senão deriva-se de `https://siteengine.<PLATFORM_ROOT_DOMAIN>`, o host canónico do renderer — o apex é a landing page)"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Não autenticado"
-          }
-        }
-      }
-    },
     "/uploads": {
       "post": {
         "operationId": "uploadImage",
@@ -14594,7 +13933,7 @@
             }
           },
           "400": {
-            "description": "Ficheiro em falta, tipo invalido ou ficheiro demasiado grande"
+            "description": "Ficheiro em falta, tipo invalido, ficheiro demasiado grande ou dimensoes acima do limite de pixels"
           },
           "503": {
             "description": "Storage nao configurado"
@@ -14887,10 +14226,6 @@
     {
       "name": "Settings",
       "description": "Tenant configuration settings"
-    },
-    {
-      "name": "Website",
-      "description": "Gestão do site público do tenant (Site Engine)"
     }
   ]
 }

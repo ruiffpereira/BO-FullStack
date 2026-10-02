@@ -14,8 +14,7 @@ import {
 
 /**
  * Página "Estatísticas do site" (core, todos os tenants). Lê o tráfego do site
- * público do tenant via a nossa API (Umami auto-hospedado, server-side — o
- * Plausible saiu do projeto em 2026-09-21).
+ * público do tenant via a nossa API (Umami auto-hospedado, server-side).
  * Estados: sem domínio (pede domínio) · com domínio mas sem site Umami ainda
  * (reason "no-analytics-site") · dashboard (KPIs + série de visitantes +
  * páginas + origens, com snippet copiável quando o tenant tem site externo).

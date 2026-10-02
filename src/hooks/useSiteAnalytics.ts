@@ -7,8 +7,7 @@ import { putAnalyticsSiteDomain } from "../gen/backoffice/hooks/usePutAnalyticsS
 import type { GetAnalyticsSite200 } from "../gen/backoffice/types/GetAnalyticsSite.js";
 
 /**
- * Estatísticas do site público do tenant (Umami auto-hospedado — o Plausible
- * saiu do projeto em 2026-09-21, sem caminho legado).
+ * Estatísticas do site público do tenant (Umami auto-hospedado).
  * Migrado para os clients gerados pelo Kubb. Bearer auto-injetado pelo
  * interceptor do `axiosInstance` partilhado (AuthContext.tsx) — o client
  * gerado corre nesse mesmo `axiosInstance`, por isso `authHeader()` deixou
@@ -28,8 +27,7 @@ import type { GetAnalyticsSite200 } from "../gen/backoffice/types/GetAnalyticsSi
  * o problema está no spec ou num tipo duplicado, não no frontend.
  */
 
-// Períodos suportados (herdados da sintaxe da Stats API do Plausible — mantidos
-// por serem os que esta página já usa; a API traduz para o que o Umami espera).
+// Períodos suportados (a API traduz para o que o Umami espera).
 // Nota: "7d"/"30d" vão até ONTEM (não incluem hoje); "day" (Hoje) e "month"
 // (Este mês) incluem o dia corrente — daí o default ser "month".
 export type AnalyticsPeriod = "day" | "7d" | "30d" | "month" | "6mo";

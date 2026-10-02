@@ -4178,6 +4178,96 @@
         }
       }
     },
+    "/admin/users/{userId}/site-domain": {
+      "put": {
+        "summary": "Definir o domínio do site de um tenant (só o dono da plataforma)",
+        "description": "Grava `User.websiteDomain` do tenant `userId` (normalizado — sem protocolo/path/espaços, minúsculas) e provisiona o website Umami desse tenant (cria ou reaproveita por domínio exacto; se o tenant já tem `analyticsSiteId`, actualiza o domínio desse website em vez de criar outro). Sem Umami configurado no servidor, grava o domínio na mesma. Exige `VIEW_ADMIN` — um tenant nunca define o próprio domínio. Recusa com **409** se o domínio já pertencer a OUTRO tenant.\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "domain"
+                ],
+                "properties": {
+                  "domain": {
+                    "type": "string",
+                    "example": "exemplo.pt"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Domínio guardado (normalizado)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "userId": {
+                      "type": "string"
+                    },
+                    "domain": {
+                      "type": "string"
+                    },
+                    "analyticsSiteId": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Id do website Umami do tenant (null se Umami desligado ou o provisioning falhou)"
+                    }
+                  },
+                  "required": [
+                    "userId",
+                    "domain"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Domínio em falta ou inválido"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_ADMIN"
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          },
+          "409": {
+            "description": "Domínio já usado por outro tenant (não identifica de quem é). Corpo: `{ error: \"domain_taken\", value: string }`\n"
+          },
+          "500": {
+            "description": "Erro interno"
+          }
+        }
+      }
+    },
     "/site-tokens": {
       "get": {
         "summary": "Listar tokens (filtrável por userId)",
@@ -4284,12 +4374,52 @@
     "/users": {
       "get": {
         "summary": "List all users",
+        "description": "Sem `password`/`setupToken`. Inclui `websiteDomain` (definido só pelo admin, `PUT /admin/users/{userId}/site-domain`).",
         "tags": [
           "Users"
         ],
         "responses": {
           "200": {
-            "description": "List of users"
+            "description": "List of users",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "userId": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "email": {
+                        "type": "string"
+                      },
+                      "websiteDomain": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "permissions": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "permissionId": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -4795,7 +4925,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Dados agregados + série temporal + páginas + origens, quando o tenant\ntem `User.analyticsSiteId` provisionado e o Umami está configurado no\nservidor.\n\n`tracking: {websiteId, src}` (público — o par que se cola no HTML como\n`<script defer src={src} data-website-id={websiteId}>`) vem sempre que\nhouver um website Umami provisionado — o tenant cola o snippet à mão no\nseu site (site-engine desligado, B35).\n\nSem site de estatísticas aplicável devolve `{ configured: false, reason }`:\n- `no-domain`: o tenant ainda não definiu um domínio (`PUT /analytics/site/domain`).\n- `no-analytics-site`: o tenant já tem domínio mas ainda não há um\n  website Umami provisionado para ele (Umami desligado no servidor,\n  ou o provisioning automático ainda não correu/falhou).\n\nErro do Umami ao consultar (offline, id inválido, credenciais erradas):\n`configured: true` + `error` preenchido, mas SEM `aggregate`/`timeseries`/\n`topPages`/`sources` (o pedido nunca chega a ter esses dados — não vêm\nnulos, ficam simplesmente ausentes).\n",
+            "description": "Dados agregados + série temporal + páginas + origens, quando o tenant\ntem `User.analyticsSiteId` provisionado e o Umami está configurado no\nservidor.\n\nSem site de estatísticas aplicável devolve `{ configured: false, reason }`:\n- `no-domain`: o tenant ainda não tem domínio (define-o o admin, `PUT /admin/users/{userId}/site-domain`).\n- `no-analytics-site`: o tenant já tem domínio mas ainda não há um\n  website Umami provisionado para ele (Umami desligado no servidor,\n  ou o provisioning automático ainda não correu/falhou).\n\nErro do Umami ao consultar (offline, id inválido, credenciais erradas):\n`configured: true` + `error` preenchido, mas SEM `aggregate`/`timeseries`/\n`topPages`/`sources` (o pedido nunca chega a ter esses dados — não vêm\nnulos, ficam simplesmente ausentes).\n",
             "content": {
               "application/json": {
                 "schema": {
@@ -4914,18 +5044,6 @@
                         }
                       }
                     },
-                    "tracking": {
-                      "type": "object",
-                      "description": "Só presente quando há um website Umami provisionado (ver descrição acima)",
-                      "properties": {
-                        "websiteId": {
-                          "type": "string"
-                        },
-                        "src": {
-                          "type": "string"
-                        }
-                      }
-                    },
                     "error": {
                       "type": "string",
                       "description": "Só presente quando configured=true e a chamada ao Umami falhou"
@@ -4940,98 +5058,6 @@
           },
           "500": {
             "description": "Erro interno (ex.: falha a ler o User)"
-          }
-        }
-      }
-    },
-    "/analytics/site/domain": {
-      "get": {
-        "summary": "Obter o domínio do site do tenant",
-        "tags": [
-          "Analytics"
-        ],
-        "security": [
-          {
-            "adminBearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Domínio atual do site do tenant (User.websiteDomain)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "websiteDomain": {
-                      "type": "string",
-                      "nullable": true
-                    }
-                  },
-                  "required": [
-                    "websiteDomain"
-                  ]
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "summary": "Definir o domínio do site do tenant",
-        "description": "Grava `User.websiteDomain` (normalizado — sem protocolo/`www.`/path/espaços, minúsculas) para o tenant autenticado. Recusa com **409** se o domínio, já normalizado e comparado de forma case-insensitive, já pertencer a OUTRO tenant (`User.websiteDomain`, `hostTakenByOtherTenant` em `src/utils/siteDomainOwnership.ts`). A resposta 409 não identifica nem confirma a existência do outro tenant. Nunca bloqueia o dono contra o SEU PRÓPRIO domínio actual, nem contra limpar (`domain: \"\"` → `websiteDomain: null`).\n",
-        "tags": [
-          "Analytics"
-        ],
-        "security": [
-          {
-            "adminBearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "domain": {
-                    "type": "string",
-                    "example": "exemplo.pt"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Domínio guardado (normalizado; mesma forma de GET /analytics/site/domain)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "websiteDomain": {
-                      "type": "string",
-                      "nullable": true
-                    }
-                  },
-                  "required": [
-                    "websiteDomain"
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "404": {
-            "description": "Utilizador não encontrado"
-          },
-          "409": {
-            "description": "Domínio já usado por outro tenant (não identifica de quem é). Corpo: `{ error: \"domain_taken\", value: string }`\n"
           }
         }
       }

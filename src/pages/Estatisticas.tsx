@@ -1,23 +1,22 @@
 import { useMemo, useState } from 'react'
-import { Card, PageHeader, EmptyState, Input, Button } from '../ui/ui.jsx'
+import { Card, PageHeader, EmptyState } from '../ui/ui.jsx'
 import { Icon } from '../ui/icons.jsx'
 import { usePageSubtitle } from '../context/PageMetaContext'
 import { LineChart } from '../ui/charts.jsx'
 import { KpiCard } from '../components/financeiro/kit'
 import {
   useSiteAnalytics,
-  useSetSiteDomain,
   type AnalyticsPeriod,
   type AnalyticsBreakdownRow,
-  type AnalyticsTrackingSnippet,
 } from '../hooks/useSiteAnalytics'
 
 /**
  * Página "Estatísticas do site" (core, todos os tenants). Lê o tráfego do site
  * público do tenant via a nossa API (Umami auto-hospedado, server-side).
- * Estados: sem domínio (pede domínio) · com domínio mas sem site Umami ainda
- * (reason "no-analytics-site") · dashboard (KPIs + série de visitantes +
- * páginas + origens, com snippet copiável quando o tenant tem site externo).
+ * Estados: sem domínio (reason "no-domain": só o dono da plataforma o define,
+ * no Admin — aqui é um aviso para falar com o suporte) · com domínio mas sem
+ * site Umami ainda (reason "no-analytics-site") · dashboard (KPIs + série de
+ * visitantes + páginas + origens). O tenant nunca vê nem edita o domínio.
  */
 
 const PRESETS: { key: AnalyticsPeriod; label: string }[] = [
@@ -81,107 +80,6 @@ function BreakdownList({
   )
 }
 
-/** Formulário de configuração do domínio do site (estado reason:no-domain). */
-function DomainForm({ initial = '' }: { initial?: string }) {
-  const [value, setValue] = useState(initial)
-  const setDomain = useSetSiteDomain()
-  return (
-    <Card className="p-2">
-      <EmptyState
-        icon="globe"
-        title="Define o domínio do teu site"
-        desc="Indica o domínio do teu site público para começares a ver as estatísticas (ex.: exemplo.pt)."
-        action={
-          <form
-            className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2 w-full max-w-md"
-            onSubmit={(e) => { e.preventDefault(); if (value.trim()) setDomain.mutate(value.trim()) }}
-          >
-            <div className="flex-1">
-              <Input
-                placeholder="exemplo.pt"
-                value={value}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setValue(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <Button type="submit" isLoading={setDomain.isPending} disabled={!value.trim()}>
-              Guardar
-            </Button>
-          </form>
-        }
-      />
-    </Card>
-  )
-}
-
-/**
- * Snippet copiável do script de tracking — para sites EXTERNOS (fora do
- * site-engine, montados pelo dono: `tifas`, `winterplateau`,
- * `completepecasjr`). Um site do engine recebe o script automaticamente
- * (injetado pelo renderer); um externo tem de o colar à mão no próprio HTML.
- *
- * **Quem o vê é decisão da API, não desta página:** aparece exactamente quando
- * `GET /analytics/site` devolve `tracking`, e a API só o devolve quando o
- * domínio medido NÃO é servido pelo engine. Até 2026-09-22 vinha para toda a
- * gente e esta caixa aparecia a tenants do engine, a mandá-los colar um script
- * num HTML que não têm. Não reintroduzir aqui nenhuma condição própria — seria
- * duplicar regra de negócio no frontend, e os dois lados acabariam a discordar.
- */
-function TrackingSnippetCard({ tracking }: { tracking: AnalyticsTrackingSnippet }) {
-  const [copied, setCopied] = useState(false)
-  // `src`/`websiteId` são opcionais no contrato (o objeto `tracking` só vem
-  // inteiro ou não vem de todo). Sem esta guarda, um par incompleto passava no
-  // `tsc` — interpolação aceita `undefined` — e dava ao tenant um snippet com
-  // `data-website-id="undefined"` para colar no site. Melhor não mostrar caixa
-  // nenhuma do que mandar colar um script partido.
-  if (!tracking.src || !tracking.websiteId) return null
-  const snippet = `<script defer src="${tracking.src}" data-website-id="${tracking.websiteId}"></script>`
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(snippet)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch {
-      /* clipboard indisponível — ignora */
-    }
-  }
-
-  return (
-    <Card className="p-4">
-      <div className="flex items-start gap-2">
-        <Icon name="link" className="w-4 h-4 text-accent mt-0.5 shrink-0" />
-        <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">
-            Site fora da plataforma?
-          </h2>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
-            Se este site não é gerido por nós, cola este script no HTML do teu site para começares a receber estatísticas. Um site nosso já o tem automaticamente.
-          </p>
-          <div className="mt-3 flex items-end gap-2">
-            <Input
-              readOnly
-              value={snippet}
-              onFocus={(e: React.FocusEvent<HTMLInputElement>) => e.target.select()}
-              className="font-mono text-xs truncate cursor-text flex-1"
-            />
-            <Button
-              type="button"
-              variant={copied ? 'secondary' : 'primary'}
-              onClick={copy}
-              aria-label="Copiar script de estatísticas"
-              icon={copied ? 'check' : 'copy'}
-              className="shrink-0"
-            >
-              {copied ? 'Copiado' : 'Copiar'}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </Card>
-  )
-}
-
 export function Estatisticas() {
   const [period, setPeriod] = useState<AnalyticsPeriod>('month')
   const { data, isLoading } = useSiteAnalytics(period)
@@ -204,7 +102,13 @@ export function Estatisticas() {
     if (data.reason === 'no-domain') {
       return (
         <div className="space-y-4">
-          <DomainForm />
+          <Card className="p-2">
+            <EmptyState
+              icon="globe"
+              title="Estatísticas ainda não ligadas"
+              desc="As estatísticas do teu site ainda não estão ligadas. Fala connosco pelo chat de suporte."
+            />
+          </Card>
         </div>
       )
     }
@@ -216,7 +120,7 @@ export function Estatisticas() {
           <EmptyState
             icon="trend"
             title="Estatísticas ainda não disponíveis"
-            desc="Ainda não há um site de estatísticas para este domínio. Se acabaste de o definir, tenta recarregar dentro de alguns minutos; se o problema persistir, fala com o suporte."
+            desc="Ainda estamos a preparar as estatísticas do teu site. Se isto não mudar em breve, fala connosco pelo chat de suporte."
           />
         </Card>
       </div>
@@ -247,12 +151,10 @@ export function Estatisticas() {
           <Icon name="info" className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
           <div className="text-sm">
             <p className="font-medium text-zinc-800 dark:text-zinc-100">Não foi possível obter as estatísticas</p>
-            <p className="text-zinc-500 mt-0.5">{data?.error}. Confirma que as estatísticas estão configuradas para este domínio.</p>
+            <p className="text-zinc-500 mt-0.5">{data?.error}. Se isto persistir, fala connosco pelo chat de suporte.</p>
           </div>
         </Card>
       )}
-
-      {data?.tracking && <TrackingSnippetCard tracking={data.tracking} />}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

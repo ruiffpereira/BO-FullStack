@@ -23,6 +23,8 @@ const sendResetMutate = vi.fn();
 const deleteMutate = vi.fn();
 let deleteMutationOptions: any = null;
 let deleteIsPending = false;
+const domainMutate = vi.fn();
+let domainMutationOptions: any = null;
 const authMock = vi.fn();
 
 vi.mock("../../src/gen/backoffice/hooks/useGetUsers.js", () => ({
@@ -41,6 +43,15 @@ vi.mock("../../src/gen/backoffice/hooks/usePutUsers.js", () => ({
 }));
 vi.mock("../../src/gen/backoffice/hooks/usePostUsersUseridSendReset.js", () => ({
   usePostUsersUseridSendReset: () => ({ mutate: sendResetMutate, isPending: false }),
+}));
+vi.mock("../../src/gen/backoffice/hooks/usePutAdminUsersUseridSiteDomain.js", () => ({
+  usePutAdminUsersUseridSiteDomain: (opts: any) => {
+    domainMutationOptions = opts;
+    return { mutate: domainMutate, isPending: false };
+  },
+}));
+vi.mock("../../src/components/GuardButton", () => ({
+  GuardButton: ({ children, ...rest }: any) => <button {...rest}>{children}</button>,
 }));
 vi.mock("../../src/gen/backoffice/hooks/useDeleteUsersUserid.js", () => ({
   useDeleteUsersUserid: (opts: any) => {
@@ -183,5 +194,50 @@ describe("Admin — apagar tenant — confirmação forte", () => {
     const otherRow = screen.getByText("Ginásio Norte").closest("tr")!;
     fireEvent.click(within(otherRow).getByRole("button", { name: "Eliminar" }));
     expect(screen.getByText('Eliminar "Ginásio Norte" definitivamente?')).toBeInTheDocument();
+  });
+});
+
+describe("Admin — domínio do site do tenant", () => {
+  it("mostra o domínio na coluna Site e '—' quando não há", () => {
+    mockUsers([{ ...TENANT, websiteDomain: "www.barbearia.pt" }, OTHER_TENANT]);
+    renderAdmin();
+
+    expect(screen.getByText("Site")).toBeInTheDocument();
+    expect(screen.getByText("www.barbearia.pt")).toBeInTheDocument();
+  });
+
+  it("abre o modal pré-preenchido e grava o domínio do tenant da linha", () => {
+    mockUsers([{ ...TENANT, websiteDomain: "www.barbearia.pt" }]);
+    renderAdmin();
+
+    const row = screen.getByText("Barbearia Central").closest("tr")!;
+    fireEvent.click(within(row).getByRole("button", { name: "Domínio do site" }));
+
+    const input = screen.getByPlaceholderText("www.exemplo.pt") as HTMLInputElement;
+    expect(input.value).toBe("www.barbearia.pt");
+
+    fireEvent.change(input, { target: { value: "novo.exemplo.pt" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    expect(domainMutate).toHaveBeenCalledWith({ userId: "u1", data: { domain: "novo.exemplo.pt" } });
+
+    act(() => {
+      domainMutationOptions.mutation.onSuccess();
+    });
+    expect(toastSuccess).toHaveBeenCalledWith("Domínio guardado");
+  });
+
+  it("409 e 400 mostram a mensagem certa", () => {
+    mockUsers([TENANT]);
+    renderAdmin();
+
+    act(() => {
+      domainMutationOptions.mutation.onError({ response: { status: 409 } });
+    });
+    expect(toastError).toHaveBeenCalledWith("Esse domínio já pertence a outro cliente.");
+
+    act(() => {
+      domainMutationOptions.mutation.onError({ response: { status: 400 } });
+    });
+    expect(toastError).toHaveBeenCalledWith("Domínio inválido.");
   });
 });

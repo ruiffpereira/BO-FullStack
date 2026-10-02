@@ -6,16 +6,14 @@ import type { SiteAnalyticsResponse } from "../../src/hooks/useSiteAnalytics";
 //
 // A página Estatísticas tem 3 estados conduzidos por useSiteAnalytics:
 //  1) configured:false reason:"no-analytics-site" → empty state "ainda não disponíveis"
-//  2) configured:false reason:"no-domain"          → formulário de domínio
-//  3) configured:true                               → KPIs + gráficos (+ snippet se `tracking`)
+//  2) configured:false reason:"no-domain"          → aviso "ainda não ligadas" (sem formulário)
+//  3) configured:true                               → KPIs + gráficos
 // Mockamos o módulo de hooks para controlar cada estado de forma isolada.
 
 const useSiteAnalyticsMock = vi.fn();
-const useSetSiteDomainMock = vi.fn(() => ({ mutate: vi.fn(), isPending: false }));
 
 vi.mock("../../src/hooks/useSiteAnalytics", () => ({
   useSiteAnalytics: (...args: unknown[]) => useSiteAnalyticsMock(...args),
-  useSetSiteDomain: () => useSetSiteDomainMock(),
 }));
 
 // O gráfico SVG (charts.jsx) e o KpiCard não são o foco destes testes (validamos
@@ -41,11 +39,10 @@ function mockAnalytics(data: SiteAnalyticsResponse | undefined, isLoading = fals
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useSetSiteDomainMock.mockReturnValue({ mutate: vi.fn(), isPending: false });
 });
 
 describe("Estatisticas — estado não configurado (no-analytics-site)", () => {
-  it("mostra o empty state 'ainda não disponíveis' e não o formulário de domínio", () => {
+  it("mostra o empty state 'ainda não disponíveis' sem pedir domínio", () => {
     mockAnalytics({ configured: false, reason: "no-analytics-site" });
     render(<Estatisticas />);
 
@@ -53,22 +50,26 @@ describe("Estatisticas — estado não configurado (no-analytics-site)", () => {
       screen.getByText("Estatísticas ainda não disponíveis"),
     ).toBeInTheDocument();
     // Não pede o domínio neste estado
-    expect(
-      screen.queryByText("Define o domínio do teu site"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText(/preparar as estatísticas do teu site/)).toBeInTheDocument();
     // E não mostra KPIs
     expect(screen.queryByText("Visitantes")).not.toBeInTheDocument();
   });
 });
 
 describe("Estatisticas — estado sem domínio (no-domain)", () => {
-  it("mostra o formulário de domínio com o input", () => {
+  it("mostra o aviso para falar com o suporte, sem formulário", () => {
     mockAnalytics({ configured: false, reason: "no-domain" });
     render(<Estatisticas />);
 
-    expect(screen.getByText("Define o domínio do teu site")).toBeInTheDocument();
-    // Input do domínio presente (placeholder "exemplo.pt")
-    expect(screen.getByPlaceholderText("exemplo.pt")).toBeInTheDocument();
+    expect(screen.getByText("Estatísticas ainda não ligadas")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "As estatísticas do teu site ainda não estão ligadas. Fala connosco pelo chat de suporte.",
+      ),
+    ).toBeInTheDocument();
+    // O tenant não define o domínio: nem input nem botão de guardar
+    expect(screen.queryByPlaceholderText("exemplo.pt")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /guardar/i })).not.toBeInTheDocument();
     // Não mostra o empty state de "não configuradas"
     expect(
       screen.queryByText("Estatísticas ainda não disponíveis"),
@@ -118,40 +119,15 @@ describe("Estatisticas — estado configurado (KPIs)", () => {
     expect(
       screen.queryByText("Estatísticas ainda não disponíveis"),
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("Define o domínio do teu site"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Estatísticas ainda não ligadas")).not.toBeInTheDocument();
   });
 });
 
-describe("Estatisticas — snippet de tracking (sites fora da plataforma)", () => {
-  it("mostra o snippet copiável quando a API devolve `tracking`", () => {
+describe("Estatisticas — sem snippet de tracking", () => {
+  it("não mostra caixa de script nem input", () => {
     mockAnalytics({
       configured: true,
       domain: "tifas.pt",
-      period: "30d",
-      aggregate: {},
-      timeseries: [],
-      topPages: [],
-      sources: [],
-      tracking: { websiteId: "abc-123", src: "https://umami.rufvision.com/script.js" },
-    });
-    render(<Estatisticas />);
-
-    expect(screen.getByText("Site fora da plataforma?")).toBeInTheDocument();
-    expect(
-      screen.getByDisplayValue(
-        '<script defer src="https://umami.rufvision.com/script.js" data-website-id="abc-123"></script>',
-      ),
-    ).toBeInTheDocument();
-  });
-
-  // É o caso de um site DO ENGINE: desde 2026-09-22 a API omite `tracking`
-  // para quem já recebe o script injectado pelo renderer.
-  it("NÃO mostra o snippet quando a API não devolve `tracking`", () => {
-    mockAnalytics({
-      configured: true,
-      domain: "exemplo.pt",
       period: "30d",
       aggregate: {},
       timeseries: [],
@@ -161,5 +137,6 @@ describe("Estatisticas — snippet de tracking (sites fora da plataforma)", () =
     render(<Estatisticas />);
 
     expect(screen.queryByText("Site fora da plataforma?")).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 });

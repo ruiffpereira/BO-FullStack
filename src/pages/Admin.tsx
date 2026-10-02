@@ -25,6 +25,8 @@ import { usePagination, Pagination } from "../components/Pagination";
 import { usePostUsersRegister } from "../gen/backoffice/hooks/usePostUsersRegister.js";
 import { usePutUsers } from "../gen/backoffice/hooks/usePutUsers.js";
 import { useDeleteUsersUserid } from "../gen/backoffice/hooks/useDeleteUsersUserid.js";
+import { usePutAdminUsersUseridSiteDomain } from "../gen/backoffice/hooks/usePutAdminUsersUseridSiteDomain.js";
+import { GuardButton } from "../components/GuardButton";
 import { usePostUsersUseridSendReset } from "../gen/backoffice/hooks/usePostUsersUseridSendReset.js";
 import {
   useGetPermissions,
@@ -237,6 +239,9 @@ function UserFormFields({
   );
 }
 
+// O tipo `User` gerado não traz `websiteDomain`; o `GET /users` traz.
+const siteDomainOf = (u: User) => (u as User & { websiteDomain?: string | null }).websiteDomain;
+
 function UtilizadoresTab({
   headers,
   currentUserId,
@@ -259,6 +264,32 @@ function UtilizadoresTab({
   // Confirmação forte do apagar tenant (B8, hard delete): o admin tem de
   // escrever o email do tenant para o botão destrutivo ficar activo.
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState("");
+  // Domínio do site do tenant (só o dono da plataforma o define, aqui).
+  const [domainOpen, setDomainOpen] = useState(false);
+  const [domainValue, setDomainValue] = useState("");
+
+  const domainM = usePutAdminUsersUseridSiteDomain({
+    client: { headers },
+    mutation: {
+      onSuccess: () => {
+        toast.success("Domínio guardado");
+        setDomainOpen(false);
+        invalidate();
+      },
+      onError: (error) => {
+        const status = error?.response?.status;
+        if (status === 409) toast.error("Esse domínio já pertence a outro cliente.");
+        else if (status === 400) toast.error("Domínio inválido.");
+        else toast.error(getApiError(error));
+      },
+    },
+  });
+
+  const openDomain = (u: User) => {
+    setSelected(u);
+    setDomainValue(siteDomainOf(u) ?? "");
+    setDomainOpen(true);
+  };
 
   const createM = usePostUsersRegister({
     client: { headers },
@@ -366,15 +397,16 @@ function UtilizadoresTab({
             <th className="px-4 py-3 hidden md:table-cell">Email</th>
             <th className="px-4 py-3 hidden xl:table-cell">Telemóvel</th>
             <th className="px-4 py-3 hidden lg:table-cell">User ID</th>
+            <th className="px-4 py-3 hidden lg:table-cell">Site</th>
             <th className="px-4 py-3">Permissão</th>
             <th className="px-4 py-3 text-right">Ações</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-zinc-50 dark:divide-zinc-800/50">
           {isLoading ? (
-            <SkeletonRows cols={6} />
+            <SkeletonRows cols={7} />
           ) : users.length === 0 ? (
-            <EmptyRow cols={6} />
+            <EmptyRow cols={7} />
           ) : null}
           {pgUsers.pageItems.map((u) => (
             <tr
@@ -393,6 +425,9 @@ function UtilizadoresTab({
               </td>
               <td className="px-4 py-3.5 hidden lg:table-cell" onClick={(e) => e.stopPropagation()}>
                 <CopyBtn value={u.userId} />
+              </td>
+              <td className="px-4 py-3.5 text-zinc-500 hidden lg:table-cell">
+                {siteDomainOf(u) ?? "—"}
               </td>
               <td className="px-4 py-3.5">
                 <div className="flex flex-wrap gap-1">
@@ -414,6 +449,12 @@ function UtilizadoresTab({
                     icon="key"
                     label="Reset password"
                     onClick={() => sendResetM.mutate({ userId: u.userId })}
+                  />
+                  <IconButton
+                    icon="globe"
+                    label="Domínio do site"
+                    title="Domínio do site"
+                    onClick={() => openDomain(u)}
                   />
                   <IconButton
                     icon="edit"
@@ -523,6 +564,39 @@ function UtilizadoresTab({
       </Modal>
 
       <Modal
+        open={domainOpen}
+        onClose={() => setDomainOpen(false)}
+        title="Domínio do site"
+        subtitle={selected?.name}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setDomainOpen(false)}>
+              Cancelar
+            </Button>
+            <GuardButton
+              isLoading={domainM.isPending}
+              disabled={!domainValue.trim() || domainM.isPending}
+              onClick={() =>
+                selected &&
+                domainM.mutate({ userId: selected.userId, data: { domain: domainValue.trim() } })
+              }
+            >
+              Guardar
+            </GuardButton>
+          </>
+        }
+      >
+        <Input
+          label="Domínio do site"
+          value={domainValue}
+          onChange={(e: any) => setDomainValue(e.target.value)}
+          placeholder="www.exemplo.pt"
+          hint="O endereço onde o site deste cliente vive. Liga as estatísticas e os links dos emails."
+          autoComplete="off"
+        />
+      </Modal>
+
+      <Modal
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         title={
@@ -560,7 +634,7 @@ function UtilizadoresTab({
           <ul className="space-y-1 text-sm text-zinc-600 dark:text-zinc-300 list-disc list-inside">
             <li>Todos os dados deste tenant, em todos os módulos</li>
             <li>Os clientes deste tenant</li>
-            <li>O site público e o subdomínio</li>
+            <li>O domínio do site e as estatísticas (Umami)</li>
             <li>As fotos e vídeos enviados</li>
             <li>A subscrição — é cancelada no Stripe</li>
           </ul>

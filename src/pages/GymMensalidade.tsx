@@ -213,9 +213,7 @@ export function ConvidarSocioModal({ onClose, onInvited }: { onClose: () => void
     onSuccess: (res) => {
       onInvited()
       // Sem domínio do site a API não tem link para pôr no email — não o envia.
-      // TODO(spec): appUrl pode estar ausente no tipo gerado até agora; cast se necessário.
-      const appUrl = (res as any)?.appUrl
-      if (appUrl === null) {
+      if (res?.appUrl === null) {
         toast.warning('Conta criada, mas o convite não foi enviado: define o domínio do site em Estatísticas.')
       } else if (res?.emailSent === false) {
         toast.warning('Conta criada, mas o email não seguiu. Verifica a configuração de email.')

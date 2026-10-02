@@ -1537,7 +1537,7 @@
           "appUrl": {
             "type": "string",
             "nullable": true,
-            "description": "URL público da app do tenant (https://<subdomínio>.<domínio raiz>), se o Site tiver subdomínio reclamado. null = o BO deve avisar que falta o subdomínio."
+            "description": "URL público do site do tenant (https://<User.websiteDomain>). null = o tenant não tem domínio — o convite não é enviado e o BO avisa."
           }
         }
       },

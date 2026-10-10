@@ -2373,10 +2373,22 @@ function ServicosPanel() {
       return;
     }
     // Cria/atualiza as entradas CMS (nome obrigatório, descrição opcional) ao guardar.
-    const contentKey = await ensureCmsName(form.contentKey, "service", form.name, defaultLang);
-    const descriptionKey = form.description.trim()
-      ? await ensureCmsName(form.descriptionKey, "service", form.description, defaultLang)
-      : null;
+    // Fora de uma mutation: sem este catch um erro do CMS (ex. 403 sem VIEW_CMS) ficava em silêncio.
+    let contentKey: string;
+    let descriptionKey: string | null;
+    try {
+      contentKey = await ensureCmsName(form.contentKey, "service", form.name, defaultLang);
+      descriptionKey = form.description.trim()
+        ? await ensureCmsName(form.descriptionKey, "service", form.description, defaultLang)
+        : null;
+    } catch (e: any) {
+      toast.error(
+        e?.response?.status === 403
+          ? "Sem permissão para editar Conteúdos — o nome do serviço é guardado lá. Pede ao administrador o acesso a Conteúdos."
+          : getApiError(e, "Não foi possível guardar o serviço."),
+      );
+      return;
+    }
     const data = {
       duration: parseInt(form.duration),
       price: parseFloat(form.price),

@@ -12661,8 +12661,7 @@
             }
           },
           "400": {
-            "description": "daysOfWeek obrigatório para programas semanais",
-            "ou dados inválidos": null
+            "description": "daysOfWeek obrigatório para programas semanais, ou dados inválidos"
           },
           "404": {
             "description": "Template ou programa não encontrado"

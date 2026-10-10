@@ -4761,10 +4761,6 @@
                   "permissionId": {
                     "type": "string"
                   },
-                  "siteUrl": {
-                    "type": "string",
-                    "nullable": true
-                  },
                   "emailSenderName": {
                     "type": "string",
                     "nullable": true
@@ -4831,6 +4827,12 @@
                   },
                   "permissionId": {
                     "type": "string"
+                  },
+                  "websiteDomain": {
+                    "type": "string",
+                    "nullable": true,
+                    "example": "exemplo.pt",
+                    "description": "Opcional. Domínio do site do tenant — normalizado (sem protocolo/path, minúsculas) e validado como em `PUT /admin/users/{userId}/site-domain`. Vazio/ausente = sem domínio. Provisiona o website Umami e passa a ser aceite pelo CORS.\n"
                   }
                 },
                 "description": "Um campo `password` no body é ignorado: o admin nunca define passwords. A conta nasce sem password, com `setupToken`, e o cliente recebe o email de setup.\n"
@@ -4843,7 +4845,10 @@
             "description": "User created"
           },
           "400": {
-            "description": "Missing required fields"
+            "description": "Missing required fields, ou `websiteDomain` inválido"
+          },
+          "409": {
+            "description": "Email ou telefone já em uso, ou `websiteDomain` já usado por outro tenant (corpo `{ error: \"domain_taken\", value }`; o utilizador NÃO é criado)\n"
           },
           "500": {
             "description": "User creation failed"

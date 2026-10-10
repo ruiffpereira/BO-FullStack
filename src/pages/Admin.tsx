@@ -130,9 +130,7 @@ type UserForm = {
   email: string;
   phone: string;
   permissionId: string;
-  emailSenderName: string;
-  fromEmail: string;
-  siteUrl: string;
+  websiteDomain: string;
   vertical?: string;
 };
 const emptyUserForm: UserForm = {
@@ -140,9 +138,7 @@ const emptyUserForm: UserForm = {
   email: "",
   phone: "",
   permissionId: "",
-  emailSenderName: "",
-  fromEmail: "",
-  siteUrl: "",
+  websiteDomain: "",
 };
 
 function UserFormFields({
@@ -186,27 +182,15 @@ function UserFormFields({
           </p>
         </div>
       )}
-      <Input
-        label="Nome de remetente nos emails"
-        value={form.emailSenderName}
-        onChange={(e: any) =>
-          setForm({ ...form, emailSenderName: e.target.value })
-        }
-        placeholder="Ex: Barbearia Tiago (deixar em branco para usar o Nome)"
-      />
-      <Input
-        label="Email de envio (deve ser de domínio verificado no Resend)"
-        type="email"
-        value={form.fromEmail}
-        onChange={(e: any) => setForm({ ...form, fromEmail: e.target.value })}
-        placeholder="noreply@teudominio.com"
-      />
-      <Input
-        label="URL do site"
-        value={form.siteUrl}
-        onChange={(e: any) => setForm({ ...form, siteUrl: e.target.value })}
-        placeholder="https://google.com"
-      />
+      {/* Na edição o domínio muda-se pelo modal "Domínio do site". */}
+      {!isEdit && (
+        <Input
+          label="Website do cliente (opcional)"
+          value={form.websiteDomain}
+          onChange={(e: any) => setForm({ ...form, websiteDomain: e.target.value })}
+          placeholder="exemplo.pt"
+        />
+      )}
       <div>
         <p className="text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
           Permissão
@@ -351,7 +335,12 @@ function UtilizadoresTab({
         setForm(emptyUserForm);
         invalidate();
       },
-      onError: (error) => toast.error(getApiError(error)),
+      onError: (error) => {
+        // O 409 também é "email/telefone em uso" — só o `domain_taken` é do website.
+        if ((error?.response?.data as any)?.error === "domain_taken")
+          toast.error("Esse website já pertence a outro cliente.");
+        else toast.error(getApiError(error));
+      },
     },
   });
   const updateM = usePutUsers({
@@ -410,9 +399,7 @@ function UtilizadoresTab({
       email: u.email,
       phone: (u as any).phone ?? "",
       permissionId: u.permissions?.[0]?.permissionId ?? "",
-      emailSenderName: (u as any).emailSenderName ?? "",
-      fromEmail: (u as any).fromEmail ?? "",
-      siteUrl: (u as any).siteUrl ?? "",
+      websiteDomain: "",
       vertical: (u as any).vertical,
     });
     setEditOpen(true);
@@ -566,6 +553,7 @@ function UtilizadoresTab({
                     phone: form.phone || undefined,
                     permissionId: form.permissionId,
                     vertical: form.vertical || undefined,
+                    websiteDomain: form.websiteDomain.trim() || undefined,
                   } as any,
                 });
               }}
@@ -600,9 +588,6 @@ function UtilizadoresTab({
                 if (form.email) p.email = form.email;
                 p.phone = form.phone || null;
                 if (form.permissionId) p.permissionId = form.permissionId;
-                p.emailSenderName = form.emailSenderName || null;
-                p.fromEmail = form.fromEmail || null;
-                p.siteUrl = form.siteUrl || null;
                 p.vertical = form.vertical || null;
                 updateM.mutate({ data: p });
               }}

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Routes, Route, Navigate, useLocation, useSearchParams } from "react-router-dom";
+import { Routes, Route, Navigate, matchPath, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import { useThemeSync } from "./hooks/useThemeSync";
 import { Shell } from "./components/Shell";
@@ -18,6 +18,8 @@ import { Estatisticas } from "./pages/Estatisticas";
 import { Mensagens } from "./pages/Mensagens";
 import { Faturacao } from "./pages/Faturacao";
 import { Perfil } from "./pages/Perfil";
+import { SupportEntry } from "./pages/SupportEntry";
+import { SupportEnded } from "./pages/SupportEnded";
 import { resolveLegacyTabTarget } from "./lib/navigation";
 import { FEATURES } from "./lib/features";
 
@@ -83,7 +85,7 @@ function App() {
   // (localStorage > sistema > dark) até autenticar, servidor > localStorage >
   // sistema depois de GET /users/me resolver — ver docstring do hook.
   const { theme, toggleTheme } = useThemeSync();
-  const { isAuthenticated, initializing, reconnecting } = useAuth();
+  const { isAuthenticated, initializing, reconnecting, supportEnded } = useAuth();
   const location = useLocation();
 
   useEffect(() => {
@@ -100,6 +102,12 @@ function App() {
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", theme === "dark" ? "#09090b" : "#ffffff");
   }, [theme]);
+
+  // Sessão de suporte terminada (expirou / revogada / saíste): ecrã final
+  // standalone, por cima de tudo — nunca cai no Login nem no Shell.
+  if (supportEnded) {
+    return <SupportEnded />;
+  }
 
   // Public routes — accessible without authentication
   if (location.pathname === "/setup-password") {
@@ -154,6 +162,14 @@ function App() {
 
   if (!isAuthenticated) {
     return <Login theme={theme} onToggleTheme={toggleTheme} />;
+  }
+
+  // Entrada de suporte (aberta pelo "Entrar como" do Admin): standalone, fora do
+  // Shell e do seu guard de rotas. Só chega aqui com a sessão do admin já
+  // resolvida (senão cai no Login acima e volta depois de autenticar).
+  const supportEntry = matchPath("/suporte/entrar/:userId", location.pathname);
+  if (supportEntry?.params.userId) {
+    return <SupportEntry userId={supportEntry.params.userId} />;
   }
 
   return (

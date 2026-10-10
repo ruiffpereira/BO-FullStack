@@ -2,6 +2,8 @@ import { toast } from 'sonner'
 import { Card, PageHeader, EmptyState, Button, Badge, SectionTitle } from '../ui/ui.jsx'
 import { Icon } from '../ui/icons.jsx'
 import { usePageSubtitle } from '../context/PageMetaContext'
+import { useSupportSession } from '../context/AuthContext'
+import { SUPPORT_UNAVAILABLE_NOTE } from '../lib/supportSession'
 import { getApiError } from '../lib/apiError'
 import { useGetBillingSubscription } from '../gen/backoffice/hooks/useGetBillingSubscription'
 import { usePostBillingPortal } from '../gen/backoffice/hooks/usePostBillingPortal'
@@ -50,7 +52,7 @@ const NOTICE_ICON: Record<Tone, string> = {
   red: 'text-red-500',
 }
 
-type NoticeAction = { onClick: () => void; pending?: boolean; label?: string; icon?: string }
+type NoticeAction = { onClick: () => void; pending?: boolean; label?: string; icon?: string; disabledNote?: string }
 
 /** Callout colorido com ícone + título + descrição + ação opcional. */
 function Notice({
@@ -80,12 +82,14 @@ function Notice({
             variant="outline"
             icon={action.icon ?? 'card'}
             className="mt-3"
-            disabled={action.pending}
+            disabled={action.pending || !!action.disabledNote}
+            title={action.disabledNote}
             onClick={action.onClick}
           >
             {action.pending ? 'A abrir…' : action.label ?? 'Regularizar pagamento'}
           </Button>
         )}
+        {action?.disabledNote && <p className="mt-2 text-xs text-zinc-500">{action.disabledNote}</p>}
       </div>
     </Card>
   )
@@ -93,6 +97,10 @@ function Notice({
 
 export function Faturacao() {
   const { data, isLoading, isError } = useGetBillingSubscription()
+  // Sessão de suporte: a leitura continua, as escritas (portal, subscrever) ficam
+  // desactivadas — a API recusa-as com 403 IMPERSONATION_FORBIDDEN.
+  const inSupport = !!useSupportSession()
+  const supportNote = inSupport ? SUPPORT_UNAVAILABLE_NOTE : undefined
 
   // Abre o Stripe Billing Portal e redireciona o tenant. 409 = ainda sem
   // cliente/subscrição Stripe (o dono ainda não criou a subscrição — T6).
@@ -111,7 +119,7 @@ export function Faturacao() {
       },
     },
   })
-  const portalAction: NoticeAction = { onClick: () => portalM.mutate(), pending: portalM.isPending }
+  const portalAction: NoticeAction = { onClick: () => portalM.mutate(), pending: portalM.isPending, disabledNote: supportNote }
 
   // Self-serve (T9): cria a Stripe Checkout Session e redireciona o tenant para
   // introduzir o cartão. 400 = sem módulos/config em falta; 402 = cobrança
@@ -139,6 +147,7 @@ export function Faturacao() {
     pending: subscribeM.isPending,
     label: 'Adicionar cartão',
     icon: 'card',
+    disabledNote: supportNote,
   }
 
   // Só faz sentido oferecer o self-serve (Checkout Session) quando NÃO existe
@@ -307,11 +316,13 @@ export function Faturacao() {
                   variant="outline"
                   icon="card"
                   className="mt-3"
-                  disabled={portalM.isPending}
+                  disabled={portalM.isPending || inSupport}
+                  title={supportNote}
                   onClick={() => portalM.mutate()}
                 >
                   {portalM.isPending ? 'A abrir…' : 'Gerir pagamento'}
                 </Button>
+                {supportNote && <p className="mt-2 text-xs text-zinc-500">{supportNote}</p>}
               </Card>
             )}
           </>

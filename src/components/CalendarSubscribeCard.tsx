@@ -3,6 +3,7 @@ import type { FocusEvent } from "react";
 import { Card, Button, Input } from "../ui/ui.jsx";
 import { Icon } from "../ui/icons.jsx";
 import { confirmDialog } from "./confirm";
+import { useSupportSession } from "../context/AuthContext";
 import {
   useScheduleCalendarFeed,
   useRotateScheduleCalendarToken,
@@ -25,6 +26,11 @@ import {
  * sem qualquer aviso.
  */
 export function CalendarSubscribeCard() {
+  // O feed traz o calendarToken (credencial sem expiração): a API recusa-o numa sessão de suporte.
+  return useSupportSession() ? null : <CalendarSubscribeCardContent />;
+}
+
+function CalendarSubscribeCardContent() {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const { data, isLoading, isError, refetch } = useScheduleCalendarFeed();

@@ -77,7 +77,7 @@ export class AdminPage {
    * a seed do e2e já tem 14+ tenants, por isso um utilizador recém-criado pode
    * cair na 2ª página. Percorre as páginas até encontrar a linha.
    */
-  private async findUserRow(rowText: string) {
+  async findUserRow(rowText: string) {
     for (let i = 0; i < 5; i++) {
       const row = this.page.locator("tr").filter({ hasText: rowText }).first();
       if (await row.count()) return row;
@@ -87,6 +87,26 @@ export class AdminPage {
       await this.page.waitForTimeout(300);
     }
     return this.page.locator("tr").filter({ hasText: rowText }).first();
+  }
+
+  // ── Users: "Entrar como" (sessão de suporte) ───────────────────────────────
+
+  /** Botão "Entrar como …" da linha do tenant (activo OU desactivado — o nome acessível muda). */
+  async impersonateButton(tenantName: string) {
+    const row = await this.userRowFromStart(tenantName);
+    return row.getByRole("button", { name: /^Entrar como / });
+  }
+
+  /** Linha do tenant, procurada desde a 1.ª página (a lista pagina client-side, 10/página). */
+  async userRowFromStart(tenantName: string) {
+    // Espera a lista carregar (skeleton → linhas reais) antes de paginar à procura da linha.
+    await expect(this.page.getByRole("button", { name: "Eliminar" }).first()).toBeVisible({
+      timeout: 15_000,
+    });
+    // `findUserRow` só avança — recomeça sempre na 1.ª página.
+    const prev = this.page.getByRole("button", { name: "Página anterior" });
+    while ((await prev.count()) > 0 && (await prev.isEnabled())) await prev.click();
+    return this.findUserRow(tenantName);
   }
 
   deleteConfirmInput() {

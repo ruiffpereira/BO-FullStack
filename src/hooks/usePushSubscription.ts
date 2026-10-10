@@ -51,7 +51,10 @@ function toSubscribePayload(json: PushSubscriptionJSON): PostPushSubscribeMutati
 }
 
 export function usePushSubscription() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, supportSession } = useAuth();
+  // Sessão de suporte: nada de push (nem pedir permissão, nem subscrever, nem
+  // desligar a subscrição do dispositivo do admin). A API recusa /push/*.
+  const inSupport = !!supportSession;
   const [permission, setPermission] =
     useState<NotificationPermission>("default");
   const [isSupported, setIsSupported] = useState(false);
@@ -90,7 +93,7 @@ export function usePushSubscription() {
 
   const subscribe = useCallback(async (): Promise<boolean> => {
     setError(null);
-    if (requiresInstall) return false;
+    if (inSupport || requiresInstall) return false;
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
       setError("Este dispositivo/browser nao suporta push notifications.");
       return false;
@@ -130,10 +133,11 @@ export function usePushSubscription() {
       );
       return false;
     }
-  }, [requiresInstall]);
+  }, [requiresInstall, inSupport]);
 
   const unsubscribe = useCallback(async (): Promise<void> => {
     setError(null);
+    if (inSupport) return;
     try {
       const registration = await navigator.serviceWorker.ready;
       const sub = await registration.pushManager.getSubscription();
@@ -152,11 +156,11 @@ export function usePushSubscription() {
           : "Nao foi possivel desativar push notifications.",
       );
     }
-  }, []);
+  }, [inSupport]);
 
   const requestAndSubscribe = useCallback(async (): Promise<boolean> => {
     setError(null);
-    if (requiresInstall) return false;
+    if (inSupport || requiresInstall) return false;
     if (typeof Notification === "undefined") {
       setError("Este dispositivo/browser nao suporta notificacoes.");
       return false;
@@ -172,13 +176,13 @@ export function usePushSubscription() {
       return false;
     }
     return subscribe();
-  }, [requiresInstall, subscribe]);
+  }, [requiresInstall, inSupport, subscribe]);
 
   // Auto-subscribe when the service worker is ready and authenticated.
   // Always re-sends existing browser subscription to the server (server does upsert),
   // so the DB stays in sync even if the table was created after the user first subscribed.
   useEffect(() => {
-    if (!isAuthenticated || requiresInstall) return;
+    if (inSupport || !isAuthenticated || requiresInstall) return;
     if (!("serviceWorker" in navigator)) return;
     if (typeof Notification === "undefined") return;
     if (Notification.permission !== "granted") return;
@@ -193,11 +197,11 @@ export function usePushSubscription() {
       }
       subscribe().catch(() => {});
     });
-  }, [isAuthenticated, requiresInstall, subscribe]);
+  }, [isAuthenticated, requiresInstall, inSupport, subscribe]);
 
   // Ensure a previous user's device subscription is removed on logout/session loss.
   useEffect(() => {
-    if (isAuthenticated) return;
+    if (inSupport || isAuthenticated) return;
     if (!("serviceWorker" in navigator)) return;
 
     let cancelled = false;
@@ -217,7 +221,7 @@ export function usePushSubscription() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, inSupport]);
 
   return {
     permission,

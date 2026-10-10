@@ -57,7 +57,11 @@ import {
  */
 export function useThemeSync() {
   const [theme, setTheme] = useState<Theme>(computeInitialTheme);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, supportSession } = useAuth();
+  // Sessão de suporte: o tema do cliente aplica-se SÓ em memória. O
+  // localStorage é partilhado por todos os separadores — gravar aqui
+  // deixava os separadores do admin com o tema do cliente.
+  const inSupport = !!supportSession;
   const qc = useQueryClient();
   const updateMe = usePutUsersMe();
 
@@ -68,9 +72,10 @@ export function useThemeSync() {
     const serverTheme = meData.uiTheme;
     const next = resolveThemeFromServer(serverTheme, getSystemPrefersDark());
     setTheme(next);
+    if (inSupport) return;
     if (serverTheme === "light" || serverTheme === "dark") persistTheme(next);
     else clearStoredTheme();
-  }, [isAuthenticated, meData?.uiTheme]);
+  }, [isAuthenticated, meData?.uiTheme, inSupport]);
 
   // NOTA: usa `theme` capturado por closure (não o updater funcional do
   // `setTheme`) de propósito — o React StrictMode invoca updaters funcionais
@@ -81,7 +86,7 @@ export function useThemeSync() {
     const prev = theme;
     const next: Theme = prev === "dark" ? "light" : "dark";
     setTheme(next);
-    persistTheme(next);
+    if (!inSupport) persistTheme(next);
     if (isAuthenticated) {
       updateMe.mutate(
         { data: { uiTheme: next } },
@@ -92,14 +97,14 @@ export function useThemeSync() {
           onError: (error) => {
             // Reversão otimista: o PUT falhou (offline/402/etc) — volta ao
             // tema anterior tanto no estado aplicado como no localStorage.
-            persistTheme(prev);
+            if (!inSupport) persistTheme(prev);
             setTheme(prev);
             toast.error(getApiError(error, "Não foi possível guardar a preferência de tema."));
           },
         },
       );
     }
-  }, [theme, isAuthenticated, updateMe, qc]);
+  }, [theme, isAuthenticated, inSupport, updateMe, qc]);
 
   return { theme, toggleTheme };
 }

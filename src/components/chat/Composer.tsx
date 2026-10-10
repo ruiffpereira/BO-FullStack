@@ -13,6 +13,8 @@ interface PendingAttachment {
 export interface ComposerProps {
   onSend: (input: MessageInput) => Promise<void>;
   disabled?: boolean;
+  /** Nota visível por cima da caixa quando está desactivada (ex.: sessão de suporte). */
+  disabledNote?: string;
   placeholder?: string;
 }
 
@@ -20,7 +22,7 @@ export interface ComposerProps {
  * Caixa de escrita do chat: textarea auto-grow, anexos de imagem com upload
  * diferido (só ao Enviar) e envio com Enter (Shift+Enter = nova linha).
  */
-export function Composer({ onSend, disabled = false, placeholder = "Escreve uma mensagem…" }: ComposerProps) {
+export function Composer({ onSend, disabled = false, disabledNote, placeholder = "Escreve uma mensagem…" }: ComposerProps) {
   const [text, setText] = useState("");
   const [atts, setAtts] = useState<PendingAttachment[]>([]);
   const [busy, setBusy] = useState(false);
@@ -96,6 +98,11 @@ export function Composer({ onSend, disabled = false, placeholder = "Escreve uma 
 
   return (
     <div className="border-t border-zinc-100 dark:border-zinc-800 px-2.5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] bg-white dark:bg-zinc-900">
+      {disabled && disabledNote && (
+        <p role="status" className="mb-2 px-1 text-xs text-zinc-500 dark:text-zinc-400">
+          {disabledNote}
+        </p>
+      )}
       {atts.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-2">
           {atts.map((a, i) => (

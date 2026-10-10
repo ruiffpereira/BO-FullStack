@@ -10,6 +10,7 @@ import { NotificationBell } from './NotificationBell'
 import { ChatLauncher } from './chat/ChatLauncher'
 import { ChatFab } from './chat/ChatFab'
 import { BillingBanner } from './BillingBanner'
+import { SupportSessionBar } from './SupportSessionBar'
 import { NavBadge } from './NavBadge'
 import { useSSE } from '../hooks/useSSE'
 import { useChatUnread } from '../hooks/useChat'
@@ -590,6 +591,7 @@ function Topbar({ theme, onToggleTheme, onMenu, onCollapse, onLogout }: {
   const location = useLocation()
   const title = resolveTopbarTitle(location.pathname)
   const { subtitle } = usePageMeta()
+  const { supportSession } = useAuth()
 
   return (
     <header className="h-16 shrink-0 border-b border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur sticky top-0 z-30 flex items-center gap-3 px-4 sm:px-6">
@@ -616,7 +618,9 @@ function Topbar({ theme, onToggleTheme, onMenu, onCollapse, onLogout }: {
       </div>
 
       <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-        <NotificationBell />
+        {/* Sessão de suporte: sem sino — as notificações são escritas (marcar/apagar)
+            que a API recusa, e o push não arranca. */}
+        {!supportSession && <NotificationBell />}
         <ChatLauncher />
         <IconButton icon={theme === 'dark' ? 'sun' : 'moon'} onClick={onToggleTheme} label="Tema" />
         <div className="w-px h-6 bg-zinc-200 dark:bg-zinc-800 mx-0.5 hidden sm:block" />
@@ -741,7 +745,11 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
 
   return (
     <PageMetaProvider>
-    <div className="flex bg-zinc-50 dark:bg-zinc-950 overflow-hidden" style={{ height: 'var(--app-h, 100%)' }}>
+    {/* Coluna: faixa de suporte (só em sessão de suporte, filho normal do flex)
+        + a linha sidebar/conteúdo, que ocupa o resto com flex-1 min-h-0. */}
+    <div className="flex flex-col bg-zinc-50 dark:bg-zinc-950 overflow-hidden" style={{ height: 'var(--app-h, 100%)' }}>
+    <SupportSessionBar />
+    <div className="flex flex-1 min-h-0">
       <SwRegistrar />
       <aside className={`hidden lg:flex flex-col shrink-0 border-r border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-[width] duration-200 ${collapsed ? 'w-[72px]' : 'w-64'}`}>
         <SidebarContent accessiblePaths={accessiblePaths} collapsed={collapsed} />
@@ -789,6 +797,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
 
       {/* Botão flutuante de mensagens (some na própria página /mensagens) */}
       <ChatFab />
+    </div>
     </div>
     </PageMetaProvider>
   )

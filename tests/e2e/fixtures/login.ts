@@ -2,7 +2,7 @@ import { type BrowserContext, expect } from "@playwright/test";
 
 export const E2E_PASSWORD = "E2ePass123!";
 
-const API = process.env.VITE_API_BASE_URL ?? "http://localhost:3002/api";
+export const API = process.env.VITE_API_BASE_URL ?? "http://localhost:3002/api";
 
 /**
  * Utilizador por omissão dos specs que autenticam via `fixtures/auth.ts`

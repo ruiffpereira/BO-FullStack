@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { MessageThread } from "./MessageThread";
 import { Composer } from "./Composer";
+import { SUPPORT_UNAVAILABLE_NOTE } from "../../lib/supportSession";
 import {
   useSupportThread,
   useSendSupportMessage,
@@ -25,7 +26,9 @@ export type ChatScope = { kind: "support" } | { kind: "admin"; tenantUserId: str
  * pagina mensagens antigas. Partilhada pelo ChatDrawer e pela tab Mensagens.
  */
 export function ChatConversationView({ scope, active = true }: { scope: ChatScope; active?: boolean }) {
-  const { authHeader, userId } = useAuth();
+  const { authHeader, userId, supportSession } = useAuth();
+  // Sessão de suporte: o chat é só de leitura (a API recusa enviar e marcar lida).
+  const inSupport = !!supportSession;
   const meRole: SenderRole = scope.kind === "support" ? "tenant" : "admin";
   const adminTenantId = scope.kind === "admin" ? scope.tenantUserId : null;
   const scopeKey = scope.kind === "support" ? "support" : `admin:${scope.tenantUserId}`;
@@ -67,7 +70,7 @@ export function ChatConversationView({ scope, active = true }: { scope: ChatScop
 
   // Marca lida quando a conversa está visível e tem não-lidas
   useEffect(() => {
-    if (!active || !thread || thread.unread <= 0) return;
+    if (inSupport || !active || !thread || thread.unread <= 0) return;
     if (scope.kind === "support") markSupport.mutate();
     else markAdmin.mutate(scope.tenantUserId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -143,6 +146,8 @@ export function ChatConversationView({ scope, active = true }: { scope: ChatScop
       <Composer
         onSend={onSend}
         placeholder={scope.kind === "support" ? "Mensagem para o suporte…" : "Responder…"}
+        disabled={inSupport}
+        disabledNote={inSupport ? SUPPORT_UNAVAILABLE_NOTE : undefined}
       />
     </div>
   );

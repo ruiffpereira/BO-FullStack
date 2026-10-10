@@ -11,6 +11,16 @@ import { axiosInstance } from "@kubb/plugin-client/clients/axios";
 import { API_BASE } from "../lib/env";
 import { queryClient } from "../lib/queryClient";
 import { notifyBillingReadOnly } from "../lib/billing402";
+import {
+  type StoredSupportSession,
+  type SupportEndReason,
+  type SupportSessionInfo,
+  clearSupportSession,
+  notifyImpersonationForbidden,
+  readSupportSession,
+  writeSupportSession,
+} from "../lib/supportSession";
+import type { PostAdminUsersUseridImpersonate200 } from "../gen/backoffice/types/PostAdminUsersUseridImpersonate.js";
 import { getCsrfToken } from "../gen/backoffice/hooks/useGetCsrfToken.js";
 import { postUsersLogin } from "../gen/backoffice/hooks/usePostUsersLogin.js";
 import { getUserpermissions } from "../gen/backoffice/hooks/useGetUserpermissions.js";
@@ -86,6 +96,21 @@ interface AuthCtx extends AuthState {
    * precisar de um logout/login.
    */
   updateIdentity: (patch: { username?: string; email?: string }) => void;
+  /**
+   * Sessão de suporte (admin dentro da conta de um tenant). `null` fora dela.
+   * Nunca expõe o token. Neste modo NUNCA há `/users/refresh`, `/users/logout`,
+   * `/push/unsubscribe` nem escritas em `localStorage` (ver o bloco "Sessão de
+   * suporte" no provider).
+   */
+  supportSession: SupportSessionInfo | null;
+  /** Motivo pelo qual a sessão de suporte deste separador terminou (ecrã final). */
+  supportEnded: SupportEndReason | null;
+  /** Adopta a resposta do `POST /admin/users/:userId/impersonate` e passa a agir como o tenant. */
+  startImpersonation: (res: PostAdminUsersUseridImpersonate200) => Promise<void>;
+  /** Termina a sessão de suporte só localmente (nada vai ao servidor). */
+  endImpersonation: (reason: SupportEndReason) => void;
+  /** "Ir para o meu backoffice": limpa o ecrã final e refaz o arranque pelo cookie (o do admin). */
+  dismissSupportEnded: () => void;
 }
 
 const AuthContext = createContext<AuthCtx | null>(null);
@@ -319,6 +344,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // como sempre foi para uma sessão já em uso.
   const bootstrapSettledRef = useRef(false);
   const reconnectAttemptsRef = useRef(0);
+  // Sessão de suporte (bloco mais abaixo). `supportActiveRef` é o interruptor
+  // lido pelos interceptors/timers (que não podem depender de estado React);
+  // `supportSession` é o que a UI vê.
+  const [supportSession, setSupportSession] = useState<SupportSessionInfo | null>(null);
+  const [supportEnded, setSupportEnded] = useState<SupportEndReason | null>(null);
+  const supportActiveRef = useRef(false);
+  const supportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Lido UMA vez e de forma pura (sem remover nada): quem actua é o efeito de
+  // arranque, que em StrictMode corre duas vezes.
+  const initialSupportRef = useRef<ReturnType<typeof readSupportSession> | null>(null);
+  if (initialSupportRef.current === null) initialSupportRef.current = readSupportSession();
   // Ref estável para navegar a partir do interceptor de resposta (o toast do
   // gate de billing aponta para /faturacao) sem re-registar o interceptor.
   const navigate = useNavigate();
@@ -351,6 +387,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // refresh and a 401-triggered refresh can never hit /users/refresh at the
   // same time (which, with refresh-token rotation, would log the user out).
   const scheduleRefresh = useCallback((accessToken: string) => {
+    // Em sessão de suporte NUNCA se agenda refresh: o cookie é o do ADMIN.
+    if (supportActiveRef.current) return;
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = setTimeout(() => {
       void doRefreshRef.current?.();
@@ -368,6 +406,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // silenciosa, como sempre foi — não faz `reconnecting` reaparecer por cima
   // de uma app já autenticada.
   const doRefresh = useCallback((): Promise<RefreshOutcome> => {
+    // Invariante da sessão de suporte: o `/users/refresh` usa o cookie do ADMIN
+    // (partilhado por todos os separadores) — chamá-lo aqui gravaria o token do
+    // admin por cima da sessão do cliente. Em modo suporte, nunca.
+    if (supportActiveRef.current) return Promise.resolve({ kind: "stale" });
     if (refreshPromiseRef.current) return refreshPromiseRef.current;
 
     const refreshVersion = authVersionRef.current;
@@ -451,6 +493,157 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     doRefreshRef.current = doRefresh;
   }, [doRefresh]);
 
+  // ── Sessão de suporte ──────────────────────────────────────────────────────
+  //
+  // O admin entra na conta de um tenant com um access token de 60 min, SEM
+  // refresh token. O cookie de refresh do BO é HttpOnly e partilhado por todos
+  // os separadores — e é o cookie do ADMIN. Daí as invariantes (todas
+  // verificadas por tests/unit/AuthContextSupport.test.tsx):
+  //   1. Em modo suporte nunca se chama `/users/refresh`: nem o timer
+  //      (`scheduleRefresh`), nem o `doRefresh`, nem o interceptor de 401. Um 401
+  //      termina a sessão de suporte e NUNCA repete o pedido (repetir com o
+  //      token do admin gravaria na conta do admin).
+  //   2. `logout()` em modo suporte nunca chama `/users/logout` nem
+  //      `/push/unsubscribe`: só termina a sessão localmente.
+  //   3. Nada se escreve no `localStorage` (identidade; o tema é tratado em
+  //      `useThemeSync`). Por isso aqui nunca se usa `clearSession`, que limpa
+  //      a identidade do admin guardada para os outros separadores.
+  //   4. O estado vive em `sessionStorage` (por separador).
+
+  const clearSupportTimer = useCallback(() => {
+    if (supportTimerRef.current) clearTimeout(supportTimerRef.current);
+    supportTimerRef.current = null;
+  }, []);
+
+  const endImpersonation = useCallback(
+    (reason: SupportEndReason) => {
+      if (!supportActiveRef.current) return;
+      supportActiveRef.current = false;
+      clearSupportTimer();
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+      refreshPromiseRef.current = null;
+      authVersionRef.current += 1;
+      clearSupportSession();
+      queryClient.clear();
+      authRef.current = emptyAuth;
+      setAuth(emptyAuth);
+      setSupportSession(null);
+      setSupportEnded(reason);
+      bootstrapSettledRef.current = true;
+      setReconnecting(false);
+      setInitializing(false);
+    },
+    [clearSupportTimer],
+  );
+
+  const armSupportTimer = useCallback(
+    (expiresAt: string) => {
+      clearSupportTimer();
+      const delay = Math.min(
+        Math.max(new Date(expiresAt).getTime() - Date.now(), 0),
+        2 ** 31 - 1,
+      );
+      supportTimerRef.current = setTimeout(() => endImpersonation("expired"), delay);
+    },
+    [clearSupportTimer, endImpersonation],
+  );
+
+  const applySupport = useCallback(
+    (s: StoredSupportSession, permissions: Permission[]) => {
+      const next: AuthState = {
+        userId: s.tenant.userId,
+        username: s.tenant.name,
+        email: s.tenant.email,
+        accessToken: s.accessToken,
+        permissions,
+        isAuthenticated: true,
+      };
+      authRef.current = next;
+      setAuth(next);
+      setSupportSession({ tenantName: s.tenant.name, expiresAt: s.expiresAt });
+      setSupportEnded(null);
+      bootstrapSettledRef.current = true;
+      setReconnecting(false);
+      armSupportTimer(s.expiresAt);
+    },
+    [armSupportTimer],
+  );
+
+  const startImpersonation = useCallback(
+    async (res: PostAdminUsersUseridImpersonate200) => {
+      const stored: StoredSupportSession = {
+        accessToken: res.accessToken,
+        expiresAt: res.expiresAt,
+        tenant: {
+          userId: res.tenant?.userId ?? "",
+          name: res.tenant?.name ?? "",
+          email: res.tenant?.email ?? "",
+        },
+      };
+      const previousToken = authRef.current.accessToken;
+      authVersionRef.current += 1;
+      const version = authVersionRef.current;
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+      refreshPromiseRef.current = null;
+      // Ligado ANTES do pedido de permissões: um 401 aí já termina a sessão.
+      supportActiveRef.current = true;
+      queryClient.clear();
+
+      let permissions: Permission[];
+      try {
+        permissions = await fetchPermissions(stored.accessToken);
+      } catch (err) {
+        if (supportActiveRef.current && version === authVersionRef.current) {
+          // Falha que não foi 401 (rede/5xx): nada foi aplicado, volta ao admin.
+          supportActiveRef.current = false;
+          if (previousToken) scheduleRefresh(previousToken);
+        }
+        throw err;
+      }
+      if (version !== authVersionRef.current || !supportActiveRef.current) return;
+
+      writeSupportSession(stored);
+      applySupport(stored, permissions);
+      navigateRef.current("/", { replace: true });
+    },
+    [applySupport, scheduleRefresh],
+  );
+
+  // Arranque (incluindo reload do separador) com uma sessão de suporte válida:
+  // retoma-a SEM nunca passar pelo `doRefresh`.
+  const resumeSupport = useCallback(
+    async (s: StoredSupportSession) => {
+      supportActiveRef.current = true;
+      authVersionRef.current += 1;
+      const version = authVersionRef.current;
+      try {
+        const permissions = await fetchPermissions(s.accessToken);
+        if (version !== authVersionRef.current || !supportActiveRef.current) return;
+        applySupport(s, permissions);
+      } catch {
+        // 401: o interceptor já a terminou (`supportActiveRef` a falso). Outra
+        // falha (rede/5xx): não dá para confirmar o acesso, termina também —
+        // reentrar a partir do admin é barato, retomar às cegas não é.
+        if (version === authVersionRef.current && supportActiveRef.current) {
+          endImpersonation("ended");
+        }
+      }
+    },
+    [applySupport, endImpersonation],
+  );
+
+  const dismissSupportEnded = useCallback(() => {
+    setSupportEnded(null);
+    setInitializing(true);
+    bootstrapSettledRef.current = false;
+    reconnectAttemptsRef.current = 0;
+    navigateRef.current("/", { replace: true });
+    const bootstrap = doRefreshRef.current?.() ?? Promise.resolve();
+    void bootstrap.finally(() => setInitializing(false));
+  }, []);
+
   useEffect(() => {
     axiosInstance.defaults.baseURL = API_BASE;
     axiosInstance.defaults.withCredentials = true;
@@ -476,6 +669,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const url = err?.config?.url ?? "";
         const is401 = err?.response?.status === 401;
         const skipRefresh = isAuthEndpoint(url);
+
+        // Sessão de suporte: um 401 (ex.: `SUPPORT_SESSION_ENDED` — o cliente
+        // revogou) termina a sessão e rejeita. NUNCA refresca nem repete: o
+        // cookie de refresh é o do admin e repetir gravaria na conta dele.
+        if (supportActiveRef.current) {
+          if (is401) endImpersonation("ended");
+          notifyImpersonationForbidden(err?.response?.status, err?.response?.data);
+          return Promise.reject(err);
+        }
 
         if (is401 && !skipRefresh && !err.config?._retry) {
           const outcome = await doRefresh();
@@ -503,14 +705,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // B12 — `initializing` só cobre a 1ª tentativa (qualquer que seja o
     // desfecho); `doRefresh` já decidiu, internamente, se esse desfecho é um
     // veredito definitivo ou um "ainda sem veredito" (`reconnecting`).
-    doRefresh().finally(() => setInitializing(false));
+    // Sessão de suporte retomada do sessionStorage: NUNCA passa pelo doRefresh.
+    const initialSupport = initialSupportRef.current;
+    if (initialSupport?.status === "valid") {
+      void resumeSupport(initialSupport.session).finally(() => setInitializing(false));
+    } else if (initialSupport?.status === "expired") {
+      clearSupportSession();
+      setSupportEnded("expired");
+      setInitializing(false);
+    } else {
+      doRefresh().finally(() => setInitializing(false));
+    }
 
     return () => {
       axiosInstance.interceptors.request.eject(reqId);
       axiosInstance.interceptors.response.eject(resId);
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      clearSupportTimer();
     };
-  }, [doRefresh]);
+  }, [doRefresh, endImpersonation, resumeSupport, clearSupportTimer]);
 
   const login = useCallback(
     async (username: string, password: string) => {
@@ -560,6 +773,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    // Sessão de suporte: só termina localmente. `/users/logout` revogaria o
+    // refresh token do ADMIN (cookie partilhado) e `/push/unsubscribe` tiraria
+    // a subscrição push do dispositivo do admin.
+    if (supportActiveRef.current) {
+      endImpersonation("exit");
+      return;
+    }
     const accessToken = authRef.current.accessToken;
     setLoggingOut(true);
     setError(null);
@@ -612,7 +832,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoggingOut(false);
     }
-  }, [clearSession, scheduleRefresh]);
+  }, [clearSession, scheduleRefresh, endImpersonation]);
 
   const authHeader = useCallback(() => {
     const token = authRef.current.accessToken;
@@ -644,6 +864,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         username: patch.username !== undefined ? patch.username : prev.username,
         email: patch.email !== undefined ? patch.email : prev.email,
       }));
+      // Sessão de suporte: a identidade é a do cliente — não vai para o
+      // localStorage (os separadores do admin herdavam-na).
+      if (supportActiveRef.current) return;
       const stored = readStoredIdentity();
       writeStoredIdentity({
         userId: stored.userId,
@@ -669,6 +892,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         reconnecting,
         setAccessToken,
         updateIdentity,
+        supportSession,
+        supportEnded,
+        startImpersonation,
+        endImpersonation,
+        dismissSupportEnded,
       }}
     >
       {children}
@@ -680,4 +908,13 @@ export function useAuth(): AuthCtx {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
   return ctx;
+}
+
+/**
+ * Leitura da sessão de suporte que NÃO exige o provider (devolve `null` sem
+ * ele). Para componentes que também são renderizados isolados (testes, páginas
+ * sem `useAuth` por outro motivo) e só precisam de saber se estão em suporte.
+ */
+export function useSupportSession(): SupportSessionInfo | null {
+  return useContext(AuthContext)?.supportSession ?? null;
 }

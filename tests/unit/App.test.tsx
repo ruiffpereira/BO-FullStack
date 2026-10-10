@@ -30,6 +30,10 @@ vi.mock("../../src/gen/backoffice/hooks/usePutUsersMe", () => ({
   usePutUsersMe: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
+vi.mock("../../src/gen/backoffice/hooks/usePostAdminUsersUseridImpersonate.js", () => ({
+  postAdminUsersUseridImpersonate: () => new Promise(() => {}),
+}));
+
 vi.mock("../../src/components/Shell", () => ({
   Shell: () => <div data-testid="shell">shell</div>,
 }));
@@ -157,5 +161,41 @@ describe("App — B12: o 3º estado 'reconnecting' nunca mostra <Login/>", () =>
 
     expect(screen.getByTestId("shell")).toBeInTheDocument();
     expect(screen.queryByTestId("reconnecting-screen")).not.toBeInTheDocument();
+  });
+});
+
+describe("App — sessão de suporte", () => {
+  it("supportEnded mostra o ecrã 'A sessão de suporte terminou' em vez do Login/Shell", () => {
+    authMock.mockReturnValue({
+      isAuthenticated: false,
+      initializing: false,
+      reconnecting: false,
+      supportEnded: "expired",
+      dismissSupportEnded: vi.fn(),
+    });
+    renderApp("/dashboard");
+
+    expect(screen.getByTestId("support-ended-screen")).toBeInTheDocument();
+    expect(screen.getByText("A sessão de suporte terminou")).toBeInTheDocument();
+    expect(screen.queryByTestId("login")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("shell")).not.toBeInTheDocument();
+  });
+
+  it("/suporte/entrar/:userId é standalone: sem sessão do admin cai no Login; com ela, fora do Shell", () => {
+    mockAuth({ isAuthenticated: false, initializing: false });
+    const { unmount } = renderApp("/suporte/entrar/u1");
+    expect(screen.getByTestId("login")).toBeInTheDocument();
+    unmount();
+
+    authMock.mockReturnValue({
+      isAuthenticated: true,
+      initializing: false,
+      reconnecting: false,
+      supportSession: null,
+      startImpersonation: vi.fn(() => new Promise(() => {})),
+    });
+    renderApp("/suporte/entrar/u1");
+    expect(screen.queryByTestId("shell")).not.toBeInTheDocument();
+    expect(screen.getByText("A iniciar a sessão de suporte…")).toBeInTheDocument();
   });
 });

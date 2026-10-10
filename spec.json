@@ -939,10 +939,16 @@
             "format": "uuid",
             "nullable": true
           },
+          "actorUserId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Admin da plataforma que agiu em nome do tenant (sessão de suporte); null = o próprio"
+          },
           "actorName": {
             "type": "string",
             "nullable": true,
-            "description": "Nome do ator (snapshot; ou username tentado no login)"
+            "description": "Nome do ator (snapshot; ou username tentado no login; em sessão de suporte, o nome do admin)"
           },
           "method": {
             "type": "string",
@@ -3772,7 +3778,7 @@
             "description": "Utilizador não encontrado"
           },
           "409": {
-            "description": "Email já em uso por outro utilizador"
+            "description": "Email já em uso por outro utilizador, ou colide com o nome (identificador de login) de outro; ou nome igual ao email de outro utilizador"
           }
         }
       }
@@ -4371,10 +4377,307 @@
         }
       }
     },
+    "/admin/users/{userId}/impersonate": {
+      "post": {
+        "summary": "Entrar na conta de um tenant (sessão de suporte, só o dono da plataforma)",
+        "description": "Emite um access token de 60 min (sem refresh token, sem cookie) que age como o tenant `userId`. Exige consentimento do tenant (`supportAccessUntil` no futuro) ou conta ainda não activada (sem password). Grava um registo no log do tenant. Não permitido a partir de outra sessão de suporte, nem sobre admins ou sobre si próprio.\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sessão de suporte criada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "tenant": {
+                      "type": "object",
+                      "properties": {
+                        "userId": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "accessToken",
+                    "expiresAt",
+                    "tenant"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "userId inválido ou igual ao do próprio"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem VIEW_ADMIN; `IMPERSONATION_FORBIDDEN`; `TARGET_IS_ADMIN`; ou `SUPPORT_ACCESS_DENIED` (sem consentimento)"
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          }
+        }
+      }
+    },
+    "/users/me/support-access": {
+      "get": {
+        "summary": "Estado do consentimento de acesso de suporte do próprio tenant",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado actual",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "supportAccessUntil": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "active": {
+                      "type": "boolean",
+                      "description": "O suporte pode entrar agora"
+                    },
+                    "pendingActivation": {
+                      "type": "boolean",
+                      "description": "Conta ainda sem password (criada pelo admin)"
+                    }
+                  },
+                  "required": [
+                    "supportAccessUntil",
+                    "active",
+                    "pendingActivation"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          }
+        }
+      },
+      "put": {
+        "summary": "Dar ou revogar o consentimento de acesso de suporte (self)",
+        "description": "`days` 1, 7 ou 30 define a expiração em now + days; 0 revoga. Indisponível numa sessão de suporte (o admin nunca estende o próprio acesso). Body estrito.\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "days"
+                ],
+                "properties": {
+                  "days": {
+                    "type": "integer",
+                    "enum": [
+                      0,
+                      1,
+                      7,
+                      30
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Novo estado (mesmo formato do GET)"
+          },
+          "400": {
+            "description": "Body inválido (zod)"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sessão de suporte (`IMPERSONATION_FORBIDDEN`)"
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          }
+        }
+      }
+    },
+    "/users/me/support-access/logs": {
+      "get": {
+        "summary": "Registo de acessos e alterações do suporte na conta do próprio tenant",
+        "description": "Linhas do tenant feitas por um admin (sessões e alterações em sessão de suporte) e as suas próprias concessões/revogações. Campos por allowlist — nunca devolve ip, userAgent, responseBody, message, stack nem o id do ator.\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de registos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "auditLogId": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "session",
+                              "grant",
+                              "revoke",
+                              "change"
+                            ]
+                          },
+                          "actorName": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "method": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "resourceType": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "resourceId": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "statusCode": {
+                            "type": "integer"
+                          },
+                          "success": {
+                            "type": "boolean"
+                          },
+                          "changes": {
+                            "type": "object",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Query inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          }
+        }
+      }
+    },
     "/users": {
       "get": {
         "summary": "List all users",
-        "description": "Sem `password`/`setupToken`. Inclui `websiteDomain` (definido só pelo admin, `PUT /admin/users/{userId}/site-domain`).",
+        "description": "Sem `password`/`setupToken`. Inclui `websiteDomain` (definido só pelo admin, `PUT /admin/users/{userId}/site-domain`), `supportAccessUntil` e `canImpersonate` (calculado no servidor — não é o próprio, não é admin da plataforma e há consentimento de suporte).",
         "tags": [
           "Users"
         ],
@@ -4400,6 +4703,14 @@
                       "websiteDomain": {
                         "type": "string",
                         "nullable": true
+                      },
+                      "supportAccessUntil": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                      },
+                      "canImpersonate": {
+                        "type": "boolean"
                       },
                       "permissions": {
                         "type": "array",
@@ -4447,9 +4758,6 @@
                   "email": {
                     "type": "string"
                   },
-                  "password": {
-                    "type": "string"
-                  },
                   "permissionId": {
                     "type": "string"
                   },
@@ -4484,6 +4792,9 @@
         "responses": {
           "200": {
             "description": "User updated successfully"
+          },
+          "403": {
+            "description": "`EMAIL_CHANGE_FORBIDDEN` — o email de uma conta activada (com password) só o altera o próprio (PUT /users/me); contas por activar e a própria conta do admin são editáveis"
           },
           "404": {
             "description": "User not found"
@@ -4520,11 +4831,9 @@
                   },
                   "permissionId": {
                     "type": "string"
-                  },
-                  "password": {
-                    "type": "string"
                   }
-                }
+                },
+                "description": "Um campo `password` no body é ignorado: o admin nunca define passwords. A conta nasce sem password, com `setupToken`, e o cliente recebe o email de setup.\n"
               }
             }
           }
@@ -13292,6 +13601,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Sessão de suporte (`IMPERSONATION_FORBIDDEN`) — o token do feed é uma credencial persistente"
           },
           "404": {
             "description": "Utilizador não encontrado"

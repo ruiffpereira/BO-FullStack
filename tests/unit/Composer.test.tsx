@@ -45,3 +45,18 @@ describe("Composer", () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 });
+
+describe("Composer — desactivado com nota (sessão de suporte)", () => {
+  it("mostra a nota e não deixa escrever nem enviar", () => {
+    render(<Composer onSend={vi.fn()} disabled disabledNote="Indisponível numa sessão de suporte" />);
+    expect(screen.getByText("Indisponível numa sessão de suporte")).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toBeDisabled();
+    expect(screen.getByLabelText("Enviar")).toBeDisabled();
+    expect(screen.getByLabelText("Anexar imagem")).toBeDisabled();
+  });
+
+  it("sem disabled a nota não aparece", () => {
+    render(<Composer onSend={vi.fn()} disabledNote="Indisponível numa sessão de suporte" />);
+    expect(screen.queryByText("Indisponível numa sessão de suporte")).not.toBeInTheDocument();
+  });
+});

@@ -48,6 +48,8 @@ import { usePatchSiteTokensIdRevoke } from "../gen/backoffice/hooks/usePatchSite
 import { useDeleteSiteTokensId } from "../gen/backoffice/hooks/useDeleteSiteTokensId.js";
 
 import type { User } from "../gen/backoffice/types/User.js";
+import type { GetUsers200 } from "../gen/backoffice/types/GetUsers.js";
+import { formatDatePt } from "../lib/supportLog";
 import type { Permission } from "../gen/backoffice/types/Permission.js";
 import type { Component } from "../gen/backoffice/types/Component.js";
 import {
@@ -239,8 +241,55 @@ function UserFormFields({
   );
 }
 
-// O tipo `User` gerado não traz `websiteDomain`; o `GET /users` traz.
-const siteDomainOf = (u: User) => (u as User & { websiteDomain?: string | null }).websiteDomain;
+// Linha da lista: o `User` gerado + os campos que só o `GET /users` traz.
+// `canImpersonate` é calculado no servidor — nunca se recalcula aqui.
+type UserRow = User &
+  Pick<GetUsers200[number], "websiteDomain" | "supportAccessUntil" | "canImpersonate">;
+
+const SUPPORT_REASON_ADMIN = "Conta de admin";
+const SUPPORT_REASON_DENIED =
+  "O cliente não autorizou o acesso — pede-lhe para o dar no Perfil";
+
+/** "Acesso de suporte até DD/MM/AAAA" — só quando a data ainda está no futuro. */
+function supportUntilLabel(u: UserRow): string | null {
+  if (!u.supportAccessUntil) return null;
+  const t = new Date(u.supportAccessUntil).getTime();
+  if (Number.isNaN(t) || t <= Date.now()) return null;
+  return `Acesso de suporte até ${formatDatePt(u.supportAccessUntil)}`;
+}
+
+/**
+ * "Entrar como" (sessão de suporte). Não é escrita, por isso `IconButton` e não
+ * `GuardButton`. Activo só se o servidor disse `canImpersonate`; desactivado
+ * mostra o motivo (title + aria-label). Abre um separador novo e deixa este
+ * intacto: quem faz o pedido e passa a agir como o tenant é `/suporte/entrar`.
+ */
+function ImpersonateButton({ user }: { user: UserRow }) {
+  const enabled = !!user.canImpersonate;
+  if (enabled) {
+    return (
+      <IconButton
+        icon="user"
+        label={`Entrar como ${user.name}`}
+        title="Entrar como"
+        onClick={() => window.open(`/suporte/entrar/${user.userId}`, "_blank", "noopener")}
+      />
+    );
+  }
+  const isAdminAccount = !!user.permissions?.some((p) => p.name === "VIEW_ADMIN");
+  const reason = isAdminAccount ? SUPPORT_REASON_ADMIN : SUPPORT_REASON_DENIED;
+  return (
+    // O botão desactivado não recebe eventos de rato: o span segura o tooltip.
+    <span className="inline-flex" title={reason}>
+      <IconButton
+        icon="user"
+        label={`Entrar como ${user.name} (indisponível): ${reason}`}
+        disabled
+        className="opacity-40 cursor-not-allowed"
+      />
+    </span>
+  );
+}
 
 function UtilizadoresTab({
   headers,
@@ -251,7 +300,7 @@ function UtilizadoresTab({
 }) {
   const qc = useQueryClient();
   const { data: users = [], isLoading } = useGetUsers({ client: { headers } });
-  const pgUsers = usePagination(users as User[]);
+  const pgUsers = usePagination(users as UserRow[]);
   const { data: permissions = [] } = useGetPermissions({ client: { headers } });
   const invalidate = () =>
     qc.invalidateQueries({ queryKey: getUsersQueryKey() });
@@ -259,7 +308,7 @@ function UtilizadoresTab({
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [selected, setSelected] = useState<User | null>(null);
+  const [selected, setSelected] = useState<UserRow | null>(null);
   const [form, setForm] = useState<UserForm>(emptyUserForm);
   // Confirmação forte do apagar tenant (B8, hard delete): o admin tem de
   // escrever o email do tenant para o botão destrutivo ficar activo.
@@ -285,9 +334,9 @@ function UtilizadoresTab({
     },
   });
 
-  const openDomain = (u: User) => {
+  const openDomain = (u: UserRow) => {
     setSelected(u);
-    setDomainValue(siteDomainOf(u) ?? "");
+    setDomainValue(u.websiteDomain ?? "");
     setDomainOpen(true);
   };
 
@@ -295,7 +344,9 @@ function UtilizadoresTab({
     client: { headers },
     mutation: {
       onSuccess: () => {
-        toast.success("Utilizador criado");
+        toast.success(
+          "Utilizador criado. Enviámos um email ao cliente para ele definir a password.",
+        );
         setCreateOpen(false);
         setForm(emptyUserForm);
         invalidate();
@@ -352,7 +403,7 @@ function UtilizadoresTab({
     },
   })
 
-  const openEdit = (u: User) => {
+  const openEdit = (u: UserRow) => {
     setSelected(u);
     setForm({
       name: u.name,
@@ -416,6 +467,11 @@ function UtilizadoresTab({
             >
               <td className="px-4 py-3.5 font-medium text-zinc-900 dark:text-white">
                 {u.name}
+                {supportUntilLabel(u) && (
+                  <span className="block text-xs font-normal text-zinc-400">
+                    {supportUntilLabel(u)}
+                  </span>
+                )}
               </td>
               <td className="px-4 py-3.5 text-zinc-500 hidden md:table-cell">
                 {u.email}
@@ -427,7 +483,7 @@ function UtilizadoresTab({
                 <CopyBtn value={u.userId} />
               </td>
               <td className="px-4 py-3.5 text-zinc-500 hidden lg:table-cell">
-                {siteDomainOf(u) ?? "—"}
+                {u.websiteDomain ?? "—"}
               </td>
               <td className="px-4 py-3.5">
                 <div className="flex flex-wrap gap-1">
@@ -444,6 +500,7 @@ function UtilizadoresTab({
               </td>
               <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
                 <div className="flex justify-end gap-1">
+                  {u.userId !== currentUserId && <ImpersonateButton user={u} />}
                   <IconButton
                     title="Enviar email de reset de password"
                     icon="key"

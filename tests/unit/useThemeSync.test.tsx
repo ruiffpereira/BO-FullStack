@@ -143,3 +143,52 @@ describe("useThemeSync — toggleTheme", () => {
     expect(putUsersMeMutate).not.toHaveBeenCalled();
   });
 });
+
+describe("useThemeSync — sessão de suporte (tema só em memória)", () => {
+  const SUPPORT = { tenantName: "Barbearia Central", expiresAt: "2030-01-01T00:00:00.000Z" };
+
+  it("o tema do cliente aplica-se mas NÃO toca no localStorage do admin", () => {
+    localStorage.setItem("bo.theme", "dark");
+    mockMatchMedia(true);
+    authMock.mockReturnValue({ isAuthenticated: true, supportSession: SUPPORT });
+    useGetUsersMeMock.mockReturnValue({ data: { uiTheme: "light" } });
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const removeItem = vi.spyOn(Storage.prototype, "removeItem");
+
+    const { result } = renderThemeSync();
+
+    expect(result.current.theme).toBe("light");
+    expect(localStorage.getItem("bo.theme")).toBe("dark");
+    expect(setItem).not.toHaveBeenCalled();
+    expect(removeItem).not.toHaveBeenCalled();
+    setItem.mockRestore();
+    removeItem.mockRestore();
+  });
+
+  it("servidor 'system' em suporte também não limpa o localStorage", () => {
+    localStorage.setItem("bo.theme", "dark");
+    mockMatchMedia(false);
+    authMock.mockReturnValue({ isAuthenticated: true, supportSession: SUPPORT });
+    useGetUsersMeMock.mockReturnValue({ data: { uiTheme: "system" } });
+
+    const { result } = renderThemeSync();
+
+    expect(result.current.theme).toBe("light");
+    expect(localStorage.getItem("bo.theme")).toBe("dark");
+  });
+
+  it("toggleTheme em suporte muda o tema e grava no servidor, mas não no localStorage", () => {
+    putUsersMeMutate.mockReset(); // o teste de reversão acima deixa uma implementação que falha
+    localStorage.setItem("bo.theme", "dark");
+    mockMatchMedia(true);
+    authMock.mockReturnValue({ isAuthenticated: true, supportSession: SUPPORT });
+    useGetUsersMeMock.mockReturnValue({ data: { uiTheme: "dark" } });
+
+    const { result } = renderThemeSync();
+    act(() => result.current.toggleTheme());
+
+    expect(result.current.theme).toBe("light");
+    expect(localStorage.getItem("bo.theme")).toBe("dark");
+    expect(putUsersMeMutate).toHaveBeenCalledTimes(1);
+  });
+});

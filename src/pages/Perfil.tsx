@@ -16,6 +16,8 @@ import type { GetUsersMe200 } from "../gen/backoffice/types/GetUsersMe";
 import { useGetSettingsLanguages, usePutSettingsLanguages } from "../hooks/useSettingsLanguages";
 import { LangFlag } from "../utils/langFlag";
 import { type UiThemeChoice } from "../lib/uiTheme";
+import { SUPPORT_UNAVAILABLE_NOTE } from "../lib/supportSession";
+import { SupportAccessCard } from "../components/SupportAccessCard";
 
 const THEME_TABS: { id: UiThemeChoice; label: string; icon: string }[] = [
   { id: "light", label: "Claro", icon: "sun" },
@@ -61,6 +63,7 @@ export function Perfil() {
         <>
           <ContaCard data={data} />
           <PasswordCard />
+          <SupportAccessCard />
           <PreferenciasCard data={data} />
           <LogoCard data={data} />
         </>
@@ -73,7 +76,9 @@ export function Perfil() {
 
 function ContaCard({ data }: { data?: GetUsersMe200 }) {
   const qc = useQueryClient();
-  const { updateIdentity } = useAuth();
+  const { updateIdentity, supportSession } = useAuth();
+  // Sessão de suporte: mudar o email é proibido (a API devolve 403); o resto edita-se.
+  const inSupport = !!supportSession;
   const updateMe = usePutUsersMe();
 
   const [name, setName] = useState("");
@@ -185,7 +190,15 @@ function ContaCard({ data }: { data?: GetUsersMe200 }) {
           setEmail(e.target.value);
           setTouched(true);
         }}
-        hint={emailChanged ? "Mudar o email exige a tua password atual." : undefined}
+        disabled={inSupport}
+        title={inSupport ? SUPPORT_UNAVAILABLE_NOTE : undefined}
+        hint={
+          inSupport
+            ? SUPPORT_UNAVAILABLE_NOTE
+            : emailChanged
+              ? "Mudar o email exige a tua password atual."
+              : undefined
+        }
       />
       {emailChanged && (
         <Input
@@ -216,7 +229,9 @@ function ContaCard({ data }: { data?: GetUsersMe200 }) {
 // ── Password ───────────────────────────────────────────────────────────────
 
 function PasswordCard() {
-  const { setAccessToken } = useAuth();
+  const { setAccessToken, supportSession } = useAuth();
+  // Sessão de suporte: mudar a password é proibido (a API devolve 403).
+  const inSupport = !!supportSession;
   const changePassword = usePutUsersMePassword();
 
   const [currentPassword, setCurrentPassword] = useState("");
@@ -225,7 +240,7 @@ function PasswordCard() {
 
   const newPasswordValid = newPassword.length >= 8;
   const passwordsMatch = newPassword.length > 0 && newPassword === confirmPassword;
-  const canSubmit = currentPassword.length > 0 && newPasswordValid && passwordsMatch;
+  const canSubmit = !inSupport && currentPassword.length > 0 && newPasswordValid && passwordsMatch;
 
   const onSubmit = () => {
     if (!canSubmit) return;
@@ -261,6 +276,7 @@ function PasswordCard() {
         label="Password atual"
         type="password"
         autoComplete="current-password"
+        disabled={inSupport}
         value={currentPassword}
         onChange={(e: any) => setCurrentPassword(e.target.value)}
       />
@@ -268,6 +284,7 @@ function PasswordCard() {
         label="Nova password"
         type="password"
         autoComplete="new-password"
+        disabled={inSupport}
         value={newPassword}
         onChange={(e: any) => setNewPassword(e.target.value)}
         hint="Mínimo 8 caracteres."
@@ -276,6 +293,7 @@ function PasswordCard() {
         label="Confirmar nova password"
         type="password"
         autoComplete="new-password"
+        disabled={inSupport}
         value={confirmPassword}
         onChange={(e: any) => setConfirmPassword(e.target.value)}
       />
@@ -283,8 +301,14 @@ function PasswordCard() {
           billing (ver `PUT /users/me/password` em `userRoutes.ts`, API) — um
           tenant read-only por dívida tem de conseguir trocar a password
           (ex.: sessão comprometida) sem ficar bloqueado por 402. */}
-      <div className="flex justify-end">
-        <Button onClick={onSubmit} disabled={!canSubmit} isLoading={changePassword.isPending}>
+      <div className="flex items-center justify-end gap-3">
+        {inSupport && <p className="text-xs text-zinc-500">{SUPPORT_UNAVAILABLE_NOTE}</p>}
+        <Button
+          onClick={onSubmit}
+          disabled={!canSubmit}
+          isLoading={changePassword.isPending}
+          title={inSupport ? SUPPORT_UNAVAILABLE_NOTE : undefined}
+        >
           Mudar password
         </Button>
       </div>

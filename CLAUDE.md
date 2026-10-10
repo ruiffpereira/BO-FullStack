@@ -214,6 +214,29 @@ depende dela.
 - `updateIdentity({username?, email?})` — sincroniza a identidade em memória + localStorage sem
   round-trip, para o avatar/topbar ficarem coerentes sem logout.
 
+### Sessão de suporte (admin dentro da conta de um tenant)
+
+O admin entra na conta de um tenant (sem password, com consentimento do tenant que expira) pelo
+Admin → Utilizadores → "Entrar como", que abre `/suporte/entrar/:userId` num separador novo
+(`pages/SupportEntry.tsx`, standalone, fora do Shell). Token de 60 min, **sem refresh token**. O
+cookie de refresh é HttpOnly, partilhado por todos os separadores, e é o **do admin** — daí, em
+modo suporte (`supportSession` no `AuthContext`), invariantes que não se negoceiam (provadas em
+`tests/unit/AuthContextSupport.test.tsx`):
+
+- **Nunca `/users/refresh`**: nem o timer, nem o `doRefresh`, nem o interceptor de 401. Um 401 faz
+  `endImpersonation("ended")` e rejeita — nunca repete o pedido.
+- **`logout()` nunca chama `/users/logout` nem `/push/unsubscribe`** — só termina localmente.
+- **Nada no `localStorage`**: nem `backoffice.auth.identity` (`updateIdentity` não grava), nem o tema
+  (`useThemeSync` aplica só em memória). Nunca usar `clearSession` neste modo (limpa a identidade do admin).
+- O estado vive no **`sessionStorage`** (`backoffice.supportSession`, por separador); um reload retoma-o
+  sem `doRefresh`; expirado → ecrã "A sessão de suporte terminou" (`pages/SupportEnded.tsx`).
+
+Em modo suporte também não arrancam `useSSE` nem `usePushSubscription`, o sino de notificações
+esconde-se, e chat (envio), password/email do Perfil e escritas de Faturação ficam desactivados com
+"Indisponível numa sessão de suporte" (`lib/supportSession.ts`). Um `403 IMPERSONATION_FORBIDDEN` que
+escape dá um toast (`notifyImpersonationForbidden`, no molde do `billing402`). A faixa âmbar é
+`components/SupportSessionBar.tsx` (filho do flex do Shell). `canImpersonate` vem do servidor — nunca recalcular.
+
 ---
 
 ## Layout — alturas SEMPRE por flex (regra obrigatória)

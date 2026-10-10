@@ -3620,6 +3620,206 @@
         }
       }
     },
+    "/admin/cors-origins": {
+      "get": {
+        "summary": "Domínios permitidos no CORS (só o dono da plataforma)",
+        "description": "Devolve os domínios EXTRA geridos aqui (`extra`), os websites dos tenants que entram automaticamente (`tenants`, só leitura) e as origens definidas no servidor pela env `CORS_ORIGINS` (`env`, só leitura e informativo). Exige `VIEW_ADMIN`; fechado em sessão de suporte.\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Domínios permitidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "extra",
+                    "tenants",
+                    "env"
+                  ],
+                  "properties": {
+                    "extra": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "corsOriginId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "domain": {
+                            "type": "string",
+                            "example": "exemplo.pt"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    },
+                    "tenants": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "domain": {
+                            "type": "string",
+                            "example": "cliente.pt"
+                          }
+                        }
+                      }
+                    },
+                    "env": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_ADMIN"
+          },
+          "500": {
+            "description": "Erro interno"
+          }
+        }
+      },
+      "post": {
+        "summary": "Permitir um domínio extra no CORS (só o dono da plataforma)",
+        "description": "Acrescenta um domínio (normalizado — sem protocolo/path/espaços, minúsculas) à lista de origens aceites no CORS, com credenciais. Aceita `https://<domínio>` exacto e a variante www/apex. Exige `VIEW_ADMIN`. **409** `{ error: \"domain_exists\" }` se já estiver na lista ou for o website de algum tenant.\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "domain"
+                ],
+                "properties": {
+                  "domain": {
+                    "type": "string",
+                    "example": "exemplo.pt"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Domínio acrescentado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "corsOriginId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "domain": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Domínio em falta ou inválido (recusa IPs, localhost, nomes de rede interna, um só rótulo, porta, rótulos vazios)"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_ADMIN"
+          },
+          "409": {
+            "description": "Domínio já permitido (corpo domain_exists)"
+          },
+          "500": {
+            "description": "Erro interno"
+          }
+        }
+      }
+    },
+    "/admin/cors-origins/{corsOriginId}": {
+      "delete": {
+        "summary": "Deixar de permitir um domínio extra no CORS (só o dono da plataforma)",
+        "description": "Remove um domínio da lista de extras. Não mexe nos websites dos tenants. Exige `VIEW_ADMIN`. A cache de origens é invalidada de imediato.\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "corsOriginId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removido"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_ADMIN"
+          },
+          "404": {
+            "description": "Domínio não encontrado (ou id que não é UUID)"
+          },
+          "500": {
+            "description": "Erro interno"
+          }
+        }
+      }
+    },
     "/users/me": {
       "get": {
         "summary": "Perfil do tenant autenticado (self)",

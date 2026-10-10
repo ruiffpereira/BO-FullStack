@@ -76,6 +76,7 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     { id: "permissoes", label: "Permissões", path: "/admin/permissoes" },
     { id: "componentes", label: "Componentes", path: "/admin/componentes" },
     { id: "tokens", label: "Tokens de site", path: "/admin/tokens" },
+    { id: "dominios", label: "Domínios permitidos", path: "/admin/dominios" },
     { id: "faturacao", label: "Faturação", path: "/admin/faturacao" },
     { id: "integracoes", label: "Integrações", path: "/admin/integracoes" },
     { id: "atividade", label: "Atividade", path: "/admin/atividade" },

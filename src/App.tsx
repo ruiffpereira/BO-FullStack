@@ -217,6 +217,7 @@ function App() {
         <Route path="/admin/permissoes" element={<Admin view="permissoes" />} />
         <Route path="/admin/componentes" element={<Admin view="componentes" />} />
         <Route path="/admin/tokens" element={<Admin view="tokens" />} />
+        <Route path="/admin/dominios" element={<Admin view="dominios" />} />
         <Route path="/admin/faturacao" element={<Admin view="faturacao" />} />
         <Route path="/admin/integracoes" element={<Admin view="integracoes" />} />
         <Route path="/admin/atividade" element={<Admin view="atividade" />} />

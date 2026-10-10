@@ -8,12 +8,13 @@ export class AdminPage {
     await this.page.waitForURL("**/admin", { timeout: 15_000 });
   }
 
-  /** Subitens da sidebar (T2.4): Utilizadores (âncora, `/admin`) · Permissões · Componentes · Tokens de site · Faturação · Integrações · Atividade · Sistema — botões do submenu, não mais role="tab". */
+  /** Subitens da sidebar (T2.4): Utilizadores (âncora, `/admin`) · Permissões · Componentes · Tokens de site · Domínios permitidos · Faturação · Integrações · Atividade · Sistema — botões do submenu, não mais role="tab". */
   private static PATH_BY_LABEL: Record<string, string> = {
     Utilizadores: "/admin",
     Permissões: "/admin/permissoes",
     Componentes: "/admin/componentes",
     "Tokens de site": "/admin/tokens",
+    "Domínios permitidos": "/admin/dominios",
     Faturação: "/admin/faturacao",
     Integrações: "/admin/integracoes",
     Atividade: "/admin/atividade",
@@ -38,8 +39,9 @@ export class AdminPage {
     await this.page.waitForSelector('[role="dialog"]', { timeout: 5_000 });
   }
 
-  async fillUserForm(opts: { username?: string; email?: string; phone?: string; password?: string }) {
+  async fillUserForm(opts: { username?: string; email?: string; phone?: string; password?: string; websiteDomain?: string }) {
     const dialog = this.page.locator('[role="dialog"]');
+    if (opts.websiteDomain) await dialog.getByLabel("Website do cliente (opcional)").fill(opts.websiteDomain);
     // O "username" no formulário é o campo "Nome" (primeiro input do modal).
     if (opts.username) await dialog.locator("input").first().fill(opts.username);
     if (opts.email)    await dialog.locator('input[type="email"]').first().fill(opts.email);
@@ -56,7 +58,7 @@ export class AdminPage {
     await this.page.locator('[role="dialog"] button', { hasText: /criar|guardar|confirmar/i }).last().click();
   }
 
-  async createUser(opts: { username: string; email: string; password?: string }) {
+  async createUser(opts: { username: string; email: string; password?: string; websiteDomain?: string }) {
     await this.openNewUserModal();
     await this.fillUserForm(opts);
     await this.submitUserForm();
@@ -121,6 +123,36 @@ export class AdminPage {
     await this.openDeleteUserModal(rowText);
     await this.deleteConfirmInput().fill(email);
     await this.deleteConfirmButton().click();
+  }
+
+  // ── Domínios permitidos (CORS) ────────────────────────────────────────────
+
+  dominioInput() {
+    return this.page.getByPlaceholder("exemplo.pt");
+  }
+
+  /** Linha (`<li>`) de um domínio extra. */
+  dominioExtraRow(domain: string) {
+    return this.page.locator("li").filter({ hasText: domain }).filter({ has: this.page.getByRole("button", { name: "Remover" }) });
+  }
+
+  async addDominio(domain: string) {
+    await this.dominioInput().fill(domain);
+    await this.page.getByRole("button", { name: "Adicionar", exact: true }).click();
+  }
+
+  /** Remove (com confirmação) um domínio extra, se existir — idempotente para reruns. */
+  async removeDominioIfPresent(domain: string) {
+    const row = this.dominioExtraRow(domain);
+    if ((await row.count()) === 0) return;
+    await this.removeDominio(domain);
+  }
+
+  async removeDominio(domain: string) {
+    await this.dominioExtraRow(domain).getByRole("button", { name: "Remover" }).click();
+    const dialog = this.page.locator('[role="dialog"]');
+    await expect(dialog).toContainText(`Remover "${domain}"?`);
+    await dialog.getByRole("button", { name: "Remover", exact: true }).click();
   }
 
   // ── Permissions ───────────────────────────────────────────────────────────

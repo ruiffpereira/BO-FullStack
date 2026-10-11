@@ -3,7 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { getApiError } from "../lib/apiError";
 import { Icon } from "../ui/icons.jsx";
-import { Card, Button, IconButton, Badge, Modal, Input, Toggle, EmptyState, BADGE_TONES } from "../ui/ui.jsx";
+import { Card, Button, IconButton, Badge, Modal, Input, Toggle, EmptyState, Tabs, BADGE_TONES } from "../ui/ui.jsx";
+import { useWriteGuard } from "../hooks/useWriteGuard";
 import { DatePicker } from "../components/DatePicker";
 import { TimeField } from "../components/TimeField";
 import {
@@ -18,7 +19,13 @@ import {
 import { usePostScheduleBlockedSlots } from "../gen/backoffice/hooks/usePostScheduleBlockedSlots.js";
 import { useDeleteScheduleBlockedSlotsId } from "../gen/backoffice/hooks/useDeleteScheduleBlockedSlotsId.js";
 import { usePostScheduleBlockedSlotsVacation } from "../gen/backoffice/hooks/usePostScheduleBlockedSlotsVacation.js";
+import {
+  useGetScheduleSettings,
+  getScheduleSettingsQueryKey,
+} from "../gen/backoffice/hooks/useGetScheduleSettings.js";
+import { useUpdateScheduleSettings } from "../gen/backoffice/hooks/useUpdateScheduleSettings.js";
 import type { WorkingHours } from "../gen/backoffice/types/WorkingHours.js";
+import type { ScheduleSettings } from "../gen/backoffice/types/ScheduleSettings.js";
 
 // ── Constantes / helpers ─────────────────────────────────────────────────────
 const FULL_DAY_NAMES = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
@@ -225,6 +232,59 @@ function BloqueioModal({ open, onClose, onSave, pending }: {
 }
 
 // ── Painel de Configurações da Agenda ────────────────────────────────────────
+// ── Intervalo da grelha do calendário ─────────────────────────────────────────
+const SLOT_TABS = [10, 15, 20, 30, 60].map((m) => ({ id: String(m), label: `${m} min` }));
+
+export function GrelhaCard() {
+  const qc = useQueryClient();
+  const { readOnly, message } = useWriteGuard();
+  const { data, isLoading } = useGetScheduleSettings();
+  const slotMinutes = data?.slotMinutes ?? 15;
+  const save = useUpdateScheduleSettings();
+
+  // Grava de imediato (como o tema no Perfil). Otimista na cache partilhada,
+  // para o calendário mudar já; reverte se o PUT falhar.
+  const onChange = (id: string) => {
+    const next = Number(id) as ScheduleSettings["slotMinutes"];
+    if (readOnly || next === slotMinutes) return;
+    const key = getScheduleSettingsQueryKey();
+    const prev = qc.getQueryData(key);
+    qc.setQueryData(key, { slotMinutes: next });
+    save.mutate(
+      { data: { slotMinutes: next } },
+      {
+        onSuccess: () => toast.success("Intervalo do calendário guardado"),
+        onError: (error) => {
+          qc.setQueryData(key, prev);
+          toast.error(getApiError(error));
+        },
+      },
+    );
+  };
+
+  return (
+    <Card className="p-5">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Icon name="calendar" className="w-4 h-4 text-zinc-400 shrink-0" />
+            <h3 className="font-semibold text-zinc-900 dark:text-white">Intervalo do calendário</h3>
+          </div>
+          <p className="text-[13px] text-zinc-500 mt-0.5">
+            De quantos em quantos minutos encaixam as marcações ao clicar ou arrastar. Não muda as horas da reserva online.
+          </p>
+          {readOnly && <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">{message}</p>}
+        </div>
+        {isLoading ? (
+          <div className="sm:ml-auto h-9 w-72 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" />
+        ) : (
+          <Tabs size="sm" className="sm:ml-auto shrink-0" tabs={SLOT_TABS} value={String(slotMinutes)} onChange={onChange} />
+        )}
+      </div>
+    </Card>
+  );
+}
+
 export function ConfiguracoesPanel() {
   const qc = useQueryClient();
   const [horarioOpen, setHorarioOpen] = useState(false);
@@ -287,6 +347,8 @@ export function ConfiguracoesPanel() {
 
   return (
     <div className="space-y-6">
+      <GrelhaCard />
+
       {/* Horário semanal — resumo + editor em modal */}
       <Card className="p-5">
         <div className="flex items-center justify-between gap-3 mb-3">

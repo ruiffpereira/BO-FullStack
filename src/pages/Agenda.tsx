@@ -55,6 +55,7 @@ import {
   getScheduleWorkingHoursQueryKey,
 } from "../gen/backoffice/hooks/useGetScheduleWorkingHours.js";
 import { usePostScheduleWorkingHours } from "../gen/backoffice/hooks/usePostScheduleWorkingHours.js";
+import { useGetScheduleSettings } from "../gen/backoffice/hooks/useGetScheduleSettings.js";
 import {
   useGetScheduleBlockedSlots,
   getScheduleBlockedSlotsQueryKey,
@@ -992,7 +993,7 @@ function CalendarioView() {
       didInitScroll.current = true;
     }
   }, []);
-  // Slot de 15 min sob o rato (hover) → realce + tooltip dia/hora.
+  // Slot da grelha sob o rato (hover) → realce + tooltip dia/hora.
   const [hoverSlot, setHoverSlot] = useState<{ day: Date; min: number } | null>(
     null,
   );
@@ -1013,6 +1014,17 @@ function CalendarioView() {
   const { data: customersData } = useGetCustomers();
   const { data: blockedSlots = [] } = useGetScheduleBlockedSlots({ from, to });
   const { data: workingHours = [] } = useGetScheduleWorkingHours();
+  // Intervalo da grelha (preferência do tenant). Só visual — a reserva online
+  // tem o seu próprio passo na API. Ref para os handlers do efeito de ponteiros.
+  const { data: scheduleSettings } = useGetScheduleSettings();
+  const slotMin = scheduleSettings?.slotMinutes ?? 15;
+  const slotMinRef = useRef(slotMin);
+  slotMinRef.current = slotMin;
+  // Minutos dentro de cada hora onde a grelha desenha um tick (ex.: 20 → [20, 40]).
+  const slotTicks = Array.from(
+    { length: Math.ceil(60 / slotMin) - 1 },
+    (_, i) => (i + 1) * slotMin,
+  );
   const customers = customersData?.rows ?? [];
 
   const invalidateAppts = () =>
@@ -1160,8 +1172,9 @@ function CalendarioView() {
         const rect = d.colEl.getBoundingClientRect();
         const y = Math.max(0, e.clientY - rect.top);
         const totalMin = (y / AG_ROW_H) * 60 + AG_H_START * 60;
+        const step = slotMinRef.current;
         const snapped = Math.min(
-          Math.max(Math.round(totalMin / 15) * 15, AG_H_START * 60),
+          Math.max(Math.round(totalMin / step) * step, AG_H_START * 60),
           AG_H_END * 60,
         );
         d.endMin = snapped;
@@ -1235,8 +1248,9 @@ function CalendarioView() {
           const rawMin =
             ((e.clientY - r.top - ad.grabYInGhost) / AG_ROW_H) * 60 +
             AG_H_START * 60;
+          const step = slotMinRef.current;
           targetMin = Math.min(
-            Math.max(Math.round(rawMin / 15) * 15, AG_H_START * 60),
+            Math.max(Math.round(rawMin / step) * step, AG_H_START * 60),
             (AG_H_END - 1) * 60,
           );
           break;
@@ -1285,7 +1299,7 @@ function CalendarioView() {
         dragRef.current = null;
         setDragSelRef.current(null);
         document.body.style.touchAction = "";
-        if (endMin - startMin >= 15) {
+        if (endMin - startMin >= slotMinRef.current) {
           setDragActionRef.current({
             x: e.clientX,
             y: e.clientY,
@@ -1612,14 +1626,14 @@ function CalendarioView() {
                       const rect = e.currentTarget.getBoundingClientRect();
                       const y = Math.max(0, e.clientY - rect.top);
                       const totalMin = (y / AG_ROW_H) * 60 + AG_H_START * 60;
-                      const snapped = Math.round(totalMin / 15) * 15;
+                      const snapped = Math.round(totalMin / slotMin) * slotMin;
                       if (isTouch) {
                         // Touch: sem drag-to-select. Guarda o ponto para detetar um TAP
                         // (preview → agendar). O swipe faz scroll (touchAction pan) e
                         // dispara pointercancel, cancelando o tap.
                         const min = Math.min(
                           Math.max(snapped, AG_H_START * 60),
-                          AG_H_END * 60 - 15,
+                          AG_H_END * 60 - slotMin,
                         );
                         touchTapRef.current = {
                           day,
@@ -1654,10 +1668,10 @@ function CalendarioView() {
                       const totalMin = (y / AG_ROW_H) * 60 + AG_H_START * 60;
                       const min = Math.min(
                         Math.max(
-                          Math.floor(totalMin / 15) * 15,
+                          Math.floor(totalMin / slotMin) * slotMin,
                           AG_H_START * 60,
                         ),
-                        AG_H_END * 60 - 15,
+                        AG_H_END * 60 - slotMin,
                       );
                       // Slot já ocupado por uma marcação → não mostrar o hover de "criar aqui".
                       if (slotHasAppt(min)) {
@@ -1700,20 +1714,24 @@ function CalendarioView() {
                       touchTapRef.current = null;
                     }}
                   >
-                    {/* Grelha: linha de hora (forte) + ticks de 15/30/45 min */}
+                    {/* Grelha: linha de hora (forte) + um tick por intervalo (a meia hora mais marcada) */}
                     {hours.map((h) => (
                       <div
                         key={h}
                         className="relative border-b border-zinc-100 dark:border-zinc-800/50"
                         style={{ height: AG_ROW_H }}
                       >
-                        <div className="pointer-events-none absolute inset-x-0 top-1/4 border-t border-dashed border-zinc-100/60 dark:border-zinc-800/25" />
-                        <div className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-zinc-100/80 dark:border-zinc-800/35" />
-                        <div className="pointer-events-none absolute inset-x-0 top-3/4 border-t border-dashed border-zinc-100/60 dark:border-zinc-800/25" />
+                        {slotTicks.map((m) => (
+                          <div
+                            key={m}
+                            className={`pointer-events-none absolute inset-x-0 border-t ${m === 30 ? "border-zinc-100/80 dark:border-zinc-800/35" : "border-dashed border-zinc-100/60 dark:border-zinc-800/25"}`}
+                            style={{ top: (m / 60) * AG_ROW_H }}
+                          />
+                        ))}
                       </div>
                     ))}
 
-                    {/* Hover: realce da célula de 15 min + tooltip dia/hora (só em slots livres) */}
+                    {/* Hover: realce da célula do intervalo + tooltip dia/hora (só em slots livres) */}
                     {hoverSlot &&
                       isSameDay(hoverSlot.day, day) &&
                       !hasDragSel && (
@@ -1723,7 +1741,7 @@ function CalendarioView() {
                             top:
                               ((hoverSlot.min - AG_H_START * 60) / 60) *
                               AG_ROW_H,
-                            height: AG_ROW_H / 4,
+                            height: (AG_ROW_H * slotMin) / 60,
                           }}
                         >
                           <div className="mx-0.5 h-full rounded-md bg-accent/10 ring-1 ring-inset ring-accent/40 dark:bg-accent/20" />

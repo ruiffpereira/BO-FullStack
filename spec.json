@@ -561,6 +561,25 @@
           "servicePrice"
         ]
       },
+      "ScheduleSettings": {
+        "type": "object",
+        "properties": {
+          "slotMinutes": {
+            "type": "integer",
+            "enum": [
+              10,
+              15,
+              20,
+              30,
+              60
+            ],
+            "description": "Intervalo da grelha do calendário da Agenda (minutos; só visual)"
+          }
+        },
+        "required": [
+          "slotMinutes"
+        ]
+      },
       "WorkingHours": {
         "type": "object",
         "properties": {
@@ -13851,6 +13870,104 @@
           },
           "500": {
             "description": "Erro ao regenerar o token"
+          }
+        }
+      }
+    },
+    "/schedule/settings": {
+      "get": {
+        "summary": "Obter as preferências da agenda (intervalo da grelha)",
+        "operationId": "getScheduleSettings",
+        "tags": [
+          "WorkingHours"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Preferências da agenda do tenant autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_SCHEDULE"
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          }
+        }
+      },
+      "put": {
+        "summary": "Guardar as preferências da agenda (intervalo da grelha)",
+        "operationId": "updateScheduleSettings",
+        "tags": [
+          "WorkingHours"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "slotMinutes"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "slotMinutes": {
+                    "type": "integer",
+                    "enum": [
+                      10,
+                      15,
+                      20,
+                      30,
+                      60
+                    ],
+                    "description": "Intervalo da grelha do calendário, em minutos (só visual)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preferências guardadas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body inválido (slotMinutes tem de ser 10, 15, 20, 30 ou 60)"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_SCHEDULE"
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
           }
         }
       }

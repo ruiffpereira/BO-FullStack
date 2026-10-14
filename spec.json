@@ -7373,6 +7373,340 @@
         }
       }
     },
+    "/cms/site-builder/save": {
+      "post": {
+        "summary": "Grava páginas e itens do construtor (uma gravação = uma transacção)",
+        "description": "Aplica `pages.upsert`/`pages.delete` e as listas COMPLETAS de itens (`items[pageId]`) sobre o estado do tenant, valida o estado FINAL (árvore, endereços por língua, traduções, referências, itens) e escreve tudo numa só transacção, com lock na linha do tenant (`SELECT … FOR UPDATE`). O `path` é calculado pelo servidor. Se o endereço de uma página mudar (slug, mãe ou `slugs` por língua), criam-se redireccionamentos do antigo para a página e para as descendentes (o `fromPath` leva o prefixo `/en/…` nas línguas que não a base) e apagam-se os que passaram a ser endereço vivo. `revision` sobe 1; com `publishMode='github'` marca `publishRequestedAt`. Ids de outro tenant → 404 (nada é alterado). `blocks`, `folders` e `parts` são aceites na forma, mas preenchidos são recusados com `422 NOT_YET` (chegam no F05). Exige `VIEW_SITE_PAGES`.\n",
+        "tags": [
+          "CMS"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "baseRevision"
+                ],
+                "properties": {
+                  "baseRevision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Revisão que o editor leu (tem de ser a actual)"
+                  },
+                  "pages": {
+                    "type": "object",
+                    "properties": {
+                      "upsert": {
+                        "type": "array",
+                        "description": "Páginas completas (id UUID gerado no cliente). `path` é ignorado.",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "slug",
+                            "title"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "parentId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "nullable": true
+                            },
+                            "sortOrder": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "isHome": {
+                              "type": "boolean"
+                            },
+                            "slug": {
+                              "type": "string",
+                              "maxLength": 80,
+                              "description": "Língua base; \"\" na home"
+                            },
+                            "slugs": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "nullable": true
+                            },
+                            "title": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "draft",
+                                "published"
+                              ]
+                            },
+                            "seo": {
+                              "type": "object",
+                              "nullable": true
+                            }
+                          }
+                        }
+                      },
+                      "delete": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      }
+                    }
+                  },
+                  "blocks": {
+                    "type": "object",
+                    "description": "Só vazio nesta fatia (422 NOT_YET se preenchido)"
+                  },
+                  "folders": {
+                    "type": "object",
+                    "description": "Só vazio nesta fatia (422 NOT_YET se preenchido)"
+                  },
+                  "items": {
+                    "type": "object",
+                    "description": "Lista COMPLETA e ordenada de cada página tocada, por id da página",
+                    "additionalProperties": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "kind"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "block",
+                              "special"
+                            ]
+                          },
+                          "blockId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "nullable": true
+                          },
+                          "specialType": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "specialData": {
+                            "type": "object",
+                            "nullable": true
+                          },
+                          "hidden": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "parts": {
+                    "type": "object",
+                    "description": "Só vazio nesta fatia (422 NOT_YET se preenchido)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Gravado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "revision",
+                    "redirectsAdded"
+                  ],
+                  "properties": {
+                    "revision": {
+                      "type": "integer"
+                    },
+                    "redirectsAdded": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "fromPath": {
+                            "type": "string"
+                          },
+                          "pageId": {
+                            "type": "string",
+                            "format": "uuid"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo com forma inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "402": {
+            "description": "Subscrição da plataforma inactiva (billingGate)"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_SITE_PAGES, ou construtor desligado para o tenant"
+          },
+          "404": {
+            "description": "Um id (página, item) pertence a outro tenant, ou apagar uma página que não é do tenant"
+          },
+          "409": {
+            "description": "`REVISION_CONFLICT {revision}` (baseRevision desactualizada) ou `PAGE_IN_USE {refs}` (apagar página com filhas ou referenciada)\n",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "REVISION_CONFLICT",
+                        "PAGE_IN_USE"
+                      ]
+                    },
+                    "revision": {
+                      "type": "integer"
+                    },
+                    "refs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "pageId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "description": "A página que se tentou apagar"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "targetId": {
+                            "type": "string"
+                          },
+                          "entity": {
+                            "type": "string",
+                            "enum": [
+                              "block",
+                              "part",
+                              "item",
+                              "page"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION {issues}` (regras do §6) ou `NOT_YET` (blocks/folders/parts preenchidos)\n",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION",
+                        "NOT_YET"
+                      ]
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "code",
+                          "entity",
+                          "id",
+                          "message"
+                        ],
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "entity": {
+                            "type": "string",
+                            "enum": [
+                              "page",
+                              "block",
+                              "part",
+                              "item",
+                              "folder"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "locale": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "keys": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erro interno"
+          }
+        }
+      }
+    },
     "/customers/{id}/export": {
       "get": {
         "summary": "Exportar dados pessoais do cliente (RGPD)",

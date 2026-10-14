@@ -25,11 +25,14 @@ const MODULE_PERM_TO_PATH: Record<string, string> = {
   VIEW_SCHEDULE:  '/agenda',
   VIEW_PRODUCTS:  '/loja',
   VIEW_GYM:       '/ginasio',
+  // Construtor de páginas (B38): item de topo próprio, só com a permissão. O label "Páginas" não
+  // existe em nenhum SUBMENU nem noutro item da sidebar (ver a regra dos labels em CLAUDE.md).
+  VIEW_SITE_PAGES: '/paginas',
 }
 
 // Ordem fixa de apresentação na sidebar (independente de core/módulos/admin).
 // Cada item só aparece se for acessível ao tenant (permissões + admin).
-const MENU_ORDER = ['/dashboard', '/admin', '/clientes', '/mensagens', '/conteudos', '/estatisticas', '/loja', '/agenda', '/ginasio', '/financeiro', '/faturacao']
+const MENU_ORDER = ['/dashboard', '/admin', '/clientes', '/mensagens', '/conteudos', '/paginas', '/estatisticas', '/loja', '/agenda', '/ginasio', '/financeiro', '/faturacao']
 
 const ROUTE_META: Record<string, { nome: string; icon: string }> = {
   '/dashboard':         { nome: 'Dashboard',  icon: 'dashboard' },
@@ -43,6 +46,7 @@ const ROUTE_META: Record<string, { nome: string; icon: string }> = {
   '/ginasio':           { nome: 'Ginásio',    icon: 'trend' },
   '/conteudos':         { nome: 'Conteúdos',  icon: 'layers' },
   '/estatisticas':      { nome: 'Estatísticas', icon: 'arrowUp' },
+  '/paginas':           { nome: 'Páginas',    icon: 'globe' },
   '/admin':             { nome: 'Admin',      icon: 'shield' },
   // Fora da sidebar (acede-se pelo menu do avatar, AvatarMenu) — entrada só
   // para o título do topbar (resolveTopbarTitle) reconhecer a rota.
@@ -742,6 +746,9 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   // sem padding e sem scroll no <main> (a própria página gere o seu scroll interno).
   // Ex.: /mensagens (chat imersivo tipo app de mensagens).
   const fullBleed = location.pathname === "/mensagens";
+  // /paginas (construtor): a própria página reparte a altura por flex (barra + duas colunas com
+  // scroll interno) — o <main> não faz scroll e o contentor enche-o (sem alturas fixas).
+  const fillPage = location.pathname === "/paginas";
 
   return (
     <PageMetaProvider>
@@ -782,12 +789,14 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
             isso persiste no topo enquanto o conteúdo faz scroll. Silenciosa
             quando está tudo pago. */}
         <BillingBanner />
-        <main className={`flex-1 min-h-0 ${fullBleed ? "overflow-hidden sm:overflow-y-auto" : "overflow-y-auto"}`}>
+        <main className={`flex-1 min-h-0 ${fullBleed || fillPage ? "overflow-hidden" : "overflow-y-auto"}${fullBleed ? " sm:overflow-y-auto" : ""}`}>
           <div
             className={
-              fullBleed
-                ? "h-full sm:h-auto sm:max-w-[1400px] sm:mx-auto sm:px-6 lg:px-8 sm:py-8"
-                : "max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8"
+              fillPage
+                ? "h-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4"
+                : fullBleed
+                  ? "h-full sm:h-auto sm:max-w-[1400px] sm:mx-auto sm:px-6 lg:px-8 sm:py-8"
+                  : "max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8"
             }
           >
             {children}

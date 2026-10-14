@@ -15,7 +15,7 @@
 | F07 | API · uploads de PDF | ✅ | API `5845f14` · BO (spec + `useUploadPdf`). Suite 3096 verde, build. `POST /uploads/pdf` só com bytes `%PDF-`, `Content-Type` fixo; `isOwnedUrl` em `src/utils/ownedMedia.ts` substitui o stub. seguranca-api +47: temporários além do 1.º ficavam no disco (nos 3 uploads) e `isOwnedUrl` aceitava invisíveis — corrigidos. `spec.json` gerado offline com `ts-node scripts/dumpSpec.ts backoffice` (o refresh pede a API de pé) |
 | F08 | API · publicação | ✅ | API `cc8fb50` · BO (spec, 3 rotas). Suite 3187 verde (1.ª corrida: 1 falha não identificada que não se repetiu; os 91 testes da publicação 5×5 verdes). Sem coluna nova: revisão esperada = `revision`; 3 min de graça para o `cms-build.json`; 30 min → falhou; falha do dispatch não repete sozinha. seguranca-api +26 e pentest-api +22: 5 brechas corrigidas (prefixo do token em erros, tenant preso em `running` por revisão > INT ou run id inválido, `cms-build.json` sem tecto, corpo citado no erro, save no segundo do dispatch). ⚠ o pentest fez 2 chamadas reais ao GitHub com token falso (401) — testes agora falham em `fetch` não mockado. **Em aberto:** `websiteDomain` validado só pelo nome (DNS para IP interno = SSRF cego, só o admin define o domínio). **Para o F19:** `deploy.yml` com `concurrency` |
 | F09 | API · fecho e contrato congelado | ✅ | API `8891bb4`. CONTRATO **v1 congelada** (§11 = alterações). Revisão cruzada: 0 de segurança; corrigidos `updatedAt` público (blocos e itens), extensão do `media` (`BAD_MEDIA_KIND`), `Vary` com `Authorization`. Suite 3189 verde; a falha intermitente do F08 era o teste de CORS a colidir com o `127.0.0.1` dos testes de SSRF — corrigido. Spec do BO inalterado. Orçamento final da API ~3 550 linhas (sem @swagger) |
-| F10 | BO · base, estado, gravar | 🔄 | |
+| F10 | BO · base, estado, gravar | ✅ | API `b01a742` (seed `pages@e2e`). tsc + 482 unitários (57 novos) + e2e `paginas-rbac` 25 verdes nas 3 larguras; `rbac*` 58 verdes. Estado em `state/` (reducer, histórico por fotografias, changeset mínimo, traduções em falta); 1 151 linhas. "Publicar agora" ainda sem botão (hook pronto) |
 | F11 | BO · lista lateral | ⬜ | |
 | F12 | BO · conteúdo da página | ⬜ | |
 | F13 | BO · renderizador de campos | ⬜ | |
@@ -23,11 +23,11 @@
 | F15 | BO · definições e SEO | ⬜ | |
 | F16 | BO · admin + e2e (3 larguras) | ⬜ | |
 | F17 | Site · kit Astro | ✅ | winterplateau `ad7e2ed` (branch `cms`). Em paralelo com o BO (decisão do dono, 2026-10-14). Kit 909 linhas + check 134. Build falha com a API em baixo (provado); `check-build` 503 verificações; `text.ts` único caminho para `set:html`. `spec.site.json` gerado do código da API e committado; `KUBB_OFFLINE=1`. Removidas as páginas antigas e `public/robots.txt`/`sitemap.xml` (só neste branch). **Para o F19:** confirmar redirects antigos (`/Projetos.html`→`/obras`, `/privacidade.html`); o `src/gen` do booking está desactualizado face ao `spec.json` (não é do épico); repo sem `user.name` local (commits com `-c user.name=Rui`) |
-| F18 | Site · componentes e estilos | ⬜ | Estilos D-D: _(preencher no F18)_ |
+| F18 | Site · componentes e estilos | 🔄 | Estilos D-D decididos (ver abaixo) |
 | F19 | Go-live e fecho | ⬜ | |
 
 ## Decisões tomadas durante a execução
 - **2026-10-14 · D-A** textos em JSON nas tabelas do construtor (não `ContentEntry`) · **D-B** publicação pelo
   `workflow_dispatch` do GitHub · **D-C** menu "Páginas". (Também no `DECISOES.md`.)
 - **2026-10-14 · Meta = local.** O épico está terminado quando tudo funciona **no PC de casa** (API + Backoffice + winterplateau em local). O deploy (A9, push, CI, produção) fica para o fim e é do dono — não bloqueia F17–F19; o site prova-se com a API local ou `CMS_FIXTURE`.
-- **D-D** estilos da Winterplateau: _(preencher no F18)_
+- **D-D** estilos da Winterplateau: títulos **Secção · Destaque · Frase grande** (44–50 / 58–60 / 72–74 px, itálico no azul) · botões **Cheio · Contorno** (o contorno escurece sozinho em fundo claro) · textos Normal · Introdução · Nota · imagens Normal · Cantos redondos · Largura total · fundos Claro · Escuro · Azul da marca. Decidido pelo dono a 2026-10-14 (também no `DECISOES.md`).

@@ -125,6 +125,7 @@ Detalhe de cada página em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
 | `Loja.tsx` | `/loja` · `/encomendas` · `/categorias` | `VIEW_PRODUCTS` |
 | `Ginasio.tsx` | `/ginasio` · `/treinos` · `/planos` · `/clientes` | `VIEW_GYM` |
 | `Admin.tsx` | `/admin` + 8 subrotas | `VIEW_ADMIN` |
+| `paginas/Paginas.tsx` | `/paginas` | `VIEW_SITE_PAGES` — construtor de páginas (B38). Item de topo próprio; sem construtor ligado ao tenant mostra o estado vazio. Estado e regras em `pages/paginas/state/` (reducer, histórico, changeset, traduções em falta); hooks em `hooks/useSiteBuilder.ts` |
 | `Estatisticas.tsx` | `/estatisticas` | **core** (Umami, tenant-open na API). Item de topo próprio desde B35 — a página `Website.tsx` (site-engine) saiu; `/website` e `/website/estatisticas` ficam como redirects de compatibilidade |
 | `Login` · `SetupPassword` · `Signup` | `/login` · `/setup-password` · `/signup` | **público** (standalone, sem Shell). **`/signup` escondido** (`FEATURES.signup = false`, `src/lib/features.ts`): redirecciona para o login e o link "Criar conta" sai |
 
@@ -137,7 +138,7 @@ Detalhe de cada página em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
   mas um tenant criado pelo Admin pode não ter. Os subitens levam a `perm` correspondente.
 - **Root sem nenhum subitem permitido sai do `accessiblePaths`** (some da sidebar; o guard trata o
   deep-link como rota desconhecida). É o caso de Clientes sem `VIEW_CUSTOMERS` (B5).
-- **Módulos (por permissão, `MODULE_PERM_TO_PATH`):** Agenda · Loja · Ginásio. **Admin** à parte.
+- **Módulos (por permissão, `MODULE_PERM_TO_PATH`):** Agenda · Loja · Ginásio · Páginas (`VIEW_SITE_PAGES`, B38). **Admin** à parte.
 - **Ordem da sidebar** (`MENU_ORDER`) é um array fixo; o que não estiver listado vai para o fim.
 - **Submenus:** `SUBMENU: Record<path, SubmenuItem[]>` em `src/lib/navigation.ts` é a **fonte única**
   (`perm` aceita `string | string[]`; array = OR). `allowedSubitems` filtra, `findRoot` resolve a que

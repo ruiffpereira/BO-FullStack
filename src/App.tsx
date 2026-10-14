@@ -15,6 +15,7 @@ import { Conteudos } from "./pages/Conteudos";
 import { Ginasio } from "./pages/Ginasio";
 import { FinanceiroPage } from "./pages/FinanceiroPage";
 import { Estatisticas } from "./pages/Estatisticas";
+import { Paginas } from "./pages/paginas/Paginas";
 import { Mensagens } from "./pages/Mensagens";
 import { Faturacao } from "./pages/Faturacao";
 import { Perfil } from "./pages/Perfil";
@@ -178,6 +179,8 @@ function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/estatisticas" element={<Estatisticas />} />
+        {/* Construtor de páginas: o item "Páginas" da sidebar só existe com VIEW_SITE_PAGES; o guard do Shell trata o resto. */}
+        <Route path="/paginas" element={<Paginas />} />
         <Route path="/financeiro" element={<LegacyTabEntry root="/financeiro" param="vista"><FinanceiroPage view="negocio" /></LegacyTabEntry>} />
         <Route path="/financeiro/agenda" element={<FinanceiroPage view="agenda" />} />
         <Route path="/financeiro/loja" element={<FinanceiroPage view="loja" />} />

@@ -10,7 +10,7 @@
 | F02 | API · catálogo, manifest, validadores | ✅ | API `50cedfc` (suite 2378 verde, tsc; 1 462 linhas). Leituras restritivas: topo só 1 coluna; SEO da página 120/320/300; `video.source` obrigatório; manifest só restringe as partes |
 | F03 | API · leitura do editor + admin | ✅ | API `ee82767` · BO `1300015` (spec). Suite 2445 verde; seguranca-api +29, sem brechas. errorLogger: 413/400 do body-parser deixam de dar 500 (todas as rotas). `kubb:refresh` precisa da API de pé: usei a e2e (`VITE_API_BASE_URL=http://localhost:3002/api`) |
 | F04 | API · gravar 1/2 (páginas) | ✅ | API `eb6b26a` · BO `0290573` (spec). Suite 2652 verde; seguranca-api +115, 1 achado (`parentId: ""` → 500) corrigido. **Para o F09:** `UUID_RE` aceita maiúsculas e os ids são `utf8mb4_bin` — o UUID do B em maiúsculas vira id novo do A (não toca no B); normalizar para minúsculas |
-| F05 | API · gravar 2/2 (blocos) + pentest | ⬜ | |
+| F05 | API · gravar 2/2 (blocos) + pentest | ✅ | API `ed0b178` · BO `a9229d5` (spec). Suite 2900 verde. seguranca-api: 3 brechas corrigidas (JSON profundo e surrogates davam 500; `__proto__` contornava a validação — globais em `security.ts`). pentest-api: 0 brechas entre tenants; links `javascript:` em `md` corrigidos. **Orçamento da API: ~2 900 de ~3 000 linhas** com F06–F08 por fazer — vai passar, sem chegar ao dobro |
 | F06 | API · objecto público + pentest | ⬜ | |
 | F07 | API · uploads de PDF | ⬜ | |
 | F08 | API · publicação | ⬜ | |

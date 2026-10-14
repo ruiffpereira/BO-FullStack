@@ -7375,8 +7375,8 @@
     },
     "/cms/site-builder/save": {
       "post": {
-        "summary": "Grava páginas e itens do construtor (uma gravação = uma transacção)",
-        "description": "Aplica `pages.upsert`/`pages.delete` e as listas COMPLETAS de itens (`items[pageId]`) sobre o estado do tenant, valida o estado FINAL (árvore, endereços por língua, traduções, referências, itens) e escreve tudo numa só transacção, com lock na linha do tenant (`SELECT … FOR UPDATE`). O `path` é calculado pelo servidor. Se o endereço de uma página mudar (slug, mãe ou `slugs` por língua), criam-se redireccionamentos do antigo para a página e para as descendentes (o `fromPath` leva o prefixo `/en/…` nas línguas que não a base) e apagam-se os que passaram a ser endereço vivo. `revision` sobe 1; com `publishMode='github'` marca `publishRequestedAt`. Ids de outro tenant → 404 (nada é alterado). `blocks`, `folders` e `parts` são aceites na forma, mas preenchidos são recusados com `422 NOT_YET` (chegam no F05). Exige `VIEW_SITE_PAGES`.\n",
+        "summary": "Grava páginas, itens, blocos, pastas e partes comuns do construtor (uma gravação = uma transacção)",
+        "description": "Aplica `pages.upsert`/`pages.delete` e as listas COMPLETAS de itens (`items[pageId]`) sobre o estado do tenant, valida o estado FINAL (árvore, endereços por língua, traduções, referências, itens) e escreve tudo numa só transacção, com lock na linha do tenant (`SELECT … FOR UPDATE`). O `path` é calculado pelo servidor. Se o endereço de uma página mudar (slug, mãe ou `slugs` por língua), criam-se redireccionamentos do antigo para a página e para as descendentes (o `fromPath` leva o prefixo `/en/…` nas línguas que não a base) e apagam-se os que passaram a ser endereço vivo. `revision` sobe 1; com `publishMode='github'` marca `publishRequestedAt`. Ids de outro tenant → 404 (nada é alterado). `blocks.upsert/delete` e `folders.upsert/delete` mexem na biblioteca; `parts.topo`/`parts.rodape` substituem a parte inteira (`null`/ausente = não mexer; `{comps:[]}` esvazia). Um ÚNICO varrimento valida o estado final do tenant (páginas, TODOS os blocos usados ou não, partes, itens e especiais, traduções, limites do §6.8): o `422` pode apontar para um bloco que não vinha no pedido. Apagar bloco ainda numa página → `409 BLOCK_IN_USE`; apagar pasta com blocos → `409 FOLDER_NOT_EMPTY` (ambos contados no estado final: tirar o bloco da página no mesmo pedido é legítimo). Âncoras únicas por tenant (trocar duas âncoras no mesmo pedido é permitido). `folderId` de uma pasta que não é do tenant → `422 BAD_REF` (igual a uma pasta inexistente). Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
           "CMS"
         ],
@@ -7473,11 +7473,110 @@
                   },
                   "blocks": {
                     "type": "object",
-                    "description": "Só vazio nesta fatia (422 NOT_YET se preenchido)"
+                    "properties": {
+                      "upsert": {
+                        "type": "array",
+                        "description": "Blocos completos (id UUID gerado no cliente); `comps` substitui a lista inteira",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "name",
+                            "layout",
+                            "bg",
+                            "comps"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "name": {
+                              "type": "string",
+                              "maxLength": 120
+                            },
+                            "folderId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "nullable": true
+                            },
+                            "sortOrder": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "layout": {
+                              "type": "integer",
+                              "enum": [
+                                1,
+                                2,
+                                3
+                              ]
+                            },
+                            "bg": {
+                              "type": "string",
+                              "description": "Id de manifest.backgrounds"
+                            },
+                            "anchor": {
+                              "type": "string",
+                              "nullable": true,
+                              "maxLength": 60,
+                              "description": "Ex.: \"#como-trabalhamos\"; único por tenant"
+                            },
+                            "comps": {
+                              "type": "array",
+                              "maxItems": 40,
+                              "items": {
+                                "type": "object",
+                                "description": "Componente (CONTRATO §3.2): id, type, style, col, v"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "delete": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      }
+                    }
                   },
                   "folders": {
                     "type": "object",
-                    "description": "Só vazio nesta fatia (422 NOT_YET se preenchido)"
+                    "properties": {
+                      "upsert": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "name": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "sortOrder": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          }
+                        }
+                      },
+                      "delete": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      }
+                    }
                   },
                   "items": {
                     "type": "object",
@@ -7524,7 +7623,19 @@
                   },
                   "parts": {
                     "type": "object",
-                    "description": "Só vazio nesta fatia (422 NOT_YET se preenchido)"
+                    "description": "Partes comuns; cada uma substitui a anterior. Componentes limitados a manifest.parts (ou ao defeito)",
+                    "properties": {
+                      "topo": {
+                        "type": "object",
+                        "nullable": true,
+                        "description": "{comps:[Component]}"
+                      },
+                      "rodape": {
+                        "type": "object",
+                        "nullable": true,
+                        "description": "{layout:1|2|3, bg, comps:[Component]}"
+                      }
+                    }
                   }
                 }
               }
@@ -7579,10 +7690,10 @@
             "description": "Sem permissão VIEW_SITE_PAGES, ou construtor desligado para o tenant"
           },
           "404": {
-            "description": "Um id (página, item) pertence a outro tenant, ou apagar uma página que não é do tenant"
+            "description": "Um id (página, item, bloco, pasta) pertence a outro tenant, ou apagar algo que não é do tenant"
           },
           "409": {
-            "description": "`REVISION_CONFLICT {revision}` (baseRevision desactualizada) ou `PAGE_IN_USE {refs}` (apagar página com filhas ou referenciada)\n",
+            "description": "`REVISION_CONFLICT {revision}` (baseRevision desactualizada) ou `PAGE_IN_USE {refs}` (apagar página com filhas ou referenciada), `BLOCK_IN_USE {pages:[{blockId,pageId}]}` (apagar bloco ainda numa página) ou `FOLDER_NOT_EMPTY {blocks:[{folderId,blockId}]}` (apagar pasta com blocos)\n",
             "content": {
               "application/json": {
                 "schema": {
@@ -7592,11 +7703,47 @@
                       "type": "string",
                       "enum": [
                         "REVISION_CONFLICT",
-                        "PAGE_IN_USE"
+                        "PAGE_IN_USE",
+                        "BLOCK_IN_USE",
+                        "FOLDER_NOT_EMPTY"
                       ]
                     },
                     "revision": {
                       "type": "integer"
+                    },
+                    "pages": {
+                      "type": "array",
+                      "description": "BLOCK_IN_USE",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "blockId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "pageId": {
+                            "type": "string",
+                            "format": "uuid"
+                          }
+                        }
+                      }
+                    },
+                    "blocks": {
+                      "type": "array",
+                      "description": "FOLDER_NOT_EMPTY",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "folderId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "blockId": {
+                            "type": "string",
+                            "format": "uuid"
+                          }
+                        }
+                      }
                     },
                     "refs": {
                       "type": "array",
@@ -7638,7 +7785,7 @@
             }
           },
           "422": {
-            "description": "`VALIDATION {issues}` (regras do §6) ou `NOT_YET` (blocks/folders/parts preenchidos)\n",
+            "description": "`VALIDATION {issues}` (regras do §6 sobre o estado final: páginas, blocos, pastas, partes, itens/especiais, traduções)\n",
             "content": {
               "application/json": {
                 "schema": {
@@ -7647,8 +7794,7 @@
                     "code": {
                       "type": "string",
                       "enum": [
-                        "VALIDATION",
-                        "NOT_YET"
+                        "VALIDATION"
                       ]
                     },
                     "issues": {
@@ -7688,12 +7834,6 @@
                             "type": "string"
                           }
                         }
-                      }
-                    },
-                    "keys": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
                       }
                     }
                   }

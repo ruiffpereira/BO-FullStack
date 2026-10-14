@@ -15679,6 +15679,81 @@
           }
         }
       }
+    },
+    "/uploads/pdf": {
+      "post": {
+        "operationId": "uploadPdf",
+        "summary": "Upload de PDF (sem processar) para SeaweedFS",
+        "description": "Aceita só `application/pdf` até 20MB cujo conteúdo comece por `%PDF-` (os bytes são verificados, não só o mimetype/extensão). Guardado tal-qual em `<userId>/site/<uuid>-<nome-limpo>.pdf`.\n",
+        "tags": [
+          "Uploads"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "PDF (máx 20MB)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "PDF enviado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "fileUrl",
+                    "key",
+                    "contentType",
+                    "size"
+                  ],
+                  "properties": {
+                    "fileUrl": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "contentType": {
+                      "type": "string",
+                      "example": "application/pdf"
+                    },
+                    "size": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ficheiro em falta, não é um PDF válido ou demasiado grande"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "429": {
+            "description": "Limite de uploads por minuto excedido"
+          },
+          "503": {
+            "description": "Storage não configurado"
+          }
+        }
+      }
     }
   },
   "tags": [

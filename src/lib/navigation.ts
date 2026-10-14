@@ -103,14 +103,13 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     // `CMS_TABS` em `Conteudos.tsx` (VIEW_PRODUCTS/VIEW_SCHEDULE/VIEW_GYM) —
     // o `allowedSubitems`/guard do `Shell.tsx` fazem exatamente o que
     // `visibleTabs` fazia antes (filtrar + redirecionar para o 1.º
-    // permitido). Nenhum destes 4 primeiros subitens pôde manter o nome
-    // "óbvio" (Website/Loja/Agenda/Ginásio): colidiam com o nome acessível
-    // dos itens homónimos da sidebar, sempre visíveis quando o subitem
-    // também está — para produtos/serviços/ginásio a MESMA permissão que
-    // gate o subitem gate também o item de módulo, por isso a colisão era
-    // garantida; para o site público, o item `/conteudos` é core (sempre
-    // visível a qualquer tenant). Mesmo problema e solução do "Progresso de
-    // clientes" no Ginásio (T2.5).
+    // permitido). Produtos/Serviços/Ginásio (nomes) não podem ter o nome
+    // "óbvio" (Loja/Agenda/Ginásio): colidiam com o nome acessível dos itens
+    // de módulo homónimos da sidebar — a MESMA permissão gate o subitem e o
+    // módulo, por isso a colisão é garantida. Mesmo problema e solução do
+    // "Progresso de clientes" no Ginásio (T2.5). "Website" já pode: este
+    // subitem chamava-se "Site público" enquanto existia o item "Website"
+    // (`/website`) na sidebar, que saiu no B35.
     // `VIEW_CMS` acrescentado em 2026-09-24: esta aba lê e escreve `/cms/entries`,
     // que a API gateia por essa permissão (routes/index.ts). Sem `perm` aqui, um
     // utilizador sem VIEW_CMS via a aba e levava 403 ao abri-la — não perde
@@ -119,7 +118,7 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     // ⚠ NÃO acrescentar o mesmo a "Emails"/"Notificações": esses lêem
     // `/cms/{email,notification}-templates`, que exigem só sessão iniciada. A UI
     // e a API concordam aí de propósito — são dados de referência, como Línguas.
-    { id: "website", label: "Site público", path: "/conteudos", perm: "VIEW_CMS" },
+    { id: "website", label: "Website", path: "/conteudos", perm: "VIEW_CMS" },
     { id: "product", label: "Produtos", path: "/conteudos/produtos", perm: "VIEW_PRODUCTS" },
     { id: "service", label: "Serviços", path: "/conteudos/servicos", perm: "VIEW_SCHEDULE" },
     { id: "gym", label: "Ginásio (nomes)", path: "/conteudos/ginasio", perm: "VIEW_GYM" },

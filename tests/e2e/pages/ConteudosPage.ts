@@ -27,16 +27,15 @@ export class ConteudosPage {
   }
 
   /**
-   * Subitens da sidebar (T2.6): Site público · Produtos* · Serviços* ·
+   * Subitens da sidebar (T2.6): Website · Produtos* · Serviços* ·
    * Ginásio (nomes)* · Línguas · Emails · Notificações (*gated por permissão,
-   * como as tabs antigas). Nenhum dos 4 primeiros pôde manter o nome "óbvio"
-   * (Website/Loja/Agenda/Ginásio): colidiam com o nome acessível dos itens
-   * homónimos da sidebar sempre que o subitem também está visível — mesmo
-   * problema e solução do "Progresso de clientes" no Ginásio (T2.5). Ver
-   * `src/lib/navigation.ts`.
+   * como as tabs antigas). Produtos/Serviços/Ginásio (nomes) não podem ter o
+   * nome "óbvio" (Loja/Agenda/Ginásio): colidiam com o nome acessível dos
+   * itens de módulo homónimos da sidebar — mesmo problema e solução do
+   * "Progresso de clientes" no Ginásio (T2.5). Ver `src/lib/navigation.ts`.
    */
   private static PATH_BY_LABEL: Record<string, string> = {
-    "Site público": "/conteudos",
+    Website: "/conteudos",
     Produtos: "/conteudos/produtos",
     Serviços: "/conteudos/servicos",
     "Ginásio (nomes)": "/conteudos/ginasio",

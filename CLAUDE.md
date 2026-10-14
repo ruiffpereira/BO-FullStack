@@ -152,7 +152,7 @@ Detalhe de cada página em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
 > grupo expande, subitens e itens de módulo coexistem no mesmo `<nav>`: um subitem homónimo de um
 > item sempre visível duplica o nome em qualquer `getByRole("button", { name })` e **parte os testes
 > RBAC/e2e**. Por isso "Lista" (não "Clientes") em `/clientes`; "Progresso de clientes" em
-> `/ginasio/clientes`; "Site público"/"Produtos"/"Serviços"/"Ginásio (nomes)" nos subitens de
+> `/ginasio/clientes`; "Produtos"/"Serviços"/"Ginásio (nomes)" nos subitens de
 > `/conteudos`. Os subitens só existem no DOM quando o grupo está expandido — nunca escondidos por CSS.
 
 ---

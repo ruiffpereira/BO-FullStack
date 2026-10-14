@@ -118,16 +118,16 @@ const TYPE_LABEL: Record<string, string> = { text: "Texto", image: "Imagem" };
 // Labels usados nas mensagens internas da página (empty states, título do
 // modal de secção). Alinhados com os labels do submenu da sidebar
 // (`SUBMENU["/conteudos"]`, `src/lib/navigation.ts`) — incluindo o mesmo
-// desambiguar de "Website"/"Loja"/"Agenda"/"Ginásio" (que colidiriam com os
-// nomes acessíveis dos itens homónimos da sidebar): "Site público",
-// "Produtos", "Serviços", "Ginásio (nomes)". Ver o comentário lá para o porquê.
+// desambiguar de "Loja"/"Agenda"/"Ginásio" (que colidiriam com os nomes
+// acessíveis dos itens de módulo da sidebar): "Produtos", "Serviços",
+// "Ginásio (nomes)". Ver o comentário lá para o porquê.
 const CMS_TABS: {
   id: ConteudosView;
   label: string;
   icon: string;
   permission: string | null;
 }[] = [
-  { id: "website", label: "Site público", icon: "globe", permission: null },
+  { id: "website", label: "Website", icon: "globe", permission: null },
   { id: "product", label: "Produtos", icon: "store", permission: "VIEW_PRODUCTS" },
   {
     id: "service",
@@ -795,7 +795,7 @@ function CmsReferencesModal({
 const SITE_ICON_KEY = "site.icon";
 
 /**
- * Cartão fixo "Ícone do site", no topo do contexto "Site público". Reutiliza os
+ * Cartão fixo "Ícone do site", no topo do contexto "Website". Reutiliza os
  * MESMOS hooks de CMS que o resto da página (`putCmsEntries` / `useDeleteCmsEntriesKey`)
  * — não é um endpoint novo, é uma entrada CMS como outra qualquer, só com UI dedicada.
  *

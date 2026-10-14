@@ -5,7 +5,7 @@
 
 | # | Fatia | Estado | Commits / notas |
 |---|---|---|---|
-| F00 | Arranque: decisões, pendentes, CI do winterplateau | ⬜ | |
+| F00 | Arranque: decisões, pendentes, CI do winterplateau | ✅ | BO `07ca4fa` ("Website", e2e conteudos+rbac 59 verdes). CI do winterplateau sem secrets → **A9** do TASKS da raiz (bloqueia só F17+) |
 | F01 | API · modelos, migração, purga, permissão | ⬜ | |
 | F02 | API · catálogo, manifest, validadores | ⬜ | |
 | F03 | API · leitura do editor + admin | ⬜ | |

@@ -4403,6 +4403,303 @@
         }
       }
     },
+    "/admin/users/{userId}/site-builder": {
+      "get": {
+        "summary": "Estado do construtor de páginas de um tenant (só o dono da plataforma)",
+        "description": "Devolve se o construtor está activo, um resumo do manifest e a configuração de publicação (sem o token do GitHub — só `hasToken`). Sem linha → `enabled: false`. Exige `VIEW_ADMIN` e recusa sessões de suporte (impersonation).\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado do construtor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "manifestSummary": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "version": {
+                          "type": "integer"
+                        },
+                        "styleTypes": {
+                          "type": "integer"
+                        },
+                        "backgrounds": {
+                          "type": "integer"
+                        },
+                        "icons": {
+                          "type": "integer"
+                        },
+                        "specials": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "publish": {
+                      "type": "object",
+                      "properties": {
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "runtime",
+                            "github"
+                          ]
+                        },
+                        "repo": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "workflow": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "ref": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "hasToken": {
+                          "type": "boolean"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "idle",
+                            "pending",
+                            "running",
+                            "live",
+                            "failed"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_ADMIN, ou sessão de suporte (IMPERSONATION_FORBIDDEN)"
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          },
+          "500": {
+            "description": "Erro interno"
+          }
+        }
+      },
+      "put": {
+        "summary": "Ligar ou desligar o construtor de páginas de um tenant (só o dono da plataforma)",
+        "description": "Cria a linha do construtor se ainda não existir. Desligar não apaga conteúdo — o menu \"Páginas\" do tenant mostra o estado vazio e o `GET /cms/site-builder` devolve `{ enabled: false }`. Exige `VIEW_ADMIN` e recusa sessões de suporte.\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "enabled"
+                ],
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Estado gravado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`enabled` em falta ou não booleano"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_ADMIN, ou sessão de suporte (IMPERSONATION_FORBIDDEN)"
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          },
+          "500": {
+            "description": "Erro interno"
+          }
+        }
+      }
+    },
+    "/admin/users/{userId}/site-builder/manifest": {
+      "put": {
+        "summary": "Carregar o manifest do site de um tenant (só o dono da plataforma)",
+        "description": "O corpo é o manifest (CONTRATO §4: estilos, fundos, ícones, partes e especiais), validado por zod — nunca JSON Schema. Corpo máximo 1 MB (acima → 413). Cria a linha do construtor se não existir. Se o tenant já tem conteúdo e o manifest novo tira um estilo/fundo/ícone/especial em uso, recusa com **409 MANIFEST_IN_USE** e a lista de onde está a ser usado (nada é gravado). Não altera a revisão do conteúdo. Exige `VIEW_ADMIN` e recusa sessões de suporte.\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "version",
+                  "backgrounds"
+                ],
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "enum": [
+                      1
+                    ]
+                  },
+                  "styles": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  },
+                  "backgrounds": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "icons": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "parts": {
+                    "type": "object"
+                  },
+                  "specials": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Manifest gravado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "manifestSummary": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_ADMIN, ou sessão de suporte (IMPERSONATION_FORBIDDEN)"
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          },
+          "409": {
+            "description": "`{ code: \"MANIFEST_IN_USE\", usages: [{ kind, key, entity, id, path }] }` — o manifest novo deixaria órfão algo que está em uso.\n"
+          },
+          "413": {
+            "description": "Corpo acima de 1 MB"
+          },
+          "422": {
+            "description": "`{ code: VALIDATION, issues: [Issue] }` — manifest inválido"
+          },
+          "500": {
+            "description": "Erro interno"
+          }
+        }
+      }
+    },
     "/admin/users/{userId}/site-domain": {
       "put": {
         "summary": "Definir o domínio do site de um tenant (só o dono da plataforma)",
@@ -6933,6 +7230,145 @@
         "responses": {
           "200": {
             "description": "Secção eliminada"
+          }
+        }
+      }
+    },
+    "/cms/site-builder": {
+      "get": {
+        "summary": "Estado completo do construtor de páginas do tenant (para o editor)",
+        "description": "Devolve `{ enabled: false }` se o tenant não tem o construtor activo (sem linha ou desligado). Caso contrário devolve o estado inteiro do tenant autenticado: revisão, línguas (`User.languages`, ou só a língua base se vazia), catálogo do núcleo, manifest, páginas (por ordem), itens por página (ordenados), blocos, pastas, partes comuns (topo/rodapé), redireccionamentos, estado da publicação (sem credenciais) e limites. Tudo filtrado pelo `userId` do token. Exige `VIEW_SITE_PAGES`.\n",
+        "tags": [
+          "CMS"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado do construtor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "enabled"
+                  ],
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "revision": {
+                      "type": "integer"
+                    },
+                    "languages": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "defaultLanguage": {
+                      "type": "string"
+                    },
+                    "catalog": {
+                      "type": "object"
+                    },
+                    "manifest": {
+                      "type": "object",
+                      "nullable": true
+                    },
+                    "pages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "type": "object"
+                        }
+                      }
+                    },
+                    "blocks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "folders": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "parts": {
+                      "type": "object"
+                    },
+                    "redirects": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "publish": {
+                      "type": "object",
+                      "properties": {
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "runtime",
+                            "github"
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "idle",
+                            "pending",
+                            "running",
+                            "live",
+                            "failed"
+                          ]
+                        },
+                        "liveRevision": {
+                          "type": "integer",
+                          "nullable": true
+                        },
+                        "requestedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
+                        },
+                        "error": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "limits": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "402": {
+            "description": "Subscrição da plataforma inactiva (billingGate)"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_SITE_PAGES"
+          },
+          "500": {
+            "description": "Erro interno"
           }
         }
       }

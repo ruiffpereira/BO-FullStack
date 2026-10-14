@@ -91,7 +91,8 @@ describe("Paginas", () => {
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: "Obras" }));
     expect(screen.getByRole("heading", { name: "Obras" })).toBeInTheDocument();
-    expect(screen.getByText("Rascunho")).toBeInTheDocument();
+    // o selo aparece no centro e na linha da lista
+    expect(screen.getAllByText("Rascunho")).toHaveLength(2);
   });
 
   it("traduções em falta: chip 'N por traduzir', Guardar bloqueado", () => {

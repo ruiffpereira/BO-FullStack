@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Badge, Button, Card, EmptyState } from "../../ui/ui.jsx";
 import { GuardButton } from "../../components/GuardButton";
 import { Icon } from "../../ui/icons.jsx";
 import { useSiteBuilderQuery } from "../../hooks/useSiteBuilder";
 import { BuilderProvider, useBuilder } from "./state/store";
-import { flattenPages, pageTitle } from "./state/tree";
+import { pageTitle } from "./state/tree";
+import { ListColumn } from "./components/ListColumn";
 
 /**
  * Páginas (construtor de páginas, F10): o esqueleto — barra de topo, lista | centro e os avisos de
@@ -177,40 +178,15 @@ function Notices() {
   return null;
 }
 
-// ── colunas (marcadores; o desenho vem no F11–F15) ───────────────────────────
-
-function ListColumn({ className, onOpen }: { className: string; onOpen: () => void }) {
-  const { state, lang, select } = useBuilder();
-  const rows = useMemo(() => flattenPages(state.work.pages), [state.work.pages]);
-  return (
-    <nav
-      aria-label="Páginas do site"
-      className={`${className} flex-col w-full min-[860px]:w-[232px] min-[1180px]:w-[300px] shrink-0 min-h-0 overflow-y-auto rounded-xl border border-zinc-200/80 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-900`}
-    >
-      {rows.length === 0 && <p className="px-3 py-4 text-sm text-zinc-500">Ainda não há páginas.</p>}
-      {rows.map(({ page, depth }) => {
-        const active = state.pageId === page.id;
-        return (
-          <button
-            key={page.id}
-            type="button"
-            aria-current={active ? "page" : undefined}
-            onClick={() => { select({ pageId: page.id, sel: { kind: "page", id: page.id } }); onOpen(); }}
-            style={{ paddingLeft: 12 + depth * 14 }}
-            className={`w-full min-h-10 text-left pr-3 py-2 rounded-lg text-sm font-medium truncate transition-colors ${active ? "bg-accent/10 text-accent" : "text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/70"}`}
-          >
-            {pageTitle(page, lang.defaultLanguage)}
-          </button>
-        );
-      })}
-    </nav>
-  );
-}
+// ── centro (marcador; o desenho vem no F12–F15) ──────────────────────────────
 
 function CenterColumn({ className, onBack }: { className: string; onBack: () => void }) {
   const { state, lang } = useBuilder();
   const page = state.work.pages.find((p) => p.id === state.pageId) ?? null;
   const items = page ? (state.work.items[page.id] ?? []) : [];
+  // Bloco ou parte comum escolhidos na lista (o editor deles chega no F13/F14).
+  const block = state.libId ? (state.work.blocks.find((b) => b.id === state.libId) ?? null) : null;
+  const part = state.sel?.kind === "part" ? state.sel.id : null;
   return (
     <section className={`${className} flex-col flex-1 min-w-0 min-h-0 overflow-y-auto rounded-xl border border-zinc-200/80 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900`}>
       <button
@@ -222,7 +198,13 @@ function CenterColumn({ className, onBack }: { className: string; onBack: () => 
         <Icon name="chevronLeft" className="w-4 h-4" />
         Voltar
       </button>
-      {page ? (
+      {block || part ? (
+        <>
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{block ? (block.name || "Sem nome") : part === "topo" ? "Topo" : "Rodapé"}</h2>
+          <p className="mt-1 text-sm text-zinc-500">{block ? "Bloco da biblioteca" : "Parte comum, igual em todas as páginas"}</p>
+          <p className="mt-6 text-sm text-zinc-400">O editor chega nas próximas fatias.</p>
+        </>
+      ) : page ? (
         <>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{pageTitle(page, lang.defaultLanguage)}</h2>

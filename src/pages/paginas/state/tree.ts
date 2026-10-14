@@ -37,3 +37,127 @@ export function pageTitle(page: Page, base: string): string {
   const v = t[base]?.trim() || Object.values(t).find((x) => typeof x === "string" && x.trim());
   return v || "Sem título";
 }
+
+// ── regras da árvore (CONTRATO §6.3), já no cliente ──────────────────────────
+// Sem ciclos · a home fica no primeiro nível e não recebe filhas · profundidade ≤ 4.
+// A API continua a ser a autoridade; isto só evita oferecer ao utilizador o que ela recusaria.
+
+export const MAX_DEPTH = 4;
+export type DropPosition = "before" | "after" | "inside";
+
+const parentOf = (ids: ReadonlySet<string>, p: Page): string | null => (p.parentId && ids.has(p.parentId) ? p.parentId : null);
+const idSet = (pages: readonly Page[]) => new Set(pages.map((p) => p.id));
+
+/** As filhas de `parentId` (`null` = primeiro nível), pela ordem da lista: a home primeiro. */
+export function childrenOf(pages: readonly Page[], parentId: string | null): Page[] {
+  const ids = idSet(pages);
+  return pages
+    .map((p, i) => ({ p, i }))
+    .filter(({ p }) => parentOf(ids, p) === parentId)
+    .sort((a, b) => (a.p.isHome !== b.p.isHome ? (a.p.isHome ? -1 : 1) : byOrder(a.p, b.p) || a.i - b.i))
+    .map(({ p }) => p);
+}
+
+/** Nível da página: 1 = primeiro nível. 0 se não existe. */
+export function depthOf(pages: readonly Page[], id: string): number {
+  const ids = idSet(pages);
+  const byId = new Map(pages.map((p) => [p.id, p]));
+  let depth = 0;
+  const seen = new Set<string>();
+  for (let cur = byId.get(id); cur && !seen.has(cur.id); cur = byId.get(parentOf(ids, cur) ?? "")) {
+    seen.add(cur.id);
+    depth++;
+  }
+  return depth;
+}
+
+/** Altura da subárvore: 1 = folha. */
+export function heightOf(pages: readonly Page[], id: string): number {
+  const seen = new Set<string>();
+  const walk = (cur: string): number => {
+    if (seen.has(cur)) return 0;
+    seen.add(cur);
+    return 1 + Math.max(0, ...childrenOf(pages, cur).map((c) => walk(c.id)));
+  };
+  return walk(id);
+}
+
+/** `id` está dentro de `ancestorId` (em qualquer nível)? */
+export function isDescendant(pages: readonly Page[], id: string, ancestorId: string): boolean {
+  const ids = idSet(pages);
+  const byId = new Map(pages.map((p) => [p.id, p]));
+  const seen = new Set<string>();
+  for (let cur = byId.get(id); cur && !seen.has(cur.id); cur = byId.get(parentOf(ids, cur) ?? "")) {
+    seen.add(cur.id);
+    if (parentOf(ids, cur) === ancestorId) return true;
+  }
+  return false;
+}
+
+/** Cabe mais uma filha dentro de `parentId`? (a home nunca recebe filhas) */
+export function canAddChild(pages: readonly Page[], parentId: string | null, maxDepth = MAX_DEPTH): boolean {
+  if (parentId === null) return true;
+  const parent = pages.find((p) => p.id === parentId);
+  return !!parent && !parent.isHome && depthOf(pages, parentId) + 1 <= maxDepth;
+}
+
+/** Pode a página `from` ir para `position` de `to`? */
+export function canMovePage(pages: readonly Page[], from: string, to: string, position: DropPosition, maxDepth = MAX_DEPTH): boolean {
+  const a = pages.find((p) => p.id === from);
+  const b = pages.find((p) => p.id === to);
+  if (!a || !b || a.id === b.id) return false;
+  if (a.isHome) return false; // a home fica onde está
+  if (b.isHome && position !== "after") return false; // nada antes da home, nada dentro dela
+  const newParent = position === "inside" ? b.id : parentOf(idSet(pages), b);
+  if (newParent !== null && (newParent === a.id || isDescendant(pages, newParent, a.id))) return false; // ciclo
+  const base = newParent === null ? 0 : depthOf(pages, newParent);
+  return base + heightOf(pages, a.id) <= maxDepth;
+}
+
+/**
+ * Move `from` para antes/depois/dentro de `to` e renumera só os grupos de irmãs que mudam.
+ * Devolve o MESMO array se a regra recusa ou se nada muda (o reducer não regista).
+ */
+export function movePage(pages: Page[], from: string, to: string, position: DropPosition, maxDepth = MAX_DEPTH): Page[] {
+  if (!canMovePage(pages, from, to, position, maxDepth)) return pages;
+  const moved = pages.find((p) => p.id === from)!;
+  const target = pages.find((p) => p.id === to)!;
+  const ids = idSet(pages);
+  const oldParent = parentOf(ids, moved);
+  const newParent = position === "inside" ? target.id : parentOf(ids, target);
+
+  const sibs = childrenOf(pages, newParent).filter((p) => p.id !== from);
+  const at = position === "inside" ? sibs.length : sibs.findIndex((p) => p.id === to) + (position === "after" ? 1 : 0);
+  sibs.splice(at, 0, moved);
+  // Largar onde já estava não é uma alteração (mesmo que os `sortOrder` do servidor tenham buracos).
+  if (oldParent === newParent && childrenOf(pages, newParent).every((p, i) => p.id === sibs[i].id)) return pages;
+
+  const next = new Map<string, { parentId: string | null; sortOrder: number }>();
+  sibs.forEach((p, i) => next.set(p.id, { parentId: newParent, sortOrder: i }));
+  if (oldParent !== newParent) {
+    childrenOf(pages, oldParent).filter((p) => p.id !== from).forEach((p, i) => next.set(p.id, { parentId: oldParent, sortOrder: i }));
+  }
+  let changed = false;
+  const out = pages.map((p) => {
+    const n = next.get(p.id);
+    if (!n) return p;
+    const parentId = n.parentId;
+    if ((p.parentId ?? null) === parentId && p.sortOrder === n.sortOrder) return p;
+    changed = true;
+    return { ...p, parentId, sortOrder: n.sortOrder };
+  });
+  return changed ? out : pages;
+}
+
+/** Caminho (na língua base) da página: `/`, `/obras`, `/obras/2024`. */
+export function pagePath(pages: readonly Page[], id: string): string {
+  const ids = idSet(pages);
+  const byId = new Map(pages.map((p) => [p.id, p]));
+  const parts: string[] = [];
+  const seen = new Set<string>();
+  for (let cur = byId.get(id); cur && !seen.has(cur.id); cur = byId.get(parentOf(ids, cur) ?? "")) {
+    seen.add(cur.id);
+    if (!cur.isHome && cur.slug) parts.unshift(cur.slug);
+  }
+  return `/${parts.join("/")}`;
+}

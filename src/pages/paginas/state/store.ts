@@ -17,6 +17,7 @@ import type { GetCmsSiteBuilder200 } from "../../../gen/backoffice/types/GetCmsS
 import { readApiFailure, siteBuilderQueryKey, usePublishSiteBuilder, useSaveSiteBuilder } from "../../../hooks/useSiteBuilder";
 import { buildChangeset, fromServer } from "./changeset";
 import { canRedo, canUndo, createHistory, markSaved, record, redo, snapshot, undo, type History } from "./history";
+import { applyOp, type WorkOp } from "./ops";
 import { countMissing, findMissing, firstMissing, locateMissing, type MissingItem } from "./missing";
 import type { Catalog, Issue, LangCtx, Manifest, SaveBody, Sel, Work } from "./types";
 
@@ -50,6 +51,7 @@ export interface StoreState {
 export type Action =
   | { type: "load"; work: Work; revision: number }
   | { type: "edit"; update: (w: Work) => Work; key?: string; now?: number }
+  | { type: "op"; op: WorkOp; now?: number }
   | { type: "undo" }
   | { type: "redo" }
   | { type: "select"; pageId?: string | null; libId?: string | null; sel?: Sel; focus?: MissingItem | null }
@@ -105,6 +107,12 @@ export function reduce(s: StoreState, a: Action): StoreState {
       const next = a.update(s.work);
       if (next === s.work) return s;
       return { ...s, work: next, history: record(s.history, next, a.key, a.now), ...fixSelection(s, next) };
+    }
+    case "op": {
+      // Operações da lista lateral (mover, criar, renomear…): uma entrada no desfazer cada.
+      const r = reduce(s, { type: "edit", update: (w) => applyOp(w, a.op), now: a.now });
+      if (r === s || a.op.type !== "addPage") return r;
+      return { ...r, pageId: a.op.page.id, libId: null, sel: { kind: "page", id: a.op.page.id } };
     }
     case "undo": {
       const r = undo(s.history);
@@ -166,6 +174,8 @@ export interface Builder {
   publish: GetCmsSiteBuilder200["publish"];
   /** Alteração à cópia de trabalho. `key` junta escrita seguida no mesmo campo (≤ 1,5 s) numa entrada. */
   edit: (update: (w: Work) => Work, key?: string) => void;
+  /** Operação da lista lateral (mover, criar página/pasta…) — passa pelo reducer, logo entra no desfazer. */
+  apply: (op: WorkOp) => void;
   undo: () => void;
   redo: () => void;
   select: (patch: { pageId?: string | null; libId?: string | null; sel?: Sel }) => void;
@@ -223,6 +233,7 @@ export function BuilderProvider({ data, refetch, children }: ProviderProps) {
   const dirty = changeset !== null;
 
   const edit = useCallback((update: (w: Work) => Work, key?: string) => dispatch({ type: "edit", update, key }), []);
+  const apply = useCallback((op: WorkOp) => dispatch({ type: "op", op }), []);
   const undoFn = useCallback(() => dispatch({ type: "undo" }), []);
   const redoFn = useCallback(() => dispatch({ type: "redo" }), []);
   const select = useCallback(
@@ -324,6 +335,7 @@ export function BuilderProvider({ data, refetch, children }: ProviderProps) {
       limits: (data.limits as Record<string, unknown> | undefined) ?? {},
       publish: data.publish,
       edit,
+      apply,
       undo: undoFn,
       redo: redoFn,
       select,
@@ -333,7 +345,7 @@ export function BuilderProvider({ data, refetch, children }: ProviderProps) {
       dismiss,
       publishNow,
     }),
-    [state, dirty, changeset, missing, catalog, manifest, lang, data.limits, data.publish, edit, undoFn, redoFn, select, goToMissing, save, reload, dismiss, publishNow],
+    [state, dirty, changeset, missing, catalog, manifest, lang, data.limits, data.publish, edit, apply, undoFn, redoFn, select, goToMissing, save, reload, dismiss, publishNow],
   );
 
   return createElement(BuilderContext.Provider, { value }, children);

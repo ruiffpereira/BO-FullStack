@@ -21,3 +21,6 @@ test-results/
 
 # Grafo de conhecimento do Graphify (gerado, local)
 graphify-out/
+
+# Capturas temporárias do F11 (construtor de páginas)
+.capturas-f11/

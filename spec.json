@@ -4700,6 +4700,204 @@
         }
       }
     },
+    "/admin/users/{userId}/site-builder/publish": {
+      "put": {
+        "summary": "Configurar a publicação (GitHub) do site de um tenant (só o dono da plataforma)",
+        "description": "`mode: \"github\"` liga a publicação de sites Astro por `workflow_dispatch` (CONTRATO §8): cada gravação do editor marca um pedido e um job dispara o workflow ~60 s depois da última. `repo` (`dono/repo`), `workflow` (ficheiro `.yml`/`.yaml` ou id numérico) e `ref` (branch/tag, default `main`) são opcionais — **omitir = manter**, `null` ou `\"\"` = apagar. O `token` (fine-grained, de um só repo, só `Actions: write`) é **só de escrita**: omitir = manter, `null`/`\"\"` = apagar; é cifrado em repouso e nunca é devolvido (a resposta só tem `hasToken`). Com `mode: \"github\"` o resultado final tem de ter `repo` e `workflow`. Mudar a config tira um `failed` anterior. Mudar para `runtime` limpa o pedido pendente. Exige `VIEW_ADMIN` e recusa sessões de suporte.\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "mode"
+                ],
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "runtime",
+                      "github"
+                    ]
+                  },
+                  "repo": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 140,
+                    "example": "dono/repo"
+                  },
+                  "workflow": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 140,
+                    "example": "deploy.yml"
+                  },
+                  "ref": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 100,
+                    "example": "main"
+                  },
+                  "token": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 255,
+                    "description": "Só de escrita; nunca devolvido"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Configuração gravada (sem o token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "publish": {
+                      "type": "object",
+                      "properties": {
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "runtime",
+                            "github"
+                          ]
+                        },
+                        "repo": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "workflow": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "ref": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "hasToken": {
+                          "type": "boolean"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "idle",
+                            "pending",
+                            "running",
+                            "live",
+                            "failed"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido, ou `mode` github sem repo/workflow"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_ADMIN, ou sessão de suporte (IMPERSONATION_FORBIDDEN)"
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          },
+          "500": {
+            "description": "Erro interno (incluindo chave de cifra por configurar)"
+          }
+        }
+      }
+    },
+    "/admin/users/{userId}/site-builder/publish/test": {
+      "post": {
+        "summary": "Testar a ligação ao workflow do GitHub de um tenant (só o dono da plataforma)",
+        "description": "Faz `GET https://api.github.com/repos/{repo}/actions/workflows/{workflow}` com o token guardado e diz se chega ao workflow. Não dispara nada. Com configuração, a resposta é sempre `200 { ok, status, message }` (`status` = HTTP do GitHub, `0` = sem resposta/tempo esgotado); `message` vem truncada e **nunca** leva o token. Sem repo/workflow/token guardados → 400. Exige `VIEW_ADMIN` e recusa sessões de suporte.\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado do teste",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falta repo, workflow ou token"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_ADMIN, ou sessão de suporte (IMPERSONATION_FORBIDDEN)"
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          },
+          "500": {
+            "description": "Erro interno"
+          }
+        }
+      }
+    },
     "/admin/users/{userId}/site-domain": {
       "put": {
         "summary": "Definir o domínio do site de um tenant (só o dono da plataforma)",
@@ -7369,6 +7567,93 @@
           },
           "500": {
             "description": "Erro interno"
+          }
+        }
+      }
+    },
+    "/cms/site-builder/publish": {
+      "post": {
+        "summary": "Publicar agora (salta a espera de 60 s) o site do tenant",
+        "description": "Só para sites com `publishMode = github` (Astro). Dispara já o workflow configurado pelo dono da plataforma, sem esperar o minuto de debounce, e devolve `202` com o estado da publicação (`running`). O `GET /cms/site-builder` passa a mostrar `running` → `live`/`failed` à medida que o job confirma o `cms-build.json` do site. Limite: 1 pedido por minuto por tenant (429). Resolve sempre pelo tenant autenticado. Exige `VIEW_SITE_PAGES`.\n",
+        "tags": [
+          "CMS"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Workflow disparado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "publish": {
+                      "type": "object",
+                      "properties": {
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "runtime",
+                            "github"
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "idle",
+                            "pending",
+                            "running",
+                            "live",
+                            "failed"
+                          ]
+                        },
+                        "liveRevision": {
+                          "type": "integer",
+                          "nullable": true
+                        },
+                        "requestedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
+                        },
+                        "error": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "402": {
+            "description": "Subscrição da plataforma inactiva (billingGate)"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_SITE_PAGES"
+          },
+          "404": {
+            "description": "O construtor não está activo neste tenant"
+          },
+          "409": {
+            "description": "`{ code }` — `PUBLISH_NOT_GITHUB` (o site publica em runtime, nada a disparar), `PUBLISH_NOT_CONFIGURED` (falta repo, workflow ou token — pedir ao dono da plataforma) ou `PUBLISH_IN_PROGRESS` (já há uma publicação a correr).\n"
+          },
+          "429": {
+            "description": "Pedido há menos de um minuto: `{ error }` do limitador, ou `{ code: TOO_SOON }` se o último dispatch foi há menos de 60 s.\n"
+          },
+          "500": {
+            "description": "Erro interno"
+          },
+          "502": {
+            "description": "O GitHub recusou o dispatch: `{ code: DISPATCH_FAILED, error, publish }` (mensagem truncada, sem credenciais).\n"
           }
         }
       }

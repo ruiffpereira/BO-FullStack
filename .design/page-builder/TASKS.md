@@ -7,7 +7,7 @@
 |---|---|---|---|
 | F00 | Arranque: decisões, pendentes, CI do winterplateau | ✅ | BO `07ca4fa` ("Website", e2e conteudos+rbac 59 verdes). CI do winterplateau sem secrets → **A9** do TASKS da raiz (bloqueia só F17+) |
 | F01 | API · modelos, migração, purga, permissão | ✅ | API `17f58b3` (suite 2080 verde, tsc). FKs RESTRICT; purga desliga `parentId` antes. Migração up/down provada só às tabelas novas (as antigas não correm do zero — o esquema nasce de `sync`) |
-| F02 | API · catálogo, manifest, validadores | ⬜ | |
+| F02 | API · catálogo, manifest, validadores | ✅ | API `50cedfc` (suite 2378 verde, tsc; 1 462 linhas). Leituras restritivas: topo só 1 coluna; SEO da página 120/320/300; `video.source` obrigatório; manifest só restringe as partes |
 | F03 | API · leitura do editor + admin | ⬜ | |
 | F04 | API · gravar 1/2 (páginas) | ⬜ | |
 | F05 | API · gravar 2/2 (blocos) + pentest | ⬜ | |

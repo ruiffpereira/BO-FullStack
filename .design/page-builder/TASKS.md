@@ -6,7 +6,7 @@
 | # | Fatia | Estado | Commits / notas |
 |---|---|---|---|
 | F00 | Arranque: decisões, pendentes, CI do winterplateau | ✅ | BO `07ca4fa` ("Website", e2e conteudos+rbac 59 verdes). CI do winterplateau sem secrets → **A9** do TASKS da raiz (bloqueia só F17+) |
-| F01 | API · modelos, migração, purga, permissão | ⬜ | |
+| F01 | API · modelos, migração, purga, permissão | ✅ | API `17f58b3` (suite 2080 verde, tsc). FKs RESTRICT; purga desliga `parentId` antes. Migração up/down provada só às tabelas novas (as antigas não correm do zero — o esquema nasce de `sync`) |
 | F02 | API · catálogo, manifest, validadores | ⬜ | |
 | F03 | API · leitura do editor + admin | ⬜ | |
 | F04 | API · gravar 1/2 (páginas) | ⬜ | |

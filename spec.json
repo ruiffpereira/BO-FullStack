@@ -5595,6 +5595,60 @@
         }
       }
     },
+    "/analytics/backoffice": {
+      "get": {
+        "operationId": "getBackofficeTracking",
+        "summary": "Obter o par websiteId + src do script de tracking do próprio Backoffice",
+        "description": "PÚBLICO e sem autenticação nenhuma — o Backoffice pede-o no arranque, incluindo no ecrã de login. O par não depende de quem pede. A API provisiona (uma vez, idempotente, memoizado em memória) um website \"Backoffice\" no Umami para o domínio do Backoffice. Devolve 204 (sem corpo) quando o Umami não está configurado, o domínio do Backoffice falta/é inválido ou é local (localhost), ou o Umami falhou. Query string e body são ignorados.\n",
+        "tags": [
+          "Analytics"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Par de tracking do Backoffice (cache pública de 5 minutos).",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "example": "public, max-age=300"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "websiteId",
+                    "src"
+                  ],
+                  "properties": {
+                    "websiteId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "src": {
+                      "type": "string",
+                      "example": "https://analytics.exemplo.pt/script.js"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Sem tracking disponível (sem corpo)."
+          },
+          "429": {
+            "description": "Demasiados pedidos"
+          },
+          "500": {
+            "description": "Erro interno"
+          }
+        }
+      }
+    },
     "/billing/subscription": {
       "get": {
         "summary": "Estado da subscrição da plataforma do tenant",

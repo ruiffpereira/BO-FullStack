@@ -7,7 +7,10 @@ import { AuthProvider } from './context/AuthContext'
 import { queryClient } from './lib/queryClient'
 import { ConfirmHost } from './components/confirm'
 import App from './App'
+import { initUmami } from './lib/umami'
 import './index.css'
+
+void initUmami()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

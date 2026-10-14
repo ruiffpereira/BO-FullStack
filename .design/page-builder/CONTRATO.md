@@ -1,5 +1,8 @@
 # Construtor de páginas — CONTRATO técnico (v1)
 
+> **v1 congelada a 2026-10-14 (F09)** — API `cc8fb50` + fecho do F09. O que a implementação acrescentou ou afinou
+> está em **§11 · Alterações** e vale por cima do texto das secções (que traz "→ §11" onde muda).
+
 > Referência partilhada pelas fatias. **Não se lê inteiro**: cada fatia diz que secções (§) precisa.
 > A API é a fonte da verdade; o Backoffice e os sites só espelham o que está aqui.
 > Mudar este contrato depois do F09 = mudança cross-repo (Regra cross-repo do `CLAUDE.md` da raiz).
@@ -179,7 +182,7 @@ Texto e imagem (2 col) · Título e duas colunas · Faixa de chamada.
 
 ---
 
-## §4 · Manifest do site
+## §4 · Manifest do site → §11
 
 Validado por zod (`src/pageBuilder/manifest.ts`). **Não usar JSON Schema**: a sanitização global apaga chaves
 `$ref`/`$schema` e qualquer `<…>` do corpo (`src/middleware/security.ts:149-191`). Corpo ≤ 1 MB.
@@ -213,7 +216,7 @@ MANIFEST_IN_USE` com a lista de onde está a ser usado.
 
 ---
 
-## §5 · API do editor (Backoffice)
+## §5 · API do editor (Backoffice) → §11
 
 Rotas sob `/api/cms/site-builder`, montadas com `authenticateToken, billingGate, authorizePermissions(["VIEW_SITE_PAGES"])`.
 
@@ -254,7 +257,7 @@ Montadas no `adminUserRoutes` existente (já tem `authenticateToken → forbidDu
 
 ---
 
-## §6 · Regras do servidor (todas verificadas no `save`, sobre o estado **final** do tenant)
+## §6 · Regras do servidor (todas verificadas no `save`, sobre o estado **final** do tenant) → §11
 
 1. **Isolamento:** tudo filtrado por `userId`. Um id do corpo que exista **noutro tenant** → `404` (nunca actualizar a linha de outro). Testar com tenants A/B.
 2. **Concorrência:** `SELECT … FOR UPDATE` na linha `SiteBuilders` do tenant; `baseRevision ≠ revision` → `409`.
@@ -269,7 +272,7 @@ Montadas no `adminUserRoutes` existente (já tem `authenticateToken → forbidDu
 
 ---
 
-## §7 · Objecto público (os sites lêem isto)
+## §7 · Objecto público (os sites lêem isto) → §11
 
 Rotas com `authenticateTokenPublic` (site token). **Sem `publicRateLimit`** (30/min/IP partia builds e SSR —
 `src/middleware/security.ts:24-61`); fica só o global. `Cache-Control: no-cache` + ETag. Construtor desligado → `404`.
@@ -302,7 +305,7 @@ internos (fora âncoras), token, manifest, pastas, nomes de blocos.
 
 ---
 
-## §8 · Publicação
+## §8 · Publicação → §11
 
 - `runtime` (React/Next): não há nada a disparar; o site lê a API. Next tem de renderizar dinâmico ou `revalidate ≤ 60`.
 - `github` (Astro): cada `save` marca `publishRequestedAt`. Um job (`src/jobs`, `node-cron` a cada minuto, estado
@@ -332,3 +335,51 @@ O Google **não lê** a lista de palavras-chave — servem para guiar a escrita.
 
 - Protótipo navegável (UX, não código a reaproveitar): [`prototipo.html`](prototipo.html)
 - Manifest de exemplo da Winterplateau: nasce no F02 (`tests/fixtures/manifest-winterplateau.json` na API) e é finalizado no F19.
+
+---
+
+## §11 · Alterações (fecho do F09, 2026-10-14)
+
+A implementação ficou melhor do que o texto em alguns pontos; o texto acima mantém-se e isto prevalece.
+
+**§4 · Manifest.** `backgrounds` 1–20 entradas, `icons` ≤ 200, chaves de especiais com o regex de id, `label` ≤ 60,
+`desc` ≤ 200. Por omissão `textMax=200`, `mdMax=5000`; até 100 pastas de blocos.
+
+**§5 · Editor.**
+- O `save` responde também `400` (forma do corpo) e `403` (construtor desligado). `Issue.entity` inclui `"manifest"`
+  (422 do `PUT /manifest`). O `GET` traz campos a mais (`sortOrder`, `path`, `updatedAt`, `limits` completo).
+- **Publicar agora** (`POST /cms/site-builder/publish`) dispara já: `202` · `409 PUBLISH_NOT_GITHUB` /
+  `PUBLISH_NOT_CONFIGURED` / `PUBLISH_IN_PROGRESS` · `429 TOO_SOON` (60 s, na BD) · `502 DISPATCH_FAILED`.
+
+**§6 · Regras.**
+- **Ids de outro tenant** em referências (`parentId`, `blockId`, `folderId`, `dest.pageId`, âncoras) → `422 BAD_REF`,
+  igual a "não existe" (não se distingue, para não enumerar). O `404` fica para upsert/delete de linhas alheias.
+- **Nunca HTML:** em vez de guardar "como veio", o texto com HTML é **recusado** (`422 HTML_NOT_ALLOWED`), e destinos de
+  ligações e imagens dentro do markdown são validados (`BAD_DEST`; `javascript:` e afins fora).
+- **Media:** além do dono, a extensão tem de bater com o `kind` (image: webp png jpg jpeg gif svg avif · video: mp4
+  webm mov · file: pdf) → `422 BAD_MEDIA_KIND`. PDF por `POST /api/uploads/pdf` (≤ 20 MB, bytes `%PDF-`).
+- `BLOCK_IN_USE`/`FOLDER_NOT_EMPTY` avaliam o estado **final** (tirar o bloco da página no mesmo `save` é válido).
+  Apagar um bloco ainda alvo de `dest.anchor` → `422 BAD_REF` (não `409`).
+
+**§7 · Objecto público.**
+- **No ar = publicada e com todas as ascendentes publicadas.** Uma página sob mãe em rascunho não sai (nem como
+  destino, cartão, canonical, âncora, breadcrumb ou redirect).
+- `/site/page?path=`: a língua sai do prefixo do path (`locale` ignorado); responde `{...cabeçalho, page}` (com
+  `topo`/`rodape`, sem `redirects`) ou `{redirect}`; path inválido → `400`; barra final tolerada.
+- `/site` devolve os redirects de **todas** as línguas (cada `to` no path vivo da língua do `from`).
+- Ordem de `pages`: home primeiro, depois a árvore em profundidade. `anchor` sai sem `#` (`null` se não tiver).
+- `seo.title` cai no título da página e **não** leva o nome do site — o " · <site>" e o JSON-LD Organization são do kit.
+  `seo.description` vale `""` e `seo.image` `null` quando vazios.
+- `updatedAt` = o mais recente entre a página e os blocos que ela mostra; mudar a lista de itens também o sobe.
+- Resposta acima de 24 MB → `413` (tecto contra amplificação). Cabeçalhos: `Cache-Control: no-cache`, ETag,
+  `Vary: x-site-token, Authorization`.
+
+**§8 · Publicação.** Sem coluna nova: a revisão esperada é `revision` no momento do dispatch; um `save` durante o run
+volta a despachar no fim. Depois de o run acabar com sucesso há **3 min de graça** para o `cms-build.json` mostrar a
+revisão; run a correr há > 30 min → `failed`. Uma falha não se repete sozinha (novo `save` ou "publicar agora").
+`cms-build.json` lido com tecto de 64 KiB; revisão > INT recusada.
+
+**Em aberto (menores, sem fatia):** `MANIFEST_IN_USE` não cobre mudanças nas `parts` nem nos campos/opções dos
+especiais (o `save` seguinte dá 422 a apontar o componente); mudar línguas do tenant ou o manifest não sobe a
+`revision` nem pede publicação; o limitador de "publicar agora" corre antes das validações (um 409 gasta o minuto);
+`websiteDomain` validado só pelo nome (DNS para IP interno = SSRF cego; só o admin o define).

@@ -14,7 +14,7 @@
 | F06 | API · objecto público + pentest | ✅ | API `0450290` (suite 3017 verde, build). Página só sai se ela **e todas as ascendentes** estão publicadas. seguranca-api +69: tipos `__proto__`/`constructor` da BD davam 500 → corrigido. pentest-api +14: amplificação de saída (187 MB com 12 páginas) → tecto de 24 MB e `413`; `Vary: x-site-token`. Spec do BO inalterado (só lê `controllers/backoffice`); o spec `site` é do winterplateau (F17). **Por provar no F19:** < 300 KB por língua com os dados reais. **Orçamento da API: ~3 100 linhas** (com @swagger) — passou os 3 000, longe do dobro |
 | F07 | API · uploads de PDF | ✅ | API `5845f14` · BO (spec + `useUploadPdf`). Suite 3096 verde, build. `POST /uploads/pdf` só com bytes `%PDF-`, `Content-Type` fixo; `isOwnedUrl` em `src/utils/ownedMedia.ts` substitui o stub. seguranca-api +47: temporários além do 1.º ficavam no disco (nos 3 uploads) e `isOwnedUrl` aceitava invisíveis — corrigidos. `spec.json` gerado offline com `ts-node scripts/dumpSpec.ts backoffice` (o refresh pede a API de pé) |
 | F08 | API · publicação | ✅ | API `cc8fb50` · BO (spec, 3 rotas). Suite 3187 verde (1.ª corrida: 1 falha não identificada que não se repetiu; os 91 testes da publicação 5×5 verdes). Sem coluna nova: revisão esperada = `revision`; 3 min de graça para o `cms-build.json`; 30 min → falhou; falha do dispatch não repete sozinha. seguranca-api +26 e pentest-api +22: 5 brechas corrigidas (prefixo do token em erros, tenant preso em `running` por revisão > INT ou run id inválido, `cms-build.json` sem tecto, corpo citado no erro, save no segundo do dispatch). ⚠ o pentest fez 2 chamadas reais ao GitHub com token falso (401) — testes agora falham em `fetch` não mockado. **Em aberto:** `websiteDomain` validado só pelo nome (DNS para IP interno = SSRF cego, só o admin define o domínio). **Para o F19:** `deploy.yml` com `concurrency` |
-| F09 | API · fecho e contrato congelado | ⬜ | |
+| F09 | API · fecho e contrato congelado | ✅ | API `8891bb4`. CONTRATO **v1 congelada** (§11 = alterações). Revisão cruzada: 0 de segurança; corrigidos `updatedAt` público (blocos e itens), extensão do `media` (`BAD_MEDIA_KIND`), `Vary` com `Authorization`. Suite 3189 verde; a falha intermitente do F08 era o teste de CORS a colidir com o `127.0.0.1` dos testes de SSRF — corrigido. Spec do BO inalterado. Orçamento final da API ~3 550 linhas (sem @swagger) |
 | F10 | BO · base, estado, gravar | ⬜ | |
 | F11 | BO · lista lateral | ⬜ | |
 | F12 | BO · conteúdo da página | ⬜ | |
@@ -22,7 +22,7 @@
 | F14 | BO · editor de bloco | ⬜ | |
 | F15 | BO · definições e SEO | ⬜ | |
 | F16 | BO · admin + e2e (3 larguras) | ⬜ | |
-| F17 | Site · kit Astro | ⬜ | |
+| F17 | Site · kit Astro | 🔄 | Em paralelo com o BO (decisão do dono, 2026-10-14: outro repo, sem conflitos) |
 | F18 | Site · componentes e estilos | ⬜ | Estilos D-D: _(preencher no F18)_ |
 | F19 | Go-live e fecho | ⬜ | |
 

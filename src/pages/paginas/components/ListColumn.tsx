@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, 
 import { Badge, Button, Input } from "../../../ui/ui.jsx";
 import { Icon } from "../../../ui/icons.jsx";
 import { useSupportSession } from "../../../context/AuthContext";
-import { useBuilder } from "../state/store";
+import { NOT_CONFIGURED_HINT, useBuilder } from "../state/store";
 import { newEntityId } from "../state/ids";
 import { FOLDER_NAME_MAX, buildAddPage, canMoveLibrary } from "../state/ops";
 import {
@@ -275,7 +275,7 @@ function BlocksGroup({ shell, idx, onOpen, onNewBlock }: { shell: Shell; idx: Mi
         <Icon name="folder" className="h-4 w-4" />
         Pasta
       </Button>
-      <Button type="button" variant="ghost" size="sm" aria-label="Novo bloco" disabled={!onNewBlock} title={onNewBlock ? "Escolher um bloco para criar" : "Indisponível"} className={headBtn} onClick={onNewBlock}>
+      <Button type="button" variant="ghost" size="sm" aria-label="Novo bloco" disabled={!onNewBlock} title={onNewBlock ? "Escolher um bloco para criar" : NOT_CONFIGURED_HINT} className={headBtn} onClick={onNewBlock}>
         <Icon name="plus" className="h-4 w-4" />
         Novo
       </Button>

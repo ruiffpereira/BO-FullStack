@@ -7,7 +7,7 @@
  * Estilos e colunas vêm do manifest e da disposição do bloco — nada fixo aqui.
  */
 import { useState } from "react";
-import { toast } from "sonner";
+import { quickToast } from "../state/notify";
 import { Badge, Button } from "../../../ui/ui.jsx";
 import { Icon } from "../../../ui/icons.jsx";
 import { FieldsForm } from "../fields/FieldsForm";
@@ -47,7 +47,7 @@ function Body({ holder, comp, layout, def, onDuplicated }: { holder: Holder; com
     if (!op) return;
     apply(op);
     onDuplicated(op.comp.id);
-    toast.success("Criada uma cópia logo a seguir.");
+    quickToast("Criada uma cópia logo a seguir.");
   };
 
   return (

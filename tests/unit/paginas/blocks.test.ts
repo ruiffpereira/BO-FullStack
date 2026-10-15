@@ -255,6 +255,14 @@ describe("inserir na posição certa", () => {
     expect(useAt(w, -5).items["p-home"][0].blockId).toBe("b-extra");
   });
 
+  it("bloco novo: o fundo é o 1.º do manifest e, sem fundos, não se cria (nunca um fundo fixo)", () => {
+    const w0 = lib();
+    const op = buildNewBlock(w0, null, 0, catalog.starters![0], catalog, manifest, ids);
+    expect(op?.type === "addBlock" && op.block.bg).toBe("escuro");
+    expect(buildNewBlock(w0, null, 0, catalog.starters![0], catalog, null, ids)).toBeNull();
+    expect(buildNewBlock(w0, null, 0, catalog.starters![0], catalog, { backgrounds: [] }, ids)).toBeNull();
+  });
+
   it("bloco novo de um ponto de partida: entra na biblioteca e na posição pedida", () => {
     const w0 = lib();
     const starter = catalog.starters![1];

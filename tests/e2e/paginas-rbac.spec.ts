@@ -152,11 +152,11 @@ for (const vp of VIEWPORTS) {
           await expect(barra.getByRole("button", { name: "Desfazer" })).toBeVisible({ timeout: 10_000 });
           await expect(barra.getByRole("button", { name: "Refazer" })).toBeVisible();
           await expect(page.getByRole("button", { name: "Guardar", exact: true })).toBeVisible();
-          // Sem alterações: nada para desfazer/refazer/guardar, e o estado diz "Guardado".
+          // Sem alterações: nada para desfazer/refazer/guardar, e o estado diz "No ar" (modo runtime: o site lê a API — F16).
           await expect(barra.getByRole("button", { name: "Desfazer" })).toBeDisabled();
           await expect(barra.getByRole("button", { name: "Refazer" })).toBeDisabled();
           await expect(page.getByRole("button", { name: "Guardar", exact: true })).toBeDisabled();
-          await expect(page.getByRole("status").filter({ hasText: "Guardado" })).toBeVisible();
+          await expect(page.getByRole("status").filter({ hasText: "No ar" })).toBeVisible();
           // E já não aparece o estado vazio.
           await expect(page.getByText("O construtor de páginas ainda não está ativo")).toHaveCount(0);
         },

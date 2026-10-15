@@ -14,7 +14,7 @@ import { createContext, createElement, useCallback, useContext, useEffect, useMe
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { GetCmsSiteBuilder200 } from "../../../gen/backoffice/types/GetCmsSiteBuilder";
-import { readApiFailure, siteBuilderQueryKey, usePublishSiteBuilder, useSaveSiteBuilder } from "../../../hooks/useSiteBuilder";
+import { publishErrorMessage, readApiFailure, siteBuilderQueryKey, usePublishSiteBuilder, useSaveSiteBuilder } from "../../../hooks/useSiteBuilder";
 import { buildChangeset, fromServer } from "./changeset";
 import { canRedo, canUndo, createHistory, markSaved, record, redo, snapshot, undo, type History } from "./history";
 import { applyOp, type WorkOp } from "./ops";
@@ -196,6 +196,11 @@ export interface Builder {
   // meta do último `GET` (catálogo, manifest, línguas, limites, publicação)
   catalog: Catalog | null;
   manifest: Manifest | null;
+  /**
+   * O site tem manifest com fundos (um manifest válido tem sempre 1–20). Sem eles não se cria nenhum bloco
+   * nem componente: a API recusava tudo com `422 BAD_BG`. As páginas sem blocos continuam a poder criar-se.
+   */
+  configured: boolean;
   lang: LangCtx;
   limits: Record<string, unknown>;
   publish: GetCmsSiteBuilder200["publish"];
@@ -334,10 +339,13 @@ export function BuilderProvider({ data, siteName = "", refetch, children }: Prov
   const publishNow = useCallback(async (): Promise<boolean> => {
     try {
       await publishAsync(undefined);
+      toast.success("A publicar no site…");
       void queryClient.invalidateQueries({ queryKey: siteBuilderQueryKey() });
       return true;
     } catch (err) {
-      toast.error(readApiFailure(err).message);
+      toast.error(publishErrorMessage(readApiFailure(err)));
+      // 409 IN_PROGRESS / 429: o estado real pode ter mudado — volta a ler.
+      void queryClient.invalidateQueries({ queryKey: siteBuilderQueryKey() });
       return false;
     }
   }, [publishAsync, queryClient]);
@@ -378,6 +386,7 @@ export function BuilderProvider({ data, siteName = "", refetch, children }: Prov
       canRedo: canRedo(state.history),
       catalog,
       manifest,
+      configured: (manifest?.backgrounds?.length ?? 0) > 0,
       lang,
       limits: (data.limits as Record<string, unknown> | undefined) ?? {},
       publish: data.publish,
@@ -399,3 +408,6 @@ export function BuilderProvider({ data, siteName = "", refetch, children }: Prov
 
   return createElement(BuilderContext.Provider, { value }, children);
 }
+
+/** Dica dos botões desligados quando o site não tem manifest com fundos (ver `Builder.configured`). */
+export const NOT_CONFIGURED_HINT = "Este site ainda não está configurado para o construtor.";

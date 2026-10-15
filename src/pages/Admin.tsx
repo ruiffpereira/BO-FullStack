@@ -73,6 +73,7 @@ import {
   useSetGooglePlace,
 } from "../hooks/useGoogleIntegration";
 import { AdminBillingTab } from "../components/AdminBilling";
+import { SiteBuilderModal } from "../components/AdminSiteBuilder";
 import { FEATURES } from "../lib/features";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -308,6 +309,8 @@ function UtilizadoresTab({
   // Domínio do site do tenant (só o dono da plataforma o define, aqui).
   const [domainOpen, setDomainOpen] = useState(false);
   const [domainValue, setDomainValue] = useState("");
+  // Construtor de páginas do tenant (activar, manifest, publicação) — o modal só monta aberto.
+  const [builderUser, setBuilderUser] = useState<UserRow | null>(null);
 
   const domainM = usePutAdminUsersUseridSiteDomain({
     client: { headers },
@@ -509,6 +512,12 @@ function UtilizadoresTab({
                     onClick={() => openDomain(u)}
                   />
                   <IconButton
+                    icon="layers"
+                    label="Construtor de páginas"
+                    title="Construtor de páginas"
+                    onClick={() => setBuilderUser(u)}
+                  />
+                  <IconButton
                     icon="edit"
                     label="Editar"
                     onClick={() => openEdit(u)}
@@ -645,6 +654,8 @@ function UtilizadoresTab({
           autoComplete="off"
         />
       </Modal>
+
+      {builderUser && <SiteBuilderModal user={builderUser} onClose={() => setBuilderUser(null)} />}
 
       <Modal
         open={deleteOpen}

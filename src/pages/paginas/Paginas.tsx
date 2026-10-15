@@ -8,6 +8,7 @@ import { CenterColumn } from "./components/CenterColumn";
 import { BlockPalette, type Created } from "./components/BlockPalette";
 import { SiteSeoModal } from "./components/SiteSeoModal";
 import { useAuth } from "../../context/AuthContext";
+import { PublishNowButton, StatusText } from "./components/PublishStatus";
 
 /**
  * Páginas (construtor de páginas, F10): o esqueleto — barra de topo, lista | centro e os avisos de
@@ -72,7 +73,7 @@ export function Paginas() {
 }
 
 function Editor() {
-  const { state, select } = useBuilder();
+  const { state, select, configured } = useBuilder();
   // Em ecrãs estreitos só se vê um ecrã de cada vez.
   const [view, setView] = useState<"list" | "page">("list");
   // Paleta "Adicionar": `pageId` null = só biblioteca (botão "Novo" dos Blocos).
@@ -98,16 +99,17 @@ function Editor() {
     <div className="flex flex-col h-full min-h-0 gap-3">
       <TopBar onWhere={() => setView("page")} onSeoSite={() => setSeoOpen(true)} />
       <Notices />
+      {!configured && <NotConfigured />}
       <div className="flex flex-1 min-h-0 gap-4">
         <ListColumn
           className={`${view === "list" ? "flex" : "hidden"} min-[860px]:flex`}
           onOpen={() => setView("page")}
-          onNewBlock={() => setPalette({ pageId: null, at: 0 })}
+          onNewBlock={configured ? () => setPalette({ pageId: null, at: 0 }) : undefined}
         />
         <CenterColumn
           className={`${view === "page" ? "flex" : "hidden"} min-[860px]:flex`}
           onBack={() => setView("list")}
-          onAdd={(at) => setPalette({ pageId: state.pageId, at })}
+          onAdd={(at) => configured && setPalette({ pageId: state.pageId, at })}
           flash={flash}
           onFlash={setFlash}
         />
@@ -128,25 +130,6 @@ function Editor() {
 
 // ── barra de topo ─────────────────────────────────────────────────────────────
 
-function StatusText() {
-  const { state, dirty, publish } = useBuilder();
-  let tone = "bg-emerald-500";
-  let text = "Guardado";
-  if (state.status === "saving") { tone = "bg-amber-500 animate-pulse"; text = "A guardar…"; }
-  else if (state.status === "conflict") { tone = "bg-red-500"; text = "Conta alterada noutro sítio"; }
-  else if (state.status === "invalid" || state.status === "error") { tone = "bg-red-500"; text = "Não foi possível guardar"; }
-  else if (dirty) { tone = "bg-amber-500"; text = "Alterações por guardar"; }
-  else if (publish?.status === "pending" || publish?.status === "running") { tone = "bg-blue-500 animate-pulse"; text = "A publicar no site…"; }
-  else if (publish?.status === "failed") { tone = "bg-red-500"; text = "Falhou a publicação"; }
-  else if (publish?.status === "live") { text = "No ar"; }
-  return (
-    <span role="status" className="inline-flex items-center gap-2 text-[13px] text-zinc-600 dark:text-zinc-300">
-      <span className={`w-2 h-2 rounded-full ${tone}`} aria-hidden="true" />
-      {text}
-    </span>
-  );
-}
-
 function TopBar({ onWhere, onSeoSite }: { onWhere: () => void; onSeoSite: () => void }) {
   const b = useBuilder();
   const saving = b.state.status === "saving";
@@ -166,6 +149,7 @@ function TopBar({ onWhere, onSeoSite }: { onWhere: () => void; onSeoSite: () => 
       </Button>
       <div className="flex-1 min-w-0" />
       <StatusText />
+      <PublishNowButton />
       {blocked && (
         <button
           type="button"
@@ -191,6 +175,18 @@ function TopBar({ onWhere, onSeoSite }: { onWhere: () => void; onSeoSite: () => 
 }
 
 // ── avisos de gravação ────────────────────────────────────────────────────────
+
+/** Sem fundos no manifest nenhum bloco gravaria (422 BAD_BG): avisa em vez de deixar criar. */
+function NotConfigured() {
+  return (
+    <div role="status" className="shrink-0 flex items-start gap-3 rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+      <span className="flex-1 min-w-0">
+        <b className="font-semibold">Este site ainda não está configurado para o construtor — fale com o suporte.</b>{" "}
+        Pode criar páginas, mas ainda não é possível juntar blocos nem componentes.
+      </span>
+    </div>
+  );
+}
 
 function Notices() {
   const { state, reload, dismiss } = useBuilder();

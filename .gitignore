@@ -31,3 +31,6 @@ graphify-out/
 
 # Capturas temporárias do F15 (construtor de páginas)
 .capturas-f15/
+
+# Capturas do F16 (construtor de páginas)
+.capturas-f16/

@@ -8,10 +8,11 @@
  * fica só na biblioteca. Tudo passa por `apply(op)` — uma entrada no desfazer por escolha.
  */
 import { useMemo, useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { quickToast } from "../state/notify";
 import { Input, Modal, Tabs } from "../../../ui/ui.jsx";
 import { Icon } from "../../../ui/icons.jsx";
 import { useBuilder } from "../state/store";
+import { useNarrow } from "../../../hooks/useNarrow";
 import {
   blockSummary,
   buildAddSpecial,
@@ -72,11 +73,14 @@ export function BlockPalette({ pageId, at, onClose, onCreated }: Props) {
   const work = state.work;
   const page = pageId ? work.pages.find((p) => p.id === pageId) : null;
   const specials = useMemo(() => specialEntries(manifest), [manifest]);
+  // Abaixo de 860 px os rótulos completos não cabem (o 3.º ficava cortado): abreviam-se, com o nome acessível inteiro.
+  const narrow = useNarrow();
+  const tabOf = (id: PaletteTab, full: string, short: string) => ({ id, label: narrow ? short : full, ariaLabel: full });
   const tabs = [
-    { id: "new", label: "Bloco novo" },
-    ...(pageId ? [{ id: "use", label: "Usar um que já existe" }] : []),
-    { id: "copy", label: "Copiar um que já existe" },
-    ...(pageId && specials.length ? [{ id: "special", label: "Especiais deste site" }] : []),
+    tabOf("new", "Bloco novo", "Novo"),
+    ...(pageId ? [tabOf("use", "Usar um que já existe", "Usar")] : []),
+    tabOf("copy", "Copiar um que já existe", "Copiar"),
+    ...(pageId && specials.length ? [tabOf("special", "Especiais deste site", "Especiais")] : []),
   ];
   const [tab, setTab] = useState<PaletteTab>("new");
   const [query, setQuery] = useState("");
@@ -85,7 +89,7 @@ export function BlockPalette({ pageId, at, onClose, onCreated }: Props) {
   const commit = (op: WorkOp | null, created: Created, message: string) => {
     if (!op) return;
     apply(op);
-    toast.success(message);
+    quickToast(message);
     onCreated(created);
     onClose();
   };

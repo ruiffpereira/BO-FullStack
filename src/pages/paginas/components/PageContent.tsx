@@ -8,10 +8,10 @@
  * `aria-describedby` — nenhum botão leva "páginas" no nome (ver ListColumn).
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { toast } from "sonner";
+import { quickToast } from "../state/notify";
 import { Badge, Button, Modal, Tabs } from "../../../ui/ui.jsx";
 import { Icon } from "../../../ui/icons.jsx";
-import { useBuilder, type PageTab } from "../state/store";
+import { NOT_CONFIGURED_HINT, useBuilder, type PageTab } from "../state/store";
 import { blockSummary, buildDuplicateItem, buildSeparateItem, selFor } from "../state/blocks";
 import { blockUsage } from "../state/listing";
 import { pagePath, pageTitle } from "../state/tree";
@@ -130,6 +130,8 @@ function RowMenu({ name, actions }: { name: string; actions: MenuAction[] }) {
 // ── "＋" entre itens ──────────────────────────────────────────────────────────
 
 function InsertBar({ at, onAdd }: { at: number; onAdd: (at: number) => void }) {
+  const { configured } = useBuilder();
+  if (!configured) return <div className="h-6" />;
   return (
     <div className="relative flex h-6 items-center justify-center">
       <button
@@ -261,7 +263,7 @@ function PinnedCard({ part, onOpen }: { part: PartName; onOpen: () => void }) {
 // ── vista ─────────────────────────────────────────────────────────────────────
 
 export function PageContent({ page, onAdd, flash, onFlash }: Props) {
-  const { state, lang, catalog, manifest, missing, apply, select } = useBuilder();
+  const { state, lang, catalog, manifest, configured, missing, apply, select } = useBuilder();
   const work = state.work;
   // O separador vive no store: o "SEO NN" dos editores, o «SEO do site» e o "Ver onde" abrem as definições.
   const tab = state.tab;
@@ -301,18 +303,18 @@ export function PageContent({ page, onAdd, flash, onFlash }: Props) {
     if (!op) return;
     apply(op);
     onFlash(op.item.id);
-    toast.success(it.kind === "special" ? "Duplicado logo a seguir." : "Criada uma cópia logo a seguir. É um bloco novo: mudar um não muda o outro.");
+    quickToast(it.kind === "special" ? "Duplicado logo a seguir." : "Criada uma cópia logo a seguir. É um bloco novo: mudar um não muda o outro.");
   };
   const separate = (it: Item) => {
     const op = buildSeparateItem(work, page.id, it.id);
     if (!op) return;
     apply(op);
     onFlash(it.id);
-    toast.success("Esta página passou a ter a sua própria cópia. As outras ficam com o original.");
+    quickToast("Esta página passou a ter a sua própria cópia. As outras ficam com o original.");
   };
   const toggleHidden = (it: Item) => {
     apply({ type: "hideItem", pageId: page.id, itemId: it.id, hidden: !it.hidden });
-    toast.success(it.hidden ? "Volta a aparecer nesta página." : "Escondido nesta página. Continua guardado e nas outras páginas.");
+    quickToast(it.hidden ? "Volta a aparecer nesta página." : "Escondido nesta página. Continua guardado e nas outras páginas.");
   };
 
   const toRetire = retire ? items.find((it) => it.id === retire) ?? null : null;
@@ -320,7 +322,7 @@ export function PageContent({ page, onAdd, flash, onFlash }: Props) {
   const confirmRetire = () => {
     if (!toRetire) return;
     apply({ type: "removeItem", pageId: page.id, itemId: toRetire.id });
-    toast.success(toRetire.kind === "special" ? "Retirado desta página." : retireUses > 1 ? "Retirado desta página." : `Retirado. «${nameOf(toRetire)}» continua em Blocos, sem uso.`);
+    quickToast(toRetire.kind === "special" ? "Retirado desta página." : retireUses > 1 ? "Retirado desta página." : `Retirado. «${nameOf(toRetire)}» continua em Blocos, sem uso.`);
     setRetire(null);
   };
 
@@ -329,7 +331,7 @@ export function PageContent({ page, onAdd, flash, onFlash }: Props) {
   const footerNote: ReactNode = items.length === 0 && (
     <div className="my-3 flex flex-col items-center gap-3 rounded-xl border border-dashed border-zinc-300 px-4 py-6 text-center dark:border-zinc-700">
       <p className="text-sm text-zinc-500 dark:text-zinc-400">Esta página ainda não tem blocos.</p>
-      <Button className="min-h-10" icon="plus" onClick={() => onAdd(0)}>Adicionar bloco</Button>
+      <Button className="min-h-10" icon="plus" disabled={!configured} title={configured ? undefined : NOT_CONFIGURED_HINT} onClick={() => onAdd(0)}>Adicionar bloco</Button>
     </div>
   );
 
@@ -408,8 +410,10 @@ export function PageContent({ page, onAdd, flash, onFlash }: Props) {
             {items.length > 0 && (
               <button
                 type="button"
+                disabled={!configured}
+                title={configured ? undefined : NOT_CONFIGURED_HINT}
                 onClick={() => onAdd(items.length)}
-                className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 text-sm font-medium text-zinc-600 hover:border-accent hover:bg-accent/5 hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 dark:border-zinc-600 dark:text-zinc-300"
+                className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 text-sm font-medium text-zinc-600 disabled:cursor-not-allowed disabled:opacity-50 enabled:hover:border-accent enabled:hover:bg-accent/5 enabled:hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 dark:border-zinc-600 dark:text-zinc-300"
               >
                 <Icon name="plus" className="h-4 w-4" />
                 Adicionar bloco

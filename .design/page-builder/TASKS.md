@@ -6,8 +6,7 @@
 
 ## ▶ Retomar aqui (sessão nova)
 
-1. **F16** — se ainda não estiver ✅: correcções dos achados do e2e (sem manifest = "site não configurado";
-   toasts que tapavam o Guardar; separadores curtos a 390), suite e2e inteira, commit (seed na API → Backoffice).
+1. **F16** — ✅ fechada.
 2. **Pequena mudança cross-repo** (pedida pelo dono a 2026-10-15) — ver *Pendentes → API*.
 3. **Suites inteiras dos três repos → push** (autorizado pelo dono): API → ver CI → Backoffice → ver CI →
    winterplateau **só o branch `cms`** (não juntar na `main` antes do conteúdo real estar na produção).
@@ -31,7 +30,7 @@
 | F13 | BO · renderizador de campos | ✅ | BO `fcbffe4` · upload diferido no Guardar |
 | F14 | BO · editor de bloco | ✅ | BO `329c48a` |
 | F15 | BO · definições e SEO | ✅ | BO `be99d5d` · BO ~7 200 linhas (orçamento 5 000, tecto 10 000) |
-| F16 | BO · admin + e2e (3 larguras) | 🔄 | admin + estado da publicação feitos; e2e 74 testes; a fechar |
+| F16 | BO · admin + e2e (3 larguras) | ✅ | BO (commit a seguir ao `4c6785a`) · API `3e77c6c` (seed) · 755 unitários; e2e inteiro 310 + 1 instável alheio (chat); 2 bugs do e2e corrigidos |
 | F17 | Site · kit Astro | ✅ | winterplateau `ad7e2ed` (branch `cms`) |
 | F18 | Site · componentes e estilos | ✅ | winterplateau `4fcb871` + `928771d` (cores do site actual) · kit ~2 000 linhas |
 | F19 | Go-live e fecho | ⬜ | |

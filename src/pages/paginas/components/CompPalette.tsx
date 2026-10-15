@@ -7,7 +7,7 @@
  * Reutiliza o cartão e as notas da paleta de blocos. Tudo passa por `apply(op)`.
  */
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
+import { quickToast } from "../state/notify";
 import { Input, Modal, Tabs } from "../../../ui/ui.jsx";
 import { useBuilder } from "../state/store";
 import { allowedTypes, buildAddComp, buildCopyComp, compHolders, compSummary } from "../state/blocks";
@@ -61,7 +61,7 @@ export function CompPalette({ holder, name, at, onClose, onPicked }: Props) {
   const done = (op: { comp: Comp } | null, message: string) => {
     if (!op) return;
     apply(op as never);
-    toast.success(message);
+    quickToast(message);
     onPicked(op.comp.id);
     onClose();
   };

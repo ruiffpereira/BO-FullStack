@@ -4,7 +4,7 @@
  * Alvos ≥ 40 px e nada que só apareça com o rato por cima (`hover:none`).
  */
 import { useMemo, useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { quickToast } from "../state/notify";
 import { Button } from "../../../ui/ui.jsx";
 import { Icon } from "../../../ui/icons.jsx";
 import { useBuilder } from "../state/store";
@@ -147,16 +147,16 @@ export function ItemFooter({ pageId, item, name, uses, duplicateLabel, onFlash }
     apply(op);
     onFlash(op.item.id);
     toPage();
-    toast.success(item.kind === "special" ? "Duplicado logo a seguir." : "Criada uma cópia logo a seguir. É um bloco novo: mudar um não muda o outro.");
+    quickToast(item.kind === "special" ? "Duplicado logo a seguir." : "Criada uma cópia logo a seguir. É um bloco novo: mudar um não muda o outro.");
   };
   const toggleHidden = () => {
     apply({ type: "hideItem", pageId, itemId: item.id, hidden: !item.hidden });
-    toast.success(item.hidden ? "Volta a aparecer nesta página." : "Escondido nesta página. Continua guardado e nas outras páginas.");
+    quickToast(item.hidden ? "Volta a aparecer nesta página." : "Escondido nesta página. Continua guardado e nas outras páginas.");
   };
   const retire = () => {
     apply({ type: "removeItem", pageId, itemId: item.id });
     toPage();
-    toast.success(item.kind === "special" || uses > 1 ? "Retirado desta página." : `Retirado. «${name}» continua em Blocos, sem uso.`);
+    quickToast(item.kind === "special" || uses > 1 ? "Retirado desta página." : `Retirado. «${name}» continua em Blocos, sem uso.`);
   };
 
   if (confirm) {

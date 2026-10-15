@@ -124,8 +124,8 @@ Detalhe de cada página em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
 | `Agenda.tsx` | `/agenda` · `/marcacoes` · `/servicos` · `/config` | `VIEW_SCHEDULE` |
 | `Loja.tsx` | `/loja` · `/encomendas` · `/categorias` | `VIEW_PRODUCTS` |
 | `Ginasio.tsx` | `/ginasio` · `/treinos` · `/planos` · `/clientes` | `VIEW_GYM` |
-| `Admin.tsx` | `/admin` + 8 subrotas | `VIEW_ADMIN` |
-| `paginas/Paginas.tsx` | `/paginas` | `VIEW_SITE_PAGES` — construtor de páginas (B38). Item de topo próprio; sem construtor ligado ao tenant mostra o estado vazio. Estado e regras em `pages/paginas/state/` (reducer, histórico, changeset, traduções em falta); hooks em `hooks/useSiteBuilder.ts` |
+| `Admin.tsx` | `/admin` + 8 subrotas | `VIEW_ADMIN` — em Utilizadores, o modal "Construtor de páginas" (F16, `components/AdminSiteBuilder.tsx`): **o token do GitHub é só de escrita** (campo nunca preenchido, vazio não é enviado) |
+| `paginas/Paginas.tsx` | `/paginas` | `VIEW_SITE_PAGES` — construtor de páginas (B38). Item de topo próprio; sem construtor ligado ao tenant mostra o estado vazio. Estado e regras em `pages/paginas/state/` (reducer, histórico, changeset, traduções em falta); hooks em `hooks/useSiteBuilder.ts`. Estado da publicação na barra (`components/PublishStatus.tsx`): refetch de 10 s só em `pending`/`running`; "Publicar agora" só em modo `github` |
 | `Estatisticas.tsx` | `/estatisticas` | **core** (Umami, tenant-open na API). Item de topo próprio desde B35 — a página `Website.tsx` (site-engine) saiu; `/website` e `/website/estatisticas` ficam como redirects de compatibilidade |
 | `Login` · `SetupPassword` · `Signup` | `/login` · `/setup-password` · `/signup` | **público** (standalone, sem Shell). **`/signup` escondido** (`FEATURES.signup = false`, `src/lib/features.ts`): redirecciona para o login e o link "Criar conta" sai |
 

@@ -9,10 +9,10 @@
  * Tudo muda pelo reducer (`apply`/`edit` → desfazer); fundos e componentes vêm do manifest/catálogo.
  */
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { quickToast } from "../state/notify";
 import { Button, Input, SectionTitle } from "../../../ui/ui.jsx";
 import { Icon } from "../../../ui/icons.jsx";
-import { useBuilder } from "../state/store";
+import { NOT_CONFIGURED_HINT, useBuilder } from "../state/store";
 import { buildCopyBlock } from "../state/blocks";
 import { blockPages } from "../state/listing";
 import { applyOp, type Comp, type Holder, type HolderPatch } from "../state/ops";
@@ -71,7 +71,7 @@ function AnchorField({ block, patch }: { block: Block; patch: (p: HolderPatch) =
 }
 
 export function BlockEditor({ holder, itemId, onFlash, onSeo }: Props) {
-  const { state, manifest, lang, catalog, missing, apply, edit, select } = useBuilder();
+  const { state, manifest, configured, lang, catalog, missing, apply, edit, select } = useBuilder();
   const work = state.work;
   const part = holder.kind === "part" ? holder.id : null;
   const block = holder.kind === "block" ? work.blocks.find((b) => b.id === holder.id) ?? null : null;
@@ -128,12 +128,12 @@ export function BlockEditor({ holder, itemId, onFlash, onSeo }: Props) {
     if (op?.type !== "addBlock") return;
     apply(op);
     select({ libId: op.block.id, sel: { kind: "block", id: op.block.id } });
-    toast.success("Criada uma cópia em Blocos. É um bloco novo: mudar um não muda o outro.");
+    quickToast("Criada uma cópia em Blocos. É um bloco novo: mudar um não muda o outro.");
   };
   const deleteLibrary = () => {
     if (!block) return;
     apply({ type: "deleteBlock", id: block.id });
-    toast.success(`«${title}» apagado.`);
+    quickToast(`«${title}» apagado.`);
   };
 
   return (
@@ -251,8 +251,10 @@ export function BlockEditor({ holder, itemId, onFlash, onSeo }: Props) {
           {comps.length === 0 && <p className="mb-2 text-sm text-zinc-500 dark:text-zinc-400">Sem componentes ainda.</p>}
           <button
             type="button"
+            disabled={!configured}
+            title={configured ? undefined : NOT_CONFIGURED_HINT}
             onClick={() => setPalette(true)}
-            className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 text-sm font-medium text-zinc-600 hover:border-accent hover:bg-accent/5 hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 dark:border-zinc-600 dark:text-zinc-300"
+            className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 text-sm font-medium text-zinc-600 disabled:cursor-not-allowed disabled:opacity-50 enabled:hover:border-accent enabled:hover:bg-accent/5 enabled:hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 dark:border-zinc-600 dark:text-zinc-300"
           >
             <Icon name="plus" className="h-4 w-4" />
             {block ? "Adicionar componente" : "Adicionar secção"}

@@ -242,7 +242,7 @@ function ImgPlaceholder({ label = 'imagem', className = '', tint = '#2A6FDB', ro
 }
 
 // Segmented pill tabs — the canonical way to switch sections across the app.
-// tabs: [{ id, label, icon? }]. Keyboard: ←/→ move between tabs.
+// tabs: [{ id, label, icon?, ariaLabel? }] (ariaLabel opcional: nome acessível quando o label visível é abreviado). Keyboard: ←/→ move between tabs.
 function Tabs({ tabs, value, onChange, fullWidth = false, size = 'md', className = '' }) {
   const onKey = (e) => {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
@@ -258,7 +258,7 @@ function Tabs({ tabs, value, onChange, fullWidth = false, size = 'md', className
       {tabs.map((t) => {
         const active = t.id === value;
         return (
-          <button key={t.id} role="tab" aria-selected={active} tabIndex={active ? 0 : -1}
+          <button key={t.id} role="tab" aria-selected={active} aria-label={t.ariaLabel} tabIndex={active ? 0 : -1}
             onClick={() => onChange(t.id)}
             className={`inline-flex items-center gap-1.5 ${pad} rounded-lg text-sm font-medium whitespace-nowrap transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${fullWidth ? 'flex-1 justify-center' : ''} ${active ? 'bg-white dark:bg-zinc-900 text-accent shadow-sm' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}>
             {t.icon && <Icon name={t.icon} className="w-4 h-4" />}

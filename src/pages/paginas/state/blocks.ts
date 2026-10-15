@@ -63,7 +63,8 @@ export function defaultValues(fields: FieldSpecs): Rec {
 
 // ── a partir do catálogo e do manifest ────────────────────────────────────────
 
-export const firstBackground = (m: Manifest | null): string => m?.backgrounds?.[0]?.id ?? "claro";
+/** O fundo de um bloco novo: sempre o 1.º do manifest. Sem manifest não há fundo ("") e não se cria bloco. */
+export const firstBackground = (m: Manifest | null): string => m?.backgrounds?.[0]?.id ?? "";
 
 /** Componente novo: 1.º estilo do manifest (ou `normal`) e os valores por omissão do catálogo (o título nasce H2). */
 export const newComp = (type: string, col: string | number, catalog: Catalog | null, manifest: Manifest | null, ids: IdGen = DEFAULT_IDS): Comp => ({
@@ -127,6 +128,7 @@ const hasPage = (w: Work, pageId: string) => w.pages.some((p) => p.id === pageId
 
 /** Bloco novo de um ponto de partida: na página (`pageId`) ou só na biblioteca (`null`). */
 export function buildNewBlock(w: Work, pageId: string | null, index: number, starter: Starter, catalog: Catalog | null, manifest: Manifest | null, ids: IdGen = DEFAULT_IDS): Result {
+  if (!firstBackground(manifest)) return null;
   const block = newBlockFromStarter(starter, catalog, manifest, ids);
   if (pageId === null) return { type: "addBlock", block };
   return hasPage(w, pageId) ? { type: "addItem", pageId, index, item: blockItem(block.id, ids), block } : null;

@@ -74,6 +74,22 @@ describe("Paginas", () => {
     expect(screen.queryByRole("button", { name: "Guardar" })).not.toBeInTheDocument();
   });
 
+  it("sem fundos no manifest: avisa que o site não está configurado e desliga os blocos", () => {
+    setQuery(data({ manifest: { backgrounds: [], specials: {} } }));
+    renderPage();
+    expect(screen.getByText(/ainda não está configurado para o construtor/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Novo bloco" })).toBeDisabled();
+    // As páginas continuam a poder criar-se.
+    expect(screen.getByRole("navigation", { name: "Páginas do site" })).toBeInTheDocument();
+  });
+
+  it("com fundos no manifest: sem aviso", () => {
+    setQuery(data());
+    renderPage();
+    expect(screen.queryByText(/ainda não está configurado/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Novo bloco" })).toBeEnabled();
+  });
+
   it("carregado: lista de páginas, barra de topo e Guardar desligado sem alterações", () => {
     setQuery(data());
     renderPage();

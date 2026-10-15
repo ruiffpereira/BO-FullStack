@@ -18,11 +18,11 @@ import { PublishNowButton, StatusText } from "./components/PublishStatus";
  * < 860 um ecrã de cada vez (lista → página) com "‹ Voltar". Alturas por flex: o `Shell` é o dono.
  */
 /**
- * Nome do site para o " · <site>" do título no Google. O `GET /cms/site-builder` não traz nenhum, por isso
- * usa-se o nome do tenant que o Backoffice já conhece (`AuthContext.username`); um email não é um nome.
- * Fora do `AuthProvider` (testes isolados) devolve vazio.
+ * Nome do site para o " · <site>" do título no Google: o `siteName` que o dono da plataforma define no Admin
+ * (o mesmo que o site público recebe). Sem ele, o nome do tenant que o Backoffice já conhece
+ * (`AuthContext.username`); um email não é um nome. Fora do `AuthProvider` (testes isolados) devolve vazio.
  */
-function useSiteName(): string {
+function useTenantName(): string {
   try {
     const name = useAuth().username?.trim() ?? "";
     return name.includes("@") ? "" : name;
@@ -33,7 +33,7 @@ function useSiteName(): string {
 
 export function Paginas() {
   const query = useSiteBuilderQuery();
-  const siteName = useSiteName();
+  const tenantName = useTenantName();
 
   if (query.isPending) {
     return (
@@ -66,7 +66,7 @@ export function Paginas() {
     );
   }
   return (
-    <BuilderProvider data={query.data} siteName={siteName} refetch={async () => (await query.refetch()).data}>
+    <BuilderProvider data={query.data} siteName={query.data.siteName?.trim() || tenantName} refetch={async () => (await query.refetch()).data}>
       <Editor />
     </BuilderProvider>
   );

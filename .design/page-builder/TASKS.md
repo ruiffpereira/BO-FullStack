@@ -7,7 +7,8 @@
 ## ▶ Retomar aqui (sessão nova)
 
 1. **F16** — ✅ fechada.
-2. **Pequena mudança cross-repo** (pedida pelo dono a 2026-10-15) — ver *Pendentes → API*.
+2. **Pequena mudança cross-repo** (nome do site, hora "No ar", línguas → publicação) — ✅ API `cb1f04b` ·
+   BO (este commit) · winterplateau `3f5cde9` (`cms`). Contrato §11. e2e `paginas-admin` 13/13 nas 3 larguras.
 3. **Suites inteiras dos três repos → push** (autorizado pelo dono): API → ver CI → Backoffice → ver CI →
    winterplateau **só o branch `cms`** (não juntar na `main` antes do conteúdo real estar na produção).
 4. **F19** — importador do conteúdo real (Claude), manifest final, paridade, e o passo-a-passo do dono em produção.
@@ -37,15 +38,13 @@
 
 ## Pendentes (para o F19 ou logo a seguir)
 
-**API — pedido do dono (2026-10-15), cross-repo (API → Kubb → Backoffice):**
-- **Nome do site** no construtor (editável no admin) → a pré-visualização do Google e a nota de SEO usam-no
-  (hoje o BO usa o `username` do tenant).
-- **Hora "No ar"** (`liveAt`) gravada quando a publicação fica `live` (hoje mostra a hora do pedido).
-- **Mudar as línguas do tenant pede publicação** (marca `publishRequestedAt`, como um `save`).
+**Produção — passo-a-passo para o dono** (escrever no F19): o push da API faz o deploy e **as migrações correm
+sozinhas** no arranque (agora duas: `20261014120000` e `20261015120000`); no admin de produção: dar `VIEW_SITE_PAGES`
+à role da Winterplateau, activar o construtor, **pôr o nome do site**, carregar o manifest final.
 
-**Produção — passo-a-passo para o dono** (escrever no F19): o push da API faz o deploy e **a migração corre
-sozinha** no arranque; no admin de produção: dar `VIEW_SITE_PAGES` à role da Winterplateau, activar o construtor,
-carregar o manifest final. O A9 (secrets do deploy do winterplateau) fica para o fim de tudo.
+**Antes do push:** o winterplateau tem `src/gen/` (booking) regenerado por engano no disco, fora dos commits —
+descartar (`git checkout -- src/gen && git clean -fd src/gen`). O `paginas-ux` "(1) arrastar com o teclado" deu
+timeout a 834/390 só na corrida longa dos `paginas-*` (isolado passa) — ver se repete na suite inteira. O A9 (secrets do deploy do winterplateau) fica para o fim de tudo.
 
 **F19 — site e conteúdo:**
 - Importador do conteúdo actual da Winterplateau para o construtor (Claude), testado na API local; paridade com o

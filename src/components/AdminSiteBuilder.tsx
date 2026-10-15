@@ -89,7 +89,11 @@ const STATUS_LABEL: Record<string, { label: string; tone: "neutral" | "blue" | "
 
 const errMessage = (err: unknown, fallback: string) => {
   const e = err as { response?: { status?: number; data?: unknown } } | null;
-  return isImpersonationForbiddenError(e?.response?.status, e?.response?.data) ? IMPERSONATION_MESSAGE : getApiError(err, fallback);
+  if (isImpersonationForbiddenError(e?.response?.status, e?.response?.data)) return IMPERSONATION_MESSAGE;
+  // O 400 do PUT do construtor traz `error: [{ path, message }]` (zod) em vez de uma frase.
+  const list = (e?.response?.data as { error?: unknown } | undefined)?.error;
+  if (Array.isArray(list) && typeof list[0]?.message === "string") return list[0].message;
+  return getApiError(err, fallback);
 };
 
 // ── modal ──────────────────────────────────────────────────────────────────────
@@ -139,6 +143,21 @@ export function SiteBuilderModal({ user, onClose }: { user: { userId: string; na
         void refresh();
       },
       onError: (e) => setActionError(errMessage(e, "Não foi possível alterar o construtor.")),
+    },
+  });
+  // Nome do site: copia o da API quando muda lá (como o formulário da publicação).
+  const [siteName, setSiteName] = useState("");
+  const savedName = data?.siteName ?? "";
+  useEffect(() => setSiteName(savedName), [savedName]);
+  const nameM = usePutAdminUsersUseridSiteBuilder({
+    client: { headers },
+    mutation: {
+      onSuccess: () => {
+        setActionError("");
+        toast.success("Nome do site guardado");
+        void refresh();
+      },
+      onError: (e) => setActionError(errMessage(e, "Não foi possível guardar o nome do site.")),
     },
   });
   const manifestM = usePutAdminUsersUseridSiteBuilderManifest({
@@ -218,7 +237,10 @@ export function SiteBuilderModal({ user, onClose }: { user: { userId: string; na
     mode !== savedMode ||
     (github && (repo !== (publish?.repo ?? "") || workflow !== (publish?.workflow ?? "") || ref !== (publish?.ref ?? ""))) ||
     (github && token.trim() !== "");
-  const status = STATUS_LABEL[publish?.status ?? "idle"] ?? STATUS_LABEL.idle;
+  // Em `runtime` o estado fica `idle` (não há workflow), mas o site está no ar desde a última gravação (`liveAt`).
+  const live = publish?.status === "live" || (publish?.mode === "runtime" && !!publish.liveAt);
+  const status = live ? STATUS_LABEL.live : STATUS_LABEL[publish?.status ?? "idle"] ?? STATUS_LABEL.idle;
+  const liveAt = live && publish?.liveAt ? ` · ${new Date(publish.liveAt).toLocaleString("pt-PT", { dateStyle: "short", timeStyle: "short" })}` : "";
   const summary = data?.manifestSummary;
   const forbidden = q.isError && isImpersonationForbiddenError((q.error as any)?.response?.status, (q.error as any)?.response?.data);
 
@@ -247,6 +269,26 @@ export function SiteBuilderModal({ user, onClose }: { user: { userId: string; na
               Para o cliente ver o menu Páginas, dá <code className="text-[12px]">VIEW_SITE_PAGES</code> à role do tenant em{" "}
               <Link to="/admin/permissoes" onClick={onClose} className="text-accent underline underline-offset-2">Admin → Permissões</Link>.
             </p>
+          </section>
+
+          <section aria-label="Nome do site">
+            <SectionTitle>Nome do site</SectionTitle>
+            <p className="text-[13px] text-zinc-500 mb-3">
+              Aparece no título de cada página no Google («Página · Nome») e na ficha da empresa. Mudá-lo publica o site de novo.
+            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-[200px]">
+                <Input label="Nome" value={siteName} maxLength={80} onChange={(e: any) => setSiteName(e.target.value)} placeholder={user.name} autoComplete="off" />
+              </div>
+              <GuardButton
+                className="min-h-10"
+                isLoading={nameM.isPending}
+                disabled={siteName.trim() === savedName || nameM.isPending}
+                onClick={() => nameM.mutate({ userId, data: { siteName: siteName.trim() || null } })}
+              >
+                Guardar nome
+              </GuardButton>
+            </div>
           </section>
 
           <section aria-label="Manifest">
@@ -301,7 +343,7 @@ export function SiteBuilderModal({ user, onClose }: { user: { userId: string; na
           </section>
 
           <section aria-label="Publicação">
-            <SectionTitle right={<Badge tone={status.tone}>{status.label}</Badge>}>Publicação</SectionTitle>
+            <SectionTitle right={<Badge tone={status.tone}>{status.label}{liveAt}</Badge>}>Publicação</SectionTitle>
             <div className="space-y-3">
               <Select label="Modo" value={mode} onChange={(e: any) => setMode(e.target.value === "github" ? "github" : "runtime")}>
                 <option value="runtime">Em runtime (o site lê a API)</option>

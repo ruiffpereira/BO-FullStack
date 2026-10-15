@@ -5,7 +5,7 @@ import { API, E2E_PASSWORD, loginAs, nextClientIp } from "./fixtures/login";
 import { randomUUID } from "node:crypto";
 import { withSessionRetry } from "./fixtures/session";
 import { AdminPage } from "./pages/AdminPage";
-import { VIEWPORTS } from "./pages/PaginasPage";
+import { PaginasPage, VIEWPORTS, uniq } from "./pages/PaginasPage";
 
 /**
  * Admin → Utilizadores → «Construtor de páginas» (F16, CONTRATO §5.4) nas três larguras: o admin
@@ -137,7 +137,98 @@ for (const vp of VIEWPORTS) {
       await expect(guardar).toBeDisabled();
     });
 
-    test("manifest que tira um fundo em uso: 409 com a lista do que está em uso e nada é gravado", async ({ page, context, request }) => {
+    test("nome do site: o admin define-o, persiste ao reabrir, aparece no «· nome» do Google do tenant e apagar volta a vazio", async ({ page, context, browser }) => {
+      const SITE = "pages@e2e";
+      const NAME = `Marca E2E ${Date.now().toString(36).slice(-4)}`;
+      const admin = new AdminPage(page);
+      await openAdmin(page, context);
+
+      /** O campo «Nome» e o botão da secção «Nome do site» do modal. */
+      const nameSection = (dialog: ReturnType<Page["locator"]>) => dialog.getByRole("region", { name: "Nome do site" });
+      const reopen = async () => {
+        await page.keyboard.press("Escape");
+        await expect(page.getByRole("dialog", { name: "Construtor de páginas" })).toHaveCount(0);
+        return openBuilderModal(page, admin, SITE);
+      };
+
+      let dialog = await openBuilderModal(page, admin, SITE);
+      let section = nameSection(dialog);
+      const input = (s: typeof section) => s.getByRole("textbox", { name: "Nome", exact: true });
+      const guardar = (s: typeof section) => s.getByRole("button", { name: "Guardar nome" });
+
+      // Estado inicial limpo (uma corrida anterior pode ter deixado um nome): apaga-o se existir.
+      if ((await input(section).inputValue()) !== "") {
+        await input(section).fill("");
+        await guardar(section).click();
+        await expect(page.getByText("Nome do site guardado")).toBeVisible();
+        await expect(guardar(section)).toBeDisabled();
+      }
+      await expect(input(section)).toHaveValue("");
+      await expect(guardar(section)).toBeDisabled(); // sem alterações
+
+      let pagesCtx: Awaited<ReturnType<typeof browser.newContext>> | undefined;
+      try {
+        // Define (com espaços à volta: a API recebe-o aparado).
+        await input(section).fill(`  ${NAME}  `);
+        await expect(guardar(section)).toBeEnabled();
+        await guardar(section).click();
+        await expect(page.getByText("Nome do site guardado")).toBeVisible();
+        await expect(input(section)).toHaveValue(NAME);
+        await expect(guardar(section)).toBeDisabled();
+
+        // Persiste: fechar e abrir de novo traz o valor da API.
+        dialog = await reopen();
+        section = nameSection(dialog);
+        await expect(input(section)).toHaveValue(NAME);
+        await expect(guardar(section)).toBeDisabled();
+
+        // O tenant (outra sessão, o próprio browser) vê-o no fim do título da pré-visualização do Google.
+        pagesCtx = await browser.newContext({ baseURL: "http://localhost:5273", viewport: { width: vp.width, height: vp.height }, storageState: { cookies: [], origins: [] } });
+        const tp = await pagesCtx.newPage();
+        const p = new PaginasPage(tp, pagesCtx);
+        await p.open();
+        const pg = `Nome-${uniq()}`;
+        await p.createPage(pg);
+        await p.openTab("Definições e SEO");
+        const serp = tp.getByRole("region", { name: "Google (SEO)" }).getByTestId("serp");
+        await expect(serp).toBeVisible();
+        await expect(serp.getByText(new RegExp(` · ${NAME}$`))).toBeVisible();
+        await expect(serp.locator("b")).toHaveText(NAME); // o nome por cima do endereço
+        // Guarda: o estado passa a «No ar · hh:mm» (vem de `publish.liveAt`).
+        await p.save();
+        await expect(p.status).toHaveText(/No ar · \d{2}:\d{2}/);
+
+        // (O selo «No ar · data» da Publicação só existe com publishStatus=live, i.e. modo GitHub — não testável sem o GitHub.)
+        dialog = await reopen();
+
+        // Apagar volta a vazio (e persiste vazio).
+        section = nameSection(dialog);
+        await input(section).fill("");
+        await guardar(section).click();
+        await expect(page.getByText("Nome do site guardado")).toBeVisible();
+        await expect(input(section)).toHaveValue("");
+        await expect(guardar(section)).toBeDisabled();
+        dialog = await reopen();
+        await expect(input(nameSection(dialog))).toHaveValue("");
+      } finally {
+        await pagesCtx?.close();
+        // Repõe o estado (nome a null) mesmo se o teste falhou a meio.
+        try {
+          const d = page.getByRole("dialog", { name: "Construtor de páginas" });
+          if ((await d.count()) === 0) await openBuilderModal(page, admin, SITE);
+          const s = nameSection(page.getByRole("dialog", { name: "Construtor de páginas" }));
+          if ((await input(s).inputValue()) !== "") {
+            await input(s).fill("");
+            await guardar(s).click();
+            await expect(guardar(s)).toBeDisabled();
+          }
+        } catch {
+          /* melhor esforço: o erro que interessa é o do teste */
+        }
+      }
+    });
+
+    test("manifest que tira um fundo em uso:409 com a lista do que está em uso e nada é gravado", async ({ page, context, request }) => {
       // O tenant `pages@e2e` passa a ter um bloco com o fundo «marca» (pela API, com o token dele).
       const login = await request.post(`${API}/users/login`, {
         data: { username: "pages@e2e", password: E2E_PASSWORD },

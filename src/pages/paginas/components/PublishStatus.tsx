@@ -15,8 +15,8 @@ const hhmm = (iso: string | null | undefined): string | null => {
  * A linha de estado da barra de topo (F16): gravação primeiro, depois a publicação.
  *  - `runtime`: o site lê a API, por isso "No ar" logo a seguir a gravar (não há nada a esperar);
  *  - `github`: "A publicar no site…" enquanto `pending`/`running`, "No ar" quando `live`, "Falhou: <motivo>".
- * A API não envia a hora em que entrou no ar: usa-se a do último pedido (`requestedAt`) e, na falta, a
- * da última gravação desta sessão.
+ * A hora é a de `liveAt` (a API grava-a quando o site passa a servir a revisão; em `runtime`, a cada gravação).
+ * Em `runtime` uma gravação desta sessão é mais recente do que o `liveAt` lido no arranque, por isso ganha.
  */
 export function publishLine(i: { save: SaveStatus; dirty: boolean; publish: Publish; savedAt?: string | null }): { tone: string; text: string } {
   const { save, dirty, publish, savedAt } = i;
@@ -28,7 +28,7 @@ export function publishLine(i: { save: SaveStatus; dirty: boolean; publish: Publ
   if (s === "pending" || s === "running") return { tone: "bg-blue-500 animate-pulse", text: "A publicar no site…" };
   if (s === "failed") return { tone: "bg-red-500", text: publish?.error ? `Falhou: ${publish.error}` : "Falhou a publicação" };
   if (s === "live" || publish?.mode === "runtime") {
-    const t = hhmm(publish?.requestedAt) ?? hhmm(savedAt);
+    const t = (publish?.mode === "runtime" ? hhmm(savedAt) : null) ?? hhmm(publish?.liveAt);
     return { tone: "bg-emerald-500", text: t ? `No ar · ${t}` : "No ar" };
   }
   return { tone: "bg-emerald-500", text: "Guardado" };

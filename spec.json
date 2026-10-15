@@ -4406,7 +4406,7 @@
     "/admin/users/{userId}/site-builder": {
       "get": {
         "summary": "Estado do construtor de páginas de um tenant (só o dono da plataforma)",
-        "description": "Devolve se o construtor está activo, um resumo do manifest e a configuração de publicação (sem o token do GitHub — só `hasToken`). Sem linha → `enabled: false`. Exige `VIEW_ADMIN` e recusa sessões de suporte (impersonation).\n",
+        "description": "Devolve se o construtor está activo, o nome do site (`siteName`, `null` se não houver), um resumo do manifest e a configuração de publicação (sem o token do GitHub — só `hasToken`; `liveAt` = quando o site passou a servir a revisão actual). Sem linha → `enabled: false`. Exige `VIEW_ADMIN` e recusa sessões de suporte (impersonation).\n",
         "tags": [
           "Users"
         ],
@@ -4435,6 +4435,10 @@
                   "properties": {
                     "enabled": {
                       "type": "boolean"
+                    },
+                    "siteName": {
+                      "type": "string",
+                      "nullable": true
                     },
                     "manifestSummary": {
                       "type": "object",
@@ -4494,6 +4498,11 @@
                             "live",
                             "failed"
                           ]
+                        },
+                        "liveAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
                         }
                       }
                     }
@@ -4517,8 +4526,8 @@
         }
       },
       "put": {
-        "summary": "Ligar ou desligar o construtor de páginas de um tenant (só o dono da plataforma)",
-        "description": "Cria a linha do construtor se ainda não existir. Desligar não apaga conteúdo — o menu \"Páginas\" do tenant mostra o estado vazio e o `GET /cms/site-builder` devolve `{ enabled: false }`. Exige `VIEW_ADMIN` e recusa sessões de suporte.\n",
+        "summary": "Ligar/desligar o construtor e definir o nome do site de um tenant (só o dono da plataforma)",
+        "description": "Corpo `{ enabled?, siteName? }` — **pelo menos um** (senão 400); omitido = manter. Cria a linha do construtor se ainda não existir. Desligar não apaga conteúdo — o menu \"Páginas\" do tenant mostra o estado vazio e o `GET /cms/site-builder` devolve `{ enabled: false }`. `siteName` é aparado; `null` ou `\"\"` apaga; 1–80 caracteres, sem caracteres de controlo nem `<` `>` (400). **Mudar de facto o `siteName` com o construtor activo é uma mudança visível no site**: sobe a `revision` (um editor aberto leva `409 REVISION_CONFLICT` no próximo save) e pede publicação — em `github` `publishStatus` passa a `pending` (ou fica `running`) e marca `publishRequestedAt`; em `runtime` grava `liveAt`. Gravar o mesmo nome não faz nada. Exige `VIEW_ADMIN` e recusa sessões de suporte.\n",
         "tags": [
           "Users"
         ],
@@ -4543,12 +4552,16 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "enabled"
-                ],
+                "minProperties": 1,
                 "properties": {
                   "enabled": {
                     "type": "boolean"
+                  },
+                  "siteName": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 80,
+                    "description": "Aparado; null ou \"\" apaga"
                   }
                 }
               }
@@ -4565,6 +4578,10 @@
                   "properties": {
                     "enabled": {
                       "type": "boolean"
+                    },
+                    "siteName": {
+                      "type": "string",
+                      "nullable": true
                     }
                   }
                 }
@@ -4572,7 +4589,7 @@
             }
           },
           "400": {
-            "description": "`enabled` em falta ou não booleano"
+            "description": "Nenhum dos dois campos, `enabled` não booleano ou `siteName` inválido (vazio depois de aparado é válido = apagar)"
           },
           "401": {
             "description": "Não autenticado"
@@ -5499,6 +5516,7 @@
             }
           }
         },
+        "description": "Se `languages` mudou de facto (o conjunto, a base incluída — a ordem e `[]` vs só a base não contam) e o tenant tem o construtor de páginas activo, sobe a `revision` do construtor e pede publicação na mesma transacção (`github` → `publishStatus=pending`; `runtime` → `liveAt`). Sem construtor (ou desligado) não faz mais nada.",
         "responses": {
           "200": {
             "description": "User updated successfully"
@@ -7435,7 +7453,7 @@
     "/cms/site-builder": {
       "get": {
         "summary": "Estado completo do construtor de páginas do tenant (para o editor)",
-        "description": "Devolve `{ enabled: false }` se o tenant não tem o construtor activo (sem linha ou desligado). Caso contrário devolve o estado inteiro do tenant autenticado: revisão, línguas (`User.languages`, ou só a língua base se vazia), catálogo do núcleo, manifest, páginas (por ordem), itens por página (ordenados), blocos, pastas, partes comuns (topo/rodapé), redireccionamentos, estado da publicação (sem credenciais) e limites. Tudo filtrado pelo `userId` do token. Exige `VIEW_SITE_PAGES`.\n",
+        "description": "Devolve `{ enabled: false }` se o tenant não tem o construtor activo (sem linha ou desligado). Caso contrário devolve o estado inteiro do tenant autenticado: nome do site (`siteName`, `null` se não houver), revisão, línguas (`User.languages`, ou só a língua base se vazia), catálogo do núcleo, manifest, páginas (por ordem), itens por página (ordenados), blocos, pastas, partes comuns (topo/rodapé), redireccionamentos, estado da publicação (sem credenciais) e limites. Tudo filtrado pelo `userId` do token. Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
           "CMS"
         ],
@@ -7457,6 +7475,11 @@
                   "properties": {
                     "enabled": {
                       "type": "boolean"
+                    },
+                    "siteName": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Nome do site (definido pelo dono da plataforma); só quando enabled"
                     },
                     "revision": {
                       "type": "integer"
@@ -7545,6 +7568,12 @@
                         "error": {
                           "type": "string",
                           "nullable": true
+                        },
+                        "liveAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true,
+                          "description": "Quando o site passou a servir a revisão actual (job em github; cada gravação em runtime)"
                         }
                       }
                     },
@@ -7574,7 +7603,7 @@
     "/cms/site-builder/publish": {
       "post": {
         "summary": "Publicar agora (salta a espera de 60 s) o site do tenant",
-        "description": "Só para sites com `publishMode = github` (Astro). Dispara já o workflow configurado pelo dono da plataforma, sem esperar o minuto de debounce, e devolve `202` com o estado da publicação (`running`). O `GET /cms/site-builder` passa a mostrar `running` → `live`/`failed` à medida que o job confirma o `cms-build.json` do site. Limite: 1 pedido por minuto por tenant (429). Resolve sempre pelo tenant autenticado. Exige `VIEW_SITE_PAGES`.\n",
+        "description": "Só para sites com `publishMode = github` (Astro). Dispara já o workflow configurado pelo dono da plataforma, sem esperar o minuto de debounce, e devolve `202` com o estado da publicação (`running`). O `GET /cms/site-builder` passa a mostrar `running` → `live`/`failed` à medida que o job confirma o `cms-build.json` do site (`publish.liveAt` = quando passou a `live`). Limite: 1 pedido por minuto por tenant (429). Resolve sempre pelo tenant autenticado. Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
           "CMS"
         ],
@@ -7623,6 +7652,12 @@
                         "error": {
                           "type": "string",
                           "nullable": true
+                        },
+                        "liveAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true,
+                          "description": "Quando o site passou a servir a revisão actual (job em github; cada gravação em runtime)"
                         }
                       }
                     }
@@ -7661,7 +7696,7 @@
     "/cms/site-builder/save": {
       "post": {
         "summary": "Grava páginas, itens, blocos, pastas e partes comuns do construtor (uma gravação = uma transacção)",
-        "description": "Aplica `pages.upsert`/`pages.delete` e as listas COMPLETAS de itens (`items[pageId]`) sobre o estado do tenant, valida o estado FINAL (árvore, endereços por língua, traduções, referências, itens) e escreve tudo numa só transacção, com lock na linha do tenant (`SELECT … FOR UPDATE`). O `path` é calculado pelo servidor. Se o endereço de uma página mudar (slug, mãe ou `slugs` por língua), criam-se redireccionamentos do antigo para a página e para as descendentes (o `fromPath` leva o prefixo `/en/…` nas línguas que não a base) e apagam-se os que passaram a ser endereço vivo. `revision` sobe 1; com `publishMode='github'` marca `publishRequestedAt`. Ids de outro tenant → 404 (nada é alterado). `blocks.upsert/delete` e `folders.upsert/delete` mexem na biblioteca; `parts.topo`/`parts.rodape` substituem a parte inteira (`null`/ausente = não mexer; `{comps:[]}` esvazia). Um ÚNICO varrimento valida o estado final do tenant (páginas, TODOS os blocos usados ou não, partes, itens e especiais, traduções, limites do §6.8): o `422` pode apontar para um bloco que não vinha no pedido. Apagar bloco ainda numa página → `409 BLOCK_IN_USE`; apagar pasta com blocos → `409 FOLDER_NOT_EMPTY` (ambos contados no estado final: tirar o bloco da página no mesmo pedido é legítimo). Âncoras únicas por tenant (trocar duas âncoras no mesmo pedido é permitido). `folderId` de uma pasta que não é do tenant → `422 BAD_REF` (igual a uma pasta inexistente). Exige `VIEW_SITE_PAGES`.\n",
+        "description": "Aplica `pages.upsert`/`pages.delete` e as listas COMPLETAS de itens (`items[pageId]`) sobre o estado do tenant, valida o estado FINAL (árvore, endereços por língua, traduções, referências, itens) e escreve tudo numa só transacção, com lock na linha do tenant (`SELECT … FOR UPDATE`). O `path` é calculado pelo servidor. Se o endereço de uma página mudar (slug, mãe ou `slugs` por língua), criam-se redireccionamentos do antigo para a página e para as descendentes (o `fromPath` leva o prefixo `/en/…` nas línguas que não a base) e apagam-se os que passaram a ser endereço vivo. `revision` sobe 1; com `publishMode='github'` marca `publishRequestedAt` (e `publishStatus=pending`); em `runtime` grava `liveAt` (o site lê a API ao vivo). Ids de outro tenant → 404 (nada é alterado). `blocks.upsert/delete` e `folders.upsert/delete` mexem na biblioteca; `parts.topo`/`parts.rodape` substituem a parte inteira (`null`/ausente = não mexer; `{comps:[]}` esvazia). Um ÚNICO varrimento valida o estado final do tenant (páginas, TODOS os blocos usados ou não, partes, itens e especiais, traduções, limites do §6.8): o `422` pode apontar para um bloco que não vinha no pedido. Apagar bloco ainda numa página → `409 BLOCK_IN_USE`; apagar pasta com blocos → `409 FOLDER_NOT_EMPTY` (ambos contados no estado final: tirar o bloco da página no mesmo pedido é legítimo). Âncoras únicas por tenant (trocar duas âncoras no mesmo pedido é permitido). `folderId` de uma pasta que não é do tenant → `422 BAD_REF` (igual a uma pasta inexistente). Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
           "CMS"
         ],
@@ -15608,6 +15643,7 @@
       },
       "put": {
         "summary": "Update tenant's language selection",
+        "description": "Se as línguas do site mudaram DE FACTO (o conjunto de línguas, a base incluída, ou a língua por omissão — a ordem e `[]` vs só a base não contam) e o tenant tem o construtor de páginas activo, sobe a `revision` do construtor e pede publicação, na mesma transacção: em `github` `publishStatus` passa a `pending` (ou fica `running`) e marca `publishRequestedAt`; em `runtime` grava `liveAt`. Um editor aberto leva `409 REVISION_CONFLICT` no próximo save. Sem construtor (ou desligado) não faz mais nada.",
         "tags": [
           "Settings"
         ],

@@ -379,7 +379,17 @@ volta a despachar no fim. Depois de o run acabar com sucesso há **3 min de gra�
 revisão; run a correr há > 30 min → `failed`. Uma falha não se repete sozinha (novo `save` ou "publicar agora").
 `cms-build.json` lido com tecto de 64 KiB; revisão > INT recusada.
 
+**2026-10-15 · nome do site, hora "No ar", línguas (pedido do dono).**
+- `SiteBuilders.siteName` (≤ 80, null) — definido no Admin: `PUT /admin/users/:userId/site-builder` passa a
+  `{ enabled?, siteName? }` (pelo menos um; `""`/`null` apaga; sem controlo nem `< >`; 400 = `error:[{path,message}]`).
+  Sai em `GET /admin/…/site-builder`, no `GET /cms/site-builder` e no cabeçalho público (`/site` e `/site/page`). O kit
+  usa-o no " · <site>" e no JSON-LD Organization (sem ele, o nome fixo do kit).
+- `SiteBuilders.liveAt` (null) — gravado pelo job ao dar `live` (github) e a cada gravação em `runtime`. Sai em
+  `publish.liveAt` (editor e admin).
+- **Mudança visível fora do editor** (nome do site, línguas do tenant por `PUT /settings/languages` ou pelo admin) com o
+  construtor activo → `revision + 1` e pede publicação, na mesma transacção (`src/pageBuilder/publishRequest.ts`, o
+  mesmo helper do `save`). Um editor aberto leva `409 REVISION_CONFLICT` no `save` seguinte (aceite).
+
 **Em aberto (menores, sem fatia):** `MANIFEST_IN_USE` não cobre mudanças nas `parts` nem nos campos/opções dos
-especiais (o `save` seguinte dá 422 a apontar o componente); mudar línguas do tenant ou o manifest não sobe a
-`revision` nem pede publicação; o limitador de "publicar agora" corre antes das validações (um 409 gasta o minuto);
+especiais (o `save` seguinte dá 422 a apontar o componente); mudar o manifest não sobe a `revision` nem pede publicação; o limitador de "publicar agora" corre antes das validações (um 409 gasta o minuto);
 `websiteDomain` validado só pelo nome (DNS para IP interno = SSRF cego; só o admin o define).

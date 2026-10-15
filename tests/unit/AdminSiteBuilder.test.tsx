@@ -107,6 +107,37 @@ describe("Admin — Construtor de páginas", () => {
     expect(s.enabled).toHaveBeenCalledWith({ userId: "u1", data: { enabled: false } });
   });
 
+  describe("nome do site", () => {
+    it("vem da API; só se guarda quando muda, aparado", () => {
+      renderModal(GET({ siteName: "Winterplateau" }));
+      const save = screen.getByRole("button", { name: "Guardar nome" });
+      expect(screen.getByLabelText("Nome")).toHaveValue("Winterplateau");
+      expect(save).toBeDisabled();
+      type("Nome", "  Winterplateau Lda  ");
+      fireEvent.click(save);
+      expect(s.enabled).toHaveBeenCalledWith({ userId: "u1", data: { siteName: "Winterplateau Lda" } });
+    });
+    it("apagar o nome envia null", () => {
+      renderModal(GET({ siteName: "Winterplateau" }));
+      type("Nome", "   ");
+      fireEvent.click(screen.getByRole("button", { name: "Guardar nome" }));
+      expect(s.enabled).toHaveBeenCalledWith({ userId: "u1", data: { siteName: null } });
+    });
+    it("400 com a lista do zod mostra a primeira mensagem", () => {
+      renderModal(GET({ siteName: null }));
+      act(() => s.opts.enabled.onError(apiErr(400, { error: [{ path: ["siteName"], message: "siteName: máximo 80 caracteres" }] })));
+      expect(screen.getByRole("alert")).toHaveTextContent("siteName: máximo 80 caracteres");
+    });
+  });
+
+  it("runtime com liveAt: No ar com a data, não 'Sem publicações'", () => {
+    const liveAt = "2026-10-15T14:05:00";
+    renderModal(GET({ publish: { mode: "runtime", hasToken: false, status: "idle", liveAt } }));
+    const when = new Date(liveAt).toLocaleString("pt-PT", { dateStyle: "short", timeStyle: "short" });
+    expect(screen.getByText(`No ar · ${when}`)).toBeInTheDocument();
+    expect(screen.queryByText("Sem publicações")).not.toBeInTheDocument();
+  });
+
   describe("manifest", () => {
     it("JSON ilegível não chega à API", () => {
       renderModal();

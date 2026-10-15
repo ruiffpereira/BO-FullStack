@@ -90,12 +90,22 @@ describe("publishLine — cada estado", () => {
     expect(publishLine({ ...base, publish: github({ status: "failed", error: "Workflow não encontrado" }) as never }).text).toBe("Falhou: Workflow não encontrado");
     expect(publishLine({ ...base, publish: github({ status: "failed" }) as never }).text).toBe("Falhou a publicação");
   });
-  it("live → No ar · hh:mm (do último pedido, ou da gravação desta sessão); sem hora → No ar", () => {
+  it("live → No ar · hh:mm de liveAt (nunca a hora do pedido); sem hora → No ar", () => {
     const iso = "2026-10-15T14:05:00";
-    const hhmm = new Date(iso).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
-    expect(publishLine({ ...base, publish: github({ requestedAt: iso }) as never }).text).toBe(`No ar · ${hhmm}`);
-    expect(publishLine({ ...base, publish: github(), savedAt: iso }).text).toBe(`No ar · ${hhmm}`);
-    expect(publishLine({ ...base, publish: github() as never }).text).toBe("No ar");
+    const later = "2026-10-15T14:09:00";
+    const hhmm = (s: string) => new Date(s).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+    expect(publishLine({ ...base, publish: github({ liveAt: later, requestedAt: iso }) as never }).text).toBe(`No ar · ${hhmm(later)}`);
+    expect(publishLine({ ...base, publish: github({ requestedAt: iso }) as never }).text).toBe("No ar");
+    // Em github a gravação desta sessão ainda não está no ar: não conta.
+    expect(publishLine({ ...base, publish: github({ liveAt: iso }) as never, savedAt: later }).text).toBe(`No ar · ${hhmm(iso)}`);
+  });
+  it("runtime → a gravação desta sessão ganha ao liveAt lido no arranque", () => {
+    const iso = "2026-10-15T14:05:00";
+    const later = "2026-10-15T14:09:00";
+    const hhmm = (s: string) => new Date(s).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+    const runtime = { mode: "runtime", status: "idle", liveAt: iso } as never;
+    expect(publishLine({ ...base, publish: runtime }).text).toBe(`No ar · ${hhmm(iso)}`);
+    expect(publishLine({ ...base, publish: runtime, savedAt: later }).text).toBe(`No ar · ${hhmm(later)}`);
   });
   it("runtime: No ar logo após gravar; github sem publicações: Guardado", () => {
     expect(publishLine({ ...base, publish: { mode: "runtime", status: "idle" } as never }).text).toBe("No ar");

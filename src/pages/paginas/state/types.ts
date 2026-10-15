@@ -36,6 +36,18 @@ export interface FieldSpec {
   default?: unknown;
   /** Só nas listas: os campos de cada entrada (um nível). */
   of?: Record<string, FieldSpec>;
+  // Restantes propriedades da definição da API (§3.3) — só as que a UX lê.
+  required?: boolean;
+  /** Campo de SEO: o formulário agrupa-os na caixa "Google (SEO)". */
+  seo?: boolean;
+  max?: number;
+  min?: number;
+  /** `choice` com opções fixas. */
+  options?: string[];
+  /** `choice` cujas opções vêm do manifest (ícones). */
+  optionsFrom?: "icons";
+  /** Rótulo dado pela API; sem ele usa-se o dicionário de `fields/labels.ts`. */
+  label?: string;
 }
 export type FieldSpecs = Record<string, FieldSpec>;
 export interface CatalogComponent {

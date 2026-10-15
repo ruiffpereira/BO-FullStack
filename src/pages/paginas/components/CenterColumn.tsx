@@ -10,6 +10,7 @@ import { EmptyState } from "../../../ui/ui.jsx";
 import { Icon } from "../../../ui/icons.jsx";
 import { useBuilder } from "../state/store";
 import type { Item } from "../state/types";
+import { FieldsDemo, type DemoSource } from "./FieldsDemo";
 import { PageContent } from "./PageContent";
 
 interface Props {
@@ -24,12 +25,13 @@ interface Props {
 const backBtn =
   "self-start inline-flex items-center gap-1 min-h-10 -ml-2 px-2 mb-2 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40";
 
-function Marker({ title, sub }: { title: string; sub: string }) {
+function Marker({ title, sub, demo }: { title: string; sub: string; demo?: DemoSource }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{title}</h2>
       <p className="mt-1 text-sm text-zinc-500">{sub}</p>
-      <p className="mt-6 text-sm text-zinc-400">O editor chega nas próximas fatias.</p>
+      {demo ? <FieldsDemo source={demo} /> : null}
+      <p className="mt-6 text-sm text-zinc-400">O editor completo chega na próxima fatia.</p>
     </div>
   );
 }
@@ -50,13 +52,17 @@ export function CenterColumn({ className, onBack, onAdd, flash, onFlash }: Props
 
   let content;
   if (libBlock) {
-    content = <Marker title={libBlock.name || "Sem nome"} sub="Bloco da biblioteca" />;
+    content = <Marker title={libBlock.name || "Sem nome"} sub="Bloco da biblioteca" demo={{ kind: "block", id: libBlock.id }} />;
   } else if (part) {
-    content = <Marker title={part === "topo" ? "Topo" : "Rodapé"} sub="Parte comum, igual em todas as páginas" />;
+    content = <Marker title={part === "topo" ? "Topo" : "Rodapé"} sub="Parte comum, igual em todas as páginas" demo={{ kind: "part", id: part }} />;
   } else if (openItem) {
     const block = openItem.kind === "block" ? work.blocks.find((b) => b.id === openItem.blockId) : null;
     const label = openItem.kind === "special" ? manifest?.specials?.[openItem.specialType ?? ""]?.label ?? openItem.specialType ?? "Especial" : block?.name || "Sem nome";
-    content = <Marker title={label} sub={openItem.kind === "special" ? "Especial deste site" : "Bloco desta página"} />;
+    content = <Marker
+        title={label}
+        sub={openItem.kind === "special" ? "Especial deste site" : "Bloco desta página"}
+        demo={openItem.kind === "special" ? { kind: "item", id: openItem.id } : block ? { kind: "block", id: block.id } : undefined}
+      />;
   } else if (page) {
     content = <PageContent key={page.id} page={page} onAdd={onAdd} flash={flash} onFlash={onFlash} />;
   } else {

@@ -18,6 +18,7 @@ import { readApiFailure, siteBuilderQueryKey, usePublishSiteBuilder, useSaveSite
 import { buildChangeset, fromServer } from "./changeset";
 import { canRedo, canUndo, createHistory, markSaved, record, redo, snapshot, undo, type History } from "./history";
 import { applyOp, type WorkOp } from "./ops";
+import { PendingUploadError, hasPending, replaceUrls, uploadPending } from "./pending";
 import { countMissing, findMissing, firstMissing, locateMissing, type MissingItem } from "./missing";
 import type { Catalog, Issue, LangCtx, Manifest, SaveBody, Sel, Work } from "./types";
 
@@ -55,6 +56,8 @@ export type Action =
   | { type: "undo" }
   | { type: "redo" }
   | { type: "select"; pageId?: string | null; libId?: string | null; sel?: Sel; focus?: MissingItem | null }
+  /** Ficheiros pendentes já enviados: troca os marcadores `blob:` pelos URLs reais (sem entrada nova no desfazer). */
+  | { type: "mediaUploaded"; map: Record<string, string> }
   | { type: "saveStart" }
   | { type: "saveOk"; revision: number; sent: Work }
   | { type: "conflict"; revision: number | null }
@@ -130,6 +133,13 @@ export function reduce(s: StoreState, a: Action): StoreState {
         sel: a.sel === undefined ? s.sel : a.sel,
         focus: a.focus === undefined ? s.focus : a.focus,
       };
+    case "mediaUploaded": {
+      const work = replaceUrls(s.work, a.map);
+      if (work === s.work) return s;
+      const stack = s.history.stack.slice();
+      stack[s.history.i] = snapshot(work);
+      return { ...s, work, history: { ...s.history, stack, lastKey: null, lastAt: 0 } };
+    }
     case "saveStart":
       return { ...s, status: "saving", issues: [], failure: null, conflictRevision: null };
     case "saveOk":
@@ -256,10 +266,23 @@ export function BuilderProvider({ data, refetch, children }: ProviderProps) {
       goToMissing();
       return false;
     }
-    const body = buildChangeset(s.server, s.work, s.revision);
-    if (!body) return false;
-    const sent = s.work;
+    if (!buildChangeset(s.server, s.work, s.revision)) return false;
     dispatch({ type: "saveStart" });
+    // Upload diferido: só agora sobem os ficheiros escolhidos. Se um falhar, nada é gravado.
+    let sent = s.work;
+    if (hasPending(s.work)) {
+      try {
+        const up = await uploadPending(s.work);
+        sent = up.work;
+        dispatch({ type: "mediaUploaded", map: up.map });
+      } catch (err) {
+        const message = err instanceof PendingUploadError ? err.message : readApiFailure(err).message;
+        dispatch({ type: "failed", failure: { status: null, message, data: {} } });
+        return false;
+      }
+    }
+    const body = buildChangeset(s.server, sent, s.revision);
+    if (!body) return false;
     try {
       const res = await saveAsync({ data: body });
       dispatch({ type: "saveOk", revision: res.revision, sent });

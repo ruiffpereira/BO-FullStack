@@ -53,6 +53,8 @@ export interface FieldCtx {
   path: string;
   /** Limites por omissão do catálogo (`text`/`md` sem `max`). */
   defaults?: { textMax?: number; mdMax?: number };
+  /** "Ver onde" em curso: o campo a focar (`path` como o do campo) e o nº do pedido. As listas abrem a linha, as caixas focam-se. */
+  focus?: { path: string; locale: string; tick: number } | null;
   /** Desliga todos os controlos (billing só-leitura). */
   disabled?: boolean;
 }

@@ -21,6 +21,8 @@ const HOME_TITLE = "Início";
 export type WorkOp =
   | { type: "movePage"; from: string; to: string; position: DropPosition; maxDepth?: number }
   | { type: "addPage"; page: Page; items: Item[] }
+  /** F15 — só uma página que não é a home nem tem filhas (a UI mostra os motivos; o servidor também recusa: `PAGE_IN_USE`). */
+  | { type: "deletePage"; id: string }
   | { type: "addFolder"; folder: Folder }
   | { type: "renameFolder"; id: string; name: string }
   | { type: "deleteFolder"; id: string }
@@ -319,6 +321,12 @@ export function applyOp(w: Work, op: WorkOp): Work {
       const sibs = childrenOf(w.pages, op.page.parentId ?? null);
       const sortOrder = sibs.length ? Math.max(...sibs.map((p) => p.sortOrder ?? 0)) + 1 : 0;
       return { ...w, pages: [...w.pages, { ...op.page, sortOrder }], items: { ...w.items, [op.page.id]: op.items } };
+    }
+    case "deletePage": {
+      const p = w.pages.find((x) => x.id === op.id);
+      if (!p || p.isHome || childrenOf(w.pages, op.id).length > 0) return w;
+      const { [op.id]: _gone, ...items } = w.items;
+      return { ...w, pages: w.pages.filter((x) => x.id !== op.id), items };
     }
     case "addFolder": {
       if (w.folders.some((f) => f.id === op.folder.id)) return w;

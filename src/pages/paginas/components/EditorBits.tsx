@@ -10,6 +10,7 @@ import { Icon } from "../../../ui/icons.jsx";
 import { useBuilder } from "../state/store";
 import { buildDuplicateItem, neighbours, selFor } from "../state/blocks";
 import type { Item } from "../state/types";
+import { SeoSeal } from "./SeoBits";
 
 const focusCls = "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40";
 export const backBtn = `inline-flex min-h-10 items-center gap-1 rounded-lg px-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800 ${focusCls}`;
@@ -43,11 +44,12 @@ interface CrumbProps {
   backClass?: string;
   here: string;
   nav?: CrumbNav | null;
-  onSeo?: () => void;
+  /** Página de onde se veio: mostra o selo «SEO NN» que abre as suas definições. */
+  seo?: { pageId: string; onOpen: () => void };
 }
 
 /** "‹ <página> › <bloco>" · SEO · "N de M" · anterior/seguinte. */
-export function Crumb({ backText, backLabel, onBack, backClass = "", here, nav, onSeo }: CrumbProps) {
+export function Crumb({ backText, backLabel, onBack, backClass = "", here, nav, seo }: CrumbProps) {
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-x-1 gap-y-1">
       <button type="button" aria-label={backLabel} onClick={onBack} className={`${backBtn} -ml-2 max-w-[14rem] ${backClass}`}>
@@ -57,16 +59,7 @@ export function Crumb({ backText, backLabel, onBack, backClass = "", here, nav, 
       <span aria-hidden="true" className="text-zinc-400">›</span>
       <span className="min-w-0 max-w-[12rem] truncate text-sm font-medium text-zinc-900 dark:text-zinc-100 sm:max-w-[20rem]">{here}</span>
       <span className="flex-1" />
-      {onSeo && (
-        <button
-          type="button"
-          onClick={onSeo}
-          title="Abrir as definições e o SEO desta página"
-          className={`inline-flex min-h-10 items-center rounded-full border border-zinc-200 bg-zinc-50 px-3 text-[13px] font-medium text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 ${focusCls}`}
-        >
-          SEO —
-        </button>
-      )}
+      {seo && <SeoSeal pageId={seo.pageId} onClick={seo.onOpen} />}
       {nav && (
         <div className="flex items-center">
           <span className="px-1 text-[13px] text-zinc-500 dark:text-zinc-400">{nav.index + 1} de {nav.total}</span>

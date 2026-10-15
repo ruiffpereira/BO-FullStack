@@ -103,6 +103,8 @@ export function TextField({ def, value, onChange, ctx }: Props) {
   const box = (lang: string | null, text: string, miss: boolean, aria: string, id?: string) => {
     const common = {
       id,
+      "data-fp": ctx.path,
+      "data-fl": lang ?? "",
       "aria-label": id ? undefined : aria,
       value: text,
       disabled: ctx.disabled,
@@ -112,7 +114,7 @@ export function TextField({ def, value, onChange, ctx }: Props) {
       onChange: (e: { target: Box }) => write(lang, e.target.value),
     };
     const cls = `${miss ? missCls : ""} ${own.length && lang === null ? errCls : ""}`;
-    if (!isMd) return <Input {...common} className={`min-h-10 ${cls}`} />;
+    if (!isMd && !def.multiline) return <Input {...common} className={`min-h-10 ${cls}`} />;
     const ref = (el: Box | null) => { if (el) boxes.current.set(lang, el); else boxes.current.delete(lang); };
     return <textarea ref={ref} rows={3} {...common} className={`${boxCls} ${cls} resize-y`} />;
   };

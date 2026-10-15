@@ -63,6 +63,15 @@ export function ListField({ def, value, onChange, ctx }: Props) {
     setOpen((o) => new Set([...o, ...issueKey.split("|")]));
   }, [issueKey]);
 
+  // "Ver onde" dentro desta lista: abre a linha onde está o campo.
+  const fp = ctx.focus?.path;
+  const ftick = ctx.focus?.tick;
+  useEffect(() => {
+    if (!fp || !fp.startsWith(`${ctx.path}.`)) return;
+    const id = fp.slice(ctx.path.length + 1).split(".")[0];
+    setOpen((o) => (o.has(id) ? o : new Set([...o, id])));
+  }, [fp, ftick, ctx.path]);
+
   const toggle = (id: string) =>
     setOpen((o) => {
       const n = new Set(o);

@@ -6,6 +6,8 @@ import { BuilderProvider, useBuilder } from "./state/store";
 import { ListColumn } from "./components/ListColumn";
 import { CenterColumn } from "./components/CenterColumn";
 import { BlockPalette, type Created } from "./components/BlockPalette";
+import { SiteSeoModal } from "./components/SiteSeoModal";
+import { useAuth } from "../../context/AuthContext";
 
 /**
  * Páginas (construtor de páginas, F10): o esqueleto — barra de topo, lista | centro e os avisos de
@@ -14,8 +16,23 @@ import { BlockPalette, type Created } from "./components/BlockPalette";
  * Responsivo (regra permanente do BO): ≥ 1180 px duas colunas; 860–1180 duas mais estreitas;
  * < 860 um ecrã de cada vez (lista → página) com "‹ Voltar". Alturas por flex: o `Shell` é o dono.
  */
+/**
+ * Nome do site para o " · <site>" do título no Google. O `GET /cms/site-builder` não traz nenhum, por isso
+ * usa-se o nome do tenant que o Backoffice já conhece (`AuthContext.username`); um email não é um nome.
+ * Fora do `AuthProvider` (testes isolados) devolve vazio.
+ */
+function useSiteName(): string {
+  try {
+    const name = useAuth().username?.trim() ?? "";
+    return name.includes("@") ? "" : name;
+  } catch {
+    return "";
+  }
+}
+
 export function Paginas() {
   const query = useSiteBuilderQuery();
+  const siteName = useSiteName();
 
   if (query.isPending) {
     return (
@@ -48,7 +65,7 @@ export function Paginas() {
     );
   }
   return (
-    <BuilderProvider data={query.data} refetch={async () => (await query.refetch()).data}>
+    <BuilderProvider data={query.data} siteName={siteName} refetch={async () => (await query.refetch()).data}>
       <Editor />
     </BuilderProvider>
   );
@@ -61,6 +78,7 @@ function Editor() {
   // Paleta "Adicionar": `pageId` null = só biblioteca (botão "Novo" dos Blocos).
   const [palette, setPalette] = useState<{ pageId: string | null; at: number } | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  const [seoOpen, setSeoOpen] = useState(false);
 
   useEffect(() => {
     if (!flash) return;
@@ -78,7 +96,7 @@ function Editor() {
 
   return (
     <div className="flex flex-col h-full min-h-0 gap-3">
-      <TopBar onWhere={() => setView("page")} />
+      <TopBar onWhere={() => setView("page")} onSeoSite={() => setSeoOpen(true)} />
       <Notices />
       <div className="flex flex-1 min-h-0 gap-4">
         <ListColumn
@@ -94,6 +112,15 @@ function Editor() {
           onFlash={setFlash}
         />
       </div>
+      <SiteSeoModal
+        open={seoOpen}
+        onClose={() => setSeoOpen(false)}
+        onOpenPage={(id) => {
+          select({ pageId: id, libId: null, sel: { kind: "page", id }, tab: "settings" });
+          setView("page");
+          setSeoOpen(false);
+        }}
+      />
       {palette && <BlockPalette pageId={palette.pageId} at={palette.at} onClose={() => setPalette(null)} onCreated={created} />}
     </div>
   );
@@ -120,7 +147,7 @@ function StatusText() {
   );
 }
 
-function TopBar({ onWhere }: { onWhere: () => void }) {
+function TopBar({ onWhere, onSeoSite }: { onWhere: () => void; onSeoSite: () => void }) {
   const b = useBuilder();
   const saving = b.state.status === "saving";
   const blocked = b.missingCount > 0;
@@ -134,6 +161,9 @@ function TopBar({ onWhere }: { onWhere: () => void }) {
           Refazer
         </Button>
       </div>
+      <Button variant="ghost" size="sm" className="min-h-10" icon="search" onClick={onSeoSite} title="Ver o SEO de todas as páginas">
+        SEO do site
+      </Button>
       <div className="flex-1 min-w-0" />
       <StatusText />
       {blocked && (

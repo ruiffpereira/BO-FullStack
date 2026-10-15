@@ -161,3 +161,54 @@ export function pagePath(pages: readonly Page[], id: string): string {
   }
   return `/${parts.join("/")}`;
 }
+
+// ── endereços por língua (CONTRATO §2, §6.5) ─────────────────────────────────
+
+/** Cadeia de mães até à página (a primeira primeiro). */
+function chainTo(pages: readonly Page[], id: string): Page[] {
+  const ids = idSet(pages);
+  const byId = new Map(pages.map((p) => [p.id, p]));
+  const out: Page[] = [];
+  const seen = new Set<string>();
+  for (let cur = byId.get(id); cur && !seen.has(cur.id); cur = byId.get(parentOf(ids, cur) ?? "")) {
+    seen.add(cur.id);
+    out.unshift(cur);
+  }
+  return out;
+}
+
+/** Slug de uma página numa língua: o da língua, senão (vazio) o da base. */
+export const slugIn = (p: Page, lang: string, base: string): string => (lang !== base && p.slugs?.[lang]) || p.slug;
+
+/** Endereço de uma mãe (só as mães, sem a própria): `/obras` ou `` no primeiro nível. */
+export function parentPathIn(pages: readonly Page[], id: string, lang: string, base: string): string {
+  const segs = chainTo(pages, id).slice(0, -1).filter((p) => !p.isHome).map((p) => slugIn(p, lang, base)).filter(Boolean);
+  return segs.length ? `/${segs.join("/")}` : "";
+}
+
+/** Endereço da página numa língua, como no servidor: `/obras`, `/en/projects`, `/en` (home). */
+export function pagePathIn(pages: readonly Page[], id: string, lang: string, base: string): string {
+  const segs = chainTo(pages, id).filter((p) => !p.isHome).map((p) => slugIn(p, lang, base)).filter(Boolean);
+  const prefix = lang !== base ? `/${lang}` : "";
+  return `${prefix}/${segs.join("/")}`.replace(/\/$/, "") || "/";
+}
+
+/**
+ * O que muda de endereço entre o servidor e o trabalho: os da própria página (por língua) e quantas
+ * descendentes mudam por arrasto. O servidor cria os endereços antigos sozinho ao gravar (§6.5); isto só serve o aviso.
+ */
+export function pathChanges(
+  server: readonly Page[],
+  work: readonly Page[],
+  id: string,
+  langs: readonly string[],
+  base: string,
+): { own: { from: string; to: string }[]; others: number } {
+  const own: { from: string; to: string }[] = [];
+  const inServer = new Set(server.map((p) => p.id));
+  if (!inServer.has(id) || !work.some((p) => p.id === id)) return { own, others: 0 };
+  const differs = (pid: string) => langs.filter((l) => pagePathIn(server, pid, l, base) !== pagePathIn(work, pid, l, base));
+  for (const l of differs(id)) own.push({ from: pagePathIn(server, id, l, base), to: pagePathIn(work, id, l, base) });
+  const others = work.filter((p) => p.id !== id && inServer.has(p.id) && isDescendant(work, p.id, id) && differs(p.id).length > 0).length;
+  return { own, others };
+}

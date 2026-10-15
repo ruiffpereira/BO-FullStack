@@ -59,11 +59,13 @@ interface SlotProps {
   miss: boolean;
   disabled?: boolean;
   label: string;
+  /** `path` do campo (o "Ver onde" foca o botão de carregar). */
+  path: string;
   onPick: (file: File) => void;
   onClear: () => void;
 }
 
-function Slot({ kind, url, lang, miss, disabled, label, onPick, onClear }: SlotProps) {
+function Slot({ kind, url, lang, miss, disabled, label, path, onPick, onClear }: SlotProps) {
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const info = KINDS[kind];
@@ -109,6 +111,8 @@ function Slot({ kind, url, lang, miss, disabled, label, onPick, onClear }: SlotP
             icon="upload"
             className="min-h-10"
             disabled={disabled}
+            data-fp={path}
+            data-fl={lang ?? ""}
             aria-label={`${url ? "Trocar" : "Carregar"} ${info.noun}${suffix}`}
             onClick={() => input.current?.click()}
           >
@@ -193,6 +197,7 @@ export function MediaField({ def, value, onChange, ctx }: Props) {
             miss={false}
             disabled={ctx.disabled}
             label={label}
+            path={ctx.path}
             onPick={pick(ctx.base)}
             onClear={() => setUrl(ctx.base, null)}
           />
@@ -206,6 +211,7 @@ export function MediaField({ def, value, onChange, ctx }: Props) {
                 miss={missing.includes(lang)}
                 disabled={ctx.disabled}
                 label={label}
+                path={ctx.path}
                 onPick={pick(lang)}
                 onClear={() => setUrl(lang, null)}
               />

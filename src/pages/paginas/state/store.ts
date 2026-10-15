@@ -22,6 +22,7 @@ import { PendingUploadError, hasPending, replaceUrls, uploadPending } from "./pe
 import { countMissing, findMissing, firstMissing, locateMissing, type MissingItem } from "./missing";
 import type { Catalog, Issue, LangCtx, Manifest, SaveBody, Sel, Work } from "./types";
 
+export type PageTab = "content" | "settings";
 export type SaveStatus = "idle" | "saving" | "conflict" | "invalid" | "error";
 
 export interface Failure {
@@ -40,8 +41,12 @@ export interface StoreState {
   pageId: string | null;
   libId: string | null;
   sel: Sel;
-  /** Último campo "por traduzir" para onde o "Ver onde" levou (as fatias seguintes fazem scroll/foco). */
+  /** Separador da página aberta (Conteúdo | Definições e SEO). Outra página ou um editor → volta a "content". */
+  tab: PageTab;
+  /** Último campo "por traduzir" para onde o "Ver onde" levou (abre o sítio e foca a caixa). */
   focus: MissingItem | null;
+  /** Sobe a cada "Ver onde" (o mesmo campo outra vez volta a focar); `null` assim que se navega para outro sítio. */
+  reveal: number | null;
   status: SaveStatus;
   issues: Issue[];
   /** Revisão que o servidor tem agora (409). */
@@ -55,7 +60,7 @@ export type Action =
   | { type: "op"; op: WorkOp; now?: number }
   | { type: "undo" }
   | { type: "redo" }
-  | { type: "select"; pageId?: string | null; libId?: string | null; sel?: Sel; focus?: MissingItem | null }
+  | { type: "select"; pageId?: string | null; libId?: string | null; sel?: Sel; focus?: MissingItem | null; tab?: PageTab }
   /** Ficheiros pendentes já enviados: troca os marcadores `blob:` pelos URLs reais (sem entrada nova no desfazer). */
   | { type: "mediaUploaded"; map: Record<string, string> }
   | { type: "saveStart" }
@@ -64,6 +69,11 @@ export type Action =
   | { type: "invalid"; issues: Issue[] }
   | { type: "failed"; failure: Failure }
   | { type: "dismiss" };
+
+const asRedirects = (v: unknown): { fromPath: string; pageId: string }[] =>
+  (Array.isArray(v) ? v : []).filter(
+    (r): r is { fromPath: string; pageId: string } => typeof r?.fromPath === "string" && typeof r?.pageId === "string",
+  );
 
 const homeOrFirst = (w: Work): string | null => (w.pages.find((p) => p.isHome) ?? w.pages[0])?.id ?? null;
 
@@ -78,7 +88,9 @@ export function initState(work: Work, revision: number): StoreState {
     pageId: homeOrFirst(work),
     libId: null,
     sel: null,
+    tab: "content",
     focus: null,
+    reveal: null,
     status: "idle",
     issues: [],
     conflictRevision: null,
@@ -125,14 +137,19 @@ export function reduce(s: StoreState, a: Action): StoreState {
       const r = redo(s.history);
       return r ? { ...s, work: r.work, history: r.history, ...fixSelection(s, r.work) } : s;
     }
-    case "select":
+    case "select": {
+      // Outra página, ou um editor de bloco/parte/especial, volta ao separador "Conteúdo".
+      const leaves = (a.pageId !== undefined && a.pageId !== s.pageId) || (a.sel !== undefined && a.sel?.kind !== "page");
       return {
         ...s,
         pageId: a.pageId === undefined ? s.pageId : a.pageId,
         libId: a.libId === undefined ? s.libId : a.libId,
         sel: a.sel === undefined ? s.sel : a.sel,
+        tab: a.tab ?? (leaves ? "content" : s.tab),
         focus: a.focus === undefined ? s.focus : a.focus,
+        reveal: a.focus ? (s.reveal ?? 0) + 1 : null,
       };
+    }
     case "mediaUploaded": {
       const work = replaceUrls(s.work, a.map);
       if (work === s.work) return s;
@@ -182,13 +199,17 @@ export interface Builder {
   lang: LangCtx;
   limits: Record<string, unknown>;
   publish: GetCmsSiteBuilder200["publish"];
+  /** Nome do site para o " · <site>" da pré-visualização do Google. */
+  siteName: string;
+  /** Endereços antigos que o servidor tem (só leitura: a API cria-os e apaga-os sozinha). */
+  redirects: { fromPath: string; pageId: string }[];
   /** Alteração à cópia de trabalho. `key` junta escrita seguida no mesmo campo (≤ 1,5 s) numa entrada. */
   edit: (update: (w: Work) => Work, key?: string) => void;
   /** Operação da lista lateral (mover, criar página/pasta…) — passa pelo reducer, logo entra no desfazer. */
   apply: (op: WorkOp) => void;
   undo: () => void;
   redo: () => void;
-  select: (patch: { pageId?: string | null; libId?: string | null; sel?: Sel }) => void;
+  select: (patch: { pageId?: string | null; libId?: string | null; sel?: Sel; tab?: PageTab }) => void;
   /** "Ver onde": leva ao seguinte campo por traduzir. */
   goToMissing: () => MissingItem | null;
   /** `true` se gravou. Bloqueado (e leva ao 1.º campo em falta) se faltam traduções. */
@@ -214,12 +235,14 @@ const isTyping = (t: EventTarget | null): boolean =>
 interface ProviderProps {
   /** Resposta do `GET` com `enabled:true`. Só a 1.ª serve de base ao trabalho; as seguintes actualizam a meta. */
   data: GetCmsSiteBuilder200;
+  /** Nome do tenant (o `GET` não traz o nome do site): vai no " · <site>" do título no Google. */
+  siteName?: string;
   /** Volta a pedir o `GET` (para o "Recarregar"). */
   refetch: () => Promise<GetCmsSiteBuilder200 | undefined>;
   children?: ReactNode;
 }
 
-export function BuilderProvider({ data, refetch, children }: ProviderProps) {
+export function BuilderProvider({ data, siteName = "", refetch, children }: ProviderProps) {
   const [state, dispatch] = useReducer(reduce, undefined, () => initState(fromServer(data), data.revision ?? 0));
   const latest = useRef(state);
   latest.current = state;
@@ -247,7 +270,7 @@ export function BuilderProvider({ data, refetch, children }: ProviderProps) {
   const undoFn = useCallback(() => dispatch({ type: "undo" }), []);
   const redoFn = useCallback(() => dispatch({ type: "redo" }), []);
   const select = useCallback(
-    (patch: { pageId?: string | null; libId?: string | null; sel?: Sel }) => dispatch({ type: "select", ...patch }),
+    (patch: { pageId?: string | null; libId?: string | null; sel?: Sel; tab?: PageTab }) => dispatch({ type: "select", ...patch }),
     [],
   );
   const dismiss = useCallback(() => dispatch({ type: "dismiss" }), []);
@@ -255,7 +278,8 @@ export function BuilderProvider({ data, refetch, children }: ProviderProps) {
   const goToMissing = useCallback((): MissingItem | null => {
     const target = firstMissing(missingRef.current, latest.current.focus);
     if (!target) return null;
-    dispatch({ type: "select", ...locateMissing(latest.current.work, target), focus: target });
+    // Páginas (nome, SEO) vivem em "Definições e SEO"; o resto no editor do bloco/parte/especial.
+    dispatch({ type: "select", libId: null, ...locateMissing(latest.current.work, target), tab: target.entity === "page" ? "settings" : "content", focus: target });
     return target;
   }, []);
 
@@ -357,6 +381,8 @@ export function BuilderProvider({ data, refetch, children }: ProviderProps) {
       lang,
       limits: (data.limits as Record<string, unknown> | undefined) ?? {},
       publish: data.publish,
+      siteName,
+      redirects: asRedirects(data.redirects),
       edit,
       apply,
       undo: undoFn,
@@ -368,7 +394,7 @@ export function BuilderProvider({ data, refetch, children }: ProviderProps) {
       dismiss,
       publishNow,
     }),
-    [state, dirty, changeset, missing, catalog, manifest, lang, data.limits, data.publish, edit, apply, undoFn, redoFn, select, goToMissing, save, reload, dismiss, publishNow],
+    [state, dirty, changeset, missing, catalog, manifest, lang, data.limits, data.publish, data.redirects, siteName, edit, apply, undoFn, redoFn, select, goToMissing, save, reload, dismiss, publishNow],
   );
 
   return createElement(BuilderContext.Provider, { value }, children);

@@ -2,6 +2,7 @@
  * Construção do `FieldCtx` a partir do trabalho (puro) e utilitários de `path`/issues.
  */
 import { pagePath, pageTitle } from "../state/tree";
+import type { MissingItem } from "../state/missing";
 import type { Catalog, Issue, LangCtx, Manifest, Work } from "../state/types";
 import type { FieldAnchor, FieldCtx, FieldDocument, FieldPage, MediaValue } from "./types";
 
@@ -89,6 +90,11 @@ export function buildFieldCtx({ work, lang, catalog, manifest, issues }: BuildCt
     issues: [...issues],
     defaults: catalog?.defaults,
   };
+}
+
+/** O "Ver onde" em curso, se é desta entidade (para as listas abrirem a linha e a caixa se focar). */
+export function revealFor(focus: MissingItem | null, reveal: number | null, entity: string, id: string): FieldCtx["focus"] {
+  return focus && reveal !== null && focus.entity === entity && focus.id === id ? { path: focus.path, locale: focus.locale, tick: reveal } : null;
 }
 
 /** Contexto do campo filho `name` (o `path` acompanha). */

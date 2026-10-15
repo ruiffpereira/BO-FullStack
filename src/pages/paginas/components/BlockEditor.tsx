@@ -94,6 +94,15 @@ export function BlockEditor({ holder, itemId, onFlash, onSeo }: Props) {
 
   const nav = useItemNav(items, itemId);
 
+  // "Ver onde": abre o componente onde falta a tradução.
+  const { focus, reveal } = state;
+  useEffect(() => {
+    if (reveal === null || !focus || focus.entity !== holder.kind || focus.id !== holder.id) return;
+    const cid = /^comps.([^.]+)./.exec(focus.path)?.[1];
+    if (cid) setOpenId(cid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reveal]);
+
   const locales = useMemo(() => {
     const out = new Map<string, string[]>();
     for (const m of missing) {
@@ -136,7 +145,7 @@ export function BlockEditor({ holder, itemId, onFlash, onSeo }: Props) {
         backClass={fromLibrary ? "max-[859px]:hidden" : ""}
         here={title}
         nav={nav}
-        onSeo={fromLibrary ? undefined : onSeo}
+        seo={fromLibrary || !page ? undefined : { pageId: page.id, onOpen: onSeo }}
       />
 
       <div className={editorBody}>

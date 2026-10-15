@@ -46,6 +46,8 @@ export interface FieldSpec {
   options?: string[];
   /** `choice` cujas opções vêm do manifest (ícones). */
   optionsFrom?: "icons";
+  /** `text` numa caixa de várias linhas (a descrição do Google). Só o Backoffice o usa. */
+  multiline?: boolean;
   /** Rótulo dado pela API; sem ele usa-se o dicionário de `fields/labels.ts`. */
   label?: string;
 }

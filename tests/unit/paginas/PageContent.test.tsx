@@ -85,7 +85,7 @@ describe("Paginas · conteúdo da página", () => {
     expect(cards()).toEqual(["Editar topo do site", "Editar Herói", "Editar Contactos", "Editar rodapé do site"]);
     expect(screen.getByText("Partilhado em 2")).toBeInTheDocument(); // o Herói está em duas páginas
     expect(screen.getByText(/2 blocos/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "SEO —" }));
+    fireEvent.click(screen.getByRole("button", { name: /^SEO \d+$/ }));
     expect(screen.getByRole("tab", { name: "Definições e SEO" })).toHaveAttribute("aria-selected", "true");
   });
 

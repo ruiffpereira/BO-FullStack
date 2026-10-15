@@ -7,13 +7,13 @@
  * Os editores têm o seu próprio caminho ("‹ página › bloco"), que é o "voltar" (também no telemóvel,
  * onde o editor ocupa o ecrã). Só o bloco da biblioteca mantém o "Voltar" à lista em ecrãs < 860 px.
  */
-import { useEffect, useState } from "react";
 import { EmptyState } from "../../../ui/ui.jsx";
 import { Icon } from "../../../ui/icons.jsx";
 import { useBuilder } from "../state/store";
 import type { Item } from "../state/types";
 import { BlockEditor } from "./BlockEditor";
 import { backBtn } from "./EditorBits";
+import { FocusMissing } from "./FocusMissing";
 import { PageContent } from "./PageContent";
 import { SpecialEditor } from "./SpecialEditor";
 
@@ -30,8 +30,6 @@ export function CenterColumn({ className, onBack, onAdd, flash, onFlash }: Props
   const { state, manifest, select } = useBuilder();
   const { work, sel } = state;
   const page = work.pages.find((p) => p.id === state.pageId) ?? null;
-  // O "SEO NN" do caminho leva às Definições e SEO da página.
-  const [settings, setSettings] = useState(false);
 
   const libBlock = state.libId ? work.blocks.find((b) => b.id === state.libId) ?? null : null;
   const part = sel?.kind === "part" ? sel.id : null;
@@ -39,13 +37,8 @@ export function CenterColumn({ className, onBack, onAdd, flash, onFlash }: Props
   const itemId = sel?.kind === "item" ? sel.id : sel?.kind === "block" ? sel.ref : undefined;
   const openItem: Item | null = !libBlock && !part && itemId ? Object.values(work.items).flat().find((it) => it.id === itemId) ?? null : null;
   const editing = !!libBlock || !!part || !!openItem;
-  useEffect(() => {
-    if (editing) setSettings(false);
-  }, [editing]);
-  const onSeo = () => {
-    setSettings(true);
-    select({ libId: null, sel: page ? { kind: "page", id: page.id } : null });
-  };
+  // O "SEO NN" do caminho dos editores leva às Definições e SEO da página.
+  const onSeo = () => select({ libId: null, sel: page ? { kind: "page", id: page.id } : null, tab: "settings" });
 
   let content;
   if (libBlock) {
@@ -57,7 +50,7 @@ export function CenterColumn({ className, onBack, onAdd, flash, onFlash }: Props
   } else if (openItem?.blockId) {
     content = <BlockEditor key={openItem.id} holder={{ kind: "block", id: openItem.blockId }} itemId={openItem.id} onFlash={onFlash} onSeo={onSeo} />;
   } else if (page) {
-    content = <PageContent key={`${page.id}:${settings}`} page={page} initialTab={settings ? "settings" : "content"} onAdd={onAdd} flash={flash} onFlash={onFlash} />;
+    content = <PageContent key={page.id} page={page} onAdd={onAdd} flash={flash} onFlash={onFlash} />;
   } else {
     content = <EmptyState icon="layers" title="Escolhe uma página" desc="Seleciona uma página na lista para a ver aqui." />;
   }
@@ -66,12 +59,13 @@ export function CenterColumn({ className, onBack, onAdd, flash, onFlash }: Props
     <section className={`${className} flex-col flex-1 min-w-0 min-h-0 overflow-hidden rounded-xl border border-zinc-200/80 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900`}>
       {/* Os editores têm o caminho (‹ página › bloco); a lista só se alcança por aqui nos outros casos. */}
       {(!editing || libBlock) && (
-        <button type="button" onClick={() => { setSettings(false); onBack(); }} aria-label="Voltar à lista" className={`min-[860px]:hidden self-start -ml-2 mb-2 ${backBtn}`}>
+        <button type="button" onClick={onBack} aria-label="Voltar à lista" className={`min-[860px]:hidden self-start -ml-2 mb-2 ${backBtn}`}>
           <Icon name="chevronLeft" className="w-4 h-4" />
           Voltar
         </button>
       )}
       {content}
+      <FocusMissing />
     </section>
   );
 }

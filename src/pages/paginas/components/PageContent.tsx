@@ -11,7 +11,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEve
 import { toast } from "sonner";
 import { Badge, Button, Modal, Tabs } from "../../../ui/ui.jsx";
 import { Icon } from "../../../ui/icons.jsx";
-import { useBuilder } from "../state/store";
+import { useBuilder, type PageTab } from "../state/store";
 import { blockSummary, buildDuplicateItem, buildSeparateItem, selFor } from "../state/blocks";
 import { blockUsage } from "../state/listing";
 import { pagePath, pageTitle } from "../state/tree";
@@ -19,13 +19,11 @@ import type { Block, Item, PartName, Page } from "../state/types";
 import { BlockThumb } from "./BlockThumb";
 import { DragHandle, type HandleProps } from "./SortableTree";
 import { SortableList } from "./SortableList";
-
-type PageTab = "content" | "settings";
+import { PageSettings } from "./PageSettings";
+import { SeoSeal } from "./SeoBits";
 
 interface Props {
   page: Page;
-  /** Separador com que abre (o "SEO" do caminho dos editores leva às definições). */
-  initialTab?: PageTab;
   /** Abre a paleta para inserir na posição `at`. */
   onAdd: (at: number) => void;
   /** Item acabado de criar (destaca-se e faz scroll). */
@@ -262,10 +260,11 @@ function PinnedCard({ part, onOpen }: { part: PartName; onOpen: () => void }) {
 
 // ── vista ─────────────────────────────────────────────────────────────────────
 
-export function PageContent({ page, initialTab = "content", onAdd, flash, onFlash }: Props) {
+export function PageContent({ page, onAdd, flash, onFlash }: Props) {
   const { state, lang, catalog, manifest, missing, apply, select } = useBuilder();
   const work = state.work;
-  const [tab, setTab] = useState<PageTab>(initialTab);
+  // O separador vive no store: o "SEO NN" dos editores, o «SEO do site» e o "Ver onde" abrem as definições.
+  const tab = state.tab;
   const [retire, setRetire] = useState<string | null>(null);
   const body = useRef<HTMLDivElement>(null);
 
@@ -351,27 +350,18 @@ export function PageContent({ page, initialTab = "content", onAdd, flash, onFlas
               { id: "settings", label: "Definições e SEO" },
             ]}
             value={tab}
-            onChange={(id: string) => setTab(id as PageTab)}
+            onChange={(id: string) => select({ tab: id as PageTab })}
           />
         </div>
       </div>
 
       <div ref={body} data-menu-bound className="mt-4 min-h-0 flex-1 overflow-y-auto">
         {tab === "settings" ? (
-          <p className="rounded-xl border border-dashed border-zinc-300 px-4 py-8 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-            O endereço, o estado e o SEO desta página chegam na próxima fatia.
-          </p>
+          <PageSettings page={page} />
         ) : (
           <>
             <div className="mb-3 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                title="Ver as definições e o SEO desta página"
-                onClick={() => setTab("settings")}
-                className="inline-flex min-h-10 items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 text-[13px] font-medium text-zinc-600 hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-              >
-                SEO —
-              </button>
+              <SeoSeal pageId={page.id} onClick={() => select({ tab: "settings" })} />
               <span className="min-w-[200px] flex-1 text-xs text-zinc-500 dark:text-zinc-400">
                 A página de cima para baixo. Clica num bloco para o editar; arrasta pela pega para mudar a ordem.
               </span>

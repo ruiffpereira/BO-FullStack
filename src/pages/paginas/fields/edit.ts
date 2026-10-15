@@ -9,7 +9,7 @@
  */
 import { useCallback, useMemo } from "react";
 import { useBuilder } from "../state/store";
-import { buildFieldCtx, issuesFor } from "./ctx";
+import { buildFieldCtx, issuesFor, revealFor } from "./ctx";
 import type { Issue, PartName, Work } from "../state/types";
 import type { FieldCtx } from "./types";
 
@@ -87,5 +87,9 @@ export function useFieldCtx(target: FieldTarget): FieldCtx {
     () => buildFieldCtx({ work: state.work, lang, catalog, manifest, issues: issuesFor(issues, entity, id) }),
     [state.work, lang, catalog, manifest, issues, entity, id],
   );
-  return useMemo(() => ({ ...base, name: "", path: targetPath((entity === "item" ? { entity, id } : { entity, id, compId }) as FieldTarget) }), [base, entity, id, compId]);
+  const focus = revealFor(state.focus, state.reveal, entity, id);
+  return useMemo(
+    () => ({ ...base, focus, name: "", path: targetPath((entity === "item" ? { entity, id } : { entity, id, compId }) as FieldTarget) }),
+    [base, focus, entity, id, compId],
+  );
 }

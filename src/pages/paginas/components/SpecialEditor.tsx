@@ -52,7 +52,7 @@ export function SpecialEditor({ itemId, onFlash, onSeo }: Props) {
         onBack={() => select({ libId: null, sel: { kind: "page", id: page.id } })}
         here={name}
         nav={nav}
-        onSeo={onSeo}
+        seo={{ pageId: page.id, onOpen: onSeo }}
       />
       <div className={editorBody}>
         <div className="mb-4 flex items-center gap-3">

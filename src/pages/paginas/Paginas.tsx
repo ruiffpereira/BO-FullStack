@@ -1,11 +1,11 @@
-import { useState } from "react";
-import { Badge, Button, Card, EmptyState } from "../../ui/ui.jsx";
+import { useEffect, useState } from "react";
+import { Button, Card, EmptyState } from "../../ui/ui.jsx";
 import { GuardButton } from "../../components/GuardButton";
-import { Icon } from "../../ui/icons.jsx";
 import { useSiteBuilderQuery } from "../../hooks/useSiteBuilder";
 import { BuilderProvider, useBuilder } from "./state/store";
-import { pageTitle } from "./state/tree";
 import { ListColumn } from "./components/ListColumn";
+import { CenterColumn } from "./components/CenterColumn";
+import { BlockPalette, type Created } from "./components/BlockPalette";
 
 /**
  * Páginas (construtor de páginas, F10): o esqueleto — barra de topo, lista | centro e os avisos de
@@ -55,8 +55,27 @@ export function Paginas() {
 }
 
 function Editor() {
+  const { state, select } = useBuilder();
   // Em ecrãs estreitos só se vê um ecrã de cada vez.
   const [view, setView] = useState<"list" | "page">("list");
+  // Paleta "Adicionar": `pageId` null = só biblioteca (botão "Novo" dos Blocos).
+  const [palette, setPalette] = useState<{ pageId: string | null; at: number } | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(null), 2600);
+    return () => clearTimeout(t);
+  }, [flash]);
+
+  const created = (c: Created) => {
+    if (c.itemId) setFlash(c.itemId);
+    if (c.blockId) {
+      select({ libId: c.blockId, sel: { kind: "block", id: c.blockId } });
+      setView("page");
+    }
+  };
+
   return (
     <div className="flex flex-col h-full min-h-0 gap-3">
       <TopBar onWhere={() => setView("page")} />
@@ -65,12 +84,17 @@ function Editor() {
         <ListColumn
           className={`${view === "list" ? "flex" : "hidden"} min-[860px]:flex`}
           onOpen={() => setView("page")}
+          onNewBlock={() => setPalette({ pageId: null, at: 0 })}
         />
         <CenterColumn
           className={`${view === "page" ? "flex" : "hidden"} min-[860px]:flex`}
           onBack={() => setView("list")}
+          onAdd={(at) => setPalette({ pageId: state.pageId, at })}
+          flash={flash}
+          onFlash={setFlash}
         />
       </div>
+      {palette && <BlockPalette pageId={palette.pageId} at={palette.at} onClose={() => setPalette(null)} onCreated={created} />}
     </div>
   );
 }
@@ -178,46 +202,3 @@ function Notices() {
   return null;
 }
 
-// ── centro (marcador; o desenho vem no F12–F15) ──────────────────────────────
-
-function CenterColumn({ className, onBack }: { className: string; onBack: () => void }) {
-  const { state, lang } = useBuilder();
-  const page = state.work.pages.find((p) => p.id === state.pageId) ?? null;
-  const items = page ? (state.work.items[page.id] ?? []) : [];
-  // Bloco ou parte comum escolhidos na lista (o editor deles chega no F13/F14).
-  const block = state.libId ? (state.work.blocks.find((b) => b.id === state.libId) ?? null) : null;
-  const part = state.sel?.kind === "part" ? state.sel.id : null;
-  return (
-    <section className={`${className} flex-col flex-1 min-w-0 min-h-0 overflow-y-auto rounded-xl border border-zinc-200/80 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900`}>
-      <button
-        type="button"
-        onClick={onBack}
-        aria-label="Voltar à lista"
-        className="min-[860px]:hidden self-start inline-flex items-center gap-1 min-h-10 -ml-2 px-2 mb-2 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-      >
-        <Icon name="chevronLeft" className="w-4 h-4" />
-        Voltar
-      </button>
-      {block || part ? (
-        <>
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{block ? (block.name || "Sem nome") : part === "topo" ? "Topo" : "Rodapé"}</h2>
-          <p className="mt-1 text-sm text-zinc-500">{block ? "Bloco da biblioteca" : "Parte comum, igual em todas as páginas"}</p>
-          <p className="mt-6 text-sm text-zinc-400">O editor chega nas próximas fatias.</p>
-        </>
-      ) : page ? (
-        <>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{pageTitle(page, lang.defaultLanguage)}</h2>
-            <Badge tone={page.status === "published" ? "green" : "neutral"}>{page.status === "published" ? "Publicada" : "Rascunho"}</Badge>
-          </div>
-          <p className="mt-1 text-sm text-zinc-500">
-            {items.length} {items.length === 1 ? "item" : "itens"} nesta página · {state.work.blocks.length} {state.work.blocks.length === 1 ? "bloco" : "blocos"} na biblioteca
-          </p>
-          <p className="mt-6 text-sm text-zinc-400">O editor da página chega nas próximas fatias.</p>
-        </>
-      ) : (
-        <EmptyState icon="layers" title="Escolhe uma página" desc="Seleciona uma página na lista para a ver aqui." />
-      )}
-    </section>
-  );
-}

@@ -32,6 +32,8 @@ export interface FieldSpec {
   type: string;
   i18n?: boolean;
   kind?: string;
+  /** Valor por omissão (`choice`, no catálogo e nos especiais do manifest). */
+  default?: unknown;
   /** Só nas listas: os campos de cada entrada (um nível). */
   of?: Record<string, FieldSpec>;
 }
@@ -41,10 +43,16 @@ export interface CatalogComponent {
   label: string;
   fields: FieldSpecs;
 }
+export interface Starter {
+  id: string;
+  label: string;
+  layout: number;
+  comps: { type: string; col: string | number }[];
+}
 export interface Catalog {
   components: CatalogComponent[];
   parts?: Partial<Record<PartName, string[]>>;
-  starters?: { id: string; label: string; layout: number; comps: { type: string; col: string | number }[] }[];
+  starters?: Starter[];
   defaults?: { textMax?: number; mdMax?: number };
 }
 export interface Manifest {

@@ -91,7 +91,7 @@ describe("Paginas · lista lateral", () => {
     const nova = within(nav()).getByRole("button", { name: "Nova página", description: /\/nova-pagina/ });
     expect(nova).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("heading", { name: "Nova página" })).toBeInTheDocument();
-    expect(screen.getByText(/1 item/)).toBeInTheDocument(); // o Herói, que está em todas
+    expect(screen.getByText(/1 bloco/)).toBeInTheDocument(); // o Herói, que está em todas
     fireEvent.click(screen.getByRole("button", { name: "Desfazer" }));
     expect(within(nav()).queryByText("/nova-pagina")).not.toBeInTheDocument();
   });
@@ -101,7 +101,7 @@ describe("Paginas · lista lateral", () => {
     expect(within(nav()).getAllByRole("button", { name: "Criar subpágina" })).toHaveLength(1); // só a Obras
     fireEvent.click(within(nav()).getByRole("button", { name: "Criar subpágina" }));
     expect(within(nav()).getByText("/obras/nova-pagina")).toBeInTheDocument();
-    expect(screen.getByText(/0 itens/)).toBeInTheDocument();
+    expect(screen.getByText(/0 blocos/)).toBeInTheDocument();
     // a mãe ganha a seta de abrir/fechar, que esconde a filha
     fireEvent.click(within(nav()).getByRole("button", { name: "Abrir ou fechar o ramo" }));
     expect(within(nav()).queryByText("/obras/nova-pagina")).not.toBeInTheDocument();
@@ -136,9 +136,11 @@ describe("Paginas · lista lateral", () => {
     expect(within(nav()).getByRole("button", { name: "Vazia" })).toBeInTheDocument();
   });
 
-  it("pesquisa por nome mostra só blocos; 'Novo' bloco fica desligado até haver paleta", () => {
+  it("pesquisa por nome mostra só blocos; 'Novo' bloco abre a paleta", () => {
     renderPage();
-    expect(screen.getByRole("button", { name: "Novo bloco" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Novo bloco" }));
+    expect(screen.getByRole("dialog", { name: "Novo bloco" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Procurar bloco" }), { target: { value: "cont" } });
     expect(within(nav()).getByRole("button", { name: "Contactos" })).toBeInTheDocument();
     expect(within(nav()).queryByRole("button", { name: "Herói" })).not.toBeInTheDocument();

@@ -1,5 +1,5 @@
 /**
- * Operações da lista lateral (F11) sobre a cópia de trabalho: funções puras `Work → Work`.
+ * Operações da lista lateral (F11) e do conteúdo da página (F12) sobre a cópia de trabalho: funções puras `Work → Work`.
  *
  * Entram no reducer pela acção `op` (`store.ts`), por isso cada uma é UMA entrada no desfazer.
  * Uma operação recusada ou sem efeito devolve o MESMO `Work` — o reducer não regista nada.
@@ -24,7 +24,15 @@ export type WorkOp =
   | { type: "addFolder"; folder: Folder }
   | { type: "renameFolder"; id: string; name: string }
   | { type: "deleteFolder"; id: string }
-  | { type: "moveLibrary"; from: string; to: string; position: DropPosition };
+  | { type: "moveLibrary"; from: string; to: string; position: DropPosition }
+  // F12 — conteúdo da página. `block` (opcional) é um bloco NOVO que entra na biblioteca na mesma operação.
+  | { type: "addBlock"; block: Block }
+  | { type: "addItem"; pageId: string; index: number; item: Item; block?: Block }
+  | { type: "removeItem"; pageId: string; itemId: string }
+  | { type: "hideItem"; pageId: string; itemId: string; hidden: boolean }
+  /** "Cópia só nesta página": o item passa a apontar para `block` (uma cópia nova); as outras páginas ficam. */
+  | { type: "separateItem"; pageId: string; itemId: string; block: Block }
+  | { type: "moveItem"; pageId: string; from: string; to: string; position: "before" | "after" };
 
 // ── ordem ─────────────────────────────────────────────────────────────────────
 
@@ -156,6 +164,42 @@ export function buildAddPage(w: Work, lang: LangCtx, o: NewPageOptions): Extract
   return { type: "addPage", page, items };
 }
 
+// ── itens da página (F12) ─────────────────────────────────────────────────────
+
+/** Junta um bloco novo ao fim da sua pasta (ou dos soltos). Id repetido: sem efeito. */
+function withBlock(w: Work, block: Block): Work {
+  if (w.blocks.some((b) => b.id === block.id)) return w;
+  const sibs = blocksIn(w, block.folderId ?? null);
+  const sortOrder = sibs.length ? Math.max(...sibs.map((b) => b.sortOrder ?? 0)) + 1 : 0;
+  return { ...w, blocks: [...w.blocks, { ...block, sortOrder }] };
+}
+
+function addItem(w: Work, op: Extract<WorkOp, { type: "addItem" }>): Work {
+  const list = w.items[op.pageId];
+  if (!list || !w.pages.some((p) => p.id === op.pageId)) return w;
+  if (Object.values(w.items).some((l) => l.some((it) => it.id === op.item.id))) return w;
+  const withIt = op.block ? withBlock(w, op.block) : w;
+  if (op.item.kind === "block" && !withIt.blocks.some((b) => b.id === op.item.blockId)) return w;
+  if (op.item.kind === "special" && !op.item.specialType) return w;
+  const at = Math.max(0, Math.min(op.index, list.length));
+  return { ...withIt, items: { ...withIt.items, [op.pageId]: [...list.slice(0, at), op.item, ...list.slice(at)] } };
+}
+
+const mapItem = (w: Work, pageId: string, itemId: string, f: (it: Item) => Item): Work => {
+  const list = w.items[pageId];
+  if (!list?.some((it) => it.id === itemId)) return w;
+  return { ...w, items: { ...w.items, [pageId]: list.map((it) => (it.id === itemId ? f(it) : it)) } };
+};
+
+function moveItem(w: Work, op: Extract<WorkOp, { type: "moveItem" }>): Work {
+  const list = w.items[op.pageId];
+  const item = list?.find((it) => it.id === op.from);
+  if (!list || !item || op.from === op.to || !list.some((it) => it.id === op.to)) return w;
+  const rest = list.filter((it) => it.id !== op.from);
+  rest.splice(rest.findIndex((it) => it.id === op.to) + (op.position === "after" ? 1 : 0), 0, item);
+  return { ...w, items: { ...w.items, [op.pageId]: rest } };
+}
+
 // ── despacho ──────────────────────────────────────────────────────────────────
 
 export function applyOp(w: Work, op: WorkOp): Work {
@@ -188,6 +232,24 @@ export function applyOp(w: Work, op: WorkOp): Work {
     }
     case "moveLibrary":
       return moveLibrary(w, op.from, op.to, op.position);
+    case "addBlock":
+      return withBlock(w, op.block);
+    case "addItem":
+      return addItem(w, op);
+    case "removeItem": {
+      const list = w.items[op.pageId];
+      return list?.some((it) => it.id === op.itemId) ? { ...w, items: { ...w.items, [op.pageId]: list.filter((it) => it.id !== op.itemId) } } : w;
+    }
+    case "hideItem":
+      return (w.items[op.pageId]?.find((it) => it.id === op.itemId)?.hidden ?? false) === op.hidden ? w : mapItem(w, op.pageId, op.itemId, (it) => ({ ...it, hidden: op.hidden }));
+    case "separateItem": {
+      const it = w.items[op.pageId]?.find((x) => x.id === op.itemId);
+      if (!it || it.kind !== "block" || it.blockId === op.block.id) return w;
+      const withNew = withBlock(w, op.block);
+      return mapItem(withNew, op.pageId, op.itemId, (x) => ({ ...x, blockId: op.block.id }));
+    }
+    case "moveItem":
+      return moveItem(w, op);
   }
 }
 

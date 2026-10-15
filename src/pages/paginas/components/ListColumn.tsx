@@ -275,7 +275,7 @@ function BlocksGroup({ shell, idx, onOpen, onNewBlock }: { shell: Shell; idx: Mi
         <Icon name="folder" className="h-4 w-4" />
         Pasta
       </Button>
-      <Button type="button" variant="ghost" size="sm" aria-label="Novo bloco" disabled={!onNewBlock} title={onNewBlock ? "Escolher um bloco para criar" : "Chega com a paleta de blocos"} className={headBtn} onClick={onNewBlock}>
+      <Button type="button" variant="ghost" size="sm" aria-label="Novo bloco" disabled={!onNewBlock} title={onNewBlock ? "Escolher um bloco para criar" : "Indisponível"} className={headBtn} onClick={onNewBlock}>
         <Icon name="plus" className="h-4 w-4" />
         Novo
       </Button>

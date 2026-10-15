@@ -24,3 +24,6 @@ graphify-out/
 
 # Capturas temporárias do F11 (construtor de páginas)
 .capturas-f11/
+
+# Capturas temporárias do F12 (construtor de páginas)
+.capturas-f12/

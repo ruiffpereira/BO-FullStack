@@ -1,33 +1,74 @@
 # Construtor de páginas — estado das fatias
 
-> Fonte do épico. Plano: [PLANO.md](PLANO.md) · Contrato: [CONTRATO.md](CONTRATO.md).
+> Fonte do épico. Plano: [PLANO.md](PLANO.md) · Contrato: [CONTRATO.md](CONTRATO.md) (v1 congelada, §11 = alterações).
 > Ao começar uma fatia: 🔄. Ao acabar: ✅ + hashes. A parar a meio: **Retomar em:** com o passo exacto.
+> O pormenor de cada fatia está na mensagem do commit (`git show <hash>`) — aqui só o essencial.
 
-| # | Fatia | Estado | Commits / notas |
+## ▶ Retomar aqui (sessão nova)
+
+1. **F16** — se ainda não estiver ✅: correcções dos achados do e2e (sem manifest = "site não configurado";
+   toasts que tapavam o Guardar; separadores curtos a 390), suite e2e inteira, commit (seed na API → Backoffice).
+2. **Pequena mudança cross-repo** (pedida pelo dono a 2026-10-15) — ver *Pendentes → API*.
+3. **Suites inteiras dos três repos → push** (autorizado pelo dono): API → ver CI → Backoffice → ver CI →
+   winterplateau **só o branch `cms`** (não juntar na `main` antes do conteúdo real estar na produção).
+4. **F19** — importador do conteúdo real (Claude), manifest final, paridade, e o passo-a-passo do dono em produção.
+
+| # | Fatia | Estado | Commits · essencial |
 |---|---|---|---|
-| F00 | Arranque: decisões, pendentes, CI do winterplateau | ✅ | BO `07ca4fa` ("Website", e2e conteudos+rbac 59 verdes). CI do winterplateau sem secrets → **A9** do TASKS da raiz (bloqueia só F17+) |
-| F01 | API · modelos, migração, purga, permissão | ✅ | API `17f58b3` (suite 2080 verde, tsc). FKs RESTRICT; purga desliga `parentId` antes. Migração up/down provada só às tabelas novas (as antigas não correm do zero — o esquema nasce de `sync`) |
-| F02 | API · catálogo, manifest, validadores | ✅ | API `50cedfc` (suite 2378 verde, tsc; 1 462 linhas). Leituras restritivas: topo só 1 coluna; SEO da página 120/320/300; `video.source` obrigatório; manifest só restringe as partes |
-| F03 | API · leitura do editor + admin | ✅ | API `ee82767` · BO `1300015` (spec). Suite 2445 verde; seguranca-api +29, sem brechas. errorLogger: 413/400 do body-parser deixam de dar 500 (todas as rotas). `kubb:refresh` precisa da API de pé: usei a e2e (`VITE_API_BASE_URL=http://localhost:3002/api`) |
-| F04 | API · gravar 1/2 (páginas) | ✅ | API `eb6b26a` · BO `0290573` (spec). Suite 2652 verde; seguranca-api +115, 1 achado (`parentId: ""` → 500) corrigido. **Para o F09:** `UUID_RE` aceita maiúsculas e os ids são `utf8mb4_bin` — o UUID do B em maiúsculas vira id novo do A (não toca no B); normalizar para minúsculas |
-| F05 | API · gravar 2/2 (blocos) + pentest | ✅ | API `ed0b178` · BO `a9229d5` (spec). Suite 2900 verde. seguranca-api: 3 brechas corrigidas (JSON profundo e surrogates davam 500; `__proto__` contornava a validação — globais em `security.ts`). pentest-api: 0 brechas entre tenants; links `javascript:` em `md` corrigidos. **Orçamento da API: ~2 900 de ~3 000 linhas** com F06–F08 por fazer — vai passar, sem chegar ao dobro |
-| F06 | API · objecto público + pentest | ✅ | API `0450290` (suite 3017 verde, build). Página só sai se ela **e todas as ascendentes** estão publicadas. seguranca-api +69: tipos `__proto__`/`constructor` da BD davam 500 → corrigido. pentest-api +14: amplificação de saída (187 MB com 12 páginas) → tecto de 24 MB e `413`; `Vary: x-site-token`. Spec do BO inalterado (só lê `controllers/backoffice`); o spec `site` é do winterplateau (F17). **Por provar no F19:** < 300 KB por língua com os dados reais. **Orçamento da API: ~3 100 linhas** (com @swagger) — passou os 3 000, longe do dobro |
-| F07 | API · uploads de PDF | ✅ | API `5845f14` · BO (spec + `useUploadPdf`). Suite 3096 verde, build. `POST /uploads/pdf` só com bytes `%PDF-`, `Content-Type` fixo; `isOwnedUrl` em `src/utils/ownedMedia.ts` substitui o stub. seguranca-api +47: temporários além do 1.º ficavam no disco (nos 3 uploads) e `isOwnedUrl` aceitava invisíveis — corrigidos. `spec.json` gerado offline com `ts-node scripts/dumpSpec.ts backoffice` (o refresh pede a API de pé) |
-| F08 | API · publicação | ✅ | API `cc8fb50` · BO (spec, 3 rotas). Suite 3187 verde (1.ª corrida: 1 falha não identificada que não se repetiu; os 91 testes da publicação 5×5 verdes). Sem coluna nova: revisão esperada = `revision`; 3 min de graça para o `cms-build.json`; 30 min → falhou; falha do dispatch não repete sozinha. seguranca-api +26 e pentest-api +22: 5 brechas corrigidas (prefixo do token em erros, tenant preso em `running` por revisão > INT ou run id inválido, `cms-build.json` sem tecto, corpo citado no erro, save no segundo do dispatch). ⚠ o pentest fez 2 chamadas reais ao GitHub com token falso (401) — testes agora falham em `fetch` não mockado. **Em aberto:** `websiteDomain` validado só pelo nome (DNS para IP interno = SSRF cego, só o admin define o domínio). **Para o F19:** `deploy.yml` com `concurrency` |
-| F09 | API · fecho e contrato congelado | ✅ | API `8891bb4`. CONTRATO **v1 congelada** (§11 = alterações). Revisão cruzada: 0 de segurança; corrigidos `updatedAt` público (blocos e itens), extensão do `media` (`BAD_MEDIA_KIND`), `Vary` com `Authorization`. Suite 3189 verde; a falha intermitente do F08 era o teste de CORS a colidir com o `127.0.0.1` dos testes de SSRF — corrigido. Spec do BO inalterado. Orçamento final da API ~3 550 linhas (sem @swagger) |
-| F10 | BO · base, estado, gravar | ✅ | API `b01a742` (seed `pages@e2e`). tsc + 482 unitários (57 novos) + e2e `paginas-rbac` 25 verdes nas 3 larguras; `rbac*` 58 verdes. Estado em `state/` (reducer, histórico por fotografias, changeset mínimo, traduções em falta); 1 151 linhas. "Publicar agora" ainda sem botão (hook pronto) |
-| F11 | BO · lista lateral | ✅ | BO (este commit). tsc + 538 unitários (56 novos) + `paginas-rbac` 25 verdes. Um só `useSortable` (`SortableTree`; `SortableList` é casca) — pega, linha azul, tracejado "dentro", teclado (Espaço, setas, Esc) com anúncios em PT. Capturas 1440/834/390 vistas. **Para o F16:** numa corrida o ecrã ficou em branco a 390 depois do arrasto por teclado (não se repetiu) — cobrir no e2e; o dnd-kit engole cliques nos 50 ms a seguir a largar |
-| F12 | BO · conteúdo da página | ✅ | BO (este commit). tsc + 583 unitários (44 novos) + `paginas-rbac` 25 verdes. "Usar" partilha o `blockId`; copiar/duplicar/cópia só aqui = ids novos em tudo (incl. `_id` de listas). Especiais só com `manifest.specials`. Capturas 1440/834/390 vistas. **Para o F16:** a 1440 o toast tapa o Guardar uns segundos; a 390 os separadores da paleta cortam o 3.º ("Copiar um…") |
-| F13 | BO · renderizador de campos | ✅ | BO (este commit). tsc + 636 unitários (53 novos) + `paginas-rbac` 25. `FieldRenderer` despacha só por tipo de valor; línguas do tenant. **Upload diferido** no Guardar (`state/pending.ts`: imagem/vídeo/PDF; falha → não grava; `blob:` nunca vai à API). Rótulos dos campos num dicionário PT (`fields/labels.ts`) porque o catálogo não os traz. O `FileUpload` partilhado não serviu (uma preview, só imagem) |
-| F14 | BO · editor de bloco | ✅ | BO (este commit). tsc + 662 unitários (28 novos) + `paginas-rbac` 25. Caminho com anterior/seguinte, bloco (nome, fundo, disposição que reposiciona colunas, âncora única), componentes ordenáveis com estilo/"Onde fica"/campos, paleta de componentes (nova/copiar), Topo/Rodapé só com os permitidos, especiais. Corrigido na revisão: o botão do chat tapava o rodapé do editor; a 390 a lista de componentes ficava espremida (agora um só scroll). **Orçamento BO: 6 048 linhas** (acima de ~5 000, abaixo do tecto de 10 000). **Para o F16:** o seed `pages@e2e` não tem manifest — estilos, fundos e especiais só têm testes unitários; o selo SEO é do F15 |
-| F15 | BO · definições e SEO | ✅ | BO (este commit). tsc + 715 unitários (53 novos) + `paginas-rbac` 25. `state/seo.ts` com as 11 verificações do §9 por língua (pontuação igual no separador e no "SEO do site" — teste). "Ver onde" abre página/bloco/componente/linha e foca a caixa. **Lacunas da API:** (1) o `save` não aceita `redirects` → endereços antigos só para leitura (a fatia pedia "remover um"); (2) o `GET` não traz o nome do site → usa `username` do tenant (se for email, a pré-visualização fica sem " · site"). Ambos: campo novo na API, depois do épico ou no F19. **Orçamento BO: 7 189 linhas** (tecto 10 000) |
-| F16 | BO · admin + e2e (3 larguras) | ⬜ | |
-| F17 | Site · kit Astro | ✅ | winterplateau `ad7e2ed` (branch `cms`). Em paralelo com o BO (decisão do dono, 2026-10-14). Kit 909 linhas + check 134. Build falha com a API em baixo (provado); `check-build` 503 verificações; `text.ts` único caminho para `set:html`. `spec.site.json` gerado do código da API e committado; `KUBB_OFFLINE=1`. Removidas as páginas antigas e `public/robots.txt`/`sitemap.xml` (só neste branch). **Para o F19:** confirmar redirects antigos (`/Projetos.html`→`/obras`, `/privacidade.html`); o `src/gen` do booking está desactualizado face ao `spec.json` (não é do épico); repo sem `user.name` local (commits com `-c user.name=Rui`) |
-| F18 | Site · componentes e estilos | ✅ | winterplateau `4fcb871` (branch `cms`). Estilos D-D (abaixo). Kit 2 030 linhas; `check-build` 1 668 (completa) + 144 (mínima); sem erros JS a 1440/834/390. **Desvios por contraste AA, a confirmar pelo dono:** botão cheio `#0e79a6` (o azul da marca com branco dá 2,9:1 — reverter = `--btn`) e texto escuro no fundo da marca. **Para o F19:** tirar `claro` dos botões no manifest; banner de cookies do `BaseLayout` antigo não passou para o `Base.astro` (ver se é preciso); apagar `src/components/*`, `global.css`, `BaseLayout.astro`, `projects.js`, `winter.css` |
+| F00 | Arranque | ✅ | BO `07ca4fa` |
+| F01 | API · modelos, migração, purga, permissão | ✅ | API `17f58b3` · FKs RESTRICT; migração up/down provada |
+| F02 | API · catálogo, manifest, validadores | ✅ | API `50cedfc` |
+| F03 | API · leitura do editor + admin | ✅ | API `ee82767` · BO `1300015` |
+| F04 | API · gravar páginas | ✅ | API `eb6b26a` · BO `0290573` |
+| F05 | API · gravar blocos + pentest | ✅ | API `ed0b178` · BO `a9229d5` · 0 brechas entre tenants |
+| F06 | API · objecto público + pentest | ✅ | API `0450290` · página só sai com as ascendentes publicadas; tecto 24 MB/413 |
+| F07 | API · uploads de PDF | ✅ | API `5845f14` · BO `aa628b0` |
+| F08 | API · publicação (GitHub) | ✅ | API `cc8fb50` · BO `18878a4` · 5 brechas corrigidas no pentest |
+| F09 | API · fecho, contrato congelado | ✅ | API `8891bb4` · API ~3 550 linhas (orçamento 3 000) |
+| F10 | BO · base, estado, gravar | ✅ | BO `ccc7252` · API `b01a742` (seed) |
+| F11 | BO · lista lateral | ✅ | BO `4f2d208` · um só `useSortable` |
+| F12 | BO · conteúdo da página e paleta | ✅ | BO `3fc28f3` |
+| F13 | BO · renderizador de campos | ✅ | BO `fcbffe4` · upload diferido no Guardar |
+| F14 | BO · editor de bloco | ✅ | BO `329c48a` |
+| F15 | BO · definições e SEO | ✅ | BO `be99d5d` · BO ~7 200 linhas (orçamento 5 000, tecto 10 000) |
+| F16 | BO · admin + e2e (3 larguras) | 🔄 | admin + estado da publicação feitos; e2e 74 testes; a fechar |
+| F17 | Site · kit Astro | ✅ | winterplateau `ad7e2ed` (branch `cms`) |
+| F18 | Site · componentes e estilos | ✅ | winterplateau `4fcb871` + `928771d` (cores do site actual) · kit ~2 000 linhas |
 | F19 | Go-live e fecho | ⬜ | |
 
-## Decisões tomadas durante a execução
-- **2026-10-14 · D-A** textos em JSON nas tabelas do construtor (não `ContentEntry`) · **D-B** publicação pelo
-  `workflow_dispatch` do GitHub · **D-C** menu "Páginas". (Também no `DECISOES.md`.)
-- **2026-10-14 · Meta = local.** O épico está terminado quando tudo funciona **no PC de casa** (API + Backoffice + winterplateau em local). O deploy (A9, push, CI, produção) fica para o fim e é do dono — não bloqueia F17–F19; o site prova-se com a API local ou `CMS_FIXTURE`.
-- **D-D** estilos da Winterplateau: títulos **Secção · Destaque · Frase grande** (44–50 / 58–60 / 72–74 px, itálico no azul) · botões **Cheio · Contorno** (o contorno escurece sozinho em fundo claro) · textos Normal · Introdução · Nota · imagens Normal · Cantos redondos · Largura total · fundos Claro · Escuro · Azul da marca. Decidido pelo dono a 2026-10-14 (também no `DECISOES.md`).
+## Pendentes (para o F19 ou logo a seguir)
+
+**API — pedido do dono (2026-10-15), cross-repo (API → Kubb → Backoffice):**
+- **Nome do site** no construtor (editável no admin) → a pré-visualização do Google e a nota de SEO usam-no
+  (hoje o BO usa o `username` do tenant).
+- **Hora "No ar"** (`liveAt`) gravada quando a publicação fica `live` (hoje mostra a hora do pedido).
+- **Mudar as línguas do tenant pede publicação** (marca `publishRequestedAt`, como um `save`).
+
+**Produção — passo-a-passo para o dono** (escrever no F19): o push da API faz o deploy e **a migração corre
+sozinha** no arranque; no admin de produção: dar `VIEW_SITE_PAGES` à role da Winterplateau, activar o construtor,
+carregar o manifest final. O A9 (secrets do deploy do winterplateau) fica para o fim de tudo.
+
+**F19 — site e conteúdo:**
+- Importador do conteúdo actual da Winterplateau para o construtor (Claude), testado na API local; paridade com o
+  site actual; < 300 KB por língua.
+- Manifest final: tirar o estilo de botão `claro`.
+- Confirmar os endereços antigos (`/Projetos.html`, `/Projeto.html?obra=`, `/privacidade.html`) contra o código da `main`.
+- Arrumar o winterplateau: apagar `src/components/*`, `global.css`, `BaseLayout.astro`, `projects.js`, `winter.css`;
+  `src/gen` do booking desactualizado (não é do épico); o repo não tem `user.name` (commits com `-c user.name=Rui`).
+- `deploy.yml` do winterplateau com `concurrency`.
+
+**Lacunas conhecidas (aceites, sem fatia):**
+- Endereços antigos são **só leitura** no BO (a API cria-os e apaga-os sozinha; o dono concordou que não faz falta remover).
+- `MANIFEST_IN_USE` não cobre mudanças nas partes/especiais (o save seguinte dá 422 a apontar o componente).
+- `websiteDomain` validado só pelo nome (só o admin o define).
+- O limitador de "Publicar agora" corre antes das validações (um 409 gasta o minuto).
+- e2e não cobre "Testar" nem "Publicar agora" em modo GitHub (falariam com o GitHub a sério).
+
+## Decisões tomadas durante a execução (também no `DECISOES.md` da raiz)
+- **2026-10-14 · D-A** textos em JSON nas tabelas do construtor · **D-B** publicação pelo `workflow_dispatch` do
+  GitHub · **D-C** menu "Páginas" · **D-D** estilos: títulos Secção · Destaque · Frase grande; botões Cheio ·
+  Contorno; textos Normal · Introdução · Nota; imagens Normal · Cantos redondos · Largura total; fundos Claro ·
+  Escuro · Azul da marca.
+- **2026-10-14 · Meta = local** (o épico fecha a funcionar no PC de casa) · F17–F18 em paralelo com o BO (outro repo).
+- **2026-10-15** · cores da Winterplateau como no site actual (não o tom AA) · sem banner de cookies (só Umami) ·
+  push autorizado a Claude, com vigilância do CI · nome do site, hora "No ar" e línguas → publicação: fazer.

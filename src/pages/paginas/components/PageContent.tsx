@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { Badge, Button, Modal, Tabs } from "../../../ui/ui.jsx";
 import { Icon } from "../../../ui/icons.jsx";
 import { useBuilder } from "../state/store";
-import { blockSummary, buildDuplicateItem, buildSeparateItem } from "../state/blocks";
+import { blockSummary, buildDuplicateItem, buildSeparateItem, selFor } from "../state/blocks";
 import { blockUsage } from "../state/listing";
 import { pagePath, pageTitle } from "../state/tree";
 import type { Block, Item, PartName, Page } from "../state/types";
@@ -24,6 +24,8 @@ type PageTab = "content" | "settings";
 
 interface Props {
   page: Page;
+  /** Separador com que abre (o "SEO" do caminho dos editores leva às definições). */
+  initialTab?: PageTab;
   /** Abre a paleta para inserir na posição `at`. */
   onAdd: (at: number) => void;
   /** Item acabado de criar (destaca-se e faz scroll). */
@@ -260,10 +262,10 @@ function PinnedCard({ part, onOpen }: { part: PartName; onOpen: () => void }) {
 
 // ── vista ─────────────────────────────────────────────────────────────────────
 
-export function PageContent({ page, onAdd, flash, onFlash }: Props) {
+export function PageContent({ page, initialTab = "content", onAdd, flash, onFlash }: Props) {
   const { state, lang, catalog, manifest, missing, apply, select } = useBuilder();
   const work = state.work;
-  const [tab, setTab] = useState<PageTab>("content");
+  const [tab, setTab] = useState<PageTab>(initialTab);
   const [retire, setRetire] = useState<string | null>(null);
   const body = useRef<HTMLDivElement>(null);
 
@@ -323,8 +325,7 @@ export function PageContent({ page, onAdd, flash, onFlash }: Props) {
     setRetire(null);
   };
 
-  const open = (it: Item) =>
-    select(it.kind === "special" ? { libId: null, sel: { kind: "item", id: it.id } } : { libId: null, sel: { kind: "block", id: it.blockId ?? "", ref: it.id } });
+  const open = (it: Item) => select({ libId: null, sel: selFor(it) });
 
   const footerNote: ReactNode = items.length === 0 && (
     <div className="my-3 flex flex-col items-center gap-3 rounded-xl border border-dashed border-zinc-300 px-4 py-6 text-center dark:border-zinc-700">
@@ -424,7 +425,7 @@ export function PageContent({ page, onAdd, flash, onFlash }: Props) {
                 Adicionar bloco
               </button>
             )}
-            <div className="mt-3 pb-2">
+            <div className="mt-3 pb-20">
               <PinnedCard part="rodape" onOpen={() => select({ libId: null, sel: { kind: "part", id: "rodape" } })} />
             </div>
           </>

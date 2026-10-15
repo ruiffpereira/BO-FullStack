@@ -47,7 +47,7 @@ interface Props {
 const cardCls =
   "group flex min-h-[88px] w-full items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 text-left transition hover:border-accent/50 hover:bg-accent/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-accent/10";
 
-function Card({ thumb, title, sub, onClick }: { thumb: ReactNode; title: string; sub: string; onClick: () => void }) {
+export function Card({ thumb, title, sub, onClick }: { thumb: ReactNode; title: string; sub: string; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} className={cardCls}>
       {thumb}
@@ -59,11 +59,11 @@ function Card({ thumb, title, sub, onClick }: { thumb: ReactNode; title: string;
   );
 }
 
-const Note = ({ children }: { children: ReactNode }) => <p className="col-span-full py-6 text-center text-sm text-zinc-500 dark:text-zinc-400">{children}</p>;
-const Head = ({ title, sub }: { title: string; sub: string }) => (
+export const Note = ({ children }: { children: ReactNode }) => <p className="col-span-full py-6 text-center text-sm text-zinc-500 dark:text-zinc-400">{children}</p>;
+export const Head = ({ title, sub }: { title: string; sub?: string }) => (
   <div className="col-span-full">
     <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">{title}</p>
-    <p className="text-[13px] text-zinc-500 dark:text-zinc-400">{sub}</p>
+    {sub && <p className="text-[13px] text-zinc-500 dark:text-zinc-400">{sub}</p>}
   </div>
 );
 

@@ -12,8 +12,8 @@
  */
 import { newEntityId, newShortId } from "./ids";
 import { blockUsage } from "./listing";
-import type { WorkOp } from "./ops";
-import type { Block, Catalog, FieldSpecs, Item, Manifest, Starter, Work } from "./types";
+import type { Comp, Holder, WorkOp } from "./ops";
+import type { Block, Catalog, FieldSpecs, Item, Manifest, PartName, Sel, Starter, Work } from "./types";
 
 export interface IdGen {
   /** UUID: blocos e itens de página. */
@@ -45,9 +45,12 @@ export function reIdValue<T>(v: T, ids: Pick<IdGen, "short">): T {
   return v;
 }
 
+/** Componente independente: `id` novo e `_id` novos em todos os itens de listas. */
+export const copyComp = (c: Comp, ids: IdGen = DEFAULT_IDS): Comp => ({ ...(reIdValue(c, ids) as Comp), id: ids.short() });
+
 /** Bloco independente: id, componentes e `_id` novos; sem âncora; fica na mesma pasta. */
 export function copyBlock(src: Block, ids: IdGen = DEFAULT_IDS): Block {
-  const comps = (Array.isArray(src.comps) ? src.comps : []).map((c) => ({ ...(reIdValue(c, ids) as Rec), id: ids.short() }));
+  const comps = (Array.isArray(src.comps) ? src.comps : []).map((c) => copyComp(c as Comp, ids));
   return { ...src, id: ids.entity(), name: copyName(src.name), anchor: null, sortOrder: undefined, comps };
 }
 
@@ -62,6 +65,15 @@ export function defaultValues(fields: FieldSpecs): Rec {
 
 export const firstBackground = (m: Manifest | null): string => m?.backgrounds?.[0]?.id ?? "claro";
 
+/** Componente novo: 1.º estilo do manifest (ou `normal`) e os valores por omissão do catálogo (o título nasce H2). */
+export const newComp = (type: string, col: string | number, catalog: Catalog | null, manifest: Manifest | null, ids: IdGen = DEFAULT_IDS): Comp => ({
+  id: ids.short(),
+  type,
+  style: manifest?.styles?.[type]?.[0]?.id ?? "normal",
+  col,
+  v: defaultValues(catalog?.components.find((x) => x.type === type)?.fields ?? {}),
+});
+
 /** Bloco novo a partir de um ponto de partida (§3.3): disposição, componentes com o 1.º estilo do manifest. */
 export function newBlockFromStarter(starter: Starter, catalog: Catalog | null, manifest: Manifest | null, ids: IdGen = DEFAULT_IDS): Block {
   const layout = (starter.layout >= 1 && starter.layout <= 3 ? starter.layout : 1) as Block["layout"];
@@ -72,13 +84,7 @@ export function newBlockFromStarter(starter: Starter, catalog: Catalog | null, m
     layout,
     bg: firstBackground(manifest),
     anchor: null,
-    comps: starter.comps.map((c) => ({
-      id: ids.short(),
-      type: c.type,
-      style: manifest?.styles?.[c.type]?.[0]?.id ?? "normal",
-      col: layout === 1 ? "all" : c.col,
-      v: defaultValues(catalog?.components.find((x) => x.type === c.type)?.fields ?? {}),
-    })),
+    comps: starter.comps.map((c) => newComp(c.type, layout === 1 ? "all" : c.col, catalog, manifest, ids)),
   };
 }
 
@@ -167,4 +173,76 @@ export function buildSeparateItem(w: Work, pageId: string, itemId: string, ids: 
   const src = it?.kind === "block" ? w.blocks.find((b) => b.id === it.blockId) : undefined;
   if (!it || !src || (blockUsage(w).get(src.id) ?? 0) < 2) return null;
   return { type: "separateItem", pageId, itemId, block: copyBlock(src, ids) };
+}
+
+// ── editor de bloco/parte (F14) ───────────────────────────────────────────────
+
+/** O que se abre ao carregar num item da página (bloco com `ref` = o item; especial = o próprio item). */
+export const selFor = (it: Item): Sel =>
+  it.kind === "special" ? { kind: "item", id: it.id } : { kind: "block", id: it.blockId ?? "", ref: it.id };
+
+/** Posição de um item na lista da página e os vizinhos ("N de M", anterior/seguinte). */
+export function neighbours(list: readonly Item[], itemId: string): { index: number; total: number; prev: Item | null; next: Item | null } | null {
+  const i = list.findIndex((it) => it.id === itemId);
+  return i < 0 ? null : { index: i, total: list.length, prev: list[i - 1] ?? null, next: list[i + 1] ?? null };
+}
+
+/** Componentes que uma parte aceita (o manifest restringe o catálogo). `null` = fora de uma parte: todos. */
+export function allowedTypes(part: PartName | null, catalog: Catalog | null, manifest: Manifest | null): string[] | null {
+  if (!part) return null;
+  const base = catalog?.parts?.[part];
+  const wanted = manifest?.parts?.[part] ?? base ?? [];
+  return base ? wanted.filter((t) => base.includes(t)) : wanted;
+}
+
+/** Texto de um valor (`I18n` na língua base, ou string). */
+const textOf = (v: unknown, base: string): string =>
+  typeof v === "string" ? v : isObj(v) && typeof v[base] === "string" ? (v[base] as string) : "";
+
+/** A linha de resumo de um componente: o 1.º texto que tem (campos pela ordem do catálogo; listas pela 1.ª linha). */
+export function compSummary(c: Comp, catalog: Catalog | null, base: string): string {
+  const scan = (fields: FieldSpecs, v: unknown): string => {
+    if (!isObj(v)) return "";
+    for (const [name, spec] of Object.entries(fields)) {
+      let t = "";
+      if (spec.type === "text" || spec.type === "md") t = textOf(v[name], base);
+      else if (spec.type === "list" && spec.of && Array.isArray(v[name])) t = scan(spec.of, v[name][0]);
+      if (t.trim()) return t.trim();
+    }
+    return "";
+  };
+  const t = scan(catalog?.components.find((x) => x.type === c.type)?.fields ?? {}, c.v).replace(/[*_#>`]/g, "").replace(/\s+/g, " ");
+  return t.length > 70 ? `${t.slice(0, 69)}…` : t;
+}
+
+/** Quem tem componentes (blocos, topo, rodapé) com o que a paleta "Copiar um que já existe" precisa. */
+export function compHolders(w: Work): { key: string; name: string; bg: string; layout: number; comps: Comp[] }[] {
+  const part = (id: PartName, name: string) => {
+    const p = w.parts[id] as { layout?: number; bg?: string; comps?: Comp[] } | null;
+    return { key: id, name, bg: p?.bg ?? "claro", layout: p?.layout ?? 1, comps: p?.comps ?? [] };
+  };
+  return [part("topo", "Topo"), part("rodape", "Rodapé"), ...w.blocks.map((b) => ({ key: b.id, name: b.name || "Sem nome", bg: b.bg, layout: b.layout, comps: (b.comps ?? []) as Comp[] }))];
+}
+
+type AddComp = Extract<WorkOp, { type: "addComp" }>;
+
+/** "Componente novo" (de `type`) na posição `index`. `null` se o tipo não existe ou a parte não o aceita. */
+export function buildAddComp(holder: Holder, index: number, type: string, catalog: Catalog | null, manifest: Manifest | null, ids: IdGen = DEFAULT_IDS): AddComp | null {
+  if (!catalog?.components.some((c) => c.type === type)) return null;
+  const allowed = allowedTypes(holder.kind === "part" ? holder.id : null, catalog, manifest);
+  if (allowed && !allowed.includes(type)) return null;
+  return { type: "addComp", holder, index, comp: newComp(type, "all", catalog, manifest, ids) };
+}
+
+/** "Copiar um que já existe" / "Duplicar": o componente `src` com ids novos (o `addComp` ajusta a coluna à disposição de destino). */
+export function buildCopyComp(holder: Holder, index: number, src: Comp, catalog: Catalog | null, manifest: Manifest | null, ids: IdGen = DEFAULT_IDS): AddComp | null {
+  const allowed = allowedTypes(holder.kind === "part" ? holder.id : null, catalog, manifest);
+  return allowed && !allowed.includes(src.type) ? null : { type: "addComp", holder, index, comp: copyComp(src, ids) };
+}
+
+/** Duplicar um componente do próprio bloco/parte: logo a seguir. */
+export function buildDuplicateComp(w: Work, holder: Holder, compId: string, ids: IdGen = DEFAULT_IDS): AddComp | null {
+  const comps = (holder.kind === "block" ? w.blocks.find((b) => b.id === holder.id)?.comps : w.parts[holder.id]?.comps) as Comp[] | undefined;
+  const at = comps?.findIndex((c) => c.id === compId) ?? -1;
+  return comps && at >= 0 ? { type: "addComp", holder, index: at + 1, comp: copyComp(comps[at], ids) } : null;
 }

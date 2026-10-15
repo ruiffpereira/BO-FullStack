@@ -137,3 +137,7 @@ export function writePrefs(p: ListPrefs, enabled = true): void {
     /* sem armazenamento: a página funciona na mesma */
   }
 }
+
+/** As páginas onde um bloco está (pela ordem da lista de páginas), para "Onde é usado". */
+export const blockPages = (w: Work, blockId: string): Page[] =>
+  w.pages.filter((p) => (w.items[p.id] ?? []).some((it) => it.kind === "block" && it.blockId === blockId));

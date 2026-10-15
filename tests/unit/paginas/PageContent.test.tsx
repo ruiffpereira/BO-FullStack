@@ -157,11 +157,11 @@ describe("Paginas · conteúdo da página", () => {
     expect(screen.getByText("Especial")).toBeInTheDocument();
   });
 
-  it("clicar num bloco abre o marcador do editor e Voltar à página regressa", () => {
+  it("clicar num bloco abre o editor do bloco e Voltar à página regressa", () => {
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: "Editar Herói" }));
     expect(screen.getByRole("heading", { name: "Herói" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Voltar à página" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Voltar à página/ }));
     expect(screen.getByRole("button", { name: "Editar Herói" })).toBeInTheDocument();
   });
 });

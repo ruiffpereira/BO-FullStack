@@ -7,7 +7,7 @@
  */
 import { newEntityId } from "./ids";
 import { MAX_DEPTH, canAddChild, childrenOf, movePage, type DropPosition } from "./tree";
-import type { Block, Folder, Item, LangCtx, Page, Work } from "./types";
+import type { Block, Folder, Item, LangCtx, Page, PartName, Work } from "./types";
 
 /** Id da linha "Sem pasta" da biblioteca: largar um bloco nela tira-o da pasta. */
 export const LIB_ROOT = "__sem-pasta__";
@@ -32,7 +32,25 @@ export type WorkOp =
   | { type: "hideItem"; pageId: string; itemId: string; hidden: boolean }
   /** "Cópia só nesta página": o item passa a apontar para `block` (uma cópia nova); as outras páginas ficam. */
   | { type: "separateItem"; pageId: string; itemId: string; block: Block }
-  | { type: "moveItem"; pageId: string; from: string; to: string; position: "before" | "after" };
+  | { type: "moveItem"; pageId: string; from: string; to: string; position: "before" | "after" }
+  // F14 — editor de bloco/parte. `holder` = quem tem os componentes (um bloco ou o topo/rodapé).
+  | { type: "setHolder"; holder: Holder; patch: HolderPatch }
+  | { type: "addComp"; holder: Holder; index: number; comp: Comp }
+  | { type: "removeComp"; holder: Holder; compId: string }
+  | { type: "moveComp"; holder: Holder; from: string; to: string; position: "before" | "after" }
+  | { type: "patchComp"; holder: Holder; compId: string; patch: { style?: string; col?: string | number } }
+  /** Só um bloco que não está em nenhuma página (o servidor também recusa: `BLOCK_IN_USE`). */
+  | { type: "deleteBlock"; id: string };
+
+/** Quem tem componentes: um bloco da biblioteca, ou a parte comum (`bg` = fundo a usar se o rodapé ainda não existe). */
+export type Holder = { kind: "block"; id: string } | { kind: "part"; id: PartName; bg?: string };
+export type Comp = { id: string; type: string; style?: string; col?: string | number; v?: unknown };
+export interface HolderPatch {
+  name?: string;
+  bg?: string;
+  layout?: number;
+  anchor?: string | null;
+}
 
 // ── ordem ─────────────────────────────────────────────────────────────────────
 
@@ -200,6 +218,94 @@ function moveItem(w: Work, op: Extract<WorkOp, { type: "moveItem" }>): Work {
   return { ...w, items: { ...w.items, [op.pageId]: rest } };
 }
 
+// ── editor de bloco (F14) ─────────────────────────────────────────────────────
+
+export const ANCHOR_MAX = 60;
+
+/** `"Os Nossos Serviços"` → `"#os-nossos-servicos"` (formato da API: `#` + minúsculas, dígitos e hífenes). `""` se não sobra nada. */
+export function anchorFromName(name: string): string {
+  const slug = name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return slug ? `#${slug}`.slice(0, ANCHOR_MAX).replace(/-+$/, "") : "";
+}
+
+/** A âncora derivada de `base` que ainda não é de outro bloco (`#obras`, `#obras-2`…). `null` se não sobra nada. */
+export function uniqueAnchor(w: Work, blockId: string, base: string): string | null {
+  const root = anchorFromName(base.replace(/^#/, ""));
+  if (!root) return null;
+  const taken = new Set(w.blocks.filter((b) => b.id !== blockId).map((b) => b.anchor));
+  for (let n = 1; ; n++) {
+    const suffix = n === 1 ? "" : `-${n}`;
+    const cand = `${root.slice(0, ANCHOR_MAX - suffix.length)}${suffix}`;
+    if (!taken.has(cand)) return cand;
+  }
+}
+
+/** A coluna de um componente numa disposição de `layout` colunas: `all` fica; as que já não existem vão para a última. */
+export const fitCol = (col: string | number | undefined, layout: number): string | number =>
+  col === undefined || col === "all" ? "all" : Math.min(Number(col) || 1, layout);
+
+type Cur = { layout: number; comps: Comp[]; raw: Record<string, unknown> };
+
+/** Aplica `f` ao bloco/parte; `f` devolve o que muda (`null` = nada). Um rodapé que ainda não existe nasce com disposição 1. */
+function mapHolder(w: Work, h: Holder, f: (cur: Cur) => Record<string, unknown> | null): Work {
+  const view = (raw: Record<string, unknown>, layout: number): Cur => ({ layout, comps: (Array.isArray(raw.comps) ? raw.comps : []) as Comp[], raw });
+  if (h.kind === "block") {
+    const b = w.blocks.find((x) => x.id === h.id);
+    const patch = b && f(view(b as unknown as Record<string, unknown>, b.layout));
+    return b && patch ? { ...w, blocks: w.blocks.map((x) => (x === b ? ({ ...x, ...patch } as Block) : x)) } : w;
+  }
+  const base = w.parts[h.id] ?? (h.id === "topo" ? { comps: [] } : { layout: 1, bg: h.bg ?? "", comps: [] });
+  const patch = f(view(base, h.id === "topo" ? 1 : Number(base.layout) || 1));
+  return patch ? { ...w, parts: { ...w.parts, [h.id]: { ...base, ...patch } } } : w;
+}
+
+function setHolder(w: Work, h: Holder, p: HolderPatch): Work {
+  const isTopo = h.kind === "part" && h.id === "topo";
+  return mapHolder(w, h, (cur) => {
+    const out: Record<string, unknown> = {};
+    if (p.layout !== undefined && !isTopo && [1, 2, 3].includes(p.layout) && p.layout !== cur.layout) {
+      out.layout = p.layout;
+      // Reduzir colunas: os componentes cuja coluna deixou de existir passam para a última.
+      if (p.layout < cur.layout) out.comps = cur.comps.map((c) => (fitCol(c.col, p.layout!) === c.col ? c : { ...c, col: fitCol(c.col, p.layout!) }));
+    }
+    if (p.bg && !isTopo) out.bg = p.bg;
+    if (h.kind === "block") {
+      if (p.name !== undefined) out.name = p.name.slice(0, 120);
+      if (p.anchor !== undefined) out.anchor = p.anchor ? uniqueAnchor(w, h.id, p.anchor) : null;
+    }
+    return Object.entries(out).some(([k, v]) => cur.raw[k] !== v) ? out : null;
+  });
+}
+
+function addComp(w: Work, op: Extract<WorkOp, { type: "addComp" }>): Work {
+  return mapHolder(w, op.holder, (cur) => {
+    if (cur.comps.length >= 40 || cur.comps.some((c) => c.id === op.comp.id)) return null;
+    const at = Math.max(0, Math.min(op.index, cur.comps.length));
+    return { comps: [...cur.comps.slice(0, at), { ...op.comp, col: fitCol(op.comp.col, cur.layout) }, ...cur.comps.slice(at)] };
+  });
+}
+
+function moveComp(w: Work, op: Extract<WorkOp, { type: "moveComp" }>): Work {
+  return mapHolder(w, op.holder, (cur) => {
+    const comp = cur.comps.find((c) => c.id === op.from);
+    if (!comp || op.from === op.to || !cur.comps.some((c) => c.id === op.to)) return null;
+    const rest = cur.comps.filter((c) => c.id !== op.from);
+    rest.splice(rest.findIndex((c) => c.id === op.to) + (op.position === "after" ? 1 : 0), 0, comp);
+    return { comps: rest };
+  });
+}
+
+function patchComp(w: Work, op: Extract<WorkOp, { type: "patchComp" }>): Work {
+  return mapHolder(w, op.holder, (cur) => {
+    const c = cur.comps.find((x) => x.id === op.compId);
+    if (!c) return null;
+    const next = { ...c };
+    if (op.patch.style !== undefined) next.style = op.patch.style;
+    if (op.patch.col !== undefined) next.col = fitCol(op.patch.col, cur.layout);
+    return next.style === c.style && next.col === c.col ? null : { comps: cur.comps.map((x) => (x === c ? next : x)) };
+  });
+}
+
 // ── despacho ──────────────────────────────────────────────────────────────────
 
 export function applyOp(w: Work, op: WorkOp): Work {
@@ -250,6 +356,20 @@ export function applyOp(w: Work, op: WorkOp): Work {
     }
     case "moveItem":
       return moveItem(w, op);
+    case "setHolder":
+      return setHolder(w, op.holder, op.patch);
+    case "addComp":
+      return addComp(w, op);
+    case "removeComp":
+      return mapHolder(w, op.holder, (cur) => (cur.comps.some((c) => c.id === op.compId) ? { comps: cur.comps.filter((c) => c.id !== op.compId) } : null));
+    case "moveComp":
+      return moveComp(w, op);
+    case "patchComp":
+      return patchComp(w, op);
+    case "deleteBlock":
+      return !w.blocks.some((b) => b.id === op.id) || Object.values(w.items).some((l) => l.some((it) => it.blockId === op.id))
+        ? w
+        : { ...w, blocks: w.blocks.filter((b) => b.id !== op.id) };
   }
 }
 

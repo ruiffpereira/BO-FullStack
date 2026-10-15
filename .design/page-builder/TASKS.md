@@ -8,10 +8,13 @@
 
 1. **F16** — ✅ fechada.
 2. **Pequena mudança cross-repo** (nome do site, hora "No ar", línguas → publicação) — ✅ API `cb1f04b` ·
-   BO (este commit) · winterplateau `3f5cde9` (`cms`). Contrato §11. e2e `paginas-admin` 13/13 nas 3 larguras.
-3. **Suites inteiras dos três repos → push** (autorizado pelo dono): API → ver CI → Backoffice → ver CI →
-   winterplateau **só o branch `cms`** (não juntar na `main` antes do conteúdo real estar na produção).
-4. **F19** — importador do conteúdo real (Claude), manifest final, paridade, e o passo-a-passo do dono em produção.
+   BO `9ba1ebd` · winterplateau `3f5cde9` (`cms`). Contrato §11. e2e `paginas-admin` 13/13 nas 3 larguras.
+3. ✅ **Push feito (2026-10-15)** — suites inteiras verdes (API 3 227 · BO e2e 314). API `cb1f04b` e Backoffice
+   `9ba1ebd` LIVE (CI verde com deploy + smoke; migrações corridas no arranque). winterplateau: `cms` **e `main`**
+   em `3f5cde9` (decisão do dono — DECISOES 2026-10-15; deploy `skipped` até ao A9).
+   ~~**Suites inteiras dos três repos → push** (autorizado pelo dono): API → ver CI → Backoffice → ver CI →
+   winterplateau **só o branch `cms`** (não juntar na `main` antes do conteúdo real estar na produção).~~
+4. 🔄 **F19** — importador do conteúdo real (Claude), manifest final, paridade, e o passo-a-passo do dono em produção.
 
 | # | Fatia | Estado | Commits · essencial |
 |---|---|---|---|
@@ -34,7 +37,7 @@
 | F16 | BO · admin + e2e (3 larguras) | ✅ | BO `9e6dc2d` · API `3e77c6c` (seed) · 755 unitários; e2e inteiro 310 + 1 instável alheio (chat); 2 bugs do e2e corrigidos |
 | F17 | Site · kit Astro | ✅ | winterplateau `ad7e2ed` (branch `cms`) |
 | F18 | Site · componentes e estilos | ✅ | winterplateau `4fcb871` + `928771d` (cores do site actual) · kit ~2 000 linhas |
-| F19 | Go-live e fecho | ⬜ | |
+| F19 | Go-live e fecho | 🔄 | manifest + importador + conteúdo real (agente, local) |
 
 ## Pendentes (para o F19 ou logo a seguir)
 

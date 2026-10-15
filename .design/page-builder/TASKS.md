@@ -14,7 +14,7 @@
    em `3f5cde9` (decisão do dono — DECISOES 2026-10-15; deploy `skipped` até ao A9).
    ~~**Suites inteiras dos três repos → push** (autorizado pelo dono): API → ver CI → Backoffice → ver CI →
    winterplateau **só o branch `cms`** (não juntar na `main` antes do conteúdo real estar na produção).~~
-4. 🔄 **F19** — importador do conteúdo real (Claude), manifest final, paridade, e o passo-a-passo do dono em produção.
+4. 🔄 **F19** — a parte do Claude está feita e no GitHub. **Agora: passos do dono em produção** (*Pendentes*), depois paridade visual e fecho.
 
 | # | Fatia | Estado | Commits · essencial |
 |---|---|---|---|
@@ -37,26 +37,39 @@
 | F16 | BO · admin + e2e (3 larguras) | ✅ | BO `9e6dc2d` · API `3e77c6c` (seed) · 755 unitários; e2e inteiro 310 + 1 instável alheio (chat); 2 bugs do e2e corrigidos |
 | F17 | Site · kit Astro | ✅ | winterplateau `ad7e2ed` (branch `cms`) |
 | F18 | Site · componentes e estilos | ✅ | winterplateau `4fcb871` + `928771d` (cores do site actual) · kit ~2 000 linhas |
-| F19 | Go-live e fecho | 🔄 | manifest + importador + conteúdo real (agente, local) |
+| F19 | Go-live e fecho | 🔄 | API `48dc79f` · winterplateau `2c8cf33` `3da8e70` · à espera dos passos do dono em produção |
 
 ## Pendentes (para o F19 ou logo a seguir)
 
-**Produção — passo-a-passo para o dono** (escrever no F19): o push da API faz o deploy e **as migrações correm
-sozinhas** no arranque (agora duas: `20261014120000` e `20261015120000`); no admin de produção: dar `VIEW_SITE_PAGES`
-à role da Winterplateau, activar o construtor, **pôr o nome do site**, carregar o manifest final.
+**Produção — passo-a-passo para o dono (F19).** A API e o BO já estão no ar com o construtor e as migrações
+corridas; o importador e o conteúdo vão na imagem da API (`48dc79f`).
+1. **Admin → Permissões:** dar `VIEW_SITE_PAGES` à role da Winterplateau.
+2. **Admin → Utilizadores → Winterplateau → Construtor de páginas:** *Activar* · Nome do site `Winterplateau` ·
+   carregar o manifest (`winterplateau/cms/manifest.json`, no GitHub).
+3. **Coolify → app da API → Terminal:**
+   `pnpm import:site-pages --user <email da Winterplateau> --file scripts/data/winterplateau-import.json --dry-run`
+   → tem de dizer "Tudo válido" (e listar os 8 ficheiros por carregar) → repetir **sem** `--dry-run`.
+4. **Backoffice como Winterplateau → Páginas:** carregar o logo (`favicon.svg`) no topo, a imagem de partilha
+   (`og-image.png`) no SEO, e no bloco Downloads um componente "documentos" com os 6 PDFs (descarregá-los antes do
+   WordPress antigo: `DECLARACAO_DESEMPENHO`, `declaracao-conformidade`, `dop`, `modo-de-aplicacao-molduras`,
+   `WINTERPLATEAU_Catalogo-XS_AF`, `catalogo-rodatetos-winterplateau_Versao-1`). Ler a Privacidade EN/FR (Claude).
+5. **Admin → Construtor → Publicação:** modo GitHub · repo `ruiffpereira/winterplateau` · workflow `deploy.yml` ·
+   ref `main` · token fine-grained **só deste repo**, Actions: write → *Testar*.
+6. **A9 — ligar o deploy do site** (GitHub → winterplateau → Settings → Secrets and variables → Actions):
+   secrets `WIREGUARD_CONFIG`, `COOLIFY_DEPLOY_HOOK`, `COOLIFY_TOKEN` e a variável `DEPLOY_ENABLED=true`. No Coolify a
+   app do site usa as envs de sempre (`VITE_API_BASE_URL`, `SITE_TOKEN`, `CF_BYPASS_TOKEN`).
+7. Mudar um texto no Backoffice → Guardar → "A publicar…" → "No ar · hh:mm" e o site mostra-o (prova ponta-a-ponta).
+   Depois Claude faz a paridade visual (3 larguras × PT/EN/FR) e fecha o épico.
 
-**Antes do push:** o winterplateau tem `src/gen/` (booking) regenerado por engano no disco, fora dos commits —
-descartar (`git checkout -- src/gen && git clean -fd src/gen`). O `paginas-ux` "(1) arrastar com o teclado" deu
-timeout a 834/390 só na corrida longa dos `paginas-*` (isolado passa) — ver se repete na suite inteira. O A9 (secrets do deploy do winterplateau) fica para o fim de tudo.
-
-**F19 — site e conteúdo:**
-- Importador do conteúdo actual da Winterplateau para o construtor (Claude), testado na API local; paridade com o
-  site actual; < 300 KB por língua.
-- Manifest final: tirar o estilo de botão `claro`.
-- Confirmar os endereços antigos (`/Projetos.html`, `/Projeto.html?obra=`, `/privacidade.html`) contra o código da `main`.
-- Arrumar o winterplateau: apagar `src/components/*`, `global.css`, `BaseLayout.astro`, `projects.js`, `winter.css`;
-  `src/gen` do booking desactualizado (não é do épico); o repo não tem `user.name` (commits com `-c user.name=Rui`).
-- `deploy.yml` do winterplateau com `concurrency`.
+**F19 — feito por Claude (2026-10-15):** importador `scripts/importSitePages.ts` + conteúdo real (API `48dc79f`;
+9 páginas, 45 blocos, PT/EN/FR completos — Privacidade EN/FR traduzida por Claude, a rever pelo dono; ~43 KB por
+língua) · manifest final sem o botão `claro` · endereços antigos tratados pelo kit (`/Projetos.html` → `/obras`,
+`/Projeto.html?obra=` → `/obras/<slug>`, `/privacidade.html` → `/privacidade`) · site antigo apagado do winterplateau
+(`2c8cf33`, `3da8e70`, na `main`) · `deploy.yml` já tinha `concurrency`. Suite e2e inteira do BO: 314 verdes (o
+`paginas-ux` instável não repetiu).
+**F19 — falta (depois dos passos do dono):** paridade visual com o site antigo (1440/834/390 × PT/EN/FR) e fecho do
+épico (DECISOES, TASKS da raiz → `docs/TASKS-FEITO.md`, `CLAUDE.md` da raiz, `FUNCIONALIDADES.md`). Fora do épico:
+o `src/gen` do booking do winterplateau está desactualizado; o repo não tem `user.name` (commits com `-c user.name=Rui`).
 
 **Lacunas conhecidas (aceites, sem fatia):**
 - Endereços antigos são **só leitura** no BO (a API cria-os e apaga-os sozinha; o dono concordou que não faz falta remover).

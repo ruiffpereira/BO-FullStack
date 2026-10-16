@@ -354,6 +354,24 @@
           "email"
         ]
       },
+      "AdminProtectedError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "ADMIN_PROTECTED"
+            ]
+          }
+        },
+        "required": [
+          "error",
+          "code"
+        ]
+      },
       "Permission": {
         "type": "object",
         "properties": {
@@ -365,6 +383,10 @@
           },
           "description": {
             "type": "string"
+          },
+          "protected": {
+            "type": "boolean",
+            "description": "true para a role de admin (Admin ou ligada ao VIEW_ADMIN) - intocavel (B40); calculado no servidor em GET /permissions"
           }
         },
         "required": [
@@ -383,6 +405,10 @@
           },
           "description": {
             "type": "string"
+          },
+          "protected": {
+            "type": "boolean",
+            "description": "true so para o VIEW_ADMIN - intocavel (B40); calculado no servidor"
           },
           "permissions": {
             "type": "array",
@@ -3495,6 +3521,16 @@
           "400": {
             "description": "Component with this name already exists, or one or more `selectPermissions` ids do not exist"
           },
+          "403": {
+            "description": "`ADMIN_PROTECTED` - o nome VIEW_ADMIN esta reservado. A role Admin e sempre ligada ao componente pelo servidor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProtectedError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Error creating component"
           }
@@ -3603,6 +3639,16 @@
           "400": {
             "description": "One or more `selectPermissions` ids do not exist, or the new name is already in use"
           },
+          "403": {
+            "description": "`ADMIN_PROTECTED` - o componente e o VIEW_ADMIN, ou o novo nome e VIEW_ADMIN. Nos outros componentes a role Admin e sempre mantida pelo servidor em `selectPermissions` (acrescentada se faltar, nunca removida).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProtectedError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Component not found"
           },
@@ -3629,6 +3675,16 @@
         "responses": {
           "200": {
             "description": "Component and associated permissions deleted successfully"
+          },
+          "403": {
+            "description": "`ADMIN_PROTECTED` - o componente e o VIEW_ADMIN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProtectedError"
+                }
+              }
+            }
           },
           "404": {
             "description": "Component not found"
@@ -4120,6 +4176,16 @@
           "400": {
             "description": "Permission with this name already exists"
           },
+          "403": {
+            "description": "`ADMIN_PROTECTED` - o nome Admin esta reservado (ha uma so role de admin)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProtectedError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Error creating permission"
           }
@@ -4198,8 +4264,15 @@
           "200": {
             "description": "Permission updated successfully"
           },
-          "400": {
-            "description": "Cannot edit permission"
+          "403": {
+            "description": "`ADMIN_PROTECTED` - a role e de admin (Admin ou ligada ao VIEW_ADMIN), ou o novo nome e o reservado Admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProtectedError"
+                }
+              }
+            }
           },
           "404": {
             "description": "Permission not found"
@@ -4229,7 +4302,17 @@
             "description": "Permission deleted successfully"
           },
           "400": {
-            "description": "Cannot delete permission"
+            "description": "Permission is still associated with users"
+          },
+          "403": {
+            "description": "`ADMIN_PROTECTED` - a role e de admin (Admin ou ligada ao VIEW_ADMIN)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProtectedError"
+                }
+              }
+            }
           },
           "404": {
             "description": "Permission not found"
@@ -4931,6 +5014,10 @@
                       "canImpersonate": {
                         "type": "boolean"
                       },
+                      "isPlatformAdmin": {
+                        "type": "boolean",
+                        "description": "Conta admin da plataforma (role Admin ou ligada ao VIEW_ADMIN) - intocavel (B40); calculado no servidor"
+                      },
                       "permissions": {
                         "type": "array",
                         "items": {
@@ -5009,8 +5096,11 @@
           "200": {
             "description": "User updated successfully"
           },
+          "400": {
+            "description": "`permissionId` que não é string (nada é gravado)"
+          },
           "403": {
-            "description": "`EMAIL_CHANGE_FORBIDDEN` — o email de uma conta activada (com password) só o altera o próprio (PUT /users/me); contas por activar e a própria conta do admin são editáveis"
+            "description": "`ADMIN_PROTECTED` — mudar o `permissionId` de um admin da plataforma, ou dar uma role de admin a uma conta que não o é (validado antes de qualquer escrita; enviar o mesmo `permissionId` que o admin já tem é um no-op permitido). Ou `EMAIL_CHANGE_FORBIDDEN` — o email de uma conta activada (com password) só o altera o próprio (PUT /users/me); contas por activar e a própria conta do admin são editáveis"
           },
           "404": {
             "description": "User not found"
@@ -5065,7 +5155,10 @@
             "description": "User created"
           },
           "400": {
-            "description": "Missing required fields, ou `websiteDomain` inválido"
+            "description": "Missing required fields, `websiteDomain` inválido, ou `permissionId` que não é string"
+          },
+          "403": {
+            "description": "`ADMIN_PROTECTED` — `permissionId` é uma role de admin (Admin ou ligada ao VIEW_ADMIN); há um só admin e nada é criado"
           },
           "409": {
             "description": "Email ou telefone já em uso, ou `websiteDomain` já usado por outro tenant (corpo `{ error: \"domain_taken\", value }`; o utilizador NÃO é criado)\n"
@@ -5232,7 +5325,7 @@
             "description": "Um admin não pode apagar a própria conta"
           },
           "403": {
-            "description": "Sem a permissão VIEW_ADMIN"
+            "description": "Sem a permissão VIEW_ADMIN, OU `ADMIN_PROTECTED` — o alvo é admin da plataforma (nada é tocado, nem na BD nem no Stripe)"
           },
           "404": {
             "description": "Tenant não encontrado, OU userId com formato inválido (nunca 500 — a forma é validada antes de qualquer leitura/escrita)"

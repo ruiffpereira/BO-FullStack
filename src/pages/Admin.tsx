@@ -152,12 +152,17 @@ function UserFormFields({
   setForm,
   permissions,
   isEdit = false,
+  isPlatformAdmin = false,
 }: {
   form: UserForm;
   setForm: (f: UserForm) => void;
   permissions: Permission[];
   isEdit?: boolean;
+  /** Conta do admin (vem do servidor): a permissão é fixa, não se escolhe. */
+  isPlatformAdmin?: boolean;
 }) {
+  // Roles protegidas (admin) nunca se atribuem a outra conta — o servidor recusa.
+  const assignable = permissions.filter((p) => !p.protected);
   return (
     <div className="space-y-4">
       <Input
@@ -201,16 +206,23 @@ function UserFormFields({
         <p className="text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
           Permissão
         </p>
-        <Combobox
-          value={form.permissionId}
-          onChange={(v) => setForm({ ...form, permissionId: v })}
-          options={[
-            { value: "", label: "Seleccionar permissão" },
-            ...permissions.map((p) => ({ value: p.permissionId, label: p.name })),
-          ]}
-          placeholder="Seleccionar permissão"
-          searchPlaceholder="Pesquisar permissão…"
-        />
+        {isPlatformAdmin ? (
+          <div className="flex items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-300">
+            <Icon name="lock" className="w-4 h-4 text-zinc-400 shrink-0" />
+            <span>Admin — fixo</span>
+          </div>
+        ) : (
+          <Combobox
+            value={form.permissionId}
+            onChange={(v) => setForm({ ...form, permissionId: v })}
+            options={[
+              { value: "", label: "Seleccionar permissão" },
+              ...assignable.map((p) => ({ value: p.permissionId, label: p.name })),
+            ]}
+            placeholder="Seleccionar permissão"
+            searchPlaceholder="Pesquisar permissão…"
+          />
+        )}
       </div>
     </div>
   );
@@ -219,7 +231,10 @@ function UserFormFields({
 // Linha da lista: o `User` gerado + os campos que só o `GET /users` traz.
 // `canImpersonate` é calculado no servidor — nunca se recalcula aqui.
 type UserRow = User &
-  Pick<GetUsers200[number], "websiteDomain" | "supportAccessUntil" | "canImpersonate">;
+  Pick<
+    GetUsers200[number],
+    "websiteDomain" | "supportAccessUntil" | "canImpersonate" | "isPlatformAdmin"
+  >;
 
 const SUPPORT_REASON_ADMIN = "Conta de admin";
 const SUPPORT_REASON_DENIED =
@@ -251,7 +266,8 @@ function ImpersonateButton({ user }: { user: UserRow }) {
       />
     );
   }
-  const isAdminAccount = !!user.permissions?.some((p) => p.name === "VIEW_ADMIN");
+  // Vem do servidor (`isPlatformAdmin`) — nunca se deduz das roles no cliente.
+  const isAdminAccount = !!user.isPlatformAdmin;
   const reason = isAdminAccount ? SUPPORT_REASON_ADMIN : SUPPORT_REASON_DENIED;
   return (
     // O botão desactivado não recebe eventos de rato: o span segura o tooltip.
@@ -464,7 +480,12 @@ function UtilizadoresTab({
               </td>
               <td className="px-4 py-3.5">
                 <div className="flex flex-wrap gap-1">
-                  {u.permissions?.length ? (
+                  {u.isPlatformAdmin ? (
+                    <Badge tone="violet" className="whitespace-nowrap">
+                      <Icon name="lock" className="w-3 h-3" />
+                      Acesso total
+                    </Badge>
+                  ) : u.permissions?.length ? (
                     u.permissions.map((p) => (
                       <Badge key={p.permissionId} tone="blue">
                         {p.name}
@@ -495,23 +516,29 @@ function UtilizadoresTab({
                     label="Editar"
                     onClick={() => openEdit(u)}
                   />
-                  <IconButton
-                    icon="trash"
-                    label="Eliminar"
-                    title={
-                      u.userId === currentUserId
-                        ? "Não podes eliminar a tua própria conta."
-                        : "Eliminar tenant"
-                    }
-                    disabled={u.userId === currentUserId}
-                    onClick={() => {
-                      if (u.userId === currentUserId) return;
-                      setSelected(u);
-                      setDeleteConfirmEmail("");
-                      setDeleteOpen(true);
-                    }}
-                    className={`hover:text-red-500 ${u.userId === currentUserId ? "opacity-40 cursor-not-allowed" : ""}`}
-                  />
+                  {/* A conta admin é intocável: sem botão (não apenas desactivado). O espaço
+                      vazio mantém os ícones alinhados com as outras linhas. */}
+                  {u.isPlatformAdmin ? (
+                    <span className="w-9 h-9 shrink-0" aria-hidden="true" />
+                  ) : (
+                    <IconButton
+                      icon="trash"
+                      label="Eliminar"
+                      title={
+                        u.userId === currentUserId
+                          ? "Não podes eliminar a tua própria conta."
+                          : "Eliminar tenant"
+                      }
+                      disabled={u.userId === currentUserId}
+                      onClick={() => {
+                        if (u.userId === currentUserId) return;
+                        setSelected(u);
+                        setDeleteConfirmEmail("");
+                        setDeleteOpen(true);
+                      }}
+                      className={`hover:text-red-500 ${u.userId === currentUserId ? "opacity-40 cursor-not-allowed" : ""}`}
+                    />
+                  )}
                 </div>
               </td>
             </tr>
@@ -576,7 +603,9 @@ function UtilizadoresTab({
                 if (form.name) p.name = form.name;
                 if (form.email) p.email = form.email;
                 p.phone = form.phone || null;
-                if (form.permissionId) p.permissionId = form.permissionId;
+                // Na conta admin a role é fixa: não se envia `permissionId`.
+                if (form.permissionId && !selected.isPlatformAdmin)
+                  p.permissionId = form.permissionId;
                 updateM.mutate({ data: p });
               }}
             >
@@ -590,6 +619,7 @@ function UtilizadoresTab({
           setForm={setForm}
           permissions={permissions}
           isEdit
+          isPlatformAdmin={!!selected?.isPlatformAdmin}
         />
       </Modal>
 
@@ -807,27 +837,39 @@ function PermissoesTab({ headers }: { headers: Record<string, string> }) {
               </td>
               <td className="px-4 py-3.5">
                 <div className="flex justify-end gap-1">
-                  <IconButton
-                    icon="edit"
-                    label="Editar"
-                    onClick={() => {
-                      setSelected(p);
-                      setForm({
-                        name: p.name,
-                        description: p.description ?? "",
-                      });
-                      setEditOpen(true);
-                    }}
-                  />
-                  <IconButton
-                    icon="trash"
-                    label="Eliminar"
-                    onClick={async () => {
-                      if (await confirmDialog({ title: `Eliminar "${p.name}"?`, danger: true }))
-                        deleteM.mutate({ id: p.permissionId });
-                    }}
-                    className="hover:text-red-500"
-                  />
+                  {p.protected ? (
+                    <span
+                      className="inline-flex items-center gap-1.5 text-xs text-zinc-400"
+                      title="O Admin é fixo: não se edita nem se elimina."
+                    >
+                      <Icon name="lock" className="w-3.5 h-3.5" />
+                      Só leitura
+                    </span>
+                  ) : (
+                    <>
+                      <IconButton
+                        icon="edit"
+                        label="Editar"
+                        onClick={() => {
+                          setSelected(p);
+                          setForm({
+                            name: p.name,
+                            description: p.description ?? "",
+                          });
+                          setEditOpen(true);
+                        }}
+                      />
+                      <IconButton
+                        icon="trash"
+                        label="Eliminar"
+                        onClick={async () => {
+                          if (await confirmDialog({ title: `Eliminar "${p.name}"?`, danger: true }))
+                            deleteM.mutate({ id: p.permissionId });
+                        }}
+                        className="hover:text-red-500"
+                      />
+                    </>
+                  )}
                 </div>
               </td>
             </tr>
@@ -1008,15 +1050,20 @@ function ComponentesTab({ headers }: { headers: Record<string, string> }) {
             >
               <input
                 type="checkbox"
-                checked={form.selectedPermissions.includes(p.permissionId)}
+                checked={!!p.protected || form.selectedPermissions.includes(p.permissionId)}
+                disabled={!!p.protected}
                 onChange={() => togglePerm(p.permissionId)}
                 className="rounded border-zinc-300 text-accent focus:ring-accent/20"
               />
               <span className="text-sm text-zinc-700 dark:text-zinc-200 flex-1">
                 {p.name}
               </span>
-              {p.description && (
-                <span className="text-xs text-zinc-400">— {p.description}</span>
+              {p.protected ? (
+                <span className="text-xs text-zinc-400">O Admin tem sempre acesso</span>
+              ) : (
+                p.description && (
+                  <span className="text-xs text-zinc-400">— {p.description}</span>
+                )
               )}
             </label>
           ))}
@@ -1071,22 +1118,32 @@ function ComponentesTab({ headers }: { headers: Record<string, string> }) {
                     </p>
                   )}
                 </div>
-                <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition">
-                  <IconButton
-                    icon="edit"
-                    label="Editar"
-                    onClick={() => openEdit(c)}
-                  />
-                  <IconButton
-                    icon="trash"
-                    label="Eliminar"
-                    onClick={async () => {
-                      if (await confirmDialog({ title: `Eliminar "${c.name}"?`, danger: true }))
-                        deleteM.mutate({ id: c.componentId });
-                    }}
-                    className="hover:text-red-500"
-                  />
-                </div>
+                {c.protected ? (
+                  <span
+                    className="inline-flex items-center gap-1 text-xs text-zinc-400 shrink-0"
+                    title="Componente do sistema: não se edita nem se elimina."
+                  >
+                    <Icon name="lock" className="w-3.5 h-3.5" />
+                    Só leitura
+                  </span>
+                ) : (
+                  <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition">
+                    <IconButton
+                      icon="edit"
+                      label="Editar"
+                      onClick={() => openEdit(c)}
+                    />
+                    <IconButton
+                      icon="trash"
+                      label="Eliminar"
+                      onClick={async () => {
+                        if (await confirmDialog({ title: `Eliminar "${c.name}"?`, danger: true }))
+                          deleteM.mutate({ id: c.componentId });
+                      }}
+                      className="hover:text-red-500"
+                    />
+                  </div>
+                )}
               </div>
               {c.permissions && c.permissions.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-3 pt-3 border-t border-zinc-50 dark:border-zinc-800">

@@ -52,8 +52,8 @@ const PAST = new Date(Date.now() - 864e5).toISOString();
 
 const ALLOWED = { userId: "u1", name: "Barbearia Central", email: "central@example.com", permissions: [], canImpersonate: true, supportAccessUntil: FUTURE };
 const DENIED = { userId: "u2", name: "Ginásio Norte", email: "norte@example.com", permissions: [], canImpersonate: false, supportAccessUntil: PAST };
-const ADMIN_OTHER = { userId: "u3", name: "Outro Admin", email: "admin2@example.com", permissions: [{ permissionId: "p1", name: "VIEW_ADMIN" }], canImpersonate: false };
-const ADMIN_SELF = { userId: "admin-1", name: "Conta do admin", email: "admin@example.com", permissions: [{ permissionId: "p1", name: "VIEW_ADMIN" }], canImpersonate: false };
+const ADMIN_OTHER = { userId: "u3", name: "Outro Admin", email: "admin2@example.com", permissions: [{ permissionId: "p1", name: "Admin" }], isPlatformAdmin: true, canImpersonate: false };
+const ADMIN_SELF = { userId: "admin-1", name: "Conta do admin", email: "admin@example.com", permissions: [{ permissionId: "p1", name: "Admin" }], isPlatformAdmin: true, canImpersonate: false };
 
 function renderAdmin(users: unknown[]) {
   useGetUsersMock.mockReturnValue({ data: users, isLoading: false });

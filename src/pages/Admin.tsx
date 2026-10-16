@@ -4,7 +4,6 @@ import { getApiError } from "../lib/apiError";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { Icon } from "../ui/icons.jsx";
-import { VERTICALS } from "../lib/verticals";
 import {
   Card,
   Button,
@@ -140,7 +139,6 @@ type UserForm = {
   phone: string;
   permissionId: string;
   websiteDomain: string;
-  vertical?: string;
 };
 const emptyUserForm: UserForm = {
   name: "",
@@ -213,21 +211,6 @@ function UserFormFields({
           ]}
           placeholder="Seleccionar permissão"
           searchPlaceholder="Pesquisar permissão…"
-        />
-      </div>
-      <div>
-        <p className="text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
-          Tipo de negócio
-        </p>
-        <Combobox
-          value={form.vertical || ""}
-          onChange={(v) => setForm({ ...form, vertical: v || undefined })}
-          options={[
-            { value: "", label: "Nenhum (opcional)" },
-            ...VERTICALS.map((v) => ({ value: v.id, label: v.label })),
-          ]}
-          placeholder="Seleccionar tipo de negócio"
-          searchPlaceholder="Pesquisar tipo de negócio…"
         />
       </div>
     </div>
@@ -411,7 +394,6 @@ function UtilizadoresTab({
       phone: (u as any).phone ?? "",
       permissionId: u.permissions?.[0]?.permissionId ?? "",
       websiteDomain: "",
-      vertical: (u as any).vertical,
     });
     setEditOpen(true);
   };
@@ -569,7 +551,6 @@ function UtilizadoresTab({
                     email: form.email,
                     phone: form.phone || undefined,
                     permissionId: form.permissionId,
-                    vertical: form.vertical || undefined,
                     websiteDomain: form.websiteDomain.trim() || undefined,
                   } as any,
                 });
@@ -605,7 +586,6 @@ function UtilizadoresTab({
                 if (form.email) p.email = form.email;
                 p.phone = form.phone || null;
                 if (form.permissionId) p.permissionId = form.permissionId;
-                p.vertical = form.vertical || null;
                 updateM.mutate({ data: p });
               }}
             >

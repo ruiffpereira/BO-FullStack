@@ -7,7 +7,6 @@ import { getApiError } from "../lib/apiError";
 import { isImpersonationForbiddenError } from "../lib/supportSession";
 import { Badge, Button, Input, Modal, Select, SectionTitle } from "../ui/ui.jsx";
 import { GuardButton } from "./GuardButton";
-import { confirmDialog } from "./confirm";
 import {
   useGetAdminUsersUseridSiteBuilder,
   getAdminUsersUseridSiteBuilderQueryKey,
@@ -20,8 +19,9 @@ import type { PutAdminUsersUseridSiteBuilderManifestMutationRequest as ManifestB
 import type { PutAdminUsersUseridSiteBuilderPublishMutationRequest as PublishBody } from "../gen/backoffice/types/PutAdminUsersUseridSiteBuilderPublish";
 
 /**
- * Admin → Utilizadores → "Construtor de páginas" (F16, CONTRATO §5.4): activar, carregar o manifest e
- * configurar a publicação de um tenant. Só o dono da plataforma (`VIEW_ADMIN`) chega aqui; em sessão de
+ * Admin → Utilizadores → "Construtor de páginas" (F16, CONTRATO §5.4): ver se está activo, carregar o manifest e
+ * configurar a publicação de um tenant. Não há interruptor: o construtor está activo quando o tenant tem
+ * `VIEW_SITE_PAGES` (decisão do dono, 2026-10-16). Só o dono da plataforma (`VIEW_ADMIN`) chega aqui; em sessão de
  * suporte a API responde `403 IMPERSONATION_FORBIDDEN` e mostra-se a mensagem. O token do GitHub é só de
  * escrita: nunca vem na resposta, o campo nunca é preenchido e, vazio, não é enviado (a API mantém o antigo).
  */
@@ -134,17 +134,6 @@ export function SiteBuilderModal({ user, onClose }: { user: { userId: string; na
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [actionError, setActionError] = useState("");
 
-  const enabledM = usePutAdminUsersUseridSiteBuilder({
-    client: { headers },
-    mutation: {
-      onSuccess: (r) => {
-        setActionError("");
-        toast.success(r?.enabled ? "Construtor activado" : "Construtor desactivado");
-        void refresh();
-      },
-      onError: (e) => setActionError(errMessage(e, "Não foi possível alterar o construtor.")),
-    },
-  });
   // Nome do site: copia o da API quando muda lá (como o formulário da publicação).
   const [siteName, setSiteName] = useState("");
   const savedName = data?.siteName ?? "";
@@ -219,17 +208,6 @@ export function SiteBuilderModal({ user, onClose }: { user: { userId: string; na
     setManifestText(await file.text());
   };
 
-  const toggle = async () => {
-    const next = !data?.enabled;
-    if (!next && !(await confirmDialog({
-      title: "Desactivar o construtor?",
-      message: "O tenant deixa de editar páginas e o site deixa de receber o conteúdo do construtor. Os dados ficam guardados.",
-      confirmLabel: "Desactivar",
-      danger: true,
-    }))) return;
-    enabledM.mutate({ userId, data: { enabled: next } });
-  };
-
   const github = mode === "github";
   const savedMode = publish?.mode ?? "runtime";
   // "Testar" usa a configuração JÁ guardada: com o formulário alterado dava um resultado enganador.
@@ -259,14 +237,11 @@ export function SiteBuilderModal({ user, onClose }: { user: { userId: string; na
 
           <section aria-label="Estado">
             <SectionTitle>Estado</SectionTitle>
-            <div className="flex flex-wrap items-center gap-3">
-              <Badge tone={data?.enabled ? "green" : "neutral"} dot>{data?.enabled ? "Activo" : "Desactivado"}</Badge>
-              <GuardButton variant={data?.enabled ? "outline" : "primary"} className="min-h-10" isLoading={enabledM.isPending} onClick={() => void toggle()}>
-                {data?.enabled ? "Desactivar" : "Activar"}
-              </GuardButton>
-            </div>
+            <Badge tone={data?.enabled ? "green" : "neutral"} dot>{data?.enabled ? "Activo" : "Inactivo"}</Badge>
             <p className="mt-3 text-[13px] text-zinc-500">
-              Para o cliente ver o menu Páginas, dá <code className="text-[12px]">VIEW_SITE_PAGES</code> à role do tenant em{" "}
+              {data?.enabled
+                ? <>Activo porque a role do tenant tem <code className="text-[12px]">VIEW_SITE_PAGES</code>; tirá-la desliga o construtor (os dados ficam). Gere-se em{" "}</>
+                : <>Para activar, dá <code className="text-[12px]">VIEW_SITE_PAGES</code> à role do tenant em{" "}</>}
               <Link to="/admin/permissoes" onClick={onClose} className="text-accent underline underline-offset-2">Admin → Permissões</Link>.
             </p>
           </section>

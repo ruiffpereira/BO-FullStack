@@ -12,7 +12,7 @@
    por fora. JSON gerado a partir do site actual: texto PT dos componentes antigos + EN/FR do dicionário `i18n.js`
    (agente Sonnet monta o JSON; o supervisor revê amostras). As traduções que não existirem ficam por fazer — o
    Backoffice mostra-as a amarelo.
-3. **Dono:** activa o construtor do tenant (Admin), carrega o manifest, dá `VIEW_SITE_PAGES` à role, corre o script
+3. **Dono:** dá `VIEW_SITE_PAGES` à role (é o que liga o construtor — 2026-10-16), carrega o manifest (Admin), corre o script
    em produção com `--dry-run` e depois a sério, completa traduções em falta no Backoffice.
 4. **Publicação:** `deploy.yml` do winterplateau com `workflow_dispatch` (já tem) e `concurrency` (§8); dono configura
    o modo GitHub no Admin (repo, workflow, token fine-grained só deste repo com Actions: write); "Testar".

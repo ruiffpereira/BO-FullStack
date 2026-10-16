@@ -60,7 +60,7 @@ export function Paginas() {
         <EmptyState
           icon="layers"
           title="O construtor de páginas ainda não está ativo"
-          desc="Quando a equipa o ativar para o teu site, é aqui que vais montar e editar as páginas."
+          desc="Quando a equipa te der acesso às Páginas, é aqui que vais montar e editar o teu site."
         />
       </Card>
     );

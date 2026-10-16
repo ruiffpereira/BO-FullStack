@@ -7,12 +7,13 @@ import { expectBlockedRedirect, withSessionRetry } from "./fixtures/session";
  *
  * O gating é do `Shell` (`MODULE_PERM_TO_PATH`: VIEW_SITE_PAGES → /paginas): o item só entra
  * em `accessiblePaths` com a permissão, e o guard (useEffect) redirecciona para /dashboard
- * qualquer rota não acessível. O estado do construtor vem de `GET /cms/site-builder`:
- * `{ enabled:false }` (sem linha / desligado) → estado vazio; `enabled:true` → editor.
+ * qualquer rota não acessível. O construtor não tem interruptor: está activo se e só se o tenant tem
+ * VIEW_SITE_PAGES (a role Admin conta); sem a permissão `GET /cms/site-builder` é 403 e o Shell nem
+ * mostra o item. A linha de `SiteBuilders` nasce sozinha na 1.ª abertura.
  *
  * Seed (`scripts/seedE2e.ts`):
  *  - `pages@e2e`   → só VIEW_SITE_PAGES, construtor ACTIVO (linha em `SiteBuilders`)
- *  - `admin@e2e`   → tem VIEW_SITE_PAGES (Admin = todos os componentes), SEM linha → desligado
+ *  - `admin@e2e`   → tem VIEW_SITE_PAGES (Admin = todos os componentes), SEM linha → activo (linha nasce na 1.ª abertura)
  *  - `limited@e2e` / `noaccess@e2e` → sem VIEW_SITE_PAGES
  *
  * Três larguras (regra do BO: computador, tablet, telemóvel). A sidebar fixa só existe a
@@ -115,7 +116,7 @@ for (const vp of VIEWPORTS) {
       });
     }
 
-    test("construtor DESLIGADO (admin@e2e, com a permissão): item visível e estado vazio", async ({ page, context }) => {
+    test("admin@e2e (Admin conta como VIEW_SITE_PAGES): item visível e editor activo, sem estado vazio", async ({ page, context }) => {
       const user = "admin@e2e";
       await loginAs(context, user);
       await withSessionRetry(
@@ -125,13 +126,11 @@ for (const vp of VIEWPORTS) {
         () => page.goto("/paginas"),
         async () => {
           await expect(page).toHaveURL(/\/paginas$/, { timeout: 15_000 });
-          await expect(
-            page.getByText("O construtor de páginas ainda não está ativo"),
-          ).toBeVisible({ timeout: 10_000 });
-          // Sem editor: nada de barra de histórico/gravação.
-          await expect(page.getByRole("button", { name: "Desfazer" })).toHaveCount(0);
-          await expect(page.getByRole("button", { name: "Guardar", exact: true })).toHaveCount(0);
-          // O item continua na sidebar (a permissão existe; é o tenant que não tem o construtor).
+          // Editor: barra de histórico + Guardar (a linha de SiteBuilders nasce sozinha na 1.ª abertura).
+          const barra = page.getByRole("group", { name: "Histórico" });
+          await expect(barra.getByRole("button", { name: "Desfazer" })).toBeVisible({ timeout: 10_000 });
+          await expect(page.getByRole("button", { name: "Guardar", exact: true })).toBeVisible();
+          await expect(page.getByText("O construtor de páginas ainda não está ativo")).toHaveCount(0);
           await openSidebarIfDrawer(page);
           await expect(paginasItem(page)).toBeVisible();
         },

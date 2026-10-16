@@ -9,10 +9,11 @@ import { PaginasPage, VIEWPORTS, uniq } from "./pages/PaginasPage";
 
 /**
  * Admin → Utilizadores → «Construtor de páginas» (F16, CONTRATO §5.4) nas três larguras: o admin
- * (`admin@e2e`) abre o modal de um tenant (`pagesgate@e2e`, semeado SEM construtor), activa-o, tenta
+ * (`admin@e2e`) abre o modal de um tenant (`pagesgate@e2e`, semeado SEM a permissão VIEW_SITE_PAGES), vê o
+ * estado derivado («Inactivo», sem botões Activar/Desactivar — o construtor já não tem interruptor), tenta
  * manifests inválidos (JSON partido; manifest que a API recusa → erros legíveis) e carrega o da
  * Winterplateau (ficheiro). O token do GitHub é só de escrita. O tenant é só deste spec e o fluxo é
- * idempotente (começa por desactivar se já estiver activo).
+ * idempotente.
  */
 
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -43,7 +44,7 @@ for (const vp of VIEWPORTS) {
   test.describe(`Páginas · admin — ${vp.label}`, () => {
     test.use({ viewport: { width: vp.width, height: vp.height } });
 
-    test("o admin activa o construtor de um tenant e carrega o manifest (erros legíveis nos inválidos)", async ({ page, context }) => {
+    test("o admin vê o estado derivado da permissão (sem botões) e carrega o manifest (erros legíveis nos inválidos)", async ({ page, context }) => {
       const admin = new AdminPage(page);
       await openAdmin(page, context);
 
@@ -51,16 +52,12 @@ for (const vp of VIEWPORTS) {
       await expect(dialog).toContainText(TENANT);
       const estado = dialog.getByRole("region", { name: "Estado" });
 
-      // Activar (se já estiver activo de uma corrida anterior, desactiva primeiro — com confirmação).
-      if (await estado.getByText("Activo", { exact: true }).isVisible()) {
-        await estado.getByRole("button", { name: "Desactivar" }).click();
-        const confirmar = page.getByRole("dialog", { name: "Desactivar o construtor?" });
-        await expect(confirmar).toContainText("Os dados ficam guardados.");
-        await confirmar.getByRole("button", { name: "Desactivar" }).click();
-        await expect(estado.getByText("Desactivado", { exact: true })).toBeVisible();
-      }
-      await estado.getByRole("button", { name: "Activar" }).click();
-      await expect(estado.getByText("Activo", { exact: true })).toBeVisible();
+      // Sem interruptor: o estado é derivado da permissão. `pagesgate@e2e` não tem VIEW_SITE_PAGES → «Inactivo».
+      await expect(estado.getByText("Inactivo", { exact: true })).toBeVisible();
+      await expect(estado.getByText("Activo", { exact: true })).toHaveCount(0);
+      await expect(estado).toContainText("Para activar, dá VIEW_SITE_PAGES à role do tenant em Admin → Permissões");
+      await expect(estado.getByRole("button")).toHaveCount(0); // nem Activar nem Desactivar
+      await expect(page.getByRole("dialog", { name: "Desactivar o construtor?" })).toHaveCount(0);
       // O lembrete leva ao sítio onde se dá a permissão.
       await expect(estado.getByRole("link", { name: "Admin → Permissões" })).toHaveAttribute("href", "/admin/permissoes");
 
@@ -95,8 +92,21 @@ for (const vp of VIEWPORTS) {
       await page.keyboard.press("Escape"); // (o Modal fecha com Esc)
       await expect(dialog).toHaveCount(0);
       const again = await openBuilderModal(page, admin);
-      await expect(again.getByRole("region", { name: "Estado" }).getByText("Activo", { exact: true })).toBeVisible();
+      // (continua inactivo: carregar o manifest não liga o construtor, só a permissão o faz)
+      await expect(again.getByRole("region", { name: "Estado" }).getByText("Inactivo", { exact: true })).toBeVisible();
       await expect(again.getByRole("region", { name: "Manifest" })).toContainText(/2 especiais \((edificio3d, faixa|faixa, edificio3d)\)/);
+    });
+
+    test("estado «Activo» quando o tenant tem VIEW_SITE_PAGES (pages@e2e): texto derivado e sem botões", async ({ page, context }) => {
+      const admin = new AdminPage(page);
+      await openAdmin(page, context);
+      const dialog = await openBuilderModal(page, admin, "pages@e2e");
+      const estado = dialog.getByRole("region", { name: "Estado" });
+      await expect(estado.getByText("Activo", { exact: true })).toBeVisible();
+      await expect(estado.getByText("Inactivo", { exact: true })).toHaveCount(0);
+      await expect(estado).toContainText("Activo porque a role do tenant tem VIEW_SITE_PAGES");
+      await expect(estado.getByRole("button")).toHaveCount(0);
+      await expect(estado.getByRole("link", { name: "Admin → Permissões" })).toHaveAttribute("href", "/admin/permissoes");
     });
 
     test("publicação: modo GitHub pede repo, workflow e ref; o token é só de escrita; volta a «runtime»", async ({ page, context }) => {

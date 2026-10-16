@@ -13,7 +13,7 @@
 
 | Termo | O que é |
 |---|---|
-| **Construtor** | A funcionalidade, ligada por tenant (`SiteBuilders.enabled`). Sem ela o menu "Páginas" mostra um estado vazio. |
+| **Construtor** | A funcionalidade, activa para o tenant que tem a permissão `VIEW_SITE_PAGES` (sem interruptor próprio — 2026-10-16; até aí era `SiteBuilders.enabled`). Sem ela não há menu "Páginas" e o site não recebe conteúdo. |
 | **Página** | Um endereço do site. Árvore (página-mãe → subpáginas). Tem nome, endereço por língua, estado, SEO e uma **lista ordenada de itens**. |
 | **Item de página** | Uma entrada da lista da página: um **bloco** (da biblioteca) ou um **especial**. Tem "escondido nesta página". |
 | **Bloco** | Vive na **biblioteca** do tenant. Tem nome, pasta, disposição (1–3 colunas), fundo, âncora e uma lista ordenada de **componentes**. Pode estar em várias páginas (partilhado). |
@@ -37,9 +37,8 @@ Migração JS CommonJS `YYYYMMDDHHMMSS-kebab.js` com `up`/`down`. Todas as tabel
 `hardDeleteTenantData` (sem cascata na plataforma).
 
 ```
-SiteBuilders                 1 linha por tenant (existe = foi activado alguma vez)
+SiteBuilders                 1 linha por tenant (nasce na 1.ª abertura/gravação; activo = tem VIEW_SITE_PAGES)
   userId PK FK Users
-  enabled            BOOL  default false
   manifest           JSON  null           — §4, validado na escrita
   revision           INT   default 0
   topo               JSON  null           — {comps:[Component]}                       §3.3
@@ -249,8 +248,9 @@ Rotas sob `/api/cms/site-builder`, montadas com `authenticateToken, billingGate,
 
 ### §5.4 · Admin (dono da plataforma) — sob `/api/admin/users/:userId/site-builder`
 Montadas no `adminUserRoutes` existente (já tem `authenticateToken → forbidDuringImpersonation → VIEW_ADMIN`).
-- `GET` → `{enabled, manifestSummary, publish:{mode, repo, workflow, ref, hasToken, status}}` (nunca o token)
-- `PUT` → `{enabled}` (cria a linha se não existir)
+- `GET` → `{enabled, siteName, manifestSummary, publish:{mode, repo, workflow, ref, hasToken, status}}` (nunca o token;
+  `enabled` derivado da permissão `VIEW_SITE_PAGES` do tenant, só leitura)
+- `PUT` → `{siteName}` (cria a linha se não existir; já não liga/desliga — 2026-10-16)
 - `PUT /manifest` → corpo = manifest (§4); `409 MANIFEST_IN_USE`
 - `PUT /publish` → `{mode, repo?, workflow?, ref?, token?}` (token só de escrita; omitir = manter)
 - `POST /publish/test` → verifica que o token chega ao workflow (GitHub `GET /repos/{repo}/actions/workflows/{wf}`)

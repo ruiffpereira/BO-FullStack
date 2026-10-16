@@ -13,7 +13,6 @@ const s = vi.hoisted(() => ({
   publish: vi.fn(),
   test: vi.fn(),
   opts: {} as Record<string, any>,
-  confirm: vi.fn(),
 }));
 
 const hook = (name: string, fn: () => unknown) => (o: any) => {
@@ -40,7 +39,6 @@ vi.mock("../../src/context/AuthContext", () => ({ useAuth: () => ({ authHeader: 
 vi.mock("../../src/components/GuardButton", () => ({
   GuardButton: ({ children, isLoading: _l, ...rest }: any) => <button {...rest}>{children}</button>,
 }));
-vi.mock("../../src/components/confirm", () => ({ confirmDialog: (...a: unknown[]) => s.confirm(...a) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { SiteBuilderModal } from "../../src/components/AdminSiteBuilder";
@@ -89,22 +87,19 @@ describe("Admin — Construtor de páginas", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("activar envia enabled:true; desactivar pede confirmação", async () => {
+  it("sem interruptor: o estado vem da permissão VIEW_SITE_PAGES", () => {
     renderModal(GET({ enabled: false }));
-    fireEvent.click(screen.getByRole("button", { name: "Activar" }));
-    await act(async () => {});
-    expect(s.enabled).toHaveBeenCalledWith({ userId: "u1", data: { enabled: true } });
+    expect(screen.getByText("Inactivo")).toBeInTheDocument();
+    expect(screen.getByText(/Para activar, dá/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Activar" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Desactivar" })).not.toBeInTheDocument();
+    expect(s.enabled).not.toHaveBeenCalled();
   });
 
-  it("desactivar só envia depois de confirmar", async () => {
-    s.confirm.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+  it("activo explica que vem da role", () => {
     renderModal();
-    fireEvent.click(screen.getByRole("button", { name: "Desactivar" }));
-    await act(async () => {});
-    expect(s.enabled).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Desactivar" }));
-    await act(async () => {});
-    expect(s.enabled).toHaveBeenCalledWith({ userId: "u1", data: { enabled: false } });
+    expect(screen.getByText(/Activo porque a role do tenant tem/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Desactivar" })).not.toBeInTheDocument();
   });
 
   describe("nome do site", () => {

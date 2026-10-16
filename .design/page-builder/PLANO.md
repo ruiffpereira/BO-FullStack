@@ -59,7 +59,7 @@ estado de trabalho                  GET  /cms/site-builder   (editor)
 catálogo + manifest ◀── GET ──        · valida tudo (§6)                       (1 por língua, site token,
 desenham os formulários             SitePages · SitePageItems                  X-CI-Bypass, falha alto)
                                     SiteBlocks · SiteBlockFolders          └─ desenha items com o kit
-Admin: activar · manifest ──▶       SiteRedirects · SiteBuilders           └─ sitemap · robots · redirects
+Admin: manifest · nome ──▶          SiteRedirects · SiteBuilders           └─ sitemap · robots · redirects
        · publicação                 job 1/min ── workflow_dispatch ──▶ GitHub Actions → Coolify
                                     lê /cms-build.json ◀───────────────────── {revision}
 ```

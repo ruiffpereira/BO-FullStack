@@ -4406,7 +4406,7 @@
     "/admin/users/{userId}/site-builder": {
       "get": {
         "summary": "Estado do construtor de páginas de um tenant (só o dono da plataforma)",
-        "description": "Devolve se o construtor está activo, o nome do site (`siteName`, `null` se não houver), um resumo do manifest e a configuração de publicação (sem o token do GitHub — só `hasToken`; `liveAt` = quando o site passou a servir a revisão actual). Sem linha → `enabled: false`. Exige `VIEW_ADMIN` e recusa sessões de suporte (impersonation).\n",
+        "description": "Devolve se o construtor está activo (`enabled`, **derivado e só de leitura**: activo quando o tenant tem a permissão `VIEW_SITE_PAGES` — a role `Admin` conta —, com ou sem linha), o nome do site (`siteName`, `null` se não houver), um resumo do manifest e a configuração de publicação (sem o token do GitHub — só `hasToken`; `liveAt` = quando o site passou a servir a revisão actual). Exige `VIEW_ADMIN` e recusa sessões de suporte (impersonation).\n",
         "tags": [
           "Users"
         ],
@@ -4434,7 +4434,8 @@
                   "type": "object",
                   "properties": {
                     "enabled": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Derivado da permissão VIEW_SITE_PAGES do tenant; só leitura"
                     },
                     "siteName": {
                       "type": "string",
@@ -4526,8 +4527,8 @@
         }
       },
       "put": {
-        "summary": "Ligar/desligar o construtor e definir o nome do site de um tenant (só o dono da plataforma)",
-        "description": "Corpo `{ enabled?, siteName? }` — **pelo menos um** (senão 400); omitido = manter. Cria a linha do construtor se ainda não existir. Desligar não apaga conteúdo — o menu \"Páginas\" do tenant mostra o estado vazio e o `GET /cms/site-builder` devolve `{ enabled: false }`. `siteName` é aparado; `null` ou `\"\"` apaga; 1–80 caracteres, sem caracteres de controlo nem `<` `>` (400). **Mudar de facto o `siteName` com o construtor activo é uma mudança visível no site**: sobe a `revision` (um editor aberto leva `409 REVISION_CONFLICT` no próximo save) e pede publicação — em `github` `publishStatus` passa a `pending` (ou fica `running`) e marca `publishRequestedAt`; em `runtime` grava `liveAt`. Gravar o mesmo nome não faz nada. Exige `VIEW_ADMIN` e recusa sessões de suporte.\n",
+        "summary": "Definir o nome do site de um tenant (só o dono da plataforma)",
+        "description": "Corpo `{ siteName }` (obrigatório; senão 400). O construtor já não se liga/desliga aqui: está activo quando o tenant tem a permissão `VIEW_SITE_PAGES` (Admin → Permissões); um `enabled` no corpo é ignorado. Cria a linha do construtor se ainda não existir. A resposta traz `enabled` **derivado** dessa permissão (só leitura). `siteName` é aparado; `null` ou `\"\"` apaga; 1–80 caracteres, sem caracteres de controlo nem `<` `>` (400). **Mudar de facto o `siteName` com o construtor activo é uma mudança visível no site**: sobe a `revision` (um editor aberto leva `409 REVISION_CONFLICT` no próximo save) e pede publicação — em `github` `publishStatus` passa a `pending` (ou fica `running`) e marca `publishRequestedAt`; em `runtime` grava `liveAt`. Gravar o mesmo nome não faz nada. Exige `VIEW_ADMIN` e recusa sessões de suporte.\n",
         "tags": [
           "Users"
         ],
@@ -4552,11 +4553,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "minProperties": 1,
+                "required": [
+                  "siteName"
+                ],
                 "properties": {
-                  "enabled": {
-                    "type": "boolean"
-                  },
                   "siteName": {
                     "type": "string",
                     "nullable": true,
@@ -4577,7 +4577,8 @@
                   "type": "object",
                   "properties": {
                     "enabled": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Derivado da permissão VIEW_SITE_PAGES do tenant; só leitura"
                     },
                     "siteName": {
                       "type": "string",
@@ -4589,7 +4590,7 @@
             }
           },
           "400": {
-            "description": "Nenhum dos dois campos, `enabled` não booleano ou `siteName` inválido (vazio depois de aparado é válido = apagar)"
+            "description": "`siteName` em falta ou inválido (vazio depois de aparado é válido = apagar)"
           },
           "401": {
             "description": "Não autenticado"
@@ -7453,7 +7454,7 @@
     "/cms/site-builder": {
       "get": {
         "summary": "Estado completo do construtor de páginas do tenant (para o editor)",
-        "description": "Devolve `{ enabled: false }` se o tenant não tem o construtor activo (sem linha ou desligado). Caso contrário devolve o estado inteiro do tenant autenticado: nome do site (`siteName`, `null` se não houver), revisão, línguas (`User.languages`, ou só a língua base se vazia), catálogo do núcleo, manifest, páginas (por ordem), itens por página (ordenados), blocos, pastas, partes comuns (topo/rodapé), redireccionamentos, estado da publicação (sem credenciais) e limites. Tudo filtrado pelo `userId` do token. Exige `VIEW_SITE_PAGES`.\n",
+        "description": "O construtor está activo para quem tem `VIEW_SITE_PAGES` (não há interruptor próprio): quem chega aqui tem-no, por isso `enabled` é sempre `true` (campo mantido por compatibilidade). Se o tenant ainda não tem linha (primeira abertura), cria-a e devolve o estado vazio. Sem a permissão a rota responde 403. Devolve o estado inteiro do tenant autenticado: nome do site (`siteName`, `null` se não houver), revisão, línguas (`User.languages`, ou só a língua base se vazia), catálogo do núcleo, manifest, páginas (por ordem), itens por página (ordenados), blocos, pastas, partes comuns (topo/rodapé), redireccionamentos, estado da publicação (sem credenciais) e limites. Tudo filtrado pelo `userId` do token. Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
           "CMS"
         ],
@@ -7474,12 +7475,13 @@
                   ],
                   "properties": {
                     "enabled": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Sempre true (quem tem acesso à rota tem a permissão VIEW_SITE_PAGES)"
                     },
                     "siteName": {
                       "type": "string",
                       "nullable": true,
-                      "description": "Nome do site (definido pelo dono da plataforma); só quando enabled"
+                      "description": "Nome do site (definido pelo dono da plataforma)"
                     },
                     "revision": {
                       "type": "integer"
@@ -7674,9 +7676,6 @@
           },
           "403": {
             "description": "Sem permissão VIEW_SITE_PAGES"
-          },
-          "404": {
-            "description": "O construtor não está activo neste tenant"
           },
           "409": {
             "description": "`{ code }` — `PUBLISH_NOT_GITHUB` (o site publica em runtime, nada a disparar), `PUBLISH_NOT_CONFIGURED` (falta repo, workflow ou token — pedir ao dono da plataforma) ou `PUBLISH_IN_PROGRESS` (já há uma publicação a correr).\n"
@@ -8007,7 +8006,7 @@
             "description": "Subscrição da plataforma inactiva (billingGate)"
           },
           "403": {
-            "description": "Sem permissão VIEW_SITE_PAGES, ou construtor desligado para o tenant"
+            "description": "Sem permissão VIEW_SITE_PAGES (é o que activa o construtor)"
           },
           "404": {
             "description": "Um id (página, item, bloco, pasta) pertence a outro tenant, ou apagar algo que não é do tenant"

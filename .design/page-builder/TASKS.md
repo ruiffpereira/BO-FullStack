@@ -43,9 +43,10 @@
 
 **Produção — passo-a-passo para o dono (F19).** A API e o BO já estão no ar com o construtor e as migrações
 corridas; o importador e o conteúdo vão na imagem da API (`48dc79f`).
-1. **Admin → Permissões:** dar `VIEW_SITE_PAGES` à role da Winterplateau.
-2. **Admin → Utilizadores → Winterplateau → Construtor de páginas:** *Activar* · Nome do site `Winterplateau` ·
-   carregar o manifest (`winterplateau/cms/manifest.json`, no GitHub).
+1. **Admin → Permissões:** dar `VIEW_SITE_PAGES` à role da Winterplateau — **é isto que liga o construtor**
+   (não há botão *Activar* desde 2026-10-16).
+2. **Admin → Utilizadores → Winterplateau → Construtor de páginas:** confirmar *Activo* · Nome do site
+   `Winterplateau` · importar o manifest (ficheiro `winterplateau/cms/manifest.json`, no GitHub, ou colar o JSON).
 3. **Coolify → app da API → Terminal:**
    `pnpm import:site-pages --user <email da Winterplateau> --file scripts/data/winterplateau-import.json --dry-run`
    → tem de dizer "Tudo válido" (e listar os 8 ficheiros por carregar) → repetir **sem** `--dry-run`.

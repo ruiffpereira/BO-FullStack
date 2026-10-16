@@ -66,6 +66,8 @@ export type Action =
   | { type: "saveStart" }
   | { type: "saveOk"; revision: number; sent: Work }
   | { type: "conflict"; revision: number | null }
+  /** O servidor subiu a revisão sem mexer no conteúdo (ex.: o nome do site): só a base do próximo save muda. */
+  | { type: "revision"; revision: number }
   | { type: "invalid"; issues: Issue[] }
   | { type: "failed"; failure: Failure }
   | { type: "dismiss" };
@@ -172,6 +174,8 @@ export function reduce(s: StoreState, a: Action): StoreState {
       };
     case "conflict":
       return { ...s, status: "conflict", conflictRevision: a.revision };
+    case "revision":
+      return a.revision === s.revision ? s : { ...s, revision: a.revision };
     case "invalid":
       return { ...s, status: "invalid", issues: a.issues };
     case "failed":
@@ -224,6 +228,8 @@ export interface Builder {
   /** Fechar o aviso (409/422/erro) sem recarregar — o trabalho fica. */
   dismiss: () => void;
   publishNow: () => Promise<boolean>;
+  /** Adopta a revisão nova devolvida por uma escrita fora do save (nome do site) e relê a meta. */
+  adoptRevision: (revision: number) => void;
 }
 
 const BuilderContext = createContext<Builder | null>(null);
@@ -336,6 +342,11 @@ export function BuilderProvider({ data, siteName = "", refetch, children }: Prov
     if (fresh?.enabled) dispatch({ type: "load", work: fromServer(fresh), revision: fresh.revision ?? 0 });
   }, [refetch]);
 
+  const adoptRevision = useCallback((revision: number) => {
+    dispatch({ type: "revision", revision });
+    void queryClient.invalidateQueries({ queryKey: siteBuilderQueryKey() });
+  }, [queryClient]);
+
   const publishNow = useCallback(async (): Promise<boolean> => {
     try {
       await publishAsync(undefined);
@@ -402,8 +413,9 @@ export function BuilderProvider({ data, siteName = "", refetch, children }: Prov
       reload,
       dismiss,
       publishNow,
+      adoptRevision,
     }),
-    [state, dirty, changeset, missing, catalog, manifest, lang, data.limits, data.publish, data.redirects, siteName, edit, apply, undoFn, redoFn, select, goToMissing, save, reload, dismiss, publishNow],
+    [state, dirty, changeset, missing, catalog, manifest, lang, data.limits, data.publish, data.redirects, siteName, edit, apply, undoFn, redoFn, select, goToMissing, save, reload, dismiss, publishNow, adoptRevision],
   );
 
   return createElement(BuilderContext.Provider, { value }, children);

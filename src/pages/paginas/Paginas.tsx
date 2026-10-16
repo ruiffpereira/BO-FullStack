@@ -7,6 +7,7 @@ import { ListColumn } from "./components/ListColumn";
 import { CenterColumn } from "./components/CenterColumn";
 import { BlockPalette, type Created } from "./components/BlockPalette";
 import { SiteSeoModal } from "./components/SiteSeoModal";
+import { SiteSettingsModal } from "./components/SiteSettingsModal";
 import { useAuth } from "../../context/AuthContext";
 import { PublishNowButton, StatusText } from "./components/PublishStatus";
 
@@ -18,7 +19,7 @@ import { PublishNowButton, StatusText } from "./components/PublishStatus";
  * < 860 um ecrã de cada vez (lista → página) com "‹ Voltar". Alturas por flex: o `Shell` é o dono.
  */
 /**
- * Nome do site para o " · <site>" do título no Google: o `siteName` que o dono da plataforma define no Admin
+ * Nome do site para o " · <site>" do título no Google: o `siteName` que o cliente define em «Definições do site»
  * (o mesmo que o site público recebe). Sem ele, o nome do tenant que o Backoffice já conhece
  * (`AuthContext.username`); um email não é um nome. Fora do `AuthProvider` (testes isolados) devolve vazio.
  */
@@ -80,6 +81,7 @@ function Editor() {
   const [palette, setPalette] = useState<{ pageId: string | null; at: number } | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [seoOpen, setSeoOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     if (!flash) return;
@@ -97,7 +99,7 @@ function Editor() {
 
   return (
     <div className="flex flex-col h-full min-h-0 gap-3">
-      <TopBar onWhere={() => setView("page")} onSeoSite={() => setSeoOpen(true)} />
+      <TopBar onWhere={() => setView("page")} onSeoSite={() => setSeoOpen(true)} onSettings={() => setSettingsOpen(true)} />
       <Notices />
       {!configured && <NotConfigured />}
       <div className="flex flex-1 min-h-0 gap-4">
@@ -123,6 +125,7 @@ function Editor() {
           setSeoOpen(false);
         }}
       />
+      {settingsOpen && <SiteSettingsModal open onClose={() => setSettingsOpen(false)} />}
       {palette && <BlockPalette pageId={palette.pageId} at={palette.at} onClose={() => setPalette(null)} onCreated={created} />}
     </div>
   );
@@ -130,7 +133,7 @@ function Editor() {
 
 // ── barra de topo ─────────────────────────────────────────────────────────────
 
-function TopBar({ onWhere, onSeoSite }: { onWhere: () => void; onSeoSite: () => void }) {
+function TopBar({ onWhere, onSeoSite, onSettings }: { onWhere: () => void; onSeoSite: () => void; onSettings: () => void }) {
   const b = useBuilder();
   const saving = b.state.status === "saving";
   const blocked = b.missingCount > 0;
@@ -146,6 +149,10 @@ function TopBar({ onWhere, onSeoSite }: { onWhere: () => void; onSeoSite: () => 
       </div>
       <Button variant="ghost" size="sm" className="min-h-10" icon="search" onClick={onSeoSite} title="Ver o SEO de todas as páginas">
         SEO do site
+      </Button>
+      {/* Abaixo de `sm` só o ícone: com o texto a barra passa a duas linhas e a lista encolhe (390 px). */}
+      <Button variant="ghost" size="sm" className="min-h-10 min-w-10" icon="settings" onClick={onSettings} title="Nome do site e outras definições" aria-label="Definições do site">
+        <span className="hidden sm:inline">Definições do site</span>
       </Button>
       <div className="flex-1 min-w-0" />
       <StatusText />

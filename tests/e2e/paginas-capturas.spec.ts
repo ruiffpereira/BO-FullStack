@@ -1,7 +1,4 @@
 import { test, expect } from "@playwright/test";
-import { loginAs } from "./fixtures/login";
-import { withSessionRetry } from "./fixtures/session";
-import { AdminPage } from "./pages/AdminPage";
 import { PaginasPage, VIEWPORTS, shot, uniq } from "./pages/PaginasPage";
 
 /**
@@ -36,16 +33,11 @@ for (const vp of VIEWPORTS) {
       await shot(page, "1-lista");
     });
 
-    test("admin: construtor de páginas", async ({ page, context }) => {
-      await loginAs(context, "admin@e2e");
-      await withSessionRetry(page, context, "admin@e2e", () => page.goto("/admin"), async () => {
-        await expect(page.getByRole("button", { name: "Eliminar" }).first()).toBeVisible({ timeout: 15_000 });
-      });
-      const row = await new AdminPage(page).userRowFromStart("pagesgate@e2e");
-      await row.getByRole("button", { name: "Construtor de páginas" }).click();
-      const dialog = page.getByRole("dialog", { name: "Construtor de páginas" });
-      await expect(dialog.getByRole("region", { name: "Publicação" })).toBeVisible({ timeout: 10_000 });
-      await shot(page, "5-admin");
+    test("definições do site (cliente)", async ({ page, context }) => {
+      const p = new PaginasPage(page, context);
+      await p.open();
+      await p.openSettings();
+      await shot(page, "5-definicoes-site");
     });
   });
 }

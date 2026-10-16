@@ -21,7 +21,7 @@
 | **Componente** | Peça do **núcleo universal** (§3): título, texto, botão… Tem `type`, `style` (dos que o site declara), `col` e valores. |
 | **Especial** | Secção feita em código para **um** site (ex.: Edifício 3D da Winterplateau). Declarada no manifest (§4) com os seus campos. Entra na página como item, não dentro de blocos. |
 | **Partes comuns** | `topo` e `rodape`: um de cada por site, iguais em todas as páginas, com componentes limitados (§3.3). |
-| **Manifest** | JSON por site, carregado pelo dono no Admin: estilos de cada componente, fundos, ícones, especiais, componentes permitidos nas partes. |
+| **Manifest** | JSON por site, carregado pelo dono numa sessão de suporte (`PUT /cms/site-builder/support/manifest`): estilos de cada componente, fundos, ícones, especiais, componentes permitidos nas partes. |
 | **Revisão** | Inteiro do tenant (`SiteBuilders.revision`), +1 a cada gravação. Serve para concorrência e para provar o que está no ar. |
 
 **Línguas:** as do tenant (`User.languages`, ou só `User.defaultLanguage` se a lista estiver vazia). A **língua
@@ -246,14 +246,36 @@ Rotas sob `/api/cms/site-builder`, montadas com `authenticateToken, billingGate,
 
 ### §5.3 · `POST /cms/site-builder/publish` — "publicar agora" (salta a espera). Rate limit 1/min/tenant.
 
-### §5.4 · Admin (dono da plataforma) — sob `/api/admin/users/:userId/site-builder`
-Montadas no `adminUserRoutes` existente (já tem `authenticateToken → forbidDuringImpersonation → VIEW_ADMIN`).
-- `GET` → `{enabled, siteName, manifestSummary, publish:{mode, repo, workflow, ref, hasToken, status}}` (nunca o token;
-  `enabled` derivado da permissão `VIEW_SITE_PAGES` do tenant, só leitura)
-- `PUT` → `{siteName}` (cria a linha se não existir; já não liga/desliga — 2026-10-16)
-- `PUT /manifest` → corpo = manifest (§4); `409 MANIFEST_IN_USE`
-- `PUT /publish` → `{mode, repo?, workflow?, ref?, token?}` (token só de escrita; omitir = manter)
-- `POST /publish/test` → verifica que o token chega ao workflow (GitHub `GET /repos/{repo}/actions/workflows/{wf}`)
+### §5.4 · Definições do site e configuração de suporte — sob `/api/cms/site-builder` (2026-10-16)
+O dono **não configura nada em Admin → Utilizadores**: já não há rotas `/api/admin/users/:userId/site-builder*` (→ 404).
+Tudo vive em `/api/cms/site-builder` (`authenticateToken → billingGate → VIEW_SITE_PAGES`) e age **sempre sobre o tenant
+autenticado** (`req.user`) — nunca sobre um `userId` vindo do cliente.
+
+**Do próprio tenant** (também numa sessão de suporte):
+- `PUT /settings` `{ siteName }` → `200 { siteName, revision }`. `siteName` obrigatório (400 se faltar); aparado, `""`/`null`
+  apaga, 1–80, sem controlo nem `< >`. Mudar de facto sobe a `revision` e pede publicação (§8). **A `revision` devolvida já
+  tem o bump**: o editor deve substituir a sua `baseRevision` por ela (é o mesmo valor que o `GET /cms/site-builder`
+  devolveria a seguir), senão o `save` seguinte leva `409 REVISION_CONFLICT` por uma mudança que ele próprio fez.
+
+**Só numa sessão de suporte** (o dono entra na conta do cliente com "Entrar como"; JWT `imp`, `req.impersonatorId`).
+Um tenant normal recebe `403 { code: "SUPPORT_SESSION_REQUIRED" }`. Sob `/support`:
+- `GET /support` → `{ manifestSummary, publish:{ mode, repo, workflow, ref, hasToken, usesGlobalToken, status, liveAt } }`
+  (nunca um token). `hasToken` = o tenant tem token **próprio**; `usesGlobalToken` = não tem, mas a plataforma tem o de
+  fallback (env `GITHUB_DISPATCH_TOKEN`). `mode` é `github` assim que há `repo`, `runtime` enquanto não está configurado.
+- `PUT /support/manifest` → corpo = manifest (§4); `200 { manifestSummary }` · `422 VALIDATION` · `409 MANIFEST_IN_USE` · `413` > 1 MB.
+- `PUT /support/publish` → `{ repo, workflow?, ref?, token? }` → `200 { publish:{…como no GET} }`. **Publicação é sempre GitHub**:
+  não há `mode` (ignorado se vier). Gravar com `repo` põe `publishMode = "github"`; `repo: null`/`""` desliga (volta a
+  `runtime`); sem repo guardado nem no corpo → 400. `workflow` omitido/vazio → `deploy.yml` e `ref` omitido/vazio → `main`
+  (omitido mantém o valor já guardado; só `null`/`""` repõem o default). `token` só de escrita (omitir = manter,
+  `null`/`""` = apagar), cifrado em repouso e nunca devolvido.
+- `POST /support/publish/test` → `200 { ok, status, message }` (GitHub `GET /repos/{repo}/actions/workflows/{wf}`; só
+  api.github.com, timeout, sem redirects) · `400` se faltar repo, workflow ou token (nem próprio nem global).
+
+**Token do GitHub:** usa-se o do tenant; se não tiver, o global `GITHUB_DISPATCH_TOKEN` (env opcional da API) — no dispatch, no
+acompanhamento do run, em `/support/publish/test` e em "publicar agora" (`409 PUBLISH_NOT_CONFIGURED` só se não houver nenhum).
+
+**Audit:** o audit regista os corpos das sessões de suporte (o tenant vê-os): `token` sai `[REDACTED]` e um manifest grande
+fica `{ "_truncated": true }`.
 
 ---
 
@@ -380,9 +402,9 @@ revisão; run a correr há > 30 min → `failed`. Uma falha não se repete sozin
 `cms-build.json` lido com tecto de 64 KiB; revisão > INT recusada.
 
 **2026-10-15 · nome do site, hora "No ar", línguas (pedido do dono).**
-- `SiteBuilders.siteName` (≤ 80, null) — definido no Admin: `PUT /admin/users/:userId/site-builder` passa a
+- `SiteBuilders.siteName` (≤ 80, null) — definido (até 2026-10-16) no Admin: `PUT /admin/users/:userId/site-builder` passava a
   `{ enabled?, siteName? }` (pelo menos um; `""`/`null` apaga; sem controlo nem `< >`; 400 = `error:[{path,message}]`).
-  Sai em `GET /admin/…/site-builder`, no `GET /cms/site-builder` e no cabeçalho público (`/site` e `/site/page`). O kit
+  Sai (hoje) em `GET /cms/site-builder` e no cabeçalho público (`/site` e `/site/page`). O kit
   usa-o no " · <site>" e no JSON-LD Organization (sem ele, o nome fixo do kit).
 - `SiteBuilders.liveAt` (null) — gravado pelo job ao dar `live` (github) e a cada gravação em `runtime`. Sai em
   `publish.liveAt` (editor e admin).

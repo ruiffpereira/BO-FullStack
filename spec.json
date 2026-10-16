@@ -4403,519 +4403,6 @@
         }
       }
     },
-    "/admin/users/{userId}/site-builder": {
-      "get": {
-        "summary": "Estado do construtor de páginas de um tenant (só o dono da plataforma)",
-        "description": "Devolve se o construtor está activo (`enabled`, **derivado e só de leitura**: activo quando o tenant tem a permissão `VIEW_SITE_PAGES` — a role `Admin` conta —, com ou sem linha), o nome do site (`siteName`, `null` se não houver), um resumo do manifest e a configuração de publicação (sem o token do GitHub — só `hasToken`; `liveAt` = quando o site passou a servir a revisão actual). Exige `VIEW_ADMIN` e recusa sessões de suporte (impersonation).\n",
-        "tags": [
-          "Users"
-        ],
-        "security": [
-          {
-            "adminBearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Estado do construtor",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "enabled": {
-                      "type": "boolean",
-                      "description": "Derivado da permissão VIEW_SITE_PAGES do tenant; só leitura"
-                    },
-                    "siteName": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "manifestSummary": {
-                      "type": "object",
-                      "nullable": true,
-                      "properties": {
-                        "version": {
-                          "type": "integer"
-                        },
-                        "styleTypes": {
-                          "type": "integer"
-                        },
-                        "backgrounds": {
-                          "type": "integer"
-                        },
-                        "icons": {
-                          "type": "integer"
-                        },
-                        "specials": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        }
-                      }
-                    },
-                    "publish": {
-                      "type": "object",
-                      "properties": {
-                        "mode": {
-                          "type": "string",
-                          "enum": [
-                            "runtime",
-                            "github"
-                          ]
-                        },
-                        "repo": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "workflow": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "ref": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "hasToken": {
-                          "type": "boolean"
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "idle",
-                            "pending",
-                            "running",
-                            "live",
-                            "failed"
-                          ]
-                        },
-                        "liveAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "nullable": true
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão VIEW_ADMIN, ou sessão de suporte (IMPERSONATION_FORBIDDEN)"
-          },
-          "404": {
-            "description": "Utilizador não encontrado"
-          },
-          "500": {
-            "description": "Erro interno"
-          }
-        }
-      },
-      "put": {
-        "summary": "Definir o nome do site de um tenant (só o dono da plataforma)",
-        "description": "Corpo `{ siteName }` (obrigatório; senão 400). O construtor já não se liga/desliga aqui: está activo quando o tenant tem a permissão `VIEW_SITE_PAGES` (Admin → Permissões); um `enabled` no corpo é ignorado. Cria a linha do construtor se ainda não existir. A resposta traz `enabled` **derivado** dessa permissão (só leitura). `siteName` é aparado; `null` ou `\"\"` apaga; 1–80 caracteres, sem caracteres de controlo nem `<` `>` (400). **Mudar de facto o `siteName` com o construtor activo é uma mudança visível no site**: sobe a `revision` (um editor aberto leva `409 REVISION_CONFLICT` no próximo save) e pede publicação — em `github` `publishStatus` passa a `pending` (ou fica `running`) e marca `publishRequestedAt`; em `runtime` grava `liveAt`. Gravar o mesmo nome não faz nada. Exige `VIEW_ADMIN` e recusa sessões de suporte.\n",
-        "tags": [
-          "Users"
-        ],
-        "security": [
-          {
-            "adminBearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "siteName"
-                ],
-                "properties": {
-                  "siteName": {
-                    "type": "string",
-                    "nullable": true,
-                    "maxLength": 80,
-                    "description": "Aparado; null ou \"\" apaga"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Estado gravado",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "enabled": {
-                      "type": "boolean",
-                      "description": "Derivado da permissão VIEW_SITE_PAGES do tenant; só leitura"
-                    },
-                    "siteName": {
-                      "type": "string",
-                      "nullable": true
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "`siteName` em falta ou inválido (vazio depois de aparado é válido = apagar)"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão VIEW_ADMIN, ou sessão de suporte (IMPERSONATION_FORBIDDEN)"
-          },
-          "404": {
-            "description": "Utilizador não encontrado"
-          },
-          "500": {
-            "description": "Erro interno"
-          }
-        }
-      }
-    },
-    "/admin/users/{userId}/site-builder/manifest": {
-      "put": {
-        "summary": "Carregar o manifest do site de um tenant (só o dono da plataforma)",
-        "description": "O corpo é o manifest (CONTRATO §4: estilos, fundos, ícones, partes e especiais), validado por zod — nunca JSON Schema. Corpo máximo 1 MB (acima → 413). Cria a linha do construtor se não existir. Se o tenant já tem conteúdo e o manifest novo tira um estilo/fundo/ícone/especial em uso, recusa com **409 MANIFEST_IN_USE** e a lista de onde está a ser usado (nada é gravado). Não altera a revisão do conteúdo. Exige `VIEW_ADMIN` e recusa sessões de suporte.\n",
-        "tags": [
-          "Users"
-        ],
-        "security": [
-          {
-            "adminBearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "version",
-                  "backgrounds"
-                ],
-                "properties": {
-                  "version": {
-                    "type": "integer",
-                    "enum": [
-                      1
-                    ]
-                  },
-                  "styles": {
-                    "type": "object",
-                    "additionalProperties": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    }
-                  },
-                  "backgrounds": {
-                    "type": "array",
-                    "items": {
-                      "type": "object"
-                    }
-                  },
-                  "icons": {
-                    "type": "array",
-                    "items": {
-                      "type": "object"
-                    }
-                  },
-                  "parts": {
-                    "type": "object"
-                  },
-                  "specials": {
-                    "type": "object"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Manifest gravado",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "manifestSummary": {
-                      "type": "object"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão VIEW_ADMIN, ou sessão de suporte (IMPERSONATION_FORBIDDEN)"
-          },
-          "404": {
-            "description": "Utilizador não encontrado"
-          },
-          "409": {
-            "description": "`{ code: \"MANIFEST_IN_USE\", usages: [{ kind, key, entity, id, path }] }` — o manifest novo deixaria órfão algo que está em uso.\n"
-          },
-          "413": {
-            "description": "Corpo acima de 1 MB"
-          },
-          "422": {
-            "description": "`{ code: VALIDATION, issues: [Issue] }` — manifest inválido"
-          },
-          "500": {
-            "description": "Erro interno"
-          }
-        }
-      }
-    },
-    "/admin/users/{userId}/site-builder/publish": {
-      "put": {
-        "summary": "Configurar a publicação (GitHub) do site de um tenant (só o dono da plataforma)",
-        "description": "`mode: \"github\"` liga a publicação de sites Astro por `workflow_dispatch` (CONTRATO §8): cada gravação do editor marca um pedido e um job dispara o workflow ~60 s depois da última. `repo` (`dono/repo`), `workflow` (ficheiro `.yml`/`.yaml` ou id numérico) e `ref` (branch/tag, default `main`) são opcionais — **omitir = manter**, `null` ou `\"\"` = apagar. O `token` (fine-grained, de um só repo, só `Actions: write`) é **só de escrita**: omitir = manter, `null`/`\"\"` = apagar; é cifrado em repouso e nunca é devolvido (a resposta só tem `hasToken`). Com `mode: \"github\"` o resultado final tem de ter `repo` e `workflow`. Mudar a config tira um `failed` anterior. Mudar para `runtime` limpa o pedido pendente. Exige `VIEW_ADMIN` e recusa sessões de suporte.\n",
-        "tags": [
-          "Users"
-        ],
-        "security": [
-          {
-            "adminBearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "mode"
-                ],
-                "properties": {
-                  "mode": {
-                    "type": "string",
-                    "enum": [
-                      "runtime",
-                      "github"
-                    ]
-                  },
-                  "repo": {
-                    "type": "string",
-                    "nullable": true,
-                    "maxLength": 140,
-                    "example": "dono/repo"
-                  },
-                  "workflow": {
-                    "type": "string",
-                    "nullable": true,
-                    "maxLength": 140,
-                    "example": "deploy.yml"
-                  },
-                  "ref": {
-                    "type": "string",
-                    "nullable": true,
-                    "maxLength": 100,
-                    "example": "main"
-                  },
-                  "token": {
-                    "type": "string",
-                    "nullable": true,
-                    "maxLength": 255,
-                    "description": "Só de escrita; nunca devolvido"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Configuração gravada (sem o token)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "publish": {
-                      "type": "object",
-                      "properties": {
-                        "mode": {
-                          "type": "string",
-                          "enum": [
-                            "runtime",
-                            "github"
-                          ]
-                        },
-                        "repo": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "workflow": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "ref": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "hasToken": {
-                          "type": "boolean"
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "idle",
-                            "pending",
-                            "running",
-                            "live",
-                            "failed"
-                          ]
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Corpo inválido, ou `mode` github sem repo/workflow"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão VIEW_ADMIN, ou sessão de suporte (IMPERSONATION_FORBIDDEN)"
-          },
-          "404": {
-            "description": "Utilizador não encontrado"
-          },
-          "500": {
-            "description": "Erro interno (incluindo chave de cifra por configurar)"
-          }
-        }
-      }
-    },
-    "/admin/users/{userId}/site-builder/publish/test": {
-      "post": {
-        "summary": "Testar a ligação ao workflow do GitHub de um tenant (só o dono da plataforma)",
-        "description": "Faz `GET https://api.github.com/repos/{repo}/actions/workflows/{workflow}` com o token guardado e diz se chega ao workflow. Não dispara nada. Com configuração, a resposta é sempre `200 { ok, status, message }` (`status` = HTTP do GitHub, `0` = sem resposta/tempo esgotado); `message` vem truncada e **nunca** leva o token. Sem repo/workflow/token guardados → 400. Exige `VIEW_ADMIN` e recusa sessões de suporte.\n",
-        "tags": [
-          "Users"
-        ],
-        "security": [
-          {
-            "adminBearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Resultado do teste",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Falta repo, workflow ou token"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão VIEW_ADMIN, ou sessão de suporte (IMPERSONATION_FORBIDDEN)"
-          },
-          "404": {
-            "description": "Utilizador não encontrado"
-          },
-          "500": {
-            "description": "Erro interno"
-          }
-        }
-      }
-    },
     "/admin/users/{userId}/site-domain": {
       "put": {
         "summary": "Definir o domínio do site de um tenant (só o dono da plataforma)",
@@ -7678,7 +7165,7 @@
             "description": "Sem permissão VIEW_SITE_PAGES"
           },
           "409": {
-            "description": "`{ code }` — `PUBLISH_NOT_GITHUB` (o site publica em runtime, nada a disparar), `PUBLISH_NOT_CONFIGURED` (falta repo, workflow ou token — pedir ao dono da plataforma) ou `PUBLISH_IN_PROGRESS` (já há uma publicação a correr).\n"
+            "description": "`{ code }` — `PUBLISH_NOT_GITHUB` (o site publica em runtime, nada a disparar), `PUBLISH_NOT_CONFIGURED` (falta repo, workflow ou token — nem próprio nem o global da plataforma; pedir ao dono da plataforma) ou `PUBLISH_IN_PROGRESS` (já há uma publicação a correr).\n"
           },
           "429": {
             "description": "Pedido há menos de um minuto: `{ error }` do limitador, ou `{ code: TOO_SOON }` se o último dispatch foi há menos de 60 s.\n"
@@ -8159,6 +7646,468 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Erro interno"
+          }
+        }
+      }
+    },
+    "/cms/site-builder/settings": {
+      "put": {
+        "summary": "Definir o nome do site do tenant autenticado",
+        "description": "Corpo `{ siteName }` (obrigatório; senão 400). Age sempre sobre o tenant autenticado (`req.user`) — também numa sessão de suporte. Cria a linha do construtor se ainda não existir. `siteName` é aparado; `null` ou `\"\"` apaga; 1–80 caracteres, sem caracteres de controlo nem `<` `>` (400). **Mudar de facto o `siteName` é uma mudança visível no site**: sobe a `revision` e pede publicação (`pending`/`publishRequestedAt` quando há repo GitHub configurado; em `runtime` grava `liveAt`). Gravar o mesmo nome não faz nada. A resposta traz a `revision` **já actualizada**: o editor deve usá-la como `baseRevision` do próximo `save` (senão levava `409 REVISION_CONFLICT` por uma mudança que ele próprio fez). Campos extra do corpo são ignorados. Exige `VIEW_SITE_PAGES`.\n",
+        "tags": [
+          "CMS"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "siteName"
+                ],
+                "properties": {
+                  "siteName": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 80,
+                    "description": "Aparado; null ou \"\" apaga"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Nome gravado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "siteName": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "description": "Revisão actual do conteúdo (já com o bump desta gravação)"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`siteName` em falta ou inválido (vazio depois de aparado é válido = apagar)"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "402": {
+            "description": "Subscrição da plataforma inactiva (billingGate)"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_SITE_PAGES"
+          },
+          "500": {
+            "description": "Erro interno"
+          }
+        }
+      }
+    },
+    "/cms/site-builder/support": {
+      "get": {
+        "summary": "Configuração técnica do construtor do tenant da sessão de suporte (só sessão de suporte)",
+        "description": "Devolve o resumo do manifest (contagens e chaves, nunca o JSON inteiro) e a configuração de publicação por GitHub: `repo`, `workflow`, `ref`, `hasToken` (o tenant tem token **próprio**), `usesGlobalToken` (não tem, mas há o token global de fallback da plataforma, `GITHUB_DISPATCH_TOKEN`), `status` e `liveAt`. **Nunca** devolve um token (nem o do tenant nem o global). `mode` é `github` quando há repo e `runtime` enquanto não está configurado. Só funciona numa sessão de suporte (o dono entrou na conta do cliente com \"Entrar como\", `impersonatorId` definido); um tenant normal recebe 403 `SUPPORT_SESSION_REQUIRED`. Resolve sempre pelo tenant da sessão. Exige `VIEW_SITE_PAGES`.\n",
+        "tags": [
+          "CMS"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado técnico do construtor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "manifestSummary": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "version": {
+                          "type": "integer"
+                        },
+                        "styleTypes": {
+                          "type": "integer"
+                        },
+                        "backgrounds": {
+                          "type": "integer"
+                        },
+                        "icons": {
+                          "type": "integer"
+                        },
+                        "specials": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "publish": {
+                      "type": "object",
+                      "properties": {
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "runtime",
+                            "github"
+                          ]
+                        },
+                        "repo": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "workflow": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "ref": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "hasToken": {
+                          "type": "boolean",
+                          "description": "O tenant tem token próprio"
+                        },
+                        "usesGlobalToken": {
+                          "type": "boolean",
+                          "description": "Sem token próprio, mas há o global de fallback"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "idle",
+                            "pending",
+                            "running",
+                            "live",
+                            "failed"
+                          ]
+                        },
+                        "liveAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "402": {
+            "description": "Subscrição da plataforma inactiva (billingGate)"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_SITE_PAGES, ou fora de uma sessão de suporte (SUPPORT_SESSION_REQUIRED)"
+          },
+          "500": {
+            "description": "Erro interno"
+          }
+        }
+      }
+    },
+    "/cms/site-builder/support/manifest": {
+      "put": {
+        "summary": "Carregar o manifest do site do tenant da sessão de suporte (só sessão de suporte)",
+        "description": "O corpo é o manifest (CONTRATO §4: estilos, fundos, ícones, partes e especiais), validado por zod — nunca JSON Schema. Corpo máximo 1 MB (acima → 413). Cria a linha do construtor se não existir. Se o tenant já tem conteúdo e o manifest novo tira um estilo/fundo/ícone/especial em uso, recusa com **409 MANIFEST_IN_USE** e a lista de onde está a ser usado (nada é gravado). Não altera a revisão do conteúdo. Só numa sessão de suporte (403 `SUPPORT_SESSION_REQUIRED` senão); age sempre sobre o tenant da sessão. Exige `VIEW_SITE_PAGES`.\n",
+        "tags": [
+          "CMS"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "version",
+                  "backgrounds"
+                ],
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "enum": [
+                      1
+                    ]
+                  },
+                  "styles": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  },
+                  "backgrounds": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "icons": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "parts": {
+                    "type": "object"
+                  },
+                  "specials": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Manifest gravado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "manifestSummary": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "402": {
+            "description": "Subscrição da plataforma inactiva (billingGate)"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_SITE_PAGES, ou fora de uma sessão de suporte (SUPPORT_SESSION_REQUIRED)"
+          },
+          "409": {
+            "description": "`{ code: \"MANIFEST_IN_USE\", usages: [{ kind, key, entity, id, path }] }` — o manifest novo deixaria órfão algo que está em uso.\n"
+          },
+          "413": {
+            "description": "Corpo acima de 1 MB"
+          },
+          "422": {
+            "description": "`{ code: VALIDATION, issues: [Issue] }` — manifest inválido"
+          },
+          "500": {
+            "description": "Erro interno"
+          }
+        }
+      }
+    },
+    "/cms/site-builder/support/publish": {
+      "put": {
+        "summary": "Configurar a publicação (GitHub) do site do tenant da sessão de suporte (só sessão de suporte)",
+        "description": "A publicação é **sempre por GitHub** (`workflow_dispatch`, CONTRATO §8): cada gravação do editor marca um pedido e um job dispara o workflow ~60 s depois da última. Não há `mode` (se vier no corpo, é ignorado): gravar com `repo` (`dono/repo`) põe `publishMode = \"github\"`; `repo: null`/`\"\"` desliga (volta a `runtime` = por configurar e limpa o pedido pendente); sem repo guardado nem no corpo → 400. `workflow` (ficheiro `.yml`/`.yaml` ou id numérico) e `ref` (branch/tag) omitidos **mantêm** o valor actual (primeira vez: `deploy.yml` / `main`); `null` ou `\"\"` repõem o default. O `token` (fine-grained, só `Actions: write`) é **só de escrita**: omitir = manter, `null`/`\"\"` = apagar; é cifrado em repouso e nunca é devolvido (`hasToken` = token próprio; `usesGlobalToken` = sem token próprio mas há o global de fallback da env `GITHUB_DISPATCH_TOKEN`, usado pelo dispatch, pelo teste e pelo \"publicar agora\"). Mudar a config tira um `failed` anterior. Só numa sessão de suporte; age sobre o tenant da sessão. Exige `VIEW_SITE_PAGES`. O audit regista o corpo com o `token` redigido.\n",
+        "tags": [
+          "CMS"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "repo": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 140,
+                    "example": "dono/repo"
+                  },
+                  "workflow": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 140,
+                    "example": "deploy.yml",
+                    "description": "Default deploy.yml"
+                  },
+                  "ref": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 100,
+                    "example": "main",
+                    "description": "Default main"
+                  },
+                  "token": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 255,
+                    "description": "Só de escrita; nunca devolvido"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Configuração gravada (sem token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "publish": {
+                      "type": "object",
+                      "properties": {
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "runtime",
+                            "github"
+                          ]
+                        },
+                        "repo": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "workflow": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "ref": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "hasToken": {
+                          "type": "boolean"
+                        },
+                        "usesGlobalToken": {
+                          "type": "boolean"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "idle",
+                            "pending",
+                            "running",
+                            "live",
+                            "failed"
+                          ]
+                        },
+                        "liveAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido, ou sem repo"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "402": {
+            "description": "Subscrição da plataforma inactiva (billingGate)"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_SITE_PAGES, ou fora de uma sessão de suporte (SUPPORT_SESSION_REQUIRED)"
+          },
+          "500": {
+            "description": "Erro interno (incluindo chave de cifra por configurar)"
+          }
+        }
+      }
+    },
+    "/cms/site-builder/support/publish/test": {
+      "post": {
+        "summary": "Testar a ligação ao workflow do GitHub do tenant da sessão de suporte (só sessão de suporte)",
+        "description": "Faz `GET https://api.github.com/repos/{repo}/actions/workflows/{workflow}` com o token do tenant (ou, se não tem, o global de fallback `GITHUB_DISPATCH_TOKEN`) e diz se chega ao workflow. Não dispara nada. Com configuração, a resposta é sempre `200 { ok, status, message }` (`status` = HTTP do GitHub, `0` = sem resposta/tempo esgotado); `message` vem truncada e **nunca** leva um token. Sem repo/workflow, ou sem nenhum token → 400. Só numa sessão de suporte. Exige `VIEW_SITE_PAGES`.\n",
+        "tags": [
+          "CMS"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado do teste",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falta repo, workflow ou token (nem próprio nem global)"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "402": {
+            "description": "Subscrição da plataforma inactiva (billingGate)"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_SITE_PAGES, ou fora de uma sessão de suporte (SUPPORT_SESSION_REQUIRED)"
           },
           "500": {
             "description": "Erro interno"

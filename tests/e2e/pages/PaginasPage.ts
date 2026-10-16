@@ -121,6 +121,34 @@ export class PaginasPage {
     return this.page.getByRole("button", { name: "SEO do site" });
   }
 
+  get settingsBtn(): Locator {
+    return this.page.getByRole("button", { name: "Definições do site" });
+  }
+
+  /** O modal «Definições do site» (`SiteSettingsModal`). */
+  get settingsDialog(): Locator {
+    return this.page.getByRole("dialog", { name: "Definições do site" });
+  }
+
+  /** Abre «Definições do site» (botão da barra de topo) e espera pela secção «Nome do site». */
+  async openSettings(): Promise<Locator> {
+    await this.settingsBtn.click();
+    await expect(this.settingsDialog).toBeVisible();
+    await expect(this.settingsDialog.getByRole("region", { name: "Nome do site" })).toBeVisible();
+    return this.settingsDialog;
+  }
+
+  async closeSettings(): Promise<void> {
+    await this.settingsDialog.getByRole("button", { name: "Fechar", exact: true }).last().click();
+    await expect(this.settingsDialog).toHaveCount(0);
+  }
+
+  /** Navega a `/paginas` numa página que já tem sessão (p. ex. o separador de suporte) e espera pela barra de topo. */
+  async gotoInSession(): Promise<void> {
+    await this.page.goto("/paginas");
+    await this.expectReady();
+  }
+
   /** Guarda e espera que o estado passe a "No ar" (modo runtime) sem alterações. */
   async save(): Promise<void> {
     await expect(this.saveBtn).toBeEnabled();

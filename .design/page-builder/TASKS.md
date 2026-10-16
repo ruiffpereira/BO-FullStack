@@ -45,8 +45,9 @@
 corridas; o importador e o conteúdo vão na imagem da API (`48dc79f`).
 1. **Admin → Permissões:** dar `VIEW_SITE_PAGES` à role da Winterplateau — **é isto que liga o construtor**
    (não há botão *Activar* desde 2026-10-16).
-2. **Admin → Utilizadores → Winterplateau → Construtor de páginas:** confirmar *Activo* · Nome do site
-   `Winterplateau` · importar o manifest (ficheiro `winterplateau/cms/manifest.json`, no GitHub, ou colar o JSON).
+2. **Admin → Utilizadores → Winterplateau → "Entrar como"** (sessão de suporte) → **Páginas → Definições do site:**
+   Nome do site `Winterplateau` (o cliente também o pode mudar) · *Carregar manifest* (ficheiro
+   `winterplateau/cms/manifest.json`, no GitHub, ou colar o JSON). Manifest e publicação só aparecem em suporte.
 3. **Coolify → app da API → Terminal:**
    `pnpm import:site-pages --user <email da Winterplateau> --file scripts/data/winterplateau-import.json --dry-run`
    → tem de dizer "Tudo válido" (e listar os 8 ficheiros por carregar) → repetir **sem** `--dry-run`.
@@ -54,8 +55,10 @@ corridas; o importador e o conteúdo vão na imagem da API (`48dc79f`).
    (`og-image.png`) no SEO, e no bloco Downloads um componente "documentos" com os 6 PDFs (descarregá-los antes do
    WordPress antigo: `DECLARACAO_DESEMPENHO`, `declaracao-conformidade`, `dop`, `modo-de-aplicacao-molduras`,
    `WINTERPLATEAU_Catalogo-XS_AF`, `catalogo-rodatetos-winterplateau_Versao-1`). Ler a Privacidade EN/FR (Claude).
-5. **Admin → Construtor → Publicação:** modo GitHub · repo `ruiffpereira/winterplateau` · workflow `deploy.yml` ·
-   ref `main` · token fine-grained **só deste repo**, Actions: write → *Testar*.
+5. **Token da plataforma (uma vez para todos os sites):** GitHub → token fine-grained, Actions: write, só nos repos
+   dos sites → Coolify → app da API → env `GITHUB_DISPATCH_TOKEN` → redeploy.
+   Depois, em sessão de suporte, **Páginas → Definições do site → Publicação:** repositório
+   `ruiffpereira/winterplateau` (workflow `deploy.yml`, branch `main` e token já vêm por omissão) → *Testar*.
 6. **A9 — ligar o deploy do site** (GitHub → winterplateau → Settings → Secrets and variables → Actions):
    secrets `WIREGUARD_CONFIG`, `COOLIFY_DEPLOY_HOOK`, `COOLIFY_TOKEN` e a variável `DEPLOY_ENABLED=true`. No Coolify a
    app do site usa as envs de sempre (`VITE_API_BASE_URL`, `SITE_TOKEN`, `CF_BYPASS_TOKEN`).

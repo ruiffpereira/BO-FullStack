@@ -14,6 +14,12 @@
    em `3f5cde9` (decisão do dono — DECISOES 2026-10-15; deploy `skipped` até ao A9).
    ~~**Suites inteiras dos três repos → push** (autorizado pelo dono): API → ver CI → Backoffice → ver CI →
    winterplateau **só o branch `cms`** (não juntar na `main` antes do conteúdo real estar na produção).~~
+3b. ✅ **Configuração saiu do Admin (2026-10-16, pedido do dono)** — o construtor liga-se com `VIEW_SITE_PAGES`
+   (sem *Activar*; coluna `enabled` removida) · API `d733671` `4527d7a` · BO `dafdba8` `ba57a0a`. Em Páginas →
+   **Definições do site**: nome do site (o cliente edita); manifest e publicação só em sessão de suporte; publicação
+   sempre GitHub (só o repo; `deploy.yml`/`main` e token global `GITHUB_DISPATCH_TOKEN` por omissão). Admin →
+   Utilizadores já não tem o botão. e2e `paginas-definicoes` (substitui `paginas-admin`). Ver DECISOES 2026-10-16.
+   Por decidir (menor): com repo gravado e sem publicações, o selo diz "Por configurar".
 4. 🔄 **F19** — a parte do Claude está feita e no GitHub. **Agora: passos do dono em produção** (*Pendentes*), depois paridade visual e fecho.
 
 | # | Fatia | Estado | Commits · essencial |

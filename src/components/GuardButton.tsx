@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Button } from '../ui/ui.jsx'
+import { Button, IconButton } from '../ui/ui.jsx'
 import { useWriteGuard } from '../hooks/useWriteGuard'
 
 type GuardButtonProps = {
@@ -52,6 +52,31 @@ export function GuardButton({
   return (
     <span className={wrapperClassName} title={message} onClick={(e) => e.stopPropagation()}>
       <Button {...rest} disabled aria-disabled="true" title={message} />
+    </span>
+  )
+}
+
+type GuardIconButtonProps = {
+  icon: string
+  label: string
+  title?: string
+  className?: string
+  disabled?: boolean
+  [key: string]: unknown
+}
+
+/**
+ * `IconButton` de ESCRITA com o mesmo write-guard do `GuardButton` (billing read-only + "Só tens permissão para
+ * ver" a um membro da equipa). Drop-in do `IconButton` para acções só-ícone (apagar, activar/desactivar, …).
+ */
+export function GuardIconButton({ disabled, title, className = '', ...rest }: GuardIconButtonProps) {
+  const { readOnly, message } = useWriteGuard()
+  if (!readOnly) {
+    return <IconButton {...(rest as any)} disabled={disabled} title={title} className={className} />
+  }
+  return (
+    <span className="inline-flex" title={message} onClick={(e) => e.stopPropagation()}>
+      <IconButton {...(rest as any)} disabled aria-disabled="true" title={message} className={`${className} opacity-40 cursor-not-allowed`} />
     </span>
   )
 }

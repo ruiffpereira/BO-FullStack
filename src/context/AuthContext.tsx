@@ -25,8 +25,22 @@ import { getCsrfToken } from "../gen/backoffice/hooks/useGetCsrfToken.js";
 import { postUsersLogin } from "../gen/backoffice/hooks/usePostUsersLogin.js";
 import { getUserpermissions } from "../gen/backoffice/hooks/useGetUserpermissions.js";
 import type { GetUserpermissions200 } from "../gen/backoffice/types/GetUserpermissions.js";
+import { getUserpermissionsAccess } from "../gen/backoffice/hooks/useGetUserpermissionsAccess.js";
+import type { GetUserpermissionsAccess200 } from "../gen/backoffice/types/GetUserpermissionsAccess.js";
+import { notifyTeamForbidden } from "../lib/teamAccess";
 
 type Permission = GetUserpermissions200[number];
+
+/** Quem é o membro da equipa ligado (B41). `null` = o dono do tenant. */
+export type AccessMember = NonNullable<GetUserpermissionsAccess200["member"]>;
+/** Módulo da equipa que a sessão tem, com o nível dado pela API. */
+export type AccessModule = { key: string; label: string; level: "view" | "edit" };
+export type TeamLevel = "view" | "edit";
+interface AccessState {
+  member: AccessMember | null;
+  modules: AccessModule[];
+}
+const ownerAccess: AccessState = { member: null, modules: [] };
 
 /**
  * B12 — resultado de `doRefresh`, explícito sobre QUAL ramo ocorreu (antes
@@ -52,6 +66,8 @@ interface AuthState {
   email: string | null;
   accessToken: string | null;
   permissions: Permission[];
+  /** B41 — quem está ligado (dono ou membro da equipa) e os módulos que tem. Vem da API, nunca se calcula aqui. */
+  access: AccessState;
   isAuthenticated: boolean;
 }
 
@@ -60,6 +76,14 @@ interface AuthCtx extends AuthState {
   logout: () => Promise<void>;
   authHeader: () => Record<string, string>;
   hasPermission: (name: string) => boolean;
+  /** Membro da equipa ligado (`null` = dono do tenant). */
+  member: AccessMember | null;
+  isMember: boolean;
+  /**
+   * Pode a sessão usar o módulo `key` (`agenda`, `loja`, …) com este nível? O dono do tenant pode sempre;
+   * um membro só se a API lhe deu o módulo (`edit` implica `view`). A decisão final é sempre da API.
+   */
+  can: (key: string, level?: TeamLevel) => boolean;
   loading: boolean;
   loggingOut: boolean;
   error: string | null;
@@ -170,6 +194,7 @@ const emptyAuth: AuthState = {
   email: null,
   accessToken: null,
   permissions: [],
+  access: ownerAccess,
   isAuthenticated: false,
 };
 
@@ -294,6 +319,23 @@ async function fetchPermissions(accessToken: string): Promise<Permission[]> {
     headers: { Authorization: `Bearer ${accessToken}` },
     timeout: AUTH_REQUEST_TIMEOUT_MS,
   } as any);
+}
+
+async function fetchAccess(accessToken: string): Promise<AccessState> {
+  const res = await getUserpermissionsAccess({
+    headers: { Authorization: `Bearer ${accessToken}` },
+    timeout: AUTH_REQUEST_TIMEOUT_MS,
+  } as any);
+  return {
+    member: res?.member ?? null,
+    modules: (res?.modules ?? [])
+      .filter((m) => !!m.key)
+      .map((m) => ({
+        key: m.key as string,
+        label: m.label ?? (m.key as string),
+        level: m.level === "edit" ? ("edit" as const) : ("view" as const),
+      })),
+  };
 }
 
 async function refreshSession(): Promise<string | null> {
@@ -427,6 +469,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (refreshVersion !== authVersionRef.current) return { kind: "stale" };
 
         const permissions = await fetchPermissions(nextAccessToken);
+        const access = await fetchAccess(nextAccessToken);
         if (refreshVersion !== authVersionRef.current) return { kind: "stale" };
 
         const identity = getIdentityFromJwt(nextAccessToken);
@@ -444,6 +487,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: prev.email ?? nextIdentity.email,
           accessToken: nextAccessToken,
           permissions,
+          access,
           isAuthenticated: true,
         }));
         scheduleRefresh(nextAccessToken);
@@ -557,6 +601,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: s.tenant.email,
         accessToken: s.accessToken,
         permissions,
+        // O admin entra como o DONO do tenant (nunca como um membro).
+        access: ownerAccess,
         isAuthenticated: true,
       };
       authRef.current = next;
@@ -697,6 +743,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         notifyBillingReadOnly(err?.response?.status, err?.response?.data, (to) =>
           navigateRef.current(to),
         );
+        // Backstop das permissões da equipa (B41): a UI já esconde/desactiva, mas se uma escrita
+        // escapar e a API disser 403 TEAM_*, o membro vê porquê. No-op para qualquer outro erro.
+        notifyTeamForbidden(err?.response?.status, err?.response?.data);
 
         return Promise.reject(err);
       },
@@ -740,6 +789,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!accessToken) throw new Error("Sem token de acesso.");
 
         const permissions = await fetchPermissions(accessToken);
+        const access = await fetchAccess(accessToken);
         const identity = {
           userId: loginRes?.userId ?? null,
           username: loginRes?.username ?? username,
@@ -753,6 +803,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: identity.email,
           accessToken,
           permissions,
+          access,
           isAuthenticated: true,
         });
         scheduleRefresh(accessToken);
@@ -844,6 +895,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [auth.permissions],
   );
 
+  const can = useCallback(
+    (key: string, level: TeamLevel = "view") => {
+      if (!auth.access.member) return true;
+      const m = auth.access.modules.find((x) => x.key === key);
+      if (!m) return false;
+      return level === "view" || m.level === "edit";
+    },
+    [auth.access],
+  );
+
   // Ver docstring em `AuthCtx.setAccessToken` — adota o token devolvido por
   // `PUT /users/me/password` sem passar por login/refresh, e realinha o
   // temporizador de refresh automático com a validade real do token novo.
@@ -863,6 +924,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ...prev,
         username: patch.username !== undefined ? patch.username : prev.username,
         email: patch.email !== undefined ? patch.email : prev.email,
+        // Um membro que muda o nome no Perfil: o topo ("Ana · equipa de …") acompanha.
+        access:
+          prev.access.member && patch.username !== undefined
+            ? { ...prev.access, member: { ...prev.access.member, name: patch.username } }
+            : prev.access,
       }));
       // Sessão de suporte: a identidade é a do cliente — não vai para o
       // localStorage (os separadores do admin herdavam-na).
@@ -885,6 +951,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         authHeader,
         hasPermission,
+        member: auth.access.member,
+        isMember: !!auth.access.member,
+        can,
         loading,
         loggingOut,
         error,

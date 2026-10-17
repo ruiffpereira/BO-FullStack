@@ -207,7 +207,7 @@ export function MensagensTab() {
             </header>
             <ChatConversationView
               key={selected.tenantUserId}
-              scope={{ kind: "admin", tenantUserId: selected.tenantUserId }}
+              scope={{ kind: "admin", tenantUserId: selected.tenantUserId, tenantName: selected.tenantName }}
               active
             />
           </>

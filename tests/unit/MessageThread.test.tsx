@@ -112,3 +112,28 @@ describe("MessageThread", () => {
     expect(link).toHaveAttribute("href", "https://example.com/ficheiro.pdf");
   });
 });
+
+describe("MessageThread — autor da mensagem (B41)", () => {
+  it("lado do admin: a mensagem de um membro traz 'Ana · Tifas Barber'", () => {
+    renderThread({
+      meRole: "admin",
+      tenantName: "Tifas Barber",
+      messages: [msg({ senderRole: "tenant", senderName: "Ana", body: "Preciso de ajuda" })],
+    });
+    expect(screen.getByTestId("message-author")).toHaveTextContent("Ana · Tifas Barber");
+  });
+
+  it("mensagem do dono ou do suporte (sem senderName) não mostra autor", () => {
+    renderThread({
+      meRole: "admin",
+      tenantName: "Tifas Barber",
+      messages: [msg({ senderRole: "tenant", senderName: null, body: "Do dono" })],
+    });
+    expect(screen.queryByTestId("message-author")).toBeNull();
+  });
+
+  it("sem nome do tenant (lado do tenant), mostra só o nome do membro", () => {
+    renderThread({ messages: [msg({ senderRole: "tenant", senderName: "Ana", body: "Olá" })] });
+    expect(screen.getByTestId("message-author")).toHaveTextContent(/^Ana$/);
+  });
+});

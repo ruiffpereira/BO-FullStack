@@ -7,7 +7,7 @@ import { fmtEur } from '../lib/money'
 import { colorFromName } from '../lib/avatarColor'
 import { Icon } from '../ui/icons.jsx'
 import { Card, Button, IconButton, Badge, Input, Toggle, Modal, EmptyState, Avatar, BADGE_TONES } from '../ui/ui.jsx'
-import { GuardButton } from '../components/GuardButton'
+import { GuardButton, GuardIconButton } from '../components/GuardButton'
 import { Combobox } from '../components/Combobox'
 import { DatePicker } from '../components/DatePicker'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -139,7 +139,7 @@ export function SubscricoesModal({ onClose }: { onClose: () => void }) {
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm text-zinc-500">{subs.length} subscriç{subs.length === 1 ? 'ão' : 'ões'} no catálogo</p>
-          <Button icon="plus" size="sm" onClick={() => setModal({ sub: null })}>Nova subscrição</Button>
+          <GuardButton icon="plus" size="sm" onClick={() => setModal({ sub: null })}>Nova subscrição</GuardButton>
         </div>
         {subs.length ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -149,7 +149,7 @@ export function SubscricoesModal({ onClose }: { onClose: () => void }) {
                   <span className="w-10 h-10 rounded-lg bg-accent/10 text-accent flex items-center justify-center shrink-0"><Icon name="euro" className="w-5 h-5" /></span>
                   <div className="flex gap-0.5">
                     <IconButton icon="edit" label="Editar" onClick={() => setModal({ sub: s })} />
-                    <IconButton icon="trash" label="Eliminar" className="hover:text-red-500" onClick={() => setConfirmDel(s)} />
+                    <GuardIconButton icon="trash" label="Eliminar" className="hover:text-red-500" onClick={() => setConfirmDel(s)} />
                   </div>
                 </div>
                 <h3 className="font-semibold text-zinc-900 dark:text-white mt-3">{s.name}</h3>
@@ -169,7 +169,7 @@ export function SubscricoesModal({ onClose }: { onClose: () => void }) {
               </Card>
             ))}
           </div>
-        ) : <EmptyState icon="euro" title="Sem subscrições" desc="Cria a primeira mensalidade do catálogo." action={<Button icon="plus" onClick={() => setModal({ sub: null })}>Nova subscrição</Button>} />}
+        ) : <EmptyState icon="euro" title="Sem subscrições" desc="Cria a primeira mensalidade do catálogo." action={<GuardButton icon="plus" onClick={() => setModal({ sub: null })}>Nova subscrição</GuardButton>} />}
       </div>
 
       {modal && <SubscricaoModal subscricao={modal.sub} onClose={() => setModal(null)} onSaved={() => invalidateMens(qc)} />}
@@ -460,7 +460,7 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
         <div className="flex items-center gap-3 p-3.5 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20">
           <Icon name="ban" className="w-5 h-5 text-red-500 shrink-0" />
           <p className="text-sm text-red-700 dark:text-red-300 flex-1">Cliente <strong>bloqueado</strong>. O acesso à app do ginásio fica suspenso até desbloquear.</p>
-          <Button variant="outline" size="sm" onClick={() => block.mutate(false)}>Desbloquear</Button>
+          <GuardButton variant="outline" size="sm" onClick={() => block.mutate(false)}>Desbloquear</GuardButton>
         </div>
       )}
 
@@ -490,7 +490,7 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
             <span className="w-12 h-12 rounded-xl bg-accent/10 text-accent flex items-center justify-center mb-3"><Icon name="euro" className="w-6 h-6" /></span>
             <h3 className="font-semibold text-zinc-900 dark:text-white">Sem mensalidade</h3>
             <p className="text-sm text-zinc-500 mt-1 max-w-xs">Atribui uma subscrição para começar a cobrar a mensalidade deste cliente.</p>
-            <Button className="mt-4" icon="plus" onClick={() => setAtribuir(true)}>Atribuir subscrição</Button>
+            <GuardButton className="mt-4" icon="plus" onClick={() => setAtribuir(true)}>Atribuir subscrição</GuardButton>
           </div>
           <div className="mt-5 pt-4 border-t border-zinc-100 dark:border-zinc-800">{blockRow}</div>
         </Card>
@@ -683,7 +683,7 @@ function CobrancasView({ period, filter, q, onPeriodChange, onFilterChange, onQC
 
       {/* Lista de cobrança */}
       {billable.length === 0 ? (
-        <Card><EmptyState icon="euro" title="Sem clientes com plano" desc="Convida um sócio ou atribui uma subscrição na ficha do cliente para começar a cobrar." action={<Button icon="mail" size="sm" onClick={() => onOpenConfirmBulk?.()}>Convidar sócio</Button>} /></Card>
+        <Card><EmptyState icon="euro" title="Sem clientes com plano" desc="Convida um sócio ou atribui uma subscrição na ficha do cliente para começar a cobrar." action={<GuardButton icon="mail" size="sm" onClick={() => onOpenConfirmBulk?.()}>Convidar sócio</GuardButton>} /></Card>
       ) : list.length === 0 ? (
         <Card className="p-10 text-center text-sm text-zinc-400">{filter === 'cobrar' ? 'Tudo cobrado neste mês. 🎉' : 'Nada a mostrar.'}</Card>
       ) : (

@@ -34,6 +34,25 @@ const MODULE_PERM_TO_PATH: Record<string, string> = {
 // Cada item só aparece se for acessível ao tenant (permissões + admin).
 const MENU_ORDER = ['/dashboard', '/admin', '/clientes', '/mensagens', '/conteudos', '/paginas', '/estatisticas', '/loja', '/agenda', '/ginasio', '/financeiro', '/faturacao']
 
+// Equipa (B41): o módulo do catálogo da API → item da sidebar. `despesas` vive no Financeiro (que, para um
+// membro, só mostra a aba Despesas). Dashboard, Financeiro (resto), Faturação e o sino são só do dono.
+const MEMBER_MODULE_PATH: Record<string, string> = {
+  agenda: '/agenda',
+  loja: '/loja',
+  ginasio: '/ginasio',
+  clientes: '/clientes',
+  despesas: '/financeiro',
+  conteudos: '/conteudos',
+  paginas: '/paginas',
+  estatisticas: '/estatisticas',
+  mensagens: '/mensagens',
+}
+
+/** Subitens que um membro vê: no Financeiro só a aba Despesas (o resto agrega dinheiro de todos os módulos). */
+function memberOnlySubitems(root: string, items: SubmenuItem[]): SubmenuItem[] {
+  return root === '/financeiro' ? items.filter((it) => it.id === 'despesas') : items
+}
+
 const ROUTE_META: Record<string, { nome: string; icon: string }> = {
   '/dashboard':         { nome: 'Dashboard',  icon: 'dashboard' },
   '/financeiro':        { nome: 'Financeiro', icon: 'euro' },
@@ -51,6 +70,7 @@ const ROUTE_META: Record<string, { nome: string; icon: string }> = {
   // Fora da sidebar (acede-se pelo menu do avatar, AvatarMenu) — entrada só
   // para o título do topbar (resolveTopbarTitle) reconhecer a rota.
   '/perfil':            { nome: 'Perfil',     icon: 'user' },
+  '/equipa':            { nome: 'Equipa',     icon: 'users' },
 }
 
 interface Props {
@@ -59,7 +79,7 @@ interface Props {
   children: React.ReactNode
 }
 
-function NavItem({ path, active, collapsed, badge }: { path: string; active: boolean; collapsed: boolean; badge?: number }) {
+function NavItem({ path, active, collapsed, badge, to }: { path: string; active: boolean; collapsed: boolean; badge?: number; to?: string }) {
   const meta = ROUTE_META[path]
   const navigate = useNavigate()
   if (!meta) return null
@@ -70,7 +90,7 @@ function NavItem({ path, active, collapsed, badge }: { path: string; active: boo
   return (
     <button
       data-nav-focusable="true"
-      onClick={() => navigate(path)}
+      onClick={() => navigate(to ?? path)}
       title={collapsed ? (accessibleLabel ?? meta.nome) : undefined}
       aria-label={accessibleLabel}
       aria-current={active ? 'page' : undefined}
@@ -375,7 +395,7 @@ function SidebarContent({ accessiblePaths, collapsed }: {
   accessiblePaths: string[]
   collapsed: boolean
 }) {
-  const { hasPermission } = useAuth()
+  const { hasPermission, isMember } = useAuth()
   const location = useLocation()
   const navRef = useRef<HTMLElement | null>(null)
   // Só o item /mensagens usa isto — chamado aqui (e não por NavItem) para não
@@ -436,7 +456,8 @@ function SidebarContent({ accessiblePaths, collapsed }: {
         {!collapsed && <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Menu</p>}
         <nav ref={navRef} className="space-y-1" onKeyDown={handleNavKeyDown}>
           {accessiblePaths.map((path) => {
-            const groupItems = allowedSubitems(path, hasPermission)
+            const allowed = allowedSubitems(path, hasPermission)
+            const groupItems = isMember ? memberOnlySubitems(path, allowed) : allowed
             // Um grupo só é menu EXPANSÍVEL com ≥2 subitens permitidos. Com 1 só
             // (ou 0), o expander abriria para um único filho — redundante: cai
             // para um NavItem simples (link ao root).
@@ -458,7 +479,8 @@ function SidebarContent({ accessiblePaths, collapsed }: {
               <NavItem
                 key={path}
                 path={path}
-                active={location.pathname === path}
+                active={location.pathname === path || (isMember && groupItems.length === 1 && location.pathname.startsWith(`${path}/`))}
+                to={isMember && groupItems.length === 1 ? groupItems[0].path : undefined}
                 collapsed={collapsed}
                 badge={path === '/mensagens' ? unreadMessages : undefined}
               />
@@ -496,8 +518,9 @@ function resolveTopbarTitle(pathname: string): string {
  * sairia do ecrã). Acessível: `aria-haspopup`/`aria-expanded`, fecha em Esc e
  * clique fora, foco volta ao botão do avatar ao fechar por Esc.
  */
-function AvatarMenu({ onLogout }: { onLogout: () => void }) {
-  const { username, loggingOut } = useAuth()
+function AvatarMenu({ onLogout, showTeam }: { onLogout: () => void; showTeam: boolean }) {
+  const { username, loggingOut, member } = useAuth()
+  const displayName = member?.name ?? username
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null)
@@ -532,10 +555,11 @@ function AvatarMenu({ onLogout }: { onLogout: () => void }) {
     }
   }, [open])
 
-  const goToProfile = () => {
+  const goTo = (to: string) => {
     setOpen(false)
-    navigate('/perfil')
+    navigate(to)
   }
+  const goToProfile = () => goTo('/perfil')
 
   return (
     <div className="relative">
@@ -547,7 +571,7 @@ function AvatarMenu({ onLogout }: { onLogout: () => void }) {
         aria-label="Menu da conta"
         className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
       >
-        <Avatar name={username ?? '?'} color="#2A6FDB" size={34} />
+        <Avatar name={displayName ?? '?'} color="#2A6FDB" size={34} />
       </button>
 
       {open && createPortal(
@@ -558,10 +582,13 @@ function AvatarMenu({ onLogout }: { onLogout: () => void }) {
           style={{ position: 'fixed', top: pos?.top ?? 0, right: pos?.right ?? 0, zIndex: 100 }}
           className="w-52 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg py-1.5"
         >
-          {username && (
-            <p className="px-3 pb-1.5 mb-0.5 border-b border-zinc-100 dark:border-zinc-800 text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">
-              {username}
-            </p>
+          {displayName && (
+            <div className="px-3 pb-1.5 mb-0.5 border-b border-zinc-100 dark:border-zinc-800">
+              <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{displayName}</p>
+              {member?.tenantName && (
+                <p className="text-xs text-zinc-500 truncate">equipa de {member.tenantName}</p>
+              )}
+            </div>
           )}
           <button
             role="menuitem"
@@ -571,6 +598,17 @@ function AvatarMenu({ onLogout }: { onLogout: () => void }) {
             <Icon name="user" className="w-4 h-4" />
             O meu perfil
           </button>
+          {/* Equipa (B41): só o dono do tenant (nunca a conta admin nem um membro). Ao lado do Perfil. */}
+          {showTeam && (
+            <button
+              role="menuitem"
+              onClick={() => goTo('/equipa')}
+              className="w-full flex items-center gap-2.5 text-left px-3 py-2 text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 transition-colors"
+            >
+              <Icon name="users" className="w-4 h-4" />
+              Equipa
+            </button>
+          )}
           <button
             role="menuitem"
             onClick={() => { setOpen(false); onLogout() }}
@@ -587,15 +625,16 @@ function AvatarMenu({ onLogout }: { onLogout: () => void }) {
   )
 }
 
-function Topbar({ theme, onToggleTheme, onMenu, onCollapse, onLogout }: {
+function Topbar({ theme, onToggleTheme, onMenu, onCollapse, onLogout, showTeam }: {
   theme: string; onToggleTheme: () => void
   onMenu: () => void; onCollapse: () => void
   onLogout: () => void
+  showTeam: boolean
 }) {
   const location = useLocation()
   const title = resolveTopbarTitle(location.pathname)
   const { subtitle } = usePageMeta()
-  const { supportSession } = useAuth()
+  const { supportSession, member, isMember, can } = useAuth()
 
   return (
     <header className="h-16 shrink-0 border-b border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur sticky top-0 z-30 flex items-center gap-3 px-4 sm:px-6">
@@ -624,11 +663,20 @@ function Topbar({ theme, onToggleTheme, onMenu, onCollapse, onLogout }: {
       <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
         {/* Sessão de suporte: sem sino — as notificações são escritas (marcar/apagar)
             que a API recusa, e o push não arranca. */}
-        {!supportSession && <NotificationBell />}
-        <ChatLauncher />
+        {!supportSession && !isMember && <NotificationBell />}
+        {(!isMember || can('mensagens')) && <ChatLauncher />}
+        {/* Equipa (B41): quem está ligado — "Ana · equipa de Tifas Barber". */}
+        {member && (
+          <p
+            data-testid="member-identity"
+            className="hidden md:block max-w-[16rem] truncate text-[13px] text-zinc-500 dark:text-zinc-400"
+          >
+            <span className="font-medium text-zinc-700 dark:text-zinc-200">{member.name}</span> · equipa de {member.tenantName}
+          </p>
+        )}
         <IconButton icon={theme === 'dark' ? 'sun' : 'moon'} onClick={onToggleTheme} label="Tema" />
         <div className="w-px h-6 bg-zinc-200 dark:bg-zinc-800 mx-0.5 hidden sm:block" />
-        <AvatarMenu onLogout={onLogout} />
+        <AvatarMenu onLogout={onLogout} showTeam={showTeam} />
       </div>
     </header>
   )
@@ -644,13 +692,14 @@ function SwRegistrar() {
 }
 
 export function Shell({ theme, onToggleTheme, children }: Props) {
-  const { logout, permissions, hasPermission } = useAuth()
+  const { logout, permissions, hasPermission, isMember, can } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [drawer, setDrawer] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
 
-  // Start SSE stream for real-time events
+  // Stream de eventos em tempo real (o próprio hook não liga para um membro da equipa: a API devolve 403 em
+  // /events/stream — decisão do dono para a fase 1 da Equipa; o tempo-real chega com a fase 2).
   useSSE()
 
   const handleLogout = () => {
@@ -665,13 +714,21 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   }
 
   const isAdmin = permissions.some((p) => p.name === 'VIEW_ADMIN')
-  // Conjunto de rotas acessíveis (dashboard + módulos por permissão + core + admin).
-  const accessible = new Set<string>([
-    '/dashboard',
-    ...permissions.map((p) => MODULE_PERM_TO_PATH[p.name ?? '']).filter(Boolean),
-    ...CORE_PATHS,
-    ...(isAdmin ? ['/admin'] : []),
-  ])
+  // Conjunto de rotas acessíveis (dashboard + módulos por permissão + core + admin). Um MEMBRO da equipa vê só os
+  // módulos que a API lhe deu: nada de Dashboard, Financeiro (excepto Despesas) nem Faturação.
+  const accessible = new Set<string>(
+    isMember
+      ? Object.entries(MEMBER_MODULE_PATH).filter(([key]) => can(key)).map(([, path]) => path)
+      : [
+          '/dashboard',
+          ...permissions.map((p) => MODULE_PERM_TO_PATH[p.name ?? '']).filter(Boolean),
+          ...CORE_PATHS,
+          ...(isAdmin ? ['/admin'] : []),
+        ],
+  )
+  // Equipa (B41): só o dono do tenant (a conta admin não tem equipa; um membro não a gere). Em sessão de suporte
+  // o admin entra como o dono e vê-a (só leitura).
+  const showTeam = !isAdmin && !isMember
   // …apresentadas pela ordem fixa de MENU_ORDER (extras desconhecidos vão para o fim).
   // Um root com SUBMENU mas sem NENHUM subitem permitido (ex.: /clientes sem
   // VIEW_CUSTOMERS — "Lista" e "Leads" exigem-na as duas) sai daqui: some da
@@ -679,7 +736,11 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   const accessiblePaths = [
     ...MENU_ORDER.filter((p) => accessible.has(p)),
     ...[...accessible].filter((p) => !MENU_ORDER.includes(p)),
-  ].filter((p) => !SUBMENU[p]?.length || allowedSubitems(p, hasPermission).length > 0)
+  ].filter((p) => {
+    if (!SUBMENU[p]?.length) return true
+    const allowed = allowedSubitems(p, hasPermission)
+    return (isMember ? memberOnlySubitems(p, allowed) : allowed).length > 0
+  })
 
   // Fecha o drawer ao navegar
   useEffect(() => { setDrawer(false) }, [location.pathname])
@@ -698,7 +759,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   // → /estatisticas) para quem tinha o link antigo guardado. Mesma razão do
   // "/despesas": entra como root extra para o guard não expulsar antes de o
   // <Navigate> correr.
-  const guardRoots = [...accessiblePaths, '/despesas', '/perfil', '/website']
+  const guardRoots = [...accessiblePaths, '/despesas', '/perfil', '/website', ...(showTeam ? ['/equipa'] : [])]
 
   // Redirige para rota acessível se a actual não o for; um SUBITEM sem permissão
   // (ex.: /financeiro/ginasio sem VIEW_GYM) cai no 1.º subitem permitido do MESMO
@@ -710,7 +771,8 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
       navigate(accessiblePaths[0], { replace: true })
       return
     }
-    const subs = allowedSubitems(root, hasPermission)
+    const allowedSubs = allowedSubitems(root, hasPermission)
+    const subs = isMember ? memberOnlySubitems(root, allowedSubs) : allowedSubs
     if (subs.length > 0 && !subs.some((s) => s.path === location.pathname)) {
       // Preserva a query string (coerente com o FinanceiroEntry, App.tsx, que
       // já faz o mesmo no seu próprio redirect de `?vista=`) — este redirect é
@@ -718,7 +780,11 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
       // não há nada próprio a remover daqui.
       navigate(`${subs[0].path}${location.search}`, { replace: true })
     }
-  }, [location.pathname, permissions]) // eslint-disable-line
+  }, [location.pathname, permissions, isMember]) // eslint-disable-line
+
+  // Um membro nunca chega a montar uma página fora do que tem: enquanto o guard acima o redirige, não se
+  // renderiza o conteúdo (montar a Faturação ou o Dashboard dispararia pedidos que a API recusa com 403).
+  const blockedForMember = isMember && !findRoot(location.pathname, guardRoots)
 
   // Teclado virtual (mobile): ao abrir, encolhe a altura da app para o espaço
   // visível (visualViewport) — o composer fica por cima do teclado e nada faz
@@ -784,11 +850,12 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
           onMenu={() => setDrawer(true)}
           onCollapse={() => setCollapsed(!collapsed)}
           onLogout={handleLogout}
+          showTeam={showTeam}
         />
         {/* Faixa de billing (platform subscription): fica acima do <main> e por
             isso persiste no topo enquanto o conteúdo faz scroll. Silenciosa
             quando está tudo pago. */}
-        <BillingBanner />
+        {!isMember && <BillingBanner />}
         <main className={`flex-1 min-h-0 ${fullBleed || fillPage ? "overflow-hidden" : "overflow-y-auto"}${fullBleed ? " sm:overflow-y-auto" : ""}`}>
           <div
             className={
@@ -799,13 +866,13 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
                   : "max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8"
             }
           >
-            {children}
+            {blockedForMember ? null : children}
           </div>
         </main>
       </div>
 
       {/* Botão flutuante de mensagens (some na própria página /mensagens) */}
-      <ChatFab />
+      {(!isMember || can('mensagens')) && <ChatFab />}
     </div>
     </div>
     </PageMetaProvider>

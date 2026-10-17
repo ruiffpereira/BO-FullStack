@@ -72,6 +72,7 @@ import {
   useSetGooglePlace,
 } from "../hooks/useGoogleIntegration";
 import { AdminBillingTab } from "../components/AdminBilling";
+import { AdminTeamModal } from "../components/AdminTeamModal";
 import { FEATURES } from "../lib/features";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -233,7 +234,7 @@ function UserFormFields({
 type UserRow = User &
   Pick<
     GetUsers200[number],
-    "websiteDomain" | "supportAccessUntil" | "canImpersonate" | "isPlatformAdmin"
+    "websiteDomain" | "supportAccessUntil" | "canImpersonate" | "isPlatformAdmin" | "teamCount"
   >;
 
 const SUPPORT_REASON_ADMIN = "Conta de admin";
@@ -307,6 +308,8 @@ function UtilizadoresTab({
   // Domínio do site do tenant (só o dono da plataforma o define, aqui).
   const [domainOpen, setDomainOpen] = useState(false);
   const [domainValue, setDomainValue] = useState("");
+  // Equipa do tenant (B41), só leitura — para suporte.
+  const [teamOf, setTeamOf] = useState<{ userId: string; name: string } | null>(null);
 
   const domainM = usePutAdminUsersUseridSiteDomain({
     client: { headers },
@@ -442,15 +445,16 @@ function UtilizadoresTab({
             <th className="px-4 py-3 hidden xl:table-cell">Telemóvel</th>
             <th className="px-4 py-3 hidden lg:table-cell">User ID</th>
             <th className="px-4 py-3 hidden lg:table-cell">Site</th>
+            <th className="px-4 py-3 hidden md:table-cell">Equipa</th>
             <th className="px-4 py-3">Permissão</th>
             <th className="px-4 py-3 text-right">Ações</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-zinc-50 dark:divide-zinc-800/50">
           {isLoading ? (
-            <SkeletonRows cols={7} />
+            <SkeletonRows cols={8} />
           ) : users.length === 0 ? (
-            <EmptyRow cols={7} />
+            <EmptyRow cols={8} />
           ) : null}
           {pgUsers.pageItems.map((u) => (
             <tr
@@ -478,6 +482,9 @@ function UtilizadoresTab({
               <td className="px-4 py-3.5 text-zinc-500 hidden lg:table-cell">
                 {u.websiteDomain ?? "—"}
               </td>
+              <td className="px-4 py-3.5 text-zinc-500 hidden md:table-cell" data-testid="team-count">
+                {u.isPlatformAdmin ? "—" : (u.teamCount ?? 0)}
+              </td>
               <td className="px-4 py-3.5">
                 <div className="flex flex-wrap gap-1">
                   {u.isPlatformAdmin ? (
@@ -499,6 +506,15 @@ function UtilizadoresTab({
               <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
                 <div className="flex justify-end gap-1">
                   {u.userId !== currentUserId && <ImpersonateButton user={u} />}
+                  {/* A conta admin não tem equipa (B41): sem acção. */}
+                  {!u.isPlatformAdmin && (
+                    <IconButton
+                      icon="users"
+                      label={`Equipa de ${u.name}`}
+                      title="Equipa"
+                      onClick={() => setTeamOf({ userId: u.userId, name: u.name })}
+                    />
+                  )}
                   <IconButton
                     title="Enviar email de reset de password"
                     icon="key"
@@ -546,6 +562,8 @@ function UtilizadoresTab({
         </tbody>
       </TableWrapper>
       <Pagination {...pgUsers} />
+
+      <AdminTeamModal tenant={teamOf} onClose={() => setTeamOf(null)} />
 
       <Modal
         open={createOpen}

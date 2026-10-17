@@ -36,6 +36,8 @@ export interface ChatMessage {
   conversationId: string;
   senderRole: SenderRole;
   senderUserId: string;
+  /** Nome do membro da equipa que escreveu (B41); `null` = o dono do tenant ou o suporte. */
+  senderName?: string | null;
   body: string | null;
   attachments: ChatAttachment[] | null;
   createdAt: string;
@@ -182,10 +184,11 @@ export async function fetchOlderMessages(
  * Gere a query certa conforme o papel (evita 403 do lado errado).
  */
 export function useChatUnread(): number {
-  const { permissions } = useAuth();
+  const { permissions, isMember, can } = useAuth();
   const isAdmin = permissions.some((p) => p.name === "VIEW_ADMIN");
+  // Um membro sem o módulo Mensagens não tem chat (a API devolveria 403): nem se pede.
   const admin = useAdminConversations("", isAdmin);
-  const support = useSupportThread(!isAdmin);
+  const support = useSupportThread(!isAdmin && (!isMember || can("mensagens")));
   return isAdmin ? admin.data?.unreadTotal ?? 0 : support.data?.unread ?? 0;
 }
 

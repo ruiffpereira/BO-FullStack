@@ -31,7 +31,9 @@ import {
   Select,
 } from "../ui/ui.jsx";
 import { usePageSubtitle } from "../context/PageMetaContext";
-import { GuardButton } from "../components/GuardButton";
+import { GuardButton, GuardIconButton } from "../components/GuardButton";
+import { useWriteGuard } from "../hooks/useWriteGuard";
+import { useTeamAccess } from "../hooks/useTeamAccess";
 import { confirmDialog } from "../components/confirm";
 import { DatePicker } from "../components/DatePicker";
 import { TimeField } from "../components/TimeField";
@@ -336,7 +338,7 @@ function CustomerProfileModal({
       footer={
         <>
           {customer && (
-            <Button
+            <GuardButton
               variant="outline"
               disabled={blockMut.isPending}
               onClick={() =>
@@ -356,7 +358,7 @@ function CustomerProfileModal({
                 : customer.blocked
                   ? "Desbloquear"
                   : "Bloquear"}
-            </Button>
+            </GuardButton>
           )}
           <div className="flex-1" />
           <Button variant="ghost" onClick={onClose}>
@@ -576,7 +578,9 @@ function NovaApptModal({
     if (initialTime) setForm((f) => ({ ...f, time: initialTime }));
   }, [initialTime]);
 
-  const { data: custData, isError: custError } = useGetCustomers();
+  // Equipa (B41): um membro sem o módulo Clientes não lê `/customers` (403) — nem se pede.
+  const { can: canTeam } = useTeamAccess();
+  const { data: custData, isError: custError } = useGetCustomers({ query: { enabled: canTeam("clientes") } });
   const allCustomers = custData?.rows ?? [];
 
   const dropList = q.trim()
@@ -829,14 +833,14 @@ function NovaApptModal({
                 placeholder="Telefone *"
                 className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent"
               />
-              <Button
+              <GuardButton wrapperClassName="block w-full"
                 size="sm"
                 className="w-full"
                 disabled={createCustMut.isPending}
                 onClick={handleCreateCust}
               >
                 {createCustMut.isPending ? "A criar…" : "Criar e selecionar"}
-              </Button>
+              </GuardButton>
             </div>
           )}
         </div>
@@ -894,6 +898,9 @@ type DragAction = {
 };
 
 function CalendarioView() {
+  // Só ver (billing read-only ou membro com `view`): o calendário continua a abrir as marcações, mas deixa de
+  // criar (arrastar/clicar numa célula) e de reagendar (arrastar uma marcação).
+  const { readOnly: writeLocked } = useWriteGuard();
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const focusAppointmentId = searchParams.get("marcacao");
@@ -1011,7 +1018,8 @@ function CalendarioView() {
 
   const { data: appointments = [], isLoading } = useGetScheduleAppointments({ from, to });
   const { data: services = [] } = useGetScheduleServices();
-  const { data: customersData } = useGetCustomers();
+  const { can: canTeam } = useTeamAccess();
+  const { data: customersData } = useGetCustomers({ query: { enabled: canTeam("clientes") } });
   const { data: blockedSlots = [] } = useGetScheduleBlockedSlots({ from, to });
   const { data: workingHours = [] } = useGetScheduleWorkingHours();
   // Intervalo da grelha (preferência do tenant). Só visual — a reserva online
@@ -1621,6 +1629,7 @@ function CalendarioView() {
                     className={`relative border-l border-zinc-50 dark:border-zinc-800/50 ${dragSel ? "cursor-crosshair" : "cursor-pointer"} select-none ${isToday ? "bg-accent/[0.04] dark:bg-accent/[0.07]" : ""}`}
                     style={{ touchAction: "pan-x pan-y" }}
                     onPointerDown={(e) => {
+                      if (writeLocked) return;
                       const isTouch = e.pointerType === "touch";
                       if (e.button !== 0 && !isTouch) return;
                       const rect = e.currentTarget.getBoundingClientRect();
@@ -1880,6 +1889,7 @@ function CalendarioView() {
                             key={appt.appointmentId}
                             onPointerDown={(e) => {
                               e.stopPropagation();
+                              if (writeLocked) return;
                               const isTouch = e.pointerType === "touch";
                               if (e.button !== 0 && !isTouch) return;
                               const rect =
@@ -1936,7 +1946,9 @@ function CalendarioView() {
                                 }, 380);
                               }
                             }}
-                            className={`absolute group rounded-lg px-2 py-1 text-left z-10 hover:shadow-md hover:z-20 transition-all cursor-grab active:cursor-grabbing ${isBeingDragged ? "opacity-25" : ""}`}
+                            // Só ver: sem arrastar, a marcação abre num clique normal.
+                            onClick={() => { if (writeLocked) setSelAppt(appt); }}
+                            className={`absolute group rounded-lg px-2 py-1 text-left z-10 hover:shadow-md hover:z-20 transition-all ${writeLocked ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"} ${isBeingDragged ? "opacity-25" : ""}`}
                             style={{
                               top: top + 2,
                               height: Math.max(height, 24),
@@ -1964,7 +1976,7 @@ function CalendarioView() {
                                 {svcItem?.name || appt.serviceName}
                               </p>
                             )}
-                            <span
+                            {!writeLocked && <span
                               title="Nova marcação à mesma hora"
                               onPointerDown={(e) => {
                                 e.stopPropagation();
@@ -1978,7 +1990,7 @@ function CalendarioView() {
                               className="absolute top-0.5 right-0.5 w-5 h-5 sm:w-4 sm:h-4 flex items-center justify-center rounded text-[12px] sm:text-[11px] font-bold opacity-80 sm:opacity-0 sm:group-hover:opacity-80 hover:!opacity-100 transition-opacity bg-white/80 dark:bg-zinc-900/80 text-zinc-500 hover:text-accent cursor-pointer"
                             >
                               +
-                            </span>
+                            </span>}
                           </button>
                         );
                       })
@@ -2279,6 +2291,7 @@ const emptySvcForm: SvcForm = {
 };
 
 function ServicosPanel() {
+  const { readOnly: writeLocked, message: writeMessage } = useWriteGuard();
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [modal, setModal] = useState(false);
@@ -2462,7 +2475,7 @@ function ServicosPanel() {
         <p className="text-sm text-zinc-500">
           {services.length} serviços · arrasta para reordenar
         </p>
-        <Button
+        <GuardButton
           icon="plus"
           size="sm"
           onClick={() => {
@@ -2472,7 +2485,7 @@ function ServicosPanel() {
           }}
         >
           Novo serviço
-        </Button>
+        </GuardButton>
       </div>
       {isLoading ? (
         Array.from({ length: 3 }).map((_, i) => (
@@ -2521,7 +2534,9 @@ function ServicosPanel() {
                       { onSuccess: invalidate },
                     )
                   }
-                  className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 p-1.5"
+                  disabled={writeLocked}
+                  title={writeLocked ? writeMessage : undefined}
+                  className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 p-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Icon name={s.active ? "check" : "ban"} className="w-4 h-4" />
                 </button>
@@ -2530,7 +2545,7 @@ function ServicosPanel() {
                   label="Editar"
                   onClick={() => openEdit(s)}
                 />
-                <IconButton
+                <GuardIconButton
                   icon="trash"
                   label="Eliminar"
                   onClick={async () => {
@@ -2648,7 +2663,8 @@ function MarcacoesPanel() {
   const { data: allAppts = [], isLoading } =
     useGetScheduleAppointments(undefined);
   const { data: services = [] } = useGetScheduleServices();
-  const { data: customersData } = useGetCustomers();
+  const { can: canTeam } = useTeamAccess();
+  const { data: customersData } = useGetCustomers({ query: { enabled: canTeam("clientes") } });
   const customers = customersData?.rows ?? [];
 
   // Guardar = notificar: o backend avisa o cliente automaticamente ao guardar.

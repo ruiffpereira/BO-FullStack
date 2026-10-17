@@ -22,7 +22,7 @@ import { API_BASE } from "../lib/env";
 const EVENTS_STREAM_PATH = getEventsStreamQueryKey()[0].url;
 
 export function useSSE() {
-  const { accessToken, isAuthenticated, supportSession } = useAuth();
+  const { accessToken, isAuthenticated, supportSession, isMember } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const abortRef = useRef<AbortController | null>(null);
@@ -30,7 +30,8 @@ export function useSSE() {
   useEffect(() => {
     // Sessão de suporte: a API devolve 403 IMPERSONATION_FORBIDDEN em
     // /events/stream — nem se tenta ligar.
-    if (!isAuthenticated || !accessToken || supportSession) return;
+    // Membro da equipa (B41): /events/stream é só do dono (403 TEAM_OWNER_ONLY) — nem se tenta ligar.
+    if (!isAuthenticated || !accessToken || supportSession || isMember) return;
 
     let active = true;
     let retryDelay = 2000;
@@ -145,5 +146,5 @@ export function useSSE() {
       active = false;
       abortRef.current?.abort();
     };
-  }, [accessToken, isAuthenticated, supportSession, queryClient, navigate]);
+  }, [accessToken, isAuthenticated, supportSession, isMember, queryClient, navigate]);
 }

@@ -8,6 +8,7 @@ import {
 } from "../hooks/useNotificationTemplates";
 import { Icon } from "../ui/icons.jsx";
 import { useAuth } from "../context/AuthContext";
+import { useWriteGuard } from "../hooks/useWriteGuard";
 
 // ─── NotifCard ──────────────────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ function NotifCard({
 
   const qc = useQueryClient();
 
+  const { readOnly: writeLocked, message: writeMessage } = useWriteGuard();
   const saveMut = useMutation({
     mutationFn: async () => {
       for (const l of locales) {
@@ -249,7 +251,8 @@ function NotifCard({
             <button
               type="button"
               onClick={() => saveMut.mutate()}
-              disabled={saveMut.isPending || !isDirty}
+              disabled={saveMut.isPending || !isDirty || writeLocked}
+              title={writeLocked ? writeMessage : undefined}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-accent text-white transition disabled:opacity-50"
             >
               {saveMut.isPending ? (

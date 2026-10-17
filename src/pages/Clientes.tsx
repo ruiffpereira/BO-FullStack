@@ -273,7 +273,7 @@ export function Clientes({ view }: { view: ClientesView }) {
               className="w-full bg-zinc-50 dark:bg-zinc-800/60 border border-transparent rounded-lg text-sm pl-10 pr-3 py-2 focus:bg-white dark:focus:bg-zinc-900 focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none text-zinc-800 dark:text-zinc-100"
             />
           </div>
-          <Button icon="plus" size="sm" onClick={() => { setForm(emptyForm); setCreateOpen(true) }}>Novo cliente</Button>
+          <GuardButton icon="plus" size="sm" onClick={() => { setForm(emptyForm); setCreateOpen(true) }}>Novo cliente</GuardButton>
         </div>
 
         <div className="overflow-x-auto">
@@ -347,14 +347,14 @@ export function Clientes({ view }: { view: ClientesView }) {
                 </Button>
               )}
               <Button variant="outline" icon="edit" onClick={() => openEdit(profileCustomer)}>Editar</Button>
-              <Button
+              <GuardButton
                 variant="outline"
                 disabled={blockMut.isPending}
                 onClick={() => blockMut.mutate({ id: profileCustomer.customerId, blocked: !profileCustomer.blocked })}
                 className={profileCustomer.blocked ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50' : 'text-red-500 border-red-200 hover:bg-red-50'}
               >
                 {blockMut.isPending ? '…' : profileCustomer.blocked ? 'Desbloquear' : 'Bloquear'}
-              </Button>
+              </GuardButton>
               <div className="flex-1" />
               <Button variant="ghost" onClick={closeProfile}>Fechar</Button>
             </>
@@ -486,7 +486,7 @@ export function Clientes({ view }: { view: ClientesView }) {
             <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 flex flex-wrap items-center gap-2">
               <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide mr-auto">Privacidade (RGPD)</span>
               <Button variant="outline" size="sm" icon="package" isLoading={exporting} onClick={() => exportData(profileCustomer)}>Exportar dados</Button>
-              <Button variant="outline" size="sm" icon="trash" className="text-red-500 border-red-200 hover:bg-red-50 dark:border-red-500/30 dark:hover:bg-red-500/10" onClick={() => setEraseTarget(profileCustomer)}>Apagar dados</Button>
+              <GuardButton variant="outline" size="sm" icon="trash" className="text-red-500 border-red-200 hover:bg-red-50 dark:border-red-500/30 dark:hover:bg-red-500/10" onClick={() => setEraseTarget(profileCustomer)}>Apagar dados</GuardButton>
             </div>
           </div>
         </Modal>

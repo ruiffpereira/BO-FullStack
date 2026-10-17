@@ -474,14 +474,14 @@ export function ApptModal({
               <>
                 {status === "completed" ? (
                   /* Concluída (ver): destrancar para editar os detalhes. */
-                  <Button
+                  <GuardButton wrapperClassName="block w-full"
                     variant="outline"
                     className="w-full"
                     disabled={busy}
                     onClick={handleEditAppointment}
                   >
                     Editar marcação
-                  </Button>
+                  </GuardButton>
                 ) : status !== "cancelled" ? (
                   <GuardButton
                     className="w-full"
@@ -494,32 +494,32 @@ export function ApptModal({
                 ) : null}
                 {/* Cancelar marcação / Reativar / Confirmar — só na aba Detalhes */}
                 {status === "cancelled" ? (
-                  <Button
+                  <GuardButton wrapperClassName="block w-full"
                     variant="outline"
                     className="w-full"
                     disabled={isSettingStatus}
                     onClick={() => onSetStatus(appt.appointmentId, "confirmed", buildSaveData())}
                   >
                     {isSettingStatus ? "A reativar…" : "Reativar"}
-                  </Button>
+                  </GuardButton>
                 ) : status === "completed" ? null : confirmCancel ? (
-                  <Button
+                  <GuardButton wrapperClassName="block w-full"
                     variant="outline"
                     className="w-full border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-300 dark:hover:border-red-700"
                     disabled={isSettingStatus}
                     onClick={() => onSetStatus(appt.appointmentId, "cancelled")}
                   >
                     {isSettingStatus ? "A cancelar…" : "Confirmar cancelamento"}
-                  </Button>
+                  </GuardButton>
                 ) : (
-                  <Button
+                  <GuardButton wrapperClassName="block w-full"
                     variant="outline"
                     className="w-full border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-300 dark:hover:border-red-700"
                     disabled={isSettingStatus}
                     onClick={() => setConfirmCancel(true)}
                   >
                     Cancelar marcação
-                  </Button>
+                  </GuardButton>
                 )}
               </>
             ) : null /* Aba Pagamento: ações no conteúdo (Pagar / Pagar dívida / Editar) */}
@@ -957,9 +957,9 @@ export function ApptModal({
                     </div>
                   ) : (
                     /* Esteja paga ou com dívida → um só botão. A dívida vê-se no recibo. */
-                    <Button variant="outline" className="w-full" disabled={busy} onClick={handleEditPayment}>
+                    <GuardButton wrapperClassName="block w-full" variant="outline" className="w-full" disabled={busy} onClick={handleEditPayment}>
                       Editar pagamento
-                    </Button>
+                    </GuardButton>
                   )}
                 </div>
               ) : (

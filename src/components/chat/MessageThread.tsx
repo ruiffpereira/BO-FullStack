@@ -51,8 +51,10 @@ function Attachments({ items, mine }: { items: ChatAttachment[]; mine: boolean }
   );
 }
 
-function MessageBubble({ m, mine }: { m: ChatMessage; mine: boolean }) {
+function MessageBubble({ m, mine, tenantName }: { m: ChatMessage; mine: boolean; tenantName?: string }) {
   const hasText = !!(m.body && m.body.trim());
+  // B41: uma mensagem escrita por um membro da equipa traz o nome dele ("Ana · Tifas Barber" no lado do admin).
+  const author = m.senderName ? (tenantName ? `${m.senderName} · ${tenantName}` : m.senderName) : null;
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
       <div
@@ -62,6 +64,14 @@ function MessageBubble({ m, mine }: { m: ChatMessage; mine: boolean }) {
             : "bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 rounded-bl-md"
         } ${m.failed ? "ring-1 ring-red-400" : ""} ${m.pending ? "opacity-70" : ""}`}
       >
+        {author && (
+          <span
+            data-testid="message-author"
+            className={`block text-[11px] font-semibold mb-0.5 ${mine ? "text-white/80" : "text-zinc-500 dark:text-zinc-400"}`}
+          >
+            {author}
+          </span>
+        )}
         {m.attachments?.length ? <Attachments items={m.attachments} mine={mine} /> : null}
         {hasText && <p className="whitespace-pre-wrap">{m.body}</p>}
         <span className={`block text-[10px] mt-1 text-right ${mine ? "text-white/70" : "text-zinc-400"}`}>
@@ -90,6 +100,8 @@ export interface MessageThreadProps {
   loadingOlder: boolean;
   onLoadOlder: () => void;
   isLoading: boolean;
+  /** Nome do tenant (lado do admin): acompanha o nome do membro que escreveu. */
+  tenantName?: string;
 }
 
 export function MessageThread({
@@ -100,6 +112,7 @@ export function MessageThread({
   loadingOlder,
   onLoadOlder,
   isLoading,
+  tenantName,
 }: MessageThreadProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -215,7 +228,7 @@ export function MessageThread({
               return (
                 <div key={m.messageId}>
                   {showDay && <DayDivider iso={m.createdAt} />}
-                  <MessageBubble m={m} mine={mine} />
+                  <MessageBubble m={m} mine={mine} tenantName={tenantName} />
                   {idx === lastMineIdx && mine && (
                     <div className="flex justify-end pr-1 mt-0.5">
                       <span className={`text-[11px] ${m.failed ? "text-red-500" : "text-zinc-400"}`}>

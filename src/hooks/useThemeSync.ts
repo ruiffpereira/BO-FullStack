@@ -57,7 +57,7 @@ import {
  */
 export function useThemeSync() {
   const [theme, setTheme] = useState<Theme>(computeInitialTheme);
-  const { isAuthenticated, supportSession } = useAuth();
+  const { isAuthenticated, supportSession, isMember } = useAuth();
   // Sessão de suporte: o tema do cliente aplica-se SÓ em memória. O
   // localStorage é partilhado por todos os separadores — gravar aqui
   // deixava os separadores do admin com o tema do cliente.
@@ -65,7 +65,8 @@ export function useThemeSync() {
   const qc = useQueryClient();
   const updateMe = usePutUsersMe();
 
-  const { data: meData } = useGetUsersMe({ query: { enabled: isAuthenticated } });
+  // Um membro da equipa (B41) não tem `GET /users/me` (é do dono, 403): o tema dele vive só no dispositivo.
+  const { data: meData } = useGetUsersMe({ query: { enabled: isAuthenticated && !isMember } });
 
   useEffect(() => {
     if (!isAuthenticated || !meData) return;
@@ -87,7 +88,7 @@ export function useThemeSync() {
     const next: Theme = prev === "dark" ? "light" : "dark";
     setTheme(next);
     if (!inSupport) persistTheme(next);
-    if (isAuthenticated) {
+    if (isAuthenticated && !isMember) {
       updateMe.mutate(
         { data: { uiTheme: next } },
         {
@@ -104,7 +105,7 @@ export function useThemeSync() {
         },
       );
     }
-  }, [theme, isAuthenticated, inSupport, updateMe, qc]);
+  }, [theme, isAuthenticated, isMember, inSupport, updateMe, qc]);
 
   return { theme, toggleTheme };
 }

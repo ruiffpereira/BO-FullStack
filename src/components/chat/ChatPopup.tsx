@@ -88,7 +88,7 @@ function AdminPopup({ onClose }: { onClose: () => void }) {
         />
         <ChatConversationView
           key={selected.tenantUserId}
-          scope={{ kind: "admin", tenantUserId: selected.tenantUserId }}
+          scope={{ kind: "admin", tenantUserId: selected.tenantUserId, tenantName: selected.tenantName }}
           active
         />
       </>

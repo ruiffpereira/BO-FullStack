@@ -26,6 +26,7 @@ import {
 } from "../ui/ui.jsx";
 import { usePageSubtitle } from "../context/PageMetaContext";
 import { GuardButton } from "../components/GuardButton";
+import { useWriteGuard } from "../hooks/useWriteGuard";
 import { Combobox } from "../components/Combobox";
 import {
   useGetProducts,
@@ -74,6 +75,7 @@ function ProdutoCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const { readOnly: writeLocked, message: writeMessage } = useWriteGuard();
   const low = (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 8;
   const firstPhoto = photoUrl(p.photos?.[0]);
   return (
@@ -132,8 +134,9 @@ function ProdutoCard({
           e.stopPropagation();
           onDelete();
         }}
-        className="absolute top-2 left-2 w-7 h-7 rounded-lg bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
-        title="Eliminar"
+        disabled={writeLocked}
+        className="absolute top-2 left-2 w-7 h-7 rounded-lg bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition disabled:bg-zinc-400 disabled:cursor-not-allowed"
+        title={writeLocked ? writeMessage : "Eliminar"}
       >
         <Icon name="trash" className="w-3.5 h-3.5" />
       </button>
@@ -414,6 +417,7 @@ export type LojaView = "produtos" | "encomendas" | "categorias";
  */
 export function Loja({ view }: { view: LojaView }) {
   const { authHeader } = useAuth();
+  const { readOnly: writeLocked, message: writeMessage } = useWriteGuard();
   const qc = useQueryClient();
   const headers = authHeader();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -906,13 +910,13 @@ export function Loja({ view }: { view: LojaView }) {
                 placeholder="Nome da categoria…"
                 className="flex-1 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent"
               />
-              <Button
+              <GuardButton
                 size="sm"
                 onClick={() => saveCat(null)}
                 disabled={putCategory.isPending}
               >
                 Criar
-              </Button>
+              </GuardButton>
               <Button
                 size="sm"
                 variant="ghost"
@@ -925,7 +929,7 @@ export function Loja({ view }: { view: LojaView }) {
               </Button>
             </div>
           ) : (
-            <Button
+            <GuardButton
               icon="plus"
               variant="ghost"
               size="sm"
@@ -935,7 +939,7 @@ export function Loja({ view }: { view: LojaView }) {
               }}
             >
               Nova categoria
-            </Button>
+            </GuardButton>
           )}
 
           {/* Category list */}
@@ -964,13 +968,13 @@ export function Loja({ view }: { view: LojaView }) {
                 )}
                 {editCat?.id === cat.categoryId ? (
                   <>
-                    <Button
+                    <GuardButton
                       size="sm"
                       onClick={() => saveCat(cat.categoryId)}
                       disabled={putCategory.isPending}
                     >
                       Guardar
-                    </Button>
+                    </GuardButton>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -1009,8 +1013,9 @@ export function Loja({ view }: { view: LojaView }) {
                         if (await confirmDialog({ title: `Eliminar categoria "${cat.name}"?`, message: "As subcategorias e a associação aos produtos são afetadas.", danger: true }))
                           delCategory.mutate({ id: cat.categoryId });
                       }}
-                      className="p-1.5 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition"
-                      title="Eliminar"
+                      disabled={writeLocked}
+                      className="p-1.5 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                      title={writeLocked ? writeMessage : "Eliminar"}
                     >
                       <Icon name="trash" className="w-3.5 h-3.5" />
                     </button>
@@ -1047,7 +1052,7 @@ export function Loja({ view }: { view: LojaView }) {
                     )}
                     {editSub?.id === sub.subcategoryId ? (
                       <>
-                        <Button
+                        <GuardButton
                           size="sm"
                           onClick={() =>
                             saveSub(sub.subcategoryId, cat.categoryId)
@@ -1055,7 +1060,7 @@ export function Loja({ view }: { view: LojaView }) {
                           disabled={putSubcategory.isPending}
                         >
                           Guardar
-                        </Button>
+                        </GuardButton>
                         <Button
                           size="sm"
                           variant="ghost"
@@ -1099,8 +1104,9 @@ export function Loja({ view }: { view: LojaView }) {
                             if (await confirmDialog({ title: `Eliminar subcategoria "${sub.name}"?`, danger: true }))
                               delSubcategory.mutate({ id: sub.subcategoryId });
                           }}
-                          className="p-1 rounded text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition"
-                          title="Eliminar"
+                          disabled={writeLocked}
+                          className="p-1 rounded text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={writeLocked ? writeMessage : "Eliminar"}
                         >
                           <Icon name="trash" className="w-3 h-3" />
                         </button>
@@ -1127,13 +1133,13 @@ export function Loja({ view }: { view: LojaView }) {
                       placeholder="Nome da subcategoria…"
                       className="flex-1 border border-zinc-200 dark:border-zinc-700 rounded-lg px-2.5 py-0.5 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent"
                     />
-                    <Button
+                    <GuardButton
                       size="sm"
                       onClick={() => saveSub(null, cat.categoryId)}
                       disabled={putSubcategory.isPending}
                     >
                       Criar
-                    </Button>
+                    </GuardButton>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -1189,12 +1195,12 @@ export function Loja({ view }: { view: LojaView }) {
               <Button variant="ghost" onClick={() => setTransModal(null)}>
                 Cancelar
               </Button>
-              <Button
+              <GuardButton
                 onClick={saveTranslations}
                 disabled={putCategory.isPending || putSubcategory.isPending}
               >
                 Guardar
-              </Button>
+              </GuardButton>
             </>
           }
         >

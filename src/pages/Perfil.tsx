@@ -18,6 +18,7 @@ import { LangFlag } from "../utils/langFlag";
 import { type UiThemeChoice } from "../lib/uiTheme";
 import { SUPPORT_UNAVAILABLE_NOTE } from "../lib/supportSession";
 import { SupportAccessCard } from "../components/SupportAccessCard";
+import { PerfilMembro } from "./PerfilMembro";
 
 const THEME_TABS: { id: UiThemeChoice; label: string; icon: string }[] = [
   { id: "light", label: "Claro", icon: "sun" },
@@ -35,7 +36,14 @@ const THEME_TABS: { id: UiThemeChoice; label: string; icon: string }[] = [
  * /users/me/password` — nunca outro utilizador, `req.user` sempre): Conta,
  * Password, Preferências, Logótipo.
  */
-export function Perfil() {
+export function Perfil({ theme, onToggleTheme }: { theme?: "light" | "dark"; onToggleTheme?: () => void } = {}) {
+  const { isMember } = useAuth();
+  // Um membro da equipa tem o seu próprio perfil (nome, password, tema) — o do negócio é só do dono (B41).
+  if (isMember) return <PerfilMembro theme={theme} onToggleTheme={onToggleTheme} />;
+  return <PerfilDono />;
+}
+
+function PerfilDono() {
   const { data, isLoading, isError } = useGetUsersMe();
   usePageSubtitle("Os teus dados, password e preferências.");
 

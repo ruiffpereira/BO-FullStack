@@ -1,4 +1,5 @@
 import { useGetBillingSubscription } from '../gen/backoffice/hooks/useGetBillingSubscription'
+import { useTeamAccess } from './useTeamAccess'
 import type { BillingSubscriptionReasonEnum } from '../gen/backoffice/types/BillingSubscription'
 
 export interface BillingReadOnlyState {
@@ -27,7 +28,9 @@ export function useBillingReadOnly(): BillingReadOnlyState {
   // ProdutoModal, modais do ginásio) que montam de novo em cada abertura — sem isto,
   // os defaults globais (staleTime:0 + refetchOnMount:true, src/lib/queryClient.ts)
   // disparavam um GET /billing/subscription a cada abertura de modal.
-  const { data } = useGetBillingSubscription({ query: { staleTime: 5 * 60_000 } })
+  // Um membro da equipa não vê a Faturação (a API devolve 403 TEAM_OWNER_ONLY em /billing): nem se pede.
+  const { isMember } = useTeamAccess()
+  const { data } = useGetBillingSubscription({ query: { staleTime: 5 * 60_000, enabled: !isMember } })
   return {
     readOnly: data?.readOnly ?? false,
     reason: data?.reason ?? 'none',

@@ -26,6 +26,7 @@ import {
 import { useUpdateScheduleSettings } from "../gen/backoffice/hooks/useUpdateScheduleSettings.js";
 import type { WorkingHours } from "../gen/backoffice/types/WorkingHours.js";
 import type { ScheduleSettings } from "../gen/backoffice/types/ScheduleSettings.js";
+import { GuardButton, GuardIconButton } from "../components/GuardButton";
 
 // ── Constantes / helpers ─────────────────────────────────────────────────────
 const FULL_DAY_NAMES = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
@@ -198,7 +199,7 @@ function BloqueioModal({ open, onClose, onSave, pending }: {
       width="max-w-md"
       title="Adicionar período"
       subtitle="Bloqueia datas por férias, feriados ou imprevistos. Aparecem tracejadas no calendário."
-      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><Button icon="check" isLoading={pending} disabled={invalid} onClick={() => onSave(form)}>Bloquear</Button></>}
+      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><GuardButton icon="check" isLoading={pending} disabled={invalid} onClick={() => onSave(form)}>Bloquear</GuardButton></>}
     >
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
@@ -382,7 +383,7 @@ export function ConfiguracoesPanel() {
             <h3 className="font-semibold text-zinc-900 dark:text-white">Férias & dias bloqueados</h3>
             <p className="text-[13px] text-zinc-500 mt-0.5">Datas sem atendimento. Aparecem tracejadas no calendário.</p>
           </div>
-          <Button icon="plus" className="sm:ml-auto shrink-0" onClick={() => setBloqueioOpen(true)}>Adicionar período</Button>
+          <GuardButton icon="plus" className="sm:ml-auto shrink-0" onClick={() => setBloqueioOpen(true)}>Adicionar período</GuardButton>
         </Card>
         {loadingSlots ? (
           <div className="h-16 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" />
@@ -400,7 +401,7 @@ export function ConfiguracoesPanel() {
                     <div className="flex items-center gap-2"><p className="font-medium text-zinc-900 dark:text-white text-sm truncate">{p.reason || meta.t}</p><Badge tone={meta.tone}>{meta.t}</Badge></div>
                     <p className="text-xs text-zinc-400 mt-0.5">{label}</p>
                   </div>
-                  <IconButton icon="trash" label="Remover" onClick={() => removePeriodo(p.ids)} className="opacity-0 group-hover:opacity-100 hover:text-red-500" />
+                  <GuardIconButton icon="trash" label="Remover" onClick={() => removePeriodo(p.ids)} className="opacity-0 group-hover:opacity-100 hover:text-red-500" />
                 </Card>
               );
             })}
@@ -417,7 +418,7 @@ export function ConfiguracoesPanel() {
         width="max-w-2xl"
         title="Horário semanal"
         subtitle="Horas de abertura e pausa de almoço de cada dia. Usa “Copiar p/ todos” para replicar um dia."
-        footer={<><Button variant="ghost" onClick={() => setHorarioOpen(false)}>Fechar</Button><Button icon="check" variant={hasUnsaved ? "primary" : "secondary"} isLoading={saveHours.isPending} disabled={!hasUnsaved} onClick={() => saveHours.mutate({ data: { hours } })}>{hasUnsaved ? "Guardar horários" : "Sem alterações"}</Button></>}
+        footer={<><Button variant="ghost" onClick={() => setHorarioOpen(false)}>Fechar</Button><GuardButton icon="check" variant={hasUnsaved ? "primary" : "secondary"} isLoading={saveHours.isPending} disabled={!hasUnsaved} onClick={() => saveHours.mutate({ data: { hours } })}>{hasUnsaved ? "Guardar horários" : "Sem alterações"}</GuardButton></>}
       >
         <HorarioEditor hours={hours} updateDay={updateDay} onCopyAll={onCopyAll} />
       </Modal>

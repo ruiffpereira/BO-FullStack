@@ -3,6 +3,7 @@ import { useAuth } from "../../context/AuthContext";
 import { MessageThread } from "./MessageThread";
 import { Composer } from "./Composer";
 import { SUPPORT_UNAVAILABLE_NOTE } from "../../lib/supportSession";
+import { VIEW_ONLY_MESSAGE } from "../../lib/teamAccess";
 import {
   useSupportThread,
   useSendSupportMessage,
@@ -18,7 +19,7 @@ import {
   type SenderRole,
 } from "../../hooks/useChat";
 
-export type ChatScope = { kind: "support" } | { kind: "admin"; tenantUserId: string };
+export type ChatScope = { kind: "support" } | { kind: "admin"; tenantUserId: string; tenantName?: string };
 
 /**
  * Vista de uma conversa: thread (mensagens) + composer. Liga os hooks certos
@@ -26,7 +27,9 @@ export type ChatScope = { kind: "support" } | { kind: "admin"; tenantUserId: str
  * pagina mensagens antigas. Partilhada pelo ChatDrawer e pela tab Mensagens.
  */
 export function ChatConversationView({ scope, active = true }: { scope: ChatScope; active?: boolean }) {
-  const { authHeader, userId, supportSession } = useAuth();
+  const { authHeader, userId, supportSession, can } = useAuth();
+  // Equipa (B41): `mensagens` com `view` lê a conversa mas não envia.
+  const viewOnly = scope.kind === "support" && can("mensagens", "view") && !can("mensagens", "edit");
   // Sessão de suporte: o chat é só de leitura (a API recusa enviar e marcar lida).
   const inSupport = !!supportSession;
   const meRole: SenderRole = scope.kind === "support" ? "tenant" : "admin";
@@ -142,12 +145,13 @@ export function ChatConversationView({ scope, active = true }: { scope: ChatScop
         loadingOlder={loadingOlder}
         onLoadOlder={onLoadOlder}
         isLoading={isLoading}
+        tenantName={scope.kind === "admin" ? scope.tenantName : undefined}
       />
       <Composer
         onSend={onSend}
         placeholder={scope.kind === "support" ? "Mensagem para o suporte…" : "Responder…"}
-        disabled={inSupport}
-        disabledNote={inSupport ? SUPPORT_UNAVAILABLE_NOTE : undefined}
+        disabled={inSupport || viewOnly}
+        disabledNote={inSupport ? SUPPORT_UNAVAILABLE_NOTE : viewOnly ? VIEW_ONLY_MESSAGE : undefined}
       />
     </div>
   );

@@ -2320,6 +2320,11 @@
             "type": "string",
             "format": "uuid"
           },
+          "senderName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Nome do membro da equipa que escreveu (B41); null = o dono do tenant ou o suporte"
+          },
           "body": {
             "type": "string",
             "nullable": true
@@ -2881,6 +2886,81 @@
           "createdAt",
           "updatedAt"
         ]
+      },
+      "TeamMember": {
+        "type": "object",
+        "properties": {
+          "memberId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "invited",
+              "active",
+              "disabled"
+            ]
+          },
+          "lastLoginAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdByMemberId": {
+            "type": "string",
+            "nullable": true
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "description": "Chave do catálogo (GET /team/catalog)"
+                },
+                "level": {
+                  "type": "string",
+                  "enum": [
+                    "view",
+                    "edit"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "TeamGrantInput": {
+        "type": "object",
+        "required": [
+          "key",
+          "level"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "view",
+              "edit"
+            ]
+          }
+        }
       }
     }
   },
@@ -5014,6 +5094,10 @@
                       "canImpersonate": {
                         "type": "boolean"
                       },
+                      "teamCount": {
+                        "type": "integer",
+                        "description": "Nº de membros da equipa do tenant (B41). A lista de membros é GET /admin/users/{userId}/team."
+                      },
                       "isPlatformAdmin": {
                         "type": "boolean",
                         "description": "Conta admin da plataforma (role Admin ou ligada ao VIEW_ADMIN) - intocavel (B40); calculado no servidor"
@@ -5206,7 +5290,8 @@
                   "type": "object",
                   "properties": {
                     "userId": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Para um membro da equipa, o id do TENANT dono"
                     },
                     "username": {
                       "type": "string"
@@ -5216,6 +5301,10 @@
                     },
                     "accessToken": {
                       "type": "string"
+                    },
+                    "memberId": {
+                      "type": "string",
+                      "description": "Só no login de um membro da equipa (B41); o JWT leva { userId: tenant, memberId, tokenVersion }"
                     }
                   }
                 }
@@ -5490,6 +5579,7 @@
       },
       "get": {
         "summary": "Get all components accessible by the current user",
+        "description": "Para um membro da equipa (B41) devolve só as `Component`s dos módulos que lhe foram dados E que o tenant também tem (mesmo formato). O nível por módulo e quem é o membro vêm em `GET /userpermissions/access`.",
         "tags": [
           "UserPermissions"
         ],
@@ -5517,6 +5607,71 @@
           },
           "500": {
             "description": "Error fetching accessible components"
+          }
+        }
+      }
+    },
+    "/userpermissions/access": {
+      "get": {
+        "summary": "Módulos da equipa a que a sessão tem acesso, com o nível (B41)",
+        "description": "Calculado na API (o Backoffice nunca deduz permissões). Dono do tenant: `member` é `null` e `modules` são todos os módulos do catálogo que o tenant tem, ao nível máximo. Membro da equipa: só os módulos que lhe foram dados E que o tenant tem (`level` = `view` ou `edit`); `member` identifica-o. O `key` é o do catálogo (`GET /team/catalog`).",
+        "tags": [
+          "UserPermissions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Acesso efectivo da sessão",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "member": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "memberId": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "tenantName": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "modules": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "level": {
+                            "type": "string",
+                            "enum": [
+                              "view",
+                              "edit"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error fetching access"
           }
         }
       }
@@ -15755,6 +15910,660 @@
         }
       }
     },
+    "/team/catalog": {
+      "get": {
+        "summary": "Catálogo de permissões que o tenant pode dar à equipa",
+        "description": "Só o dono do tenant (membro → 403 `TEAM_OWNER_ONLY`; conta admin → 403 `TEAM_ADMIN_FORBIDDEN`). Cada módulo do catálogo traz `available` (o tenant tem o componente RBAC que ele exige) — só os disponíveis se podem dar. Fase 1: primeiro nível (módulos); a fase 2 acrescenta nós.",
+        "tags": [
+          "Team"
+        ],
+        "responses": {
+          "200": {
+            "description": "Catálogo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "modules": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "requiresComponent": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "levels": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "view",
+                                "edit"
+                              ]
+                            }
+                          },
+                          "available": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "maxMembers": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`TEAM_OWNER_ONLY` ou `TEAM_ADMIN_FORBIDDEN`"
+          }
+        }
+      }
+    },
+    "/team": {
+      "get": {
+        "summary": "Membros da equipa do tenant",
+        "description": "Só o dono. Devolve os membros do tenant autenticado com as suas permissões (folhas). Nunca devolve password nem tokens.",
+        "tags": [
+          "Team"
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de membros",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TeamMember"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`TEAM_OWNER_ONLY` ou `TEAM_ADMIN_FORBIDDEN`"
+          }
+        }
+      },
+      "post": {
+        "summary": "Convidar um membro para a equipa",
+        "description": "Só o dono; escrita fechada em sessão de suporte (`IMPERSONATION_FORBIDDEN`). Cria o membro em `invited` e envia o email com o link de definição de password (24 h, o ecrã `SetupPassword`). O email é único entre `Users` e `TeamMembers`. Tecto: só chaves do catálogo, níveis permitidos e módulos que o tenant tem.",
+        "tags": [
+          "Team"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "email"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "grants": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/TeamGrantInput"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Membro criado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "member": {
+                      "$ref": "#/components/schemas/TeamMember"
+                    },
+                    "emailSent": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos (zod)"
+          },
+          "403": {
+            "description": "`TEAM_OWNER_ONLY`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
+          },
+          "409": {
+            "description": "`EMAIL_IN_USE` (email de um User ou de outro membro) ou `TEAM_LIMIT`"
+          },
+          "422": {
+            "description": "`TEAM_GRANT_NOT_ALLOWED` — chave/nível fora do catálogo, repetida, ou módulo que o tenant não tem"
+          }
+        }
+      }
+    },
+    "/team/{memberId}": {
+      "put": {
+        "summary": "Editar o nome e as permissões de um membro",
+        "description": "Só o dono. `grants`, se vier, SUBSTITUI as permissões do membro (mesmo tecto do convite). O efeito é no pedido seguinte do membro (as permissões são lidas a cada pedido). Membro de outro tenant → 404.",
+        "tags": [
+          "Team"
+        ],
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "grants": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/TeamGrantInput"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Membro actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamMember"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos (zod)"
+          },
+          "403": {
+            "description": "`TEAM_OWNER_ONLY`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
+          },
+          "404": {
+            "description": "Membro não encontrado (ou de outro tenant)"
+          },
+          "422": {
+            "description": "`TEAM_GRANT_NOT_ALLOWED`"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remover um membro",
+        "description": "Só o dono. Apaga o membro, as permissões e as sessões (o registo de auditoria fica com o nome, sem FK). O email fica livre. Membro de outro tenant → 404.",
+        "tags": [
+          "Team"
+        ],
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Membro removido"
+          },
+          "403": {
+            "description": "`TEAM_OWNER_ONLY`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
+          },
+          "404": {
+            "description": "Membro não encontrado (ou de outro tenant)"
+          }
+        }
+      }
+    },
+    "/team/{memberId}/resend-invite": {
+      "post": {
+        "summary": "Reenviar o convite a um membro ainda não aceite",
+        "description": "Só o dono. Só para `invited` (senão 409 `TEAM_NOT_INVITED`). Gera um token novo (o anterior deixa de valer).",
+        "tags": [
+          "Team"
+        ],
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Convite reenviado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "emailSent": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`TEAM_OWNER_ONLY`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
+          },
+          "404": {
+            "description": "Membro não encontrado (ou de outro tenant)"
+          },
+          "409": {
+            "description": "`TEAM_NOT_INVITED`"
+          }
+        }
+      }
+    },
+    "/team/{memberId}/send-reset": {
+      "post": {
+        "summary": "Enviar a um membro activo o email para redefinir a password",
+        "description": "Só o dono (\"esqueci a password\" de um membro: as contas também não têm fluxo público). Só para `active` (senão 409 `TEAM_NOT_ACTIVE`). O token é o `setupToken`, consumido por `POST /users/setup-password`, que também termina as sessões do membro.",
+        "tags": [
+          "Team"
+        ],
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Email enviado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "emailSent": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`TEAM_OWNER_ONLY`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
+          },
+          "404": {
+            "description": "Membro não encontrado (ou de outro tenant)"
+          },
+          "409": {
+            "description": "`TEAM_NOT_ACTIVE`"
+          }
+        }
+      }
+    },
+    "/team/{memberId}/disable": {
+      "post": {
+        "summary": "Desactivar um membro",
+        "description": "Só o dono. `status=disabled`, `tokenVersion++` e refresh tokens revogados: a sessão morre no pedido seguinte (401). O convite pendente também deixa de valer. Idempotente.",
+        "tags": [
+          "Team"
+        ],
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Membro desactivado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamMember"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`TEAM_OWNER_ONLY`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
+          },
+          "404": {
+            "description": "Membro não encontrado (ou de outro tenant)"
+          }
+        }
+      }
+    },
+    "/team/{memberId}/enable": {
+      "post": {
+        "summary": "Reactivar um membro desactivado",
+        "description": "Só o dono. Volta a `active` se já tinha password; senão volta a `invited` e é enviado um convite novo. Só para `disabled` (senão 409 `TEAM_NOT_DISABLED`).",
+        "tags": [
+          "Team"
+        ],
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Membro reactivado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "member": {
+                      "$ref": "#/components/schemas/TeamMember"
+                    },
+                    "emailSent": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`TEAM_OWNER_ONLY`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
+          },
+          "404": {
+            "description": "Membro não encontrado (ou de outro tenant)"
+          },
+          "409": {
+            "description": "`TEAM_NOT_DISABLED`"
+          }
+        }
+      }
+    },
+    "/team/{memberId}/revoke-sessions": {
+      "post": {
+        "summary": "Terminar todas as sessões de um membro",
+        "description": "Só o dono. `tokenVersion++` e refresh tokens revogados; o membro tem de voltar a entrar.",
+        "tags": [
+          "Team"
+        ],
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sessões terminadas"
+          },
+          "403": {
+            "description": "`TEAM_OWNER_ONLY`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
+          },
+          "404": {
+            "description": "Membro não encontrado (ou de outro tenant)"
+          }
+        }
+      }
+    },
+    "/team/me": {
+      "get": {
+        "summary": "O próprio membro da equipa (perfil + módulos)",
+        "description": "Só para sessões de membro (o dono recebe 403 `TEAM_MEMBER_ONLY`). Não expõe dados do negócio.",
+        "tags": [
+          "Team"
+        ],
+        "responses": {
+          "200": {
+            "description": "Perfil do membro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "memberId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "tenantName": {
+                      "type": "string"
+                    },
+                    "lastLoginAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "modules": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "level": {
+                            "type": "string",
+                            "enum": [
+                              "view",
+                              "edit"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`TEAM_MEMBER_ONLY`"
+          }
+        }
+      },
+      "put": {
+        "summary": "Mudar o próprio nome (membro)",
+        "tags": [
+          "Team"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Perfil actualizado (mesmo corpo do GET)"
+          },
+          "400": {
+            "description": "Dados inválidos (zod)"
+          },
+          "403": {
+            "description": "`TEAM_MEMBER_ONLY`"
+          }
+        }
+      }
+    },
+    "/team/me/password": {
+      "put": {
+        "summary": "Mudar a própria password (membro)",
+        "description": "Exige `currentPassword`. Sobe o `tokenVersion` do MEMBRO (nunca o do tenant) e revoga as suas outras sessões; reemite um par novo para esta (`accessToken` + cookie de refresh), como `PUT /users/me/password`. Limitada por `meRateLimit` (balde próprio do membro).",
+        "tags": [
+          "Team"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "currentPassword",
+                  "newPassword"
+                ],
+                "properties": {
+                  "currentPassword": {
+                    "type": "string"
+                  },
+                  "newPassword": {
+                    "type": "string",
+                    "minLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password alterada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos (zod)"
+          },
+          "401": {
+            "description": "`currentPassword` incorrecta"
+          },
+          "403": {
+            "description": "`TEAM_MEMBER_ONLY`"
+          }
+        }
+      }
+    },
+    "/admin/users/{userId}/team": {
+      "get": {
+        "summary": "Equipa de um tenant (só leitura, para suporte)",
+        "description": "Só o dono da plataforma (`VIEW_ADMIN`). Lista nome, email, estado, último acesso e módulos dos membros do tenant. Nunca password nem tokens. Mexer na equipa é com o tenant (ou numa sessão de suporte, com o consentimento dele).",
+        "tags": [
+          "Team"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Membros do tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TeamMember"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant não encontrado"
+          }
+        }
+      }
+    },
     "/uploads": {
       "post": {
         "operationId": "uploadImage",
@@ -16286,6 +17095,10 @@
     {
       "name": "Settings",
       "description": "Tenant configuration settings"
+    },
+    {
+      "name": "Team",
+      "description": "Equipa do tenant (B41) — membros com acesso por módulo (ver/editar). O membro NÃO é um User."
     }
   ]
 }

@@ -168,3 +168,27 @@ export function resolveLegacyTabTarget(root: string, id: string | null, restSear
   if (!item) return null;
   return `${item.path}${restSearch ? `?${restSearch}` : ""}`;
 }
+
+/**
+ * Equipa (B41): módulo do catálogo da API a que cada root da sidebar pertence. É o que o `useWriteGuard` usa para
+ * saber se o membro só pode VER a página em que está. `/despesas` e `/financeiro/despesas` são o módulo `despesas`
+ * (o resto do Financeiro é só do dono na fase 1).
+ */
+export const ROOT_MODULE: Record<string, string> = {
+  "/agenda": "agenda",
+  "/loja": "loja",
+  "/ginasio": "ginasio",
+  "/clientes": "clientes",
+  "/despesas": "despesas",
+  "/financeiro/despesas": "despesas",
+  "/conteudos": "conteudos",
+  "/paginas": "paginas",
+  "/mensagens": "mensagens",
+  "/estatisticas": "estatisticas",
+};
+
+/** Chave do módulo da equipa a que `pathname` pertence, ou `undefined` (Dashboard, Perfil, Equipa, …). */
+export function moduleForPath(pathname: string): string | undefined {
+  const root = findRoot(pathname, Object.keys(ROOT_MODULE));
+  return root ? ROOT_MODULE[root] : undefined;
+}

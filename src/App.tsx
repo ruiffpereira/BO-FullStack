@@ -19,6 +19,8 @@ import { Paginas } from "./pages/paginas/Paginas";
 import { Mensagens } from "./pages/Mensagens";
 import { Faturacao } from "./pages/Faturacao";
 import { Perfil } from "./pages/Perfil";
+import { Equipa } from "./pages/Equipa";
+import { EmptyState } from "./ui/ui.jsx";
 import { SupportEntry } from "./pages/SupportEntry";
 import { SupportEnded } from "./pages/SupportEnded";
 import { resolveLegacyTabTarget } from "./lib/navigation";
@@ -81,12 +83,22 @@ function AdminEntry() {
   return <Admin view="utilizadores" />;
 }
 
+function MemberHome() {
+  return (
+    <EmptyState
+      icon="lock"
+      title="Ainda não tens acesso a nenhum módulo"
+      desc="Pede ao dono da conta para te dar acesso ao que precisas."
+    />
+  );
+}
+
 function App() {
   // Fonte única do tema (T3.4, src/hooks/useThemeSync.ts): init lazy local
   // (localStorage > sistema > dark) até autenticar, servidor > localStorage >
   // sistema depois de GET /users/me resolver — ver docstring do hook.
   const { theme, toggleTheme } = useThemeSync();
-  const { isAuthenticated, initializing, reconnecting, supportEnded } = useAuth();
+  const { isAuthenticated, initializing, reconnecting, supportEnded, isMember } = useAuth();
   const location = useLocation();
 
   useEffect(() => {
@@ -177,7 +189,9 @@ function App() {
     <Shell theme={theme} onToggleTheme={toggleTheme}>
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        {/* Um membro da equipa não tem Dashboard (agrega todos os módulos — fase 2): o Shell leva-o ao 1.º módulo
+            que tem; sem nenhum, vê este estado vazio em vez de a página montar e levar 403. */}
+        <Route path="/dashboard" element={isMember ? <MemberHome /> : <Dashboard />} />
         <Route path="/estatisticas" element={<Estatisticas />} />
         {/* Construtor de páginas: o item "Páginas" da sidebar só existe com VIEW_SITE_PAGES; o guard do Shell trata o resto. */}
         <Route path="/paginas" element={<Paginas />} />
@@ -193,7 +207,9 @@ function App() {
         <Route path="/faturacao" element={<Faturacao />} />
         <Route path="/mensagens" element={<Mensagens />} />
         {/* Core, fora da sidebar — acede-se pelo menu do avatar no topbar (Shell.tsx). */}
-        <Route path="/perfil" element={<Perfil />} />
+        <Route path="/perfil" element={<Perfil theme={theme} onToggleTheme={toggleTheme} />} />
+        {/* Equipa (B41): só o dono do tenant — o guard do Shell expulsa a conta admin e os membros. */}
+        <Route path="/equipa" element={<Equipa />} />
         <Route path="/loja" element={<LegacyTabEntry root="/loja" param="tab"><Loja view="produtos" /></LegacyTabEntry>} />
         <Route path="/loja/encomendas" element={<Loja view="encomendas" />} />
         <Route path="/loja/categorias" element={<Loja view="categorias" />} />

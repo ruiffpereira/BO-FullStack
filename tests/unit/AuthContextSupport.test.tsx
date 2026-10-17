@@ -38,6 +38,11 @@ vi.mock("../../src/gen/backoffice/hooks/useGetCsrfToken", () => ({
   getCsrfToken: (...args: unknown[]) => getCsrfTokenMock(...args),
 }));
 const getUserpermissionsMock = vi.fn();
+// B41 — acesso da equipa: por omissão o dono do tenant (`member: null`).
+const getUserpermissionsAccessMock = vi.fn();
+vi.mock("../../src/gen/backoffice/hooks/useGetUserpermissionsAccess", () => ({
+  getUserpermissionsAccess: (...args: unknown[]) => getUserpermissionsAccessMock(...args),
+}));
 vi.mock("../../src/gen/backoffice/hooks/useGetUserpermissions", () => ({
   getUserpermissions: (...args: unknown[]) => getUserpermissionsMock(...args),
 }));
@@ -118,6 +123,7 @@ beforeEach(() => {
   sessionStorage.clear();
   getCsrfTokenMock.mockResolvedValue({ csrfToken: "csrf-token-abc" });
   getUserpermissionsMock.mockResolvedValue([]);
+  getUserpermissionsAccessMock.mockResolvedValue({ member: null, modules: [] });
   axiosPostMock.mockResolvedValue({ status: 200, data: {} });
 });
 

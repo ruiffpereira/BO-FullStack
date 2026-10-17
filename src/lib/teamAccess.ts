@@ -1,0 +1,71 @@
+import { toast } from "sonner";
+
+/**
+ * Equipa do tenant (B41) — peças puras do lado do Backoffice. A decisão de quem pode o quê é SEMPRE da API
+ * (`GET /userpermissions/access`); aqui só há textos, o feedback reactivo dos 403 e o mapa pathname → módulo.
+ */
+
+/** Motivo único (PT) dos CTAs de escrita desactivados a um membro que só tem `view` no módulo da página. */
+export const VIEW_ONLY_MESSAGE = "Só tens permissão para ver";
+/** 403 `TEAM_OWNER_ONLY`: área que nunca é delegável (faturação, perfil do negócio, …). */
+export const OWNER_ONLY_MESSAGE = "Esta área é só do dono da conta";
+
+const TOAST_ID = "team-403";
+const THROTTLE_MS = 5_000;
+let lastShownAt = 0;
+
+/**
+ * Feedback reactivo, no molde de `billing402.ts`: um toast coalescido quando a API recusa por permissões da
+ * equipa (`TEAM_FORBIDDEN` ao escrever com `view` / fora dos módulos; `TEAM_OWNER_ONLY`). Não engole o erro.
+ */
+export function notifyTeamForbidden(status: number | undefined, data: unknown): boolean {
+  if (status !== 403) return false;
+  const code = (data as { code?: unknown } | null | undefined)?.code;
+  if (code !== "TEAM_FORBIDDEN" && code !== "TEAM_OWNER_ONLY") return false;
+  const now = Date.now();
+  if (now - lastShownAt < THROTTLE_MS) return true;
+  lastShownAt = now;
+  toast.error(code === "TEAM_OWNER_ONLY" ? OWNER_ONLY_MESSAGE : VIEW_ONLY_MESSAGE, { id: TOAST_ID });
+  return true;
+}
+
+/** Reset do throttle — só para testes. */
+export function resetTeamForbiddenThrottle() {
+  lastShownAt = 0;
+}
+
+export type TeamMemberStatus = "invited" | "active" | "disabled";
+
+export const MEMBER_STATUS_LABEL: Record<TeamMemberStatus, string> = {
+  invited: "Convidado",
+  active: "Activo",
+  disabled: "Desactivado",
+};
+
+export const MEMBER_STATUS_TONE: Record<TeamMemberStatus, "blue" | "green" | "neutral"> = {
+  invited: "blue",
+  active: "green",
+  disabled: "neutral",
+};
+
+/** Mensagem PT para os erros de `/team*` (códigos da API). */
+export function teamErrorMessage(error: unknown, fallback: string): string {
+  const data = (error as any)?.response?.data;
+  switch (data?.code) {
+    case "EMAIL_IN_USE":
+      return "Este email já está a ser usado por outra conta ou membro.";
+    case "TEAM_LIMIT":
+      return "Atingiste o número máximo de membros da equipa.";
+    case "TEAM_GRANT_NOT_ALLOWED":
+      return "Há permissões que o teu negócio não pode dar.";
+    case "TEAM_ADMIN_FORBIDDEN":
+      return "A conta de administrador não tem equipa.";
+    case "TEAM_OWNER_ONLY":
+      return OWNER_ONLY_MESSAGE + ".";
+    case "IMPERSONATION_FORBIDDEN":
+      return "Esta acção não está disponível numa sessão de suporte.";
+  }
+  if (typeof data?.error === "string" && data.error) return data.error;
+  if (typeof data?.message === "string" && data.message) return data.message;
+  return fallback;
+}

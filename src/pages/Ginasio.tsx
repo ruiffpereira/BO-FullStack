@@ -23,6 +23,7 @@ import { usePageSubtitle } from '../context/PageMetaContext'
 import { usePagination, Pagination } from '../components/Pagination'
 import { LineChart, DonutChart } from '../ui/charts.jsx'
 import { useGetCustomers } from '../gen/backoffice/hooks/useGetCustomers.js'
+import { useTeamAccess } from '../hooks/useTeamAccess'
 import { useGetGymExercises, getGymExercisesQueryKey } from '../gen/backoffice/hooks/useGetGymExercises.js'
 import { postGymExercises } from '../gen/backoffice/hooks/usePostGymExercises.js'
 import { putGymExercisesId } from '../gen/backoffice/hooks/usePutGymExercisesId.js'
@@ -35,7 +36,7 @@ import { deleteGymProgramsId } from '../gen/backoffice/hooks/useDeleteGymProgram
 import { CmsCombo } from '../components/CmsCombo'
 import { CmsTranslationsModal } from '../components/CmsTranslationsModal'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { GuardButton } from '../components/GuardButton'
+import { GuardButton, GuardIconButton } from '../components/GuardButton'
 import { ensureCmsName } from '../lib/gymCms'
 import { useGetSettingsLanguages } from '../hooks/useSettingsLanguages'
 import { putGymWorkoutsId } from '../gen/backoffice/hooks/usePutGymWorkoutsId.js'
@@ -453,8 +454,8 @@ function GrupoModal({ grupo, onClose }: { grupo: Group | null; onClose: () => vo
         footer={
           <>
             <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-            {grupo && <Button variant="danger" icon="trash" onClick={() => setConfirmDelGrupo(true)}>Eliminar grupo</Button>}
-            <Button icon="check" isLoading={save.isPending} disabled={!name.trim()} onClick={() => save.mutate()}>{grupo ? 'Guardar' : 'Criar'}</Button>
+            {grupo && <GuardButton variant="danger" icon="trash" onClick={() => setConfirmDelGrupo(true)}>Eliminar grupo</GuardButton>}
+            <GuardButton icon="check" isLoading={save.isPending} disabled={!name.trim()} onClick={() => save.mutate()}>{grupo ? 'Guardar' : 'Criar'}</GuardButton>
           </>
         }>
         <div className="space-y-4">
@@ -743,13 +744,13 @@ function CatalogoTab() {
         <div>
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Procurar exercício…" className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm px-3 py-2 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 text-zinc-800 dark:text-zinc-100" />
-            <Button icon="plus" onClick={startCreate}>Novo exercício</Button>
+            <GuardButton icon="plus" onClick={startCreate}>Novo exercício</GuardButton>
           </div>
 
           {isLoading ? (
             <Card className="p-8 text-center text-zinc-400">A carregar…</Card>
           ) : filtered.length === 0 ? (
-            <EmptyState icon="box" title="Sem exercícios" desc="Cria exercícios para os usar nos treinos dos clientes." action={<Button icon="plus" onClick={startCreate}>Novo exercício</Button>} />
+            <EmptyState icon="box" title="Sem exercícios" desc="Cria exercícios para os usar nos treinos dos clientes." action={<GuardButton icon="plus" onClick={startCreate}>Novo exercício</GuardButton>} />
           ) : (
             <>
             <div className="space-y-2">
@@ -764,7 +765,7 @@ function CatalogoTab() {
                     <Badge tone="neutral">{e.presets?.length ?? 0} preset{(e.presets?.length ?? 0) === 1 ? '' : 's'}</Badge>
                     <span onClick={(ev) => ev.stopPropagation()} className="flex items-center gap-1">
                       <IconButton icon="edit" label="Editar" onClick={() => startEdit(e)} />
-                      <IconButton icon="trash" label="Eliminar" className="hover:text-red-500" onClick={() => setConfirmDel(e)} />
+                      <GuardIconButton icon="trash" label="Eliminar" className="hover:text-red-500" onClick={() => setConfirmDel(e)} />
                     </span>
                   </div>
                   <div className="px-3.5 pb-3.5 pt-1 border-t border-zinc-50 dark:border-zinc-800/50">
@@ -795,7 +796,7 @@ function CatalogoTab() {
         footer={
           <>
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button
+            <GuardButton
               isLoading={save.isPending}
               disabled={!canCreate}
               onClick={() => {
@@ -807,7 +808,7 @@ function CatalogoTab() {
               }}
             >
               {editing ? 'Guardar alterações' : 'Criar exercício'}
-            </Button>
+            </GuardButton>
           </>
         }
       >
@@ -845,7 +846,7 @@ function CatalogoTab() {
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-medium text-zinc-500">Presets ({presets.length})</span>
               {(!presetEdit || presetEdit.form.name.trim()) && (
-                <Button
+                <GuardButton
                   size="sm" variant="ghost" icon="plus"
                   onClick={() => {
                     // Se já há um rascunho válido aberto, comita-o antes de abrir um
@@ -856,7 +857,7 @@ function CatalogoTab() {
                   }}
                 >
                   Adicionar preset
-                </Button>
+                </GuardButton>
               )}
             </div>
             {presets.length === 0 && !presetEdit ? (
@@ -871,7 +872,7 @@ function CatalogoTab() {
                       <p className="text-xs text-zinc-400 tabular-nums">{draftResumo(p)}{p.notes ? ` · ${p.notes}` : ''}</p>
                     </div>
                     <IconButton icon="edit" label="Editar preset" onClick={() => setPresetEdit({ form: { ...p }, isNew: false })} />
-                    <IconButton icon="trash" label="Remover preset" onClick={() => setPresets((ps) => ps.filter((x) => x.id !== p.id))} />
+                    <GuardIconButton icon="trash" label="Remover preset" onClick={() => setPresets((ps) => ps.filter((x) => x.id !== p.id))} />
                   </div>
                 ))}
               </div>
@@ -1026,7 +1027,7 @@ function AjustarModal({ row, onClose, onSave }: {
   }
   return (
     <Modal open onClose={onClose} width="max-w-md" title="Ajustar p/ este treino" subtitle={row.name}
-      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><Button icon="check" onClick={save}>Guardar</Button></>}>
+      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><GuardButton icon="check" onClick={save}>Guardar</GuardButton></>}>
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={() => setType('strength')} className={togCls(type === 'strength')}>Força (séries/reps)</button>
@@ -1120,7 +1121,7 @@ function ExerciseRowsEditor({ rows, setRows, catalog }: {
                           <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">{row.name}</p>
                           <p className="text-[11px] text-zinc-400">{row.group}{row.subGroup ? ` · ${row.subGroup}` : ''}</p>
                         </div>
-                        <IconButton icon="trash" label="Remover" onClick={() => removeRow(row.uid)} />
+                        <GuardIconButton icon="trash" label="Remover" onClick={() => removeRow(row.uid)} />
                       </div>
                       <div className="flex items-center gap-2 flex-wrap mt-2 pl-10">
                         {presets.length > 0 && (
@@ -1282,7 +1283,7 @@ function WorkoutTemplateModal({ open, onClose, template, catalog, onSaved, onCre
           <button onClick={handleClose} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"><Icon name="chevronLeft" className="w-4 h-4" />Voltar aos treinos</button>
           <div className="sm:ml-auto flex items-center gap-2">
             <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
-            <Button isLoading={save.isPending} disabled={!name.trim() || rows.length === 0} onClick={() => { save.mutate(); setDirty(false) }}>{template ? 'Guardar treino' : 'Criar treino'}</Button>
+            <GuardButton isLoading={save.isPending} disabled={!name.trim() || rows.length === 0} onClick={() => { save.mutate(); setDirty(false) }}>{template ? 'Guardar treino' : 'Criar treino'}</GuardButton>
           </div>
         </div>
 
@@ -1379,12 +1380,12 @@ function TreinosTab() {
           />
         </div>
         <p className="text-sm text-zinc-500 sm:ml-auto">{filtered.length} dia{filtered.length === 1 ? '' : 's'} de treino reutilizáve{filtered.length === 1 ? 'l' : 'is'}</p>
-        <Button icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo dia de treino</Button>
+        <GuardButton icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo dia de treino</GuardButton>
       </div>
       {isLoading ? (
         <Card className="p-8 text-center text-zinc-400">A carregar…</Card>
       ) : templates.length === 0 ? (
-        <EmptyState icon="folder" title="Sem dias de treino" desc="Cria dias de treino reutilizáveis (conjuntos de exercícios) para usar nos Planos e atribuir aos clientes." action={<Button icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo dia de treino</Button>} />
+        <EmptyState icon="folder" title="Sem dias de treino" desc="Cria dias de treino reutilizáveis (conjuntos de exercícios) para usar nos Planos e atribuir aos clientes." action={<GuardButton icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo dia de treino</GuardButton>} />
       ) : filtered.length === 0 ? (
         <EmptyState icon="search" title="Sem resultados" desc="Não há dias de treino que correspondam à pesquisa." />
       ) : (
@@ -1408,7 +1409,7 @@ function TreinosTab() {
                   </div>
                 </div>
                 <span onClick={(e) => e.stopPropagation()}>
-                  <IconButton icon="trash" label="Eliminar" onClick={() => setConfirmDel(t)} className="hover:text-red-500" />
+                  <GuardIconButton icon="trash" label="Eliminar" onClick={() => setConfirmDel(t)} className="hover:text-red-500" />
                 </span>
                 <Icon name="chevronRight" className="w-4 h-4 text-zinc-300 shrink-0" />
               </div>
@@ -1955,7 +1956,7 @@ function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
         <button onClick={handleClose} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"><Icon name="chevronLeft" className="w-4 h-4" />Voltar aos planos</button>
         <div className="sm:ml-auto flex items-center gap-2">
           <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
-          <Button isLoading={save.isPending} disabled={!canSave} onClick={() => { save.mutate(); setDirty(false) }}>{plano ? 'Guardar plano' : 'Criar plano'}</Button>
+          <GuardButton isLoading={save.isPending} disabled={!canSave} onClick={() => { save.mutate(); setDirty(false) }}>{plano ? 'Guardar plano' : 'Criar plano'}</GuardButton>
         </div>
       </div>
 
@@ -2002,7 +2003,7 @@ function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
                       <Icon name="plus" className="w-4 h-4" />Atribuir treino <span className="text-zinc-300 dark:text-zinc-600">· ou descanso</span>
                     </button>
                   )}
-                  {mode === 'free' && <IconButton icon="trash" label="Remover dia" onClick={() => removeDia(d.uid)} className="hover:text-red-500" />}
+                  {mode === 'free' && <GuardIconButton icon="trash" label="Remover dia" onClick={() => removeDia(d.uid)} className="hover:text-red-500" />}
                 </Card>
               )
             })}
@@ -2096,13 +2097,13 @@ function PlanosTab() {
           />
         </div>
         <p className="text-sm text-zinc-500 sm:ml-auto">{filtered.length} plano{filtered.length === 1 ? '' : 's'} de treino</p>
-        <Button icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo plano</Button>
+        <GuardButton icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo plano</GuardButton>
       </div>
 
       {isLoading ? (
         <Card className="p-8 text-center text-zinc-400">A carregar…</Card>
       ) : planos.length === 0 ? (
-        <EmptyState icon="folder" title="Sem planos" desc="Cria um plano (conjunto de treinos por dias da semana) e atribui-o a clientes." action={<Button icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo plano</Button>} />
+        <EmptyState icon="folder" title="Sem planos" desc="Cria um plano (conjunto de treinos por dias da semana) e atribui-o a clientes." action={<GuardButton icon="plus" onClick={() => { setEditing(null); setOpen(true) }}>Novo plano</GuardButton>} />
       ) : filtered.length === 0 ? (
         <EmptyState icon="search" title="Sem resultados" desc="Não há planos que correspondam à pesquisa." />
       ) : (
@@ -2128,7 +2129,7 @@ function PlanosTab() {
                       </div>
                     </div>
                     <span onClick={(e) => e.stopPropagation()} className="shrink-0">
-                      <IconButton icon="trash" label="Eliminar" onClick={() => setConfirmDel(p)} className="hover:text-red-500 w-7 h-7" />
+                      <GuardIconButton icon="trash" label="Eliminar" onClick={() => setConfirmDel(p)} className="hover:text-red-500 w-7 h-7" />
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-1 mt-2.5">
@@ -2227,7 +2228,7 @@ function DiaTreinoEditor({ initialName, initialContentKey, initialRows, catalog,
         <button onClick={handleClose} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"><Icon name="chevronLeft" className="w-4 h-4" />Voltar ao plano</button>
         <div className="sm:ml-auto flex items-center gap-2">
           <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
-          <Button disabled={!name.trim() || rows.length === 0} onClick={() => { onSave(name, contentKey, rows); setDirty(false) }}>Guardar treino</Button>
+          <GuardButton disabled={!name.trim() || rows.length === 0} onClick={() => { onSave(name, contentKey, rows); setDirty(false) }}>Guardar treino</GuardButton>
         </div>
       </div>
 
@@ -2503,7 +2504,7 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
         <button onClick={handleClose} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"><Icon name="chevronLeft" className="w-4 h-4" />Voltar</button>
         <div className="sm:ml-auto flex items-center gap-2">
           <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
-          <Button isLoading={save.isPending} disabled={!canSave} onClick={() => { save.mutate(); setDirty(false) }}>Guardar plano do cliente</Button>
+          <GuardButton isLoading={save.isPending} disabled={!canSave} onClick={() => { save.mutate(); setDirty(false) }}>Guardar plano do cliente</GuardButton>
         </div>
       </div>
 
@@ -2563,7 +2564,7 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
                       <Icon name="plus" className="w-4 h-4" />Atribuir treino <span className="text-zinc-300 dark:text-zinc-600">· ou descanso</span>
                     </button>
                   )}
-                  {mode === 'free' && <IconButton icon="trash" label="Remover dia" onClick={() => removeDia(d.uid)} className="hover:text-red-500" />}
+                  {mode === 'free' && <GuardIconButton icon="trash" label="Remover dia" onClick={() => removeDia(d.uid)} className="hover:text-red-500" />}
                 </Card>
               )
             })}
@@ -2639,7 +2640,7 @@ function AtribuirPlanoModal({ open, customer, planos, onClose, onSaved }: {
   })
   return (
     <Modal open={open} onClose={onClose} width="max-w-lg" title="Atribuir plano" subtitle={customer ? `Cliente: ${customer.name}` : ''}
-      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><Button icon="check" isLoading={assign.isPending} disabled={!sel || erroData} onClick={() => assign.mutate()}>Guardar</Button></>}>
+      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><GuardButton icon="check" isLoading={assign.isPending} disabled={!sel || erroData} onClick={() => assign.mutate()}>Guardar</GuardButton></>}>
       <div className="space-y-2 max-h-[42vh] overflow-y-auto -mx-1 px-1">
         {planos.length === 0 && <p className="text-sm text-zinc-400 text-center py-6">Sem planos. Cria um plano primeiro na tab “Planos”.</p>}
         {planos.map((p) => {
@@ -2747,7 +2748,7 @@ function ClienteProgresso({ customer, onBack, onAtribuir, onEditar }: { customer
             {active ? <Badge tone="blue" dot>{active.name}</Badge> : <Badge tone="amber" dot>Sem plano</Badge>}
             {active && <Button variant="outline" size="sm" icon="edit" onClick={onEditar}>Editar plano</Button>}
             {active && <Button variant="outline" size="sm" icon="printer" onClick={handlePdf}>PDF do plano</Button>}
-            <Button variant={active ? 'ghost' : 'outline'} size="sm" icon="calendar" onClick={onAtribuir}>{active ? 'Mudar plano' : 'Atribuir plano'}</Button>
+            <GuardButton variant={active ? 'ghost' : 'outline'} size="sm" icon="calendar" onClick={onAtribuir}>{active ? 'Mudar plano' : 'Atribuir plano'}</GuardButton>
           </div>
         </div>
       </Card>
@@ -2787,7 +2788,7 @@ function ClienteProgresso({ customer, onBack, onAtribuir, onEditar }: { customer
                       </GuardButton>
                     )}
                     {!prog.active && (
-                      <IconButton
+                      <GuardIconButton
                         icon="trash"
                         label="Eliminar programa"
                         className="hover:text-red-500"
@@ -2838,7 +2839,7 @@ function ClientePlanoEditorLoader({ customer, onClose, onAtribuir }: { customer:
           icon="calendar"
           title="Sem plano ativo"
           desc="Atribui um plano ao cliente antes de o editares."
-          action={onAtribuir ? <Button icon="plus" onClick={onAtribuir}>Atribuir plano</Button> : undefined}
+          action={onAtribuir ? <GuardButton icon="plus" onClick={onAtribuir}>Atribuir plano</GuardButton> : undefined}
         /></Card>
       </div>
     )
@@ -2925,7 +2926,7 @@ function ClientesTab({ customers }: { customers: Cliente[] }) {
               >
                 <Avatar name={c.name} size={36} />
                 <p className="font-medium text-zinc-900 dark:text-white truncate flex-1 min-w-0">{c.name}</p>
-                <Button variant="ghost" size="sm" icon="calendar" onClick={(e?: any) => { e?.stopPropagation(); setAtribuir(c) }}>Atribuir plano</Button>
+                <GuardButton variant="ghost" size="sm" icon="calendar" onClick={(e?: any) => { e?.stopPropagation(); setAtribuir(c) }}>Atribuir plano</GuardButton>
                 <Icon name="chevronRight" className="w-4 h-4 text-zinc-300 shrink-0" />
               </div>
             ))}
@@ -2954,7 +2955,9 @@ function ClientesTab({ customers }: { customers: Cliente[] }) {
  * nome acessível com o item core `/clientes`).
  */
 export function Ginasio({ view }: { view: GinasioView }) {
-  const { data: custData } = useGetCustomers()
+  // Equipa (B41): um membro sem o módulo Clientes não lê `/customers` (403) — nem se pede.
+  const { can: canTeam } = useTeamAccess()
+  const { data: custData } = useGetCustomers({ query: { enabled: canTeam('clientes') } })
   const customers = (custData?.rows ?? []) as { customerId: string; name: string }[]
   usePageSubtitle('Exercícios, treinos, planos e progresso dos clientes.')
 

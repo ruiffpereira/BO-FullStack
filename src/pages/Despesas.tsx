@@ -24,6 +24,7 @@ import {
   type ExpenseCategory,
 } from '../hooks/useExpenseCategories'
 import { CATEGORY_COLORS, DEFAULT_CATEGORY_COLOR } from '../utils/expenseCategories'
+import { GuardButton, GuardIconButton } from '../components/GuardButton'
 
 const fmtEur = (n: number) =>
   '€' + (n || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -139,9 +140,9 @@ function CategoriesModal({ open, onClose, categories }: {
           </div>
           <div className="flex justify-end gap-2">
             {editing && <Button variant="ghost" size="sm" onClick={reset}>Cancelar</Button>}
-            <Button size="sm" onClick={submit} isLoading={createMut.isPending || updateMut.isPending}>
+            <GuardButton size="sm" onClick={submit} isLoading={createMut.isPending || updateMut.isPending}>
               {editing ? 'Guardar' : 'Adicionar'}
-            </Button>
+            </GuardButton>
           </div>
         </div>
 
@@ -156,7 +157,7 @@ function CategoriesModal({ open, onClose, categories }: {
                 <span className="flex-1 text-sm text-zinc-700 dark:text-zinc-200">{c.name}</span>
                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                   <IconButton icon="edit" label="Editar" className="w-8 h-8" onClick={() => startEdit(c)} />
-                  <IconButton icon="trash" label="Eliminar" className="w-8 h-8 hover:text-red-500" onClick={() => remove(c)} />
+                  <GuardIconButton icon="trash" label="Eliminar" className="w-8 h-8 hover:text-red-500" onClick={() => remove(c)} />
                 </div>
               </div>
             ))}
@@ -276,7 +277,7 @@ export function Despesas() {
           className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 px-3 py-2 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
         />
         <Button variant="outline" icon="settings" onClick={() => setCatsOpen(true)}>Categorias</Button>
-        <Button icon="plus" onClick={openCreate}>Nova despesa</Button>
+        <GuardButton icon="plus" onClick={openCreate}>Nova despesa</GuardButton>
       </PageHeader>
 
       {/* ── Resumo ── */}
@@ -334,7 +335,7 @@ export function Despesas() {
               ))}
             </div>
           ) : rows.length === 0 ? (
-            <EmptyState icon="euro" title="Sem despesas" desc="Regista a primeira despesa deste mês." action={<Button icon="plus" onClick={openCreate}>Nova despesa</Button>} />
+            <EmptyState icon="euro" title="Sem despesas" desc="Regista a primeira despesa deste mês." action={<GuardButton icon="plus" onClick={openCreate}>Nova despesa</GuardButton>} />
           ) : (
             <>
             <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -350,7 +351,7 @@ export function Despesas() {
                   <span className="text-sm font-semibold text-zinc-900 dark:text-white tabular-nums">{fmtEur(Number(e.amount) || 0)}</span>
                   <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <IconButton icon="edit" label="Editar" onClick={() => openEdit(e)} className="w-8 h-8" />
-                    <IconButton icon="trash" label="Eliminar" onClick={() => setConfirmDelete(e)} className="w-8 h-8 hover:text-red-500" />
+                    <GuardIconButton icon="trash" label="Eliminar" onClick={() => setConfirmDelete(e)} className="w-8 h-8 hover:text-red-500" />
                   </div>
                 </div>
               ))}
@@ -370,9 +371,9 @@ export function Despesas() {
         footer={
           <>
             <Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
-            <Button onClick={submit} isLoading={createMut.isPending || updateMut.isPending}>
+            <GuardButton onClick={submit} isLoading={createMut.isPending || updateMut.isPending}>
               {editing ? 'Guardar' : 'Registar'}
-            </Button>
+            </GuardButton>
           </>
         }
       >
@@ -411,7 +412,7 @@ export function Despesas() {
         footer={
           <>
             <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancelar</Button>
-            <Button variant="danger" onClick={doDelete} isLoading={deleteMut.isPending}>Eliminar</Button>
+            <GuardButton variant="danger" onClick={doDelete} isLoading={deleteMut.isPending}>Eliminar</GuardButton>
           </>
         }
       >

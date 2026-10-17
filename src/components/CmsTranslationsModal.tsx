@@ -7,6 +7,7 @@ import { useGetCmsEntries, getCmsEntriesQueryKey } from '../gen/backoffice/hooks
 import { getCmsSearchQueryKey } from '../gen/backoffice/hooks/useGetCmsSearch.js'
 import { putCmsEntries } from '../gen/backoffice/hooks/usePutCmsEntries.js'
 import { useGetSettingsLanguages } from '../hooks/useSettingsLanguages'
+import { GuardButton } from './GuardButton'
 
 const inputCls = 'w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 text-zinc-800 dark:text-zinc-100'
 
@@ -84,9 +85,9 @@ export function CmsTranslationsModal({
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <Button autoFocus onClick={handleSave} disabled={saving}>
+          <GuardButton autoFocus onClick={handleSave} disabled={saving}>
             {saving ? 'A guardar…' : 'Guardar'}
-          </Button>
+          </GuardButton>
         </>
       }
     >

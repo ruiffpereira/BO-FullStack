@@ -1924,10 +1924,10 @@ export function Conteudos({ view }: { view: ConteudosView }) {
                           )}
                         </button>
                       )}
-                      <Button icon="plus" size="sm" onClick={openCreateEntry}>
+                      <GuardButton icon="plus" size="sm" onClick={openCreateEntry}>
                         <span className="hidden sm:inline">Nova entrada</span>
                         <span className="sm:hidden">Nova</span>
-                      </Button>
+                      </GuardButton>
                     </div>
                   </div>
 
@@ -2375,13 +2375,13 @@ export function Conteudos({ view }: { view: ConteudosView }) {
               >
                 Cancelar
               </Button>
-              <Button
+              <GuardButton
                 onClick={() => importMut.mutate()}
                 disabled={importRows.length === 0}
                 isLoading={importMut.isPending}
               >
                 {`Importar ${importRows.length} ${importRows.length === 1 ? "entrada" : "entradas"}`}
-              </Button>
+              </GuardButton>
             </>
           }
         >

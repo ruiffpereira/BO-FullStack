@@ -47,6 +47,11 @@ vi.mock("../../src/gen/backoffice/hooks/useGetCsrfToken", () => ({
 }));
 
 const getUserpermissionsMock = vi.fn();
+// B41 — acesso da equipa: por omissão o dono do tenant (`member: null`).
+const getUserpermissionsAccessMock = vi.fn();
+vi.mock("../../src/gen/backoffice/hooks/useGetUserpermissionsAccess", () => ({
+  getUserpermissionsAccess: (...args: unknown[]) => getUserpermissionsAccessMock(...args),
+}));
 vi.mock("../../src/gen/backoffice/hooks/useGetUserpermissions", () => ({
   getUserpermissions: (...args: unknown[]) => getUserpermissionsMock(...args),
 }));
@@ -90,6 +95,7 @@ beforeEach(() => {
   responseInterceptorRef.current = null;
   getCsrfTokenMock.mockResolvedValue({ csrfToken: "csrf-token-abc" });
   getUserpermissionsMock.mockResolvedValue([]);
+  getUserpermissionsAccessMock.mockResolvedValue({ member: null, modules: [] });
 });
 
 describe("AuthContext — B12, os três estados do arranque (doRefresh)", () => {

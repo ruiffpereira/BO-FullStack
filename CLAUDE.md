@@ -77,7 +77,7 @@ semeia uma BD dedicada:
 - **`globalSetup`** corre `pnpm seed:e2e` (`API-FullStack/scripts/seedE2e.ts`): recria o schema
   (`sync force`) e cria **4 tenants** — `admin@e2e` (Admin), `limited@e2e` (só `VIEW_PRODUCTS`),
   `tenantA@e2e`/`tenantB@e2e` (Admin, dados distintos) — mais dados de negócio.
-  Password: `E2ePass123!`.
+  Password: `E2ePass123!`. + o tenant `equipa@e2e.local` ("Barbearia Navalha", não-admin) com dois membros de equipa — `membro@e2e.local` (agenda ver · clientes editar) e `convidado@e2e.local` (B41, `equipa.spec.ts`).
 
 **Autenticação nos specs:** os gerais importam `{ test, expect }` de `tests/e2e/fixtures/auth.ts`
 (login como `admin@e2e`). Os de **RBAC/isolamento** usam `loginAs(context, "<user>@e2e")` de
@@ -120,6 +120,7 @@ Detalhe de cada página em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
 | `Conteudos.tsx` | `/conteudos` · `/produtos` · `/servicos` · `/ginasio` · `/linguas` · `/emails` · `/notificacoes` | **core**, com gating **por subitem** |
 | `Faturacao.tsx` | `/faturacao` | **core** |
 | `FinanceiroPage.tsx` | `/financeiro` · `/agenda` · `/loja` · `/ginasio` · `/despesas` | **core**, subitens gated (Despesas → `VIEW_EXPENSES`) |
+| `Equipa.tsx` | `/equipa` | **só o dono do tenant** (menu do avatar; escondida na conta admin e a membros) — a equipa por módulo (B41), ver abaixo |
 | `Perfil.tsx` | `/perfil` | **core, fora da sidebar** (menu do avatar) |
 | `Agenda.tsx` | `/agenda` · `/marcacoes` · `/servicos` · `/config` | `VIEW_SCHEDULE` |
 | `Loja.tsx` | `/loja` · `/encomendas` · `/categorias` | `VIEW_PRODUCTS` |
@@ -149,6 +150,15 @@ Detalhe de cada página em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
   `/despesas` e `/perfil` entram em `guardRoots` como roots extra (senão o guard expulsa-os) — como
   `/website`, que só existe para os redirects legacy de compatibilidade (B35) chegarem a `/estatisticas`.
 
+### Equipa do tenant (B41) — o membro não é o dono
+
+Um **membro** da equipa entra pelo mesmo login e vê só os módulos que o dono lhe deu, cada um **[Ver | Editar]**. Detalhe em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md) → *Equipa do tenant*. Invariantes:
+
+- **`useAuth()` expõe `member` (`null` = dono), `isMember` e `can(chave, nível)`.** Os níveis vêm da API (`GET /userpermissions/access`) — **nunca** se calculam nem se deduzem no frontend. O dono pode sempre; `edit` implica `view`. Em sessão de suporte o admin é o **dono**.
+- **Um membro nunca pede o que a API recusa** (`TEAM_OWNER_ONLY`): nem `/billing`, `/users/me*`, `/dashboard`, `/financeiro`, `/notifications`, `/events/stream`, `/push`. Por isso o Shell esconde Dashboard/Financeiro (excepto Despesas)/Faturação/sino, `useSSE`/`BillingBanner`/`useBillingReadOnly` não arrancam, e o guard **não monta** a página de uma rota fora do permitido enquanto redirige. Um hook novo que corra em todas as páginas tem de respeitar `isMember`.
+- **"Só ver" é o `useWriteGuard`**, não um `disabled` à mão: o módulo da página resolve-se pelo pathname (`moduleForPath`, `ROOT_MODULE` em `lib/navigation.ts` — uma rota nova de módulo entra aí) e o motivo é "Só tens permissão para ver" (o billing tem prioridade). CTAs de escrita → `GuardButton`/`GuardIconButton`; um `<button>` cru de escrita usa `useWriteGuard()` (`readOnly` + `message`). Um 403 `TEAM_FORBIDDEN`/`TEAM_OWNER_ONLY` que escape dá toast (`notifyTeamForbidden`, ao lado do 402).
+- **O `/perfil` do membro é outra página** (`PerfilMembro`): só nome, password (`/team/me*`) e tema local. O tema de um membro **não** vai ao servidor.
+
 > ⚠ **Regra crítica — labels de subitens nunca duplicam nomes acessíveis da sidebar.** Quando um
 > grupo expande, subitens e itens de módulo coexistem no mesmo `<nav>`: um subitem homónimo de um
 > item sempre visível duplica o nome em qualquer `getByRole("button", { name })` e **parte os testes
@@ -177,9 +187,10 @@ eyebrows à mão.**
 **`Modal` tem pilha:** os modais registam-se numa pilha ao nível do módulo — **Esc fecha só o do
 topo** (antes um Esc destruía pilhas inteiras), com focus-trap no Tab e restauro do foco ao fechar.
 
-**`GuardButton`** é o drop-in do `Button` para **escritas** quando o billing está read-only — nunca
-para navegação, leitura, logout, portal Stripe ou chat de suporte. O interceptor 402
-(`billing402.ts`) fica como backstop reactivo.
+**`GuardButton`** (e `GuardIconButton` para acções só-ícone) é o drop-in do `Button` para **escritas** quando o
+billing está read-only **ou** um membro da equipa só pode ver o módulo da página ("Só tens permissão para ver") —
+nunca para navegação, leitura, logout, portal Stripe ou chat de suporte. O interceptor 402
+(`billing402.ts`) e o `notifyTeamForbidden` ficam como backstop reactivo.
 
 ---
 
@@ -212,6 +223,8 @@ depende dela.
   `x-csrf-token` · `authHeader()` para os hooks manuais.
 - `setAccessToken(token)` — adopta um token novo sem passar por login/refresh (usado depois de
   `PUT /users/me/password`, que faz bump ao `tokenVersion`) e realinha o `scheduleRefresh`.
+- Depois do refresh/login vai buscar também `GET /userpermissions/access` (`member`, `isMember`, `can()`; ver *Equipa do
+  tenant* acima) antes de a sessão ficar autenticada.
 - `updateIdentity({username?, email?})` — sincroniza a identidade em memória + localStorage sem
   round-trip, para o avatar/topbar ficarem coerentes sem logout.
 

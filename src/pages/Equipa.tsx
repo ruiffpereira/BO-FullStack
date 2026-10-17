@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Card, Badge, Button, Input, Modal, PageHeader, EmptyState, Tabs, SectionTitle } from "../ui/ui.jsx";
+import { Card, Badge, Button, Input, Modal, PageHeader, EmptyState, SectionTitle } from "../ui/ui.jsx";
 import { Icon } from "../ui/icons.jsx";
 import { useAuth } from "../context/AuthContext";
 import { usePageSubtitle } from "../context/PageMetaContext";
 import { GuardButton } from "../components/GuardButton";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useNarrow } from "../hooks/useNarrow";
+import { PermissionTree } from "../components/PermissionTree";
+import {
+  fullAccess,
+  grantsToMap,
+  serializeGrants,
+  type GrantMap,
+  type TreeNode,
+} from "../lib/teamTree";
 import { SUPPORT_UNAVAILABLE_NOTE } from "../lib/supportSession";
 import { formatDatePt, formatTimePt } from "../lib/supportLog";
 import {
@@ -27,13 +35,6 @@ import { usePostTeamMemberidEnable } from "../gen/backoffice/hooks/usePostTeamMe
 import { usePostTeamMemberidRevokeSessions } from "../gen/backoffice/hooks/usePostTeamMemberidRevokeSessions";
 import { useDeleteTeamMemberid } from "../gen/backoffice/hooks/useDeleteTeamMemberid";
 import type { TeamMember } from "../gen/backoffice/types/TeamMember";
-import type { TeamGrantInput } from "../gen/backoffice/types/TeamGrantInput";
-import type { GetTeamCatalog200 } from "../gen/backoffice/types/GetTeamCatalog";
-
-type Level = "view" | "edit";
-type CatalogModule = NonNullable<GetTeamCatalog200["modules"]>[number];
-/** Permissões em edição: `key → nível` (ausente = módulo desligado). */
-type GrantMap = Record<string, Level>;
 
 export function lastAccessLabel(m: Pick<TeamMember, "lastLoginAt">): string {
   if (!m.lastLoginAt) return "Nunca";
@@ -44,23 +45,13 @@ export function memberStatus(m: Pick<TeamMember, "status">): TeamMemberStatus {
   return (m.status ?? "invited") as TeamMemberStatus;
 }
 
-function grantsToMap(grants: TeamMember["grants"]): GrantMap {
-  const out: GrantMap = {};
-  for (const g of grants ?? []) if (g.key && g.level) out[g.key] = g.level;
-  return out;
-}
-
-function mapToGrants(map: GrantMap): TeamGrantInput[] {
-  return Object.entries(map).map(([key, level]) => ({ key, level }));
-}
-
-function sameGrants(a: GrantMap, b: GrantMap): boolean {
-  const ka = Object.keys(a);
-  return ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k]);
+/** Assinatura estável das folhas (só nós guardáveis) — para saber se o formulário mudou. */
+function grantsSignature(tree: TreeNode[], map: GrantMap): string {
+  return JSON.stringify(serializeGrants(tree, map));
 }
 
 /**
- * Página `/equipa` (B41, fase 1): o dono do tenant convida pessoas e escolhe, por módulo, se vêem ou editam.
+ * Página `/equipa` (B41): o dono do tenant convida pessoas e escolhe, numa ÁRVORE de permissões, o que vêem ou editam.
  * Só o dono (a conta admin não tem equipa; um membro não a vê). A decisão final é sempre da API — aqui só
  * se apresenta o catálogo (`GET /team/catalog`) e se envia o que o utilizador marcou.
  *
@@ -79,6 +70,7 @@ export function Equipa() {
     [members, selectedId],
   );
 
+  const tree = useMemo(() => (catalog?.tree ?? []) as TreeNode[], [catalog?.tree]);
   const maxMembers = catalog?.maxMembers;
   const atLimit = maxMembers != null && members.length >= maxMembers;
   usePageSubtitle(
@@ -200,13 +192,13 @@ export function Equipa() {
       <InviteModal
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
-        modules={catalog?.modules ?? []}
+        tree={tree}
         inSupport={inSupport}
       />
       <MemberModal
         member={selected}
         onClose={() => setSelectedId(null)}
-        modules={catalog?.modules ?? []}
+        tree={tree}
         inSupport={inSupport}
       />
     </div>
@@ -218,74 +210,6 @@ export function StatusBadge({ status }: { status: TeamMemberStatus }) {
     <Badge tone={MEMBER_STATUS_TONE[status]} dot>
       {MEMBER_STATUS_LABEL[status]}
     </Badge>
-  );
-}
-
-// ── Escolha de módulos ──────────────────────────────────────────────────────
-
-/**
- * Uma linha por módulo `available` do catálogo: caixa + [Ver | Editar]. Os módulos só-leitura (ex.:
- * Estatísticas) mostram apenas "Só ver". Os `available: false` (o tenant não tem o módulo) nem aparecem.
- */
-function ModulePicker({
-  modules,
-  value,
-  onChange,
-  disabled,
-}: {
-  modules: CatalogModule[];
-  value: GrantMap;
-  onChange: (next: GrantMap) => void;
-  disabled?: boolean;
-}) {
-  const available = modules.filter((m) => m.available && m.key);
-  if (available.length === 0) {
-    return <p className="text-sm text-zinc-500">Não há módulos disponíveis para dar.</p>;
-  }
-  return (
-    <ul className="divide-y divide-zinc-100 dark:divide-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-800">
-      {available.map((m) => {
-        const key = m.key as string;
-        const label = m.label ?? key;
-        const level = value[key];
-        const checked = !!level;
-        const canEdit = (m.levels ?? []).includes("edit");
-        return (
-          <li key={key} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-3.5 py-3">
-            <label className="flex items-center gap-2.5 text-sm font-medium text-zinc-800 dark:text-zinc-100 cursor-pointer">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600 accent-[var(--accent-hex,#2A6FDB)]"
-                checked={checked}
-                disabled={disabled}
-                onChange={(e) => {
-                  const next = { ...value };
-                  if (e.target.checked) next[key] = "view";
-                  else delete next[key];
-                  onChange(next);
-                }}
-              />
-              {label}
-            </label>
-            {checked &&
-              (canEdit ? (
-                <Tabs
-                  size="sm"
-                  tabs={[
-                    { id: "view", label: "Ver", ariaLabel: `${label}: só ver` },
-                    { id: "edit", label: "Editar", ariaLabel: `${label}: editar` },
-                  ]}
-                  value={level}
-                  onChange={(id: string) => !disabled && onChange({ ...value, [key]: id as Level })}
-                  className={disabled ? "opacity-60 pointer-events-none" : ""}
-                />
-              ) : (
-                <span className="text-xs text-zinc-500">Só ver</span>
-              ))}
-          </li>
-        );
-      })}
-    </ul>
   );
 }
 
@@ -309,20 +233,57 @@ function TeamButton({
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Opção do convite (radio com explicação por baixo). */
+function AccessOption({
+  checked,
+  onSelect,
+  title,
+  help,
+}: {
+  checked: boolean;
+  onSelect: () => void;
+  title: string;
+  help: string;
+}) {
+  return (
+    <label
+      className={`flex items-start gap-3 rounded-xl border px-3.5 py-3 cursor-pointer transition ${
+        checked
+          ? "border-accent/50 bg-accent/[0.04] dark:bg-accent/[0.08]"
+          : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700"
+      }`}
+    >
+      <input
+        type="radio"
+        name="team-access-mode"
+        className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--accent-hex,#2A6FDB)]"
+        checked={checked}
+        onChange={onSelect}
+      />
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-100">{title}</span>
+        <span className="block text-xs text-zinc-500 mt-0.5">{help}</span>
+      </span>
+    </label>
+  );
+}
+
 function InviteModal({
   open,
   onClose,
-  modules,
+  tree,
   inSupport,
 }: {
   open: boolean;
   onClose: () => void;
-  modules: CatalogModule[];
+  tree: TreeNode[];
   inSupport: boolean;
 }) {
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  // Só dois modelos: "Acesso total" (tudo o que existe hoje) ou "Escolher na árvore" (parte da árvore vazia).
+  const [mode, setMode] = useState<"total" | "tree">("tree");
   const [grants, setGrants] = useState<GrantMap>({});
   const create = usePostTeam();
 
@@ -330,6 +291,7 @@ function InviteModal({
     if (open) {
       setName("");
       setEmail("");
+      setMode("tree");
       setGrants({});
     }
   }, [open]);
@@ -337,9 +299,10 @@ function InviteModal({
   const submit = () => {
     if (!name.trim()) return toast.error("Indica o nome.");
     if (!EMAIL_RE.test(email.trim())) return toast.error("Indica um email válido.");
-    if (Object.keys(grants).length === 0) return toast.error("Escolhe pelo menos um módulo.");
+    const toSend = serializeGrants(tree, mode === "total" ? fullAccess(tree) : grants);
+    if (toSend.length === 0) return toast.error("Escolhe pelo menos uma permissão.");
     create.mutate(
-      { data: { name: name.trim(), email: email.trim(), grants: mapToGrants(grants) } },
+      { data: { name: name.trim(), email: email.trim(), grants: toSend } },
       {
         onSuccess: (res) => {
           qc.invalidateQueries({ queryKey: getTeamQueryKey() });
@@ -384,7 +347,25 @@ function InviteModal({
         />
         <div>
           <SectionTitle>O que pode usar</SectionTitle>
-          <ModulePicker modules={modules} value={grants} onChange={setGrants} />
+          <div role="radiogroup" aria-label="Tipo de acesso" className="space-y-2">
+            <AccessOption
+              checked={mode === "total"}
+              onSelect={() => setMode("total")}
+              title="Acesso total"
+              help="Dá tudo o que existe hoje. Partes novas que apareçam no futuro ficam fechadas até as dares."
+            />
+            <AccessOption
+              checked={mode === "tree"}
+              onSelect={() => setMode("tree")}
+              title="Escolher na árvore"
+              help="Marca só o que esta pessoa pode ver ou editar."
+            />
+          </div>
+          {mode === "tree" && (
+            <div className="mt-3">
+              <PermissionTree tree={tree} value={grants} onChange={setGrants} />
+            </div>
+          )}
         </div>
       </div>
     </Modal>
@@ -396,12 +377,12 @@ function InviteModal({
 function MemberModal({
   member,
   onClose,
-  modules,
+  tree,
   inSupport,
 }: {
   member: TeamMember | null;
   onClose: () => void;
-  modules: CatalogModule[];
+  tree: TreeNode[];
   inSupport: boolean;
 }) {
   const qc = useQueryClient();
@@ -412,13 +393,15 @@ function MemberModal({
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   // Semeia o formulário quando se abre outro membro (ou o servidor devolve dados novos e o form está limpo).
-  const serverGrants = useMemo(() => grantsToMap(member?.grants), [member?.grants]);
+  const serverGrants = useMemo(() => grantsToMap(tree, member?.grants), [tree, member?.grants]);
+  // O catálogo pode chegar depois do membro: só semeia quando há árvore (senão as folhas seriam descartadas).
+  const treeReady = tree.length > 0;
   useEffect(() => {
     if (!member) return;
     setName(member.name ?? "");
     setGrants(serverGrants);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [memberId]);
+  }, [memberId, treeReady]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: getTeamQueryKey() });
   const onError = (fallback: string) => (error: unknown) => toast.error(teamErrorMessage(error, fallback));
@@ -431,14 +414,16 @@ function MemberModal({
   const revoke = usePostTeamMemberidRevokeSessions();
   const remove = useDeleteTeamMemberid();
 
-  const dirty = !!member && (name.trim() !== (member.name ?? "") || !sameGrants(grants, serverGrants));
+  const dirty =
+    !!member && (name.trim() !== (member.name ?? "") || grantsSignature(tree, grants) !== grantsSignature(tree, serverGrants));
 
   const save = () => {
     if (!member) return;
     if (!name.trim()) return toast.error("O nome não pode ficar vazio.");
-    if (Object.keys(grants).length === 0) return toast.error("Escolhe pelo menos um módulo.");
+    const toSend = serializeGrants(tree, grants);
+    if (toSend.length === 0) return toast.error("Escolhe pelo menos uma permissão.");
     update.mutate(
-      { memberId, data: { name: name.trim(), grants: mapToGrants(grants) } },
+      { memberId, data: { name: name.trim(), grants: toSend } },
       {
         onSuccess: () => {
           refresh();
@@ -488,7 +473,7 @@ function MemberModal({
 
             <div>
               <SectionTitle>O que pode usar</SectionTitle>
-              <ModulePicker modules={modules} value={grants} onChange={setGrants} disabled={inSupport} />
+              <PermissionTree tree={tree} value={grants} onChange={setGrants} disabled={inSupport} />
             </div>
 
             <div>

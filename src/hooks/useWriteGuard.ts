@@ -1,7 +1,7 @@
 import { useInRouterContext, useLocation } from 'react-router-dom'
 import { useBillingReadOnly } from './useBillingReadOnly'
 import { useTeamAccess } from './useTeamAccess'
-import { moduleForPath } from '../lib/navigation'
+import { leafForPath } from '../lib/navigation'
 import { VIEW_ONLY_MESSAGE } from '../lib/teamAccess'
 import type { BillingSubscriptionReasonEnum } from '../gen/backoffice/types/BillingSubscription'
 
@@ -22,7 +22,7 @@ export interface WriteGuard {
   readOnly: boolean
   /** Só o billing: a subscrição está bloqueada. */
   billingReadOnly: boolean
-  /** Só a equipa (B41): o membro ligado só pode VER o módulo da página actual. */
+  /** Só a equipa (B41): o membro ligado só pode VER a folha da página actual (ou a pedida em `leaf`). */
   viewOnly: boolean
   /** Motivo do billing (grace/past_due_locked/canceled/…). */
   reason: BillingSubscriptionReasonEnum
@@ -38,15 +38,16 @@ export interface WriteGuard {
  * + `title={readOnly ? message : undefined}`. Para os `Button` partilhados existe
  * o drop-in `GuardButton`, que já aplica isto de forma consistente.
  *
- * Equipa (B41): o módulo da página actual resolve-se pelo pathname (`moduleForPath`, `lib/navigation.ts`)
- * e o nível vem de `can()` (AuthContext, dado pela API). Um membro com `view` nesse módulo fica bloqueado
- * com "Só tens permissão para ver". O dono nunca é afectado.
+ * Equipa (B41 2b): a FOLHA da página actual resolve-se pelo pathname (`leafForPath`, `lib/navigation.ts`) e o nível
+ * vem de `can()` (AuthContext, dado pela API). Um membro sem `edit` nessa folha fica bloqueado com "Só tens
+ * permissão para ver". Onde uma página mistura folhas (modal de marcação, custo do produto, apagar cliente…) o
+ * controlo passa a folha certa em `leaf` (uma ou várias; basta `edit` numa). O dono nunca é afectado.
  *
  * Só para CTAs de gestão (POST/PUT/PATCH/DELETE). NÃO usar para navegação, leitura,
  * logout, portal de pagamento (Stripe) nem chat de suporte — um tenant bloqueado
  * tem de continuar a poder pagar e falar com o suporte.
  */
-export function useWriteGuard(): WriteGuard {
+export function useWriteGuard(leaf?: string | readonly string[]): WriteGuard {
   const { readOnly: billingReadOnly, reason } = useBillingReadOnly()
   const { isMember, can } = useTeamAccess()
   // Renderizado isolado (testes, sem Router) → sem pathname, sem bloqueio de equipa. `useInRouterContext` é
@@ -54,8 +55,9 @@ export function useWriteGuard(): WriteGuard {
   const inRouter = useInRouterContext()
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const pathname = inRouter ? useLocation().pathname : ''
-  const mod = isMember ? moduleForPath(pathname) : undefined
-  const viewOnly = !!mod && can(mod, 'view') && !can(mod, 'edit')
+  const pathLeaf = isMember && !leaf ? leafForPath(pathname) : undefined
+  const leaves: readonly string[] = !isMember ? [] : leaf ? (typeof leaf === 'string' ? [leaf] : leaf) : pathLeaf ? [pathLeaf] : []
+  const viewOnly = leaves.length > 0 && !leaves.some((l) => can(l, 'edit'))
   return {
     readOnly: billingReadOnly || viewOnly,
     billingReadOnly,

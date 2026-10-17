@@ -19,19 +19,17 @@ vi.mock("../../src/context/AuthContext", () => ({
 import { GuardButton } from "../../src/components/GuardButton";
 import { WRITE_GUARD_MESSAGE } from "../../src/hooks/useWriteGuard";
 import { VIEW_ONLY_MESSAGE } from "../../src/lib/teamAccess";
+import { canFromGrants } from "../../src/lib/teamTree";
 
 type Modules = Record<string, "view" | "edit">;
 
-/** Auth de um membro com estes módulos (mesma regra do `can` real: edit implica view). */
-function memberAuth(modules: Modules) {
+/** Auth de um membro com estas FOLHAS (mesma regra do `can` real: edit implica view; agrupador = alguma folha). */
+function memberAuth(leaves: Modules) {
+  const grants = Object.entries(leaves).map(([key, level]) => ({ key, level }));
   return {
     isMember: true,
     member: { memberId: "m1", name: "Ana", email: "ana@x.pt", tenantName: "Tifas Barber" },
-    can: (key: string, level: "view" | "edit" = "view") => {
-      const l = modules[key];
-      if (!l) return false;
-      return level === "view" || l === "edit";
-    },
+    can: (key: string, level: "view" | "edit" = "view") => canFromGrants(grants, key, level),
   };
 }
 
@@ -52,7 +50,7 @@ beforeEach(() => {
 
 describe("useWriteGuard — membro da equipa com 'ver'", () => {
   it("só ver na Agenda: o botão fica desactivado com 'Só tens permissão para ver' e não dispara", () => {
-    authMock.mockReturnValue(memberAuth({ agenda: "view", clientes: "edit" }));
+    authMock.mockReturnValue(memberAuth({ "agenda.marcacoes": "view", "clientes.leads": "edit" }));
     const onClick = renderAt("/agenda/marcacoes");
     const btn = screen.getByRole("button", { name: "Guardar" });
     expect(btn).toBeDisabled();
@@ -62,8 +60,8 @@ describe("useWriteGuard — membro da equipa com 'ver'", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
-  it("editar nos Clientes: o mesmo membro pode escrever (o nível é por módulo)", () => {
-    authMock.mockReturnValue(memberAuth({ agenda: "view", clientes: "edit" }));
+  it("editar nos Leads: o mesmo membro pode escrever (o nível é por folha)", () => {
+    authMock.mockReturnValue(memberAuth({ "agenda.marcacoes": "view", "clientes.leads": "edit" }));
     const onClick = renderAt("/clientes/leads");
     const btn = screen.getByRole("button", { name: "Guardar" });
     expect(btn).not.toBeDisabled();
@@ -72,7 +70,7 @@ describe("useWriteGuard — membro da equipa com 'ver'", () => {
   });
 
   it("resolve o módulo pelo pathname: /financeiro/despesas é 'despesas'; /ginasio/clientes é 'ginasio'", () => {
-    authMock.mockReturnValue(memberAuth({ despesas: "view", ginasio: "view" }));
+    authMock.mockReturnValue(memberAuth({ "financeiro.despesas": "view", "ginasio.clientes": "view" }));
     const { unmount } = render(
       <MemoryRouter initialEntries={["/financeiro/despesas"]}>
         <GuardButton>A</GuardButton>
@@ -88,14 +86,43 @@ describe("useWriteGuard — membro da equipa com 'ver'", () => {
     expect(screen.getByRole("button", { name: "B" })).toBeDisabled();
   });
 
+  it("por folha: com 'agenda.marcacoes' em edit mas só ver nos Serviços, a página de Serviços fica só-ver", () => {
+    authMock.mockReturnValue(memberAuth({ "agenda.marcacoes": "edit", "agenda.servicos": "view" }));
+    const { unmount } = render(
+      <MemoryRouter initialEntries={["/agenda/servicos"]}>
+        <GuardButton>S</GuardButton>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("button", { name: "S" })).toBeDisabled();
+    unmount();
+    renderAt("/agenda/marcacoes");
+    expect(screen.getByRole("button", { name: "Guardar" })).not.toBeDisabled();
+  });
+
+  it("`leaf` no botão manda mais do que a página (ex.: bloquear horário no calendário = agenda.bloqueios)", () => {
+    authMock.mockReturnValue(memberAuth({ "agenda.marcacoes": "edit", "agenda.bloqueios": "view" }));
+    render(
+      <MemoryRouter initialEntries={["/agenda"]}>
+        <GuardButton leaf="agenda.bloqueios">Bloquear</GuardButton>
+        <GuardButton>Marcar</GuardButton>
+        <GuardButton leaf={["agenda.config", "agenda.marcacoes"]}>Qualquer</GuardButton>
+      </MemoryRouter>,
+    );
+    const b = screen.getByRole("button", { name: "Bloquear" });
+    expect(b).toBeDisabled();
+    expect(b).toHaveAttribute("title", VIEW_ONLY_MESSAGE);
+    expect(screen.getByRole("button", { name: "Marcar" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Qualquer" })).not.toBeDisabled();
+  });
+
   it("páginas sem módulo (ex.: Perfil) não ficam bloqueadas", () => {
-    authMock.mockReturnValue(memberAuth({ agenda: "view" }));
+    authMock.mockReturnValue(memberAuth({ "agenda.marcacoes": "view" }));
     renderAt("/perfil");
     expect(screen.getByRole("button", { name: "Guardar" })).not.toBeDisabled();
   });
 
   it("o billing tem prioridade sobre 'só ver'", () => {
-    authMock.mockReturnValue(memberAuth({ agenda: "view" }));
+    authMock.mockReturnValue(memberAuth({ "agenda.marcacoes": "view" }));
     useBillingMock.mockReturnValue({ data: { readOnly: true, reason: "past_due_locked" } });
     renderAt("/agenda");
     const btn = screen.getByRole("button", { name: "Guardar" });
@@ -109,7 +136,7 @@ describe("useWriteGuard — membro da equipa com 'ver'", () => {
   });
 
   it("um membro não pede a subscrição de billing (a API devolveria 403)", () => {
-    authMock.mockReturnValue(memberAuth({ agenda: "edit" }));
+    authMock.mockReturnValue(memberAuth({ "agenda.marcacoes": "edit" }));
     renderAt("/agenda");
     expect(useBillingMock).toHaveBeenCalledWith(
       expect.objectContaining({ query: expect.objectContaining({ enabled: false }) }),

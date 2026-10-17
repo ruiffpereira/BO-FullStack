@@ -14,6 +14,11 @@ type GuardButtonProps = {
    * `block w-full` (ou `flex w-full`) para o botão continuar a esticar.
    */
   wrapperClassName?: string
+  /**
+   * Equipa (B41 2b): folha(s) da árvore que mandam neste botão, quando não é a da página (ex.: "Bloquear horário"
+   * é `agenda.bloqueios`, mesmo estando no calendário). Basta `edit` numa. Omitido = a folha da página actual.
+   */
+  leaf?: string | readonly string[]
   [key: string]: unknown
 }
 
@@ -35,9 +40,10 @@ export function GuardButton({
   disabled,
   title,
   wrapperClassName = 'inline-flex',
+  leaf,
   ...rest
 }: GuardButtonProps) {
-  const { readOnly, message } = useWriteGuard()
+  const { readOnly, message } = useWriteGuard(leaf)
 
   if (!readOnly) {
     return <Button disabled={disabled} title={title} {...rest} />
@@ -62,6 +68,8 @@ type GuardIconButtonProps = {
   title?: string
   className?: string
   disabled?: boolean
+  /** Folha(s) da árvore que mandam neste botão (ver `GuardButton`). */
+  leaf?: string | readonly string[]
   [key: string]: unknown
 }
 
@@ -69,8 +77,8 @@ type GuardIconButtonProps = {
  * `IconButton` de ESCRITA com o mesmo write-guard do `GuardButton` (billing read-only + "Só tens permissão para
  * ver" a um membro da equipa). Drop-in do `IconButton` para acções só-ícone (apagar, activar/desactivar, …).
  */
-export function GuardIconButton({ disabled, title, className = '', ...rest }: GuardIconButtonProps) {
-  const { readOnly, message } = useWriteGuard()
+export function GuardIconButton({ disabled, title, className = '', leaf, ...rest }: GuardIconButtonProps) {
+  const { readOnly, message } = useWriteGuard(leaf)
   if (!readOnly) {
     return <IconButton {...(rest as any)} disabled={disabled} title={title} className={className} />
   }

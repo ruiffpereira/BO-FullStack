@@ -16,6 +16,7 @@ import { Icon } from "../ui/icons.jsx";
 import { Modal, Avatar, Badge, Button, Toggle } from "../ui/ui.jsx";
 import { GuardButton } from "./GuardButton";
 import { useWriteGuard } from "../hooks/useWriteGuard";
+import { useTeamAccess } from "../hooks/useTeamAccess";
 import { Combobox } from "./Combobox";
 import { PriceFillChip } from "./PriceFillChip";
 import { confirmDialog } from "./confirm";
@@ -150,6 +151,11 @@ export function ApptModal({
   // escrita (Guardar/Pagar) ficam desativados com o motivo. O GuardButton trata os
   // Button partilhados; o botão "Pagar" é cru, por isso lê o guard diretamente.
   const { readOnly: billingReadOnly, message: billingLockMsg } = useWriteGuard();
+  // Equipa (B41 2b): o dinheiro da marcação é uma folha própria. Sem `valores` (ver) a API nem envia os campos —
+  // a secção Pagamento desaparece (nunca "0 €"); só com `edit` se pode registar/editar pagamentos.
+  const { can } = useTeamAccess();
+  const showMoney = can("agenda.marcacoes.valores", "view");
+  const editMoney = can("agenda.marcacoes.valores", "edit");
   const [editServiceId, setEditServiceId] = useState(appt.serviceId);
   const svc = services.find((s) => s.serviceId === editServiceId);
   const status = appt.status ?? "pending";
@@ -492,6 +498,19 @@ export function ApptModal({
                     {isSaving ? "A guardar…" : "Guardar"}
                   </GuardButton>
                 ) : null}
+                {/* Equipa (B41 2b): sem `valores` (edit) não há aba Pagamento onde concluir — conclui-se aqui, com o
+                    pagamento por registar (fica em dívida para quem tem a folha registar depois). */}
+                {!editMoney && status !== "completed" && status !== "cancelled" && (
+                  <GuardButton wrapperClassName="block w-full"
+                    variant="outline"
+                    className="w-full"
+                    disabled={isSettingStatus || hasChanges}
+                    title={hasChanges ? "Guarda as alterações antes de concluir" : undefined}
+                    onClick={handleCompleteWithoutPayment}
+                  >
+                    {isSettingStatus ? "A concluir…" : "Concluir marcação"}
+                  </GuardButton>
+                )}
                 {/* Cancelar marcação / Reativar / Confirmar — só na aba Detalhes */}
                 {status === "cancelled" ? (
                   <GuardButton wrapperClassName="block w-full"
@@ -558,12 +577,12 @@ export function ApptModal({
                   <Badge tone={STATUS_TONE[status] as any} dot>
                     {STATUS_LABELS[status]}
                   </Badge>
-                  {isPaid && !hasDebt && (
+                  {showMoney && isPaid && !hasDebt && (
                     <span className="flex items-center gap-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                       <Icon name="euro" className="w-3 h-3" /> Pago
                     </span>
                   )}
-                  {hasDebt && (
+                  {showMoney && hasDebt && (
                     <span className="flex items-center gap-0.5 text-xs font-semibold text-red-600 dark:text-red-400">
                       <Icon name="euro" className="w-3 h-3" /> Dívida {debtAmount.toFixed(2)} €
                     </span>
@@ -594,12 +613,12 @@ export function ApptModal({
                   <Badge tone={STATUS_TONE[status] as any} dot>
                     {STATUS_LABELS[status]}
                   </Badge>
-                  {isPaid && !hasDebt && (
+                  {showMoney && isPaid && !hasDebt && (
                     <span className="flex items-center gap-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                       <Icon name="euro" className="w-3 h-3" /> Pago
                     </span>
                   )}
-                  {hasDebt && (
+                  {showMoney && hasDebt && (
                     <span className="flex items-center gap-0.5 text-xs font-semibold text-red-600 dark:text-red-400">
                       <Icon name="euro" className="w-3 h-3" /> Dívida {debtAmount.toFixed(2)} €
                     </span>
@@ -609,8 +628,8 @@ export function ApptModal({
             </div>
           )}
 
-          {/* ── Tabs ── */}
-          <div className="flex gap-1 p-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
+          {/* ── Tabs (sem acesso aos valores só há Detalhes) ── */}
+          {showMoney && <div className="flex gap-1 p-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
             {(["details", "payment"] as const).map((t) => (
               <button
                 key={t}
@@ -620,13 +639,13 @@ export function ApptModal({
                 {t === "details" ? "Detalhes" : "Pagamento"}
               </button>
             ))}
-          </div>
+          </div>}
 
           {/* ── Details tab ── */}
-          {tab === "details" && (
+          {(tab === "details" || !showMoney) && (
             <div className="space-y-3">
               {/* Alerta: serviço com preço diferente do já pago → é preciso acertar */}
-              {priceMismatch !== 0 && (
+              {showMoney && priceMismatch !== 0 && (
                 <div role="alert" className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700/60 px-3 py-2.5 text-sm text-amber-800 dark:text-amber-300">
                   {priceMismatch > 0
                     ? `O novo serviço custa ${editedServicePrice.toFixed(2)} €; já foram pagos ${totalPaid.toFixed(2)} € → falta cobrar ${priceMismatch.toFixed(2)} €. Ao guardar, a vaga volta a Confirmada até saldares.`
@@ -688,7 +707,9 @@ export function ApptModal({
                       .filter((s) => s.active !== false)
                       .map((s) => ({
                         value: s.serviceId,
-                        label: `${s.name} (${s.duration}min — ${Number(s.price).toFixed(2)}€)`,
+                        label: showMoney
+                          ? `${s.name} (${s.duration}min — ${Number(s.price).toFixed(2)}€)`
+                          : `${s.name} (${s.duration}min)`,
                       }))}
                     placeholder="Escolher serviço…"
                     searchPlaceholder="Pesquisar serviço…"
@@ -780,7 +801,7 @@ export function ApptModal({
           )}
 
           {/* ── Payment tab ── */}
-          {tab === "payment" && (
+          {showMoney && tab === "payment" && (
             <div className="space-y-4">
               {priorDebt > 0 && (
                 <div className="flex items-center gap-2 p-3 rounded-lg text-sm font-semibold bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 text-red-700 dark:text-red-400">
@@ -796,7 +817,7 @@ export function ApptModal({
               </div>
 
               {/* Contribuinte na fatura — editável ao pagar e ao "Editar pagamento". */}
-              {(!isPaid || editMode === "payment") && customer && (
+              {editMoney && (!isPaid || editMode === "payment") && customer && (
                 <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-2.5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -956,12 +977,16 @@ export function ApptModal({
                       </p>
                     </div>
                   ) : (
-                    /* Esteja paga ou com dívida → um só botão. A dívida vê-se no recibo. */
-                    <GuardButton wrapperClassName="block w-full" variant="outline" className="w-full" disabled={busy} onClick={handleEditPayment}>
-                      Editar pagamento
-                    </GuardButton>
+                    /* Esteja paga ou com dívida → um só botão. A dívida vê-se no recibo. Só com `valores` (editar). */
+                    editMoney ? (
+                      <GuardButton wrapperClassName="block w-full" variant="outline" className="w-full" disabled={busy} onClick={handleEditPayment}>
+                        Editar pagamento
+                      </GuardButton>
+                    ) : null
                   )}
                 </div>
+              ) : !editMoney ? (
+                <p className="text-sm text-zinc-500">Ainda sem pagamento registado.</p>
               ) : (
                 <div className="space-y-3">
                   {hasDebt && (

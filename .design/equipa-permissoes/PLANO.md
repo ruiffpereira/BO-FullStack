@@ -132,7 +132,9 @@ actuais). Para um membro com `Equipa → gerir`, o tecto são as suas próprias 
 - **Página Equipa** (`/equipa`, no menu do avatar, ao lado do Perfil): lista (nome, email, estado,
   último acesso), Convidar, Editar, Desactivar, Remover, Reenviar convite. O editor de permissões é a
   árvore: caixas de três estados, `Ver`/`Editar` por nó, âmbito `Todos/Só os meus` onde existe, e
-  **modelos rápidos** ("Só ver tudo", "Recepção", "Profissional") para não montar a árvore à mão.
+  no convite **Acesso total** (marca a árvore inteira em Editar no dia em que se dá; partes novas nascem
+  fechadas) ou **Escolher na árvore**. Decisão do dono 2026-10-17, que trocou os modelos "Só ver tudo",
+  "Recepção" e "Profissional".
   Funciona a 1440/834/390.
 - Topbar mostra quem está ligado ("Ana · equipa de Tifas").
 
@@ -177,7 +179,7 @@ tens permissão para ver"). Desactivá-la tira-lhe o acesso no pedido seguinte.
 ### Fase 2 · Árvore completa
 **Vês a funcionar:** abrir a Agenda na árvore e tirar **Valores e pagamentos** — o barbeiro vê as
 marcações sem preços nem dívidas; o Dashboard e o Financeiro só lhe mostram o que pode ver; as
-notificações também. Modelos rápidos (*Só ver tudo*, *Recepção*, *Profissional*).
+notificações também. No convite: *Acesso total* ou *Escolher na árvore*.
 - Catálogo completo (revisto contigo no início desta fase), campos sensíveis filtrados na API,
   agregados, notificações por membro.
 
@@ -217,8 +219,7 @@ A API recusa as mesmas coisas com 403 mesmo que alguém chame o endpoint à mão
 
 **Tenant — menu do avatar → "Equipa"** (página nova `/equipa`, ao lado do Perfil)
 - Lista: nome · email · estado (Convidado / Activo / Desactivado) · último acesso · criado por.
-- **Convidar utilizador** → nome, email, ponto de partida (*Só ver tudo* · *Recepção* · *Profissional*
-  · *Personalizado*), e **☐ Dar-lhe um endereço de email** (cria `nome@negocio`; só com o módulo Correio,
+- **Convidar utilizador** → nome, email, acesso (*Acesso total* · *Escolher na árvore*), e **☐ Dar-lhe um endereço de email** (cria `nome@negocio`; só com o módulo Correio,
   ver `.design/email/PLANO.md`) → envia o convite por email.
 - Clicar num membro abre a ficha com dois separadores:
   - **Permissões** — a árvore. Cada nó: caixa (marcado / parcial / vazio) + **[Ver | Editar]**. O nó

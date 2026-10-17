@@ -29,6 +29,7 @@ import {
   Modal,
   Input,
   Select,
+  Toggle,
 } from "../ui/ui.jsx";
 import { usePageSubtitle } from "../context/PageMetaContext";
 import { GuardButton, GuardIconButton } from "../components/GuardButton";
@@ -284,16 +285,77 @@ type HistoryAppt = {
   paidAt?: string | null;
   service?: { name: string; price: number };
 };
+/** Folhas que dão leitura de `/customers` (a Agenda usa a lista, a ficha e o histórico). */
+const CUSTOMER_READ_KEYS = ["agenda.marcacoes", "clientes.lista"] as const;
 type CustomerHistory = {
   customer: Customer;
   stats: {
     visitCount: number;
-    totalSpent: number;
+    /** Ausente para um membro sem `agenda.marcacoes.valores`. */
+    totalSpent?: number;
     lastVisit: string | null;
     favoriteServiceId: string | null;
   };
   appointments: HistoryAppt[];
 };
+
+/**
+ * Equipa (B41 2b): quem tem `agenda.marcacoes` (edit) mas NÃO `clientes.lista` (edit) só pode mexer na preferência
+ * de fatura do cliente (NIF + "quer fatura") — o resto da ficha (nome, notas, bloquear) fica fechado, e a API
+ * recusa qualquer outro campo com 403 `TEAM_FORBIDDEN`.
+ */
+function InvoicePrefsEditor({
+  customerId,
+  nif,
+  wantsInvoice,
+}: {
+  customerId: string;
+  nif: string | null;
+  wantsInvoice: boolean;
+}) {
+  const qc = useQueryClient();
+  const [want, setWant] = useState(wantsInvoice);
+  const [nifInput, setNifInput] = useState(nif ?? "");
+  useEffect(() => {
+    setWant(wantsInvoice);
+    setNifInput(nif ?? "");
+  }, [customerId, nif, wantsInvoice]);
+  const dirty = want !== wantsInvoice || nifInput.trim() !== (nif ?? "");
+  const save = useMutation({
+    mutationFn: () => patchCustomersId(customerId, { wantsInvoice: want, nif: nifInput.trim() || null } as any),
+    onSuccess: () => {
+      toast.success("Preferência de fatura guardada");
+      qc.invalidateQueries({ queryKey: getCustomersQueryKey() });
+      qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(customerId) });
+    },
+    onError: (e: any) => toast.error(getApiError(e)),
+  });
+  return (
+    <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 p-3 space-y-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Contribuinte na fatura</p>
+          <p className="text-xs text-zinc-400">Emitir com o NIF do cliente.</p>
+        </div>
+        <Toggle checked={want} onChange={setWant} />
+      </div>
+      {want && (
+        <Input
+          label="NIF"
+          value={nifInput}
+          inputMode="numeric"
+          placeholder="9 dígitos"
+          onChange={(e: any) => setNifInput(e.target.value.replace(/\D/g, "").slice(0, 9))}
+        />
+      )}
+      <div className="flex justify-end">
+        <GuardButton size="sm" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
+          {save.isPending ? "A guardar…" : "Guardar"}
+        </GuardButton>
+      </div>
+    </div>
+  );
+}
 
 function CustomerProfileModal({
   customerId,
@@ -307,6 +369,11 @@ function CustomerProfileModal({
   onOpenAppointment: (appt: Appointment) => void;
 }) {
   const qc = useQueryClient();
+  // Equipa (B41 2b): quem só tem a Agenda vê a ficha mas não bloqueia (isso é `clientes.lista`); sem
+  // `agenda.marcacoes.valores` a API não envia `stats.totalSpent` nem os valores pagos — a caixa simplesmente some.
+  const { can } = useTeamAccess();
+  const canBlock = can("clientes.lista", "edit");
+  const onlyInvoicePrefs = !canBlock && can("agenda.marcacoes", "edit");
   const fallbackCustomer =
     customers.find((c) => c.customerId === customerId) ?? null;
   const { data: history, isLoading } =
@@ -337,7 +404,7 @@ function CustomerProfileModal({
       width="max-w-lg"
       footer={
         <>
-          {customer && (
+          {customer && canBlock && (
             <GuardButton
               variant="outline"
               disabled={blockMut.isPending}
@@ -425,6 +492,14 @@ function CustomerProfileModal({
             )}
           </div>
 
+          {onlyInvoicePrefs && (
+            <InvoicePrefsEditor
+              customerId={customer.customerId}
+              nif={(customer as any).nif ?? null}
+              wantsInvoice={!!(customer as any).wantsInvoice}
+            />
+          )}
+
           {customer.notes && (
             <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-xl p-3 text-sm text-amber-900 dark:text-amber-200">
               <p className="text-xs font-medium text-amber-600 dark:text-amber-400 mb-1">
@@ -447,19 +522,21 @@ function CustomerProfileModal({
 
           {!isLoading && history && (
             <>
-              <div className="grid grid-cols-3 gap-3">
+              <div className={`grid gap-3 ${history.stats.totalSpent != null ? "grid-cols-3" : "grid-cols-2"}`}>
                 <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
                   <p className="text-2xl font-bold text-zinc-900 dark:text-white">
                     {history.stats.visitCount}
                   </p>
                   <p className="text-xs text-zinc-400 mt-0.5">visitas</p>
                 </div>
-                <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
-                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                    {history.stats.totalSpent.toFixed(0)}€
-                  </p>
-                  <p className="text-xs text-zinc-400 mt-0.5">gasto total</p>
-                </div>
+                {history.stats.totalSpent != null && (
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
+                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                      {history.stats.totalSpent.toFixed(0)}€
+                    </p>
+                    <p className="text-xs text-zinc-400 mt-0.5">gasto total</p>
+                  </div>
+                )}
                 <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
                   <p className="text-sm font-bold text-zinc-900 dark:text-white leading-tight">
                     {favoriteService?.name ?? "—"}
@@ -485,7 +562,7 @@ function CustomerProfileModal({
                   </p>
                   <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
                     {history.appointments.map((a) => {
-                      const paid = a.paidAt
+                      const paid = a.paidAt != null
                         ? Number(a.paymentCash || 0) +
                           Number(a.paymentMbway || 0) +
                           Number(a.paymentCard || 0)
@@ -579,8 +656,10 @@ function NovaApptModal({
   }, [initialTime]);
 
   // Equipa (B41): um membro sem o módulo Clientes não lê `/customers` (403) — nem se pede.
-  const { can: canTeam } = useTeamAccess();
-  const { data: custData, isError: custError } = useGetCustomers({ query: { enabled: canTeam("clientes") } });
+  const { canAny: canTeamAny, can: canTeamNova } = useTeamAccess();
+  // Sem `agenda.marcacoes.valores` o preço do serviço não aparece nas opções (o dinheiro é dessa folha).
+  const novaShowMoney = canTeamNova("agenda.marcacoes.valores", "view");
+  const { data: custData, isError: custError } = useGetCustomers({ query: { enabled: canTeamAny(CUSTOMER_READ_KEYS) } });
   const allCustomers = custData?.rows ?? [];
 
   const dropList = q.trim()
@@ -858,7 +937,9 @@ function NovaApptModal({
               .filter((s) => s.active !== false)
               .map((s) => ({
                 value: s.serviceId,
-                label: `${s.name} (${s.duration}min — ${Number(s.price).toFixed(2)}€)`,
+                label: novaShowMoney
+                  ? `${s.name} (${s.duration}min — ${Number(s.price).toFixed(2)}€)`
+                  : `${s.name} (${s.duration}min)`,
               })),
           ]}
           placeholder="Escolher serviço"
@@ -901,6 +982,9 @@ function CalendarioView() {
   // Só ver (billing read-only ou membro com `view`): o calendário continua a abrir as marcações, mas deixa de
   // criar (arrastar/clicar numa célula) e de reagendar (arrastar uma marcação).
   const { readOnly: writeLocked } = useWriteGuard();
+  // "Bloquear horário" é da folha `agenda.bloqueios`, não das marcações: sem `edit` nela a opção nem aparece.
+  const { can: canTeam } = useTeamAccess();
+  const canBlockSlots = canTeam("agenda.bloqueios", "edit");
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const focusAppointmentId = searchParams.get("marcacao");
@@ -1018,8 +1102,8 @@ function CalendarioView() {
 
   const { data: appointments = [], isLoading } = useGetScheduleAppointments({ from, to });
   const { data: services = [] } = useGetScheduleServices();
-  const { can: canTeam } = useTeamAccess();
-  const { data: customersData } = useGetCustomers({ query: { enabled: canTeam("clientes") } });
+  const { canAny: canTeamAny } = useTeamAccess();
+  const { data: customersData } = useGetCustomers({ query: { enabled: canTeamAny(CUSTOMER_READ_KEYS) } });
   const { data: blockedSlots = [] } = useGetScheduleBlockedSlots({ from, to });
   const { data: workingHours = [] } = useGetScheduleWorkingHours();
   // Intervalo da grelha (preferência do tenant). Só visual — a reserva online
@@ -2120,7 +2204,7 @@ function CalendarioView() {
             >
               <Icon name="plus" className="w-4 h-4 text-accent" /> Nova marcação
             </button>
-            <button
+            {canBlockSlots && <button
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => {
                 blockSlot.mutate({
@@ -2136,7 +2220,7 @@ function CalendarioView() {
             >
               <Icon name="ban" className="w-4 h-4 text-red-400" /> Bloquear
               horário
-            </button>
+            </button>}
             <button
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => setDragAction(null)}
@@ -2663,8 +2747,10 @@ function MarcacoesPanel() {
   const { data: allAppts = [], isLoading } =
     useGetScheduleAppointments(undefined);
   const { data: services = [] } = useGetScheduleServices();
-  const { can: canTeam } = useTeamAccess();
-  const { data: customersData } = useGetCustomers({ query: { enabled: canTeam("clientes") } });
+  const { canAny: canTeamAny, can: canTeam } = useTeamAccess();
+  // Sem `agenda.marcacoes.valores` a API não envia pagamentos: a coluna "Pago" desaparece (nunca "—" nem "0 €").
+  const showMoney = canTeam("agenda.marcacoes.valores", "view");
+  const { data: customersData } = useGetCustomers({ query: { enabled: canTeamAny(CUSTOMER_READ_KEYS) } });
   const customers = customersData?.rows ?? [];
 
   // Guardar = notificar: o backend avisa o cliente automaticamente ao guardar.
@@ -2845,9 +2931,11 @@ function MarcacoesPanel() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide">
                   Estado
                 </th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide hidden md:table-cell">
-                  Pago
-                </th>
+                {showMoney && (
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide hidden md:table-cell">
+                    Pago
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -2890,7 +2978,7 @@ function MarcacoesPanel() {
                     <td className="px-4 py-3">
                       <Badge tone={view.tone}>{view.statusLabel}</Badge>
                     </td>
-                    <td className="px-4 py-3 hidden md:table-cell">
+                    {showMoney && <td className="px-4 py-3 hidden md:table-cell">
                       {apptHasDebt ? (
                         <span className="flex items-center gap-1 text-xs font-semibold text-red-600 dark:text-red-400">
                           <Icon name="euro" className="w-3 h-3" /> Dívida {debt.toFixed(2)} €
@@ -2902,7 +2990,7 @@ function MarcacoesPanel() {
                       ) : (
                         <span className="text-xs text-zinc-400">—</span>
                       )}
-                    </td>
+                    </td>}
                   </tr>
                 );
               })}

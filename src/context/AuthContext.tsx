@@ -28,6 +28,7 @@ import type { GetUserpermissions200 } from "../gen/backoffice/types/GetUserpermi
 import { getUserpermissionsAccess } from "../gen/backoffice/hooks/useGetUserpermissionsAccess.js";
 import type { GetUserpermissionsAccess200 } from "../gen/backoffice/types/GetUserpermissionsAccess.js";
 import { notifyTeamForbidden } from "../lib/teamAccess";
+import { canFromGrants, type GrantEntry } from "../lib/teamTree";
 
 type Permission = GetUserpermissions200[number];
 
@@ -39,8 +40,10 @@ export type TeamLevel = "view" | "edit";
 interface AccessState {
   member: AccessMember | null;
   modules: AccessModule[];
+  /** Folhas efectivas da árvore (B41 2b), dadas pela API; o dono tem todas as disponíveis. */
+  grants: GrantEntry[];
 }
-const ownerAccess: AccessState = { member: null, modules: [] };
+const ownerAccess: AccessState = { member: null, modules: [], grants: [] };
 
 /**
  * B12 — resultado de `doRefresh`, explícito sobre QUAL ramo ocorreu (antes
@@ -80,8 +83,8 @@ interface AuthCtx extends AuthState {
   member: AccessMember | null;
   isMember: boolean;
   /**
-   * Pode a sessão usar o módulo `key` (`agenda`, `loja`, …) com este nível? O dono do tenant pode sempre;
-   * um membro só se a API lhe deu o módulo (`edit` implica `view`). A decisão final é sempre da API.
+   * Pode a sessão `key` com este nível? `key` é uma folha (`agenda.servicos`) ou um topo/agrupador (`agenda` = alguma folha
+   * debaixo). O dono do tenant pode sempre; um membro só o que a API lhe deu (`edit` implica `view`). A decisão final é sempre da API.
    */
   can: (key: string, level?: TeamLevel) => boolean;
   loading: boolean;
@@ -335,6 +338,9 @@ async function fetchAccess(accessToken: string): Promise<AccessState> {
         label: m.label ?? (m.key as string),
         level: m.level === "edit" ? ("edit" as const) : ("view" as const),
       })),
+    grants: (res?.grants ?? [])
+      .filter((g) => !!g.key)
+      .map((g) => ({ key: g.key as string, level: g.level === "edit" ? ("edit" as const) : ("view" as const) })),
   };
 }
 
@@ -897,10 +903,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const can = useCallback(
     (key: string, level: TeamLevel = "view") => {
+      // O dono pode sempre; um membro só o que a API lhe deu (folhas; um topo/agrupador = alguma folha debaixo).
       if (!auth.access.member) return true;
-      const m = auth.access.modules.find((x) => x.key === key);
-      if (!m) return false;
-      return level === "view" || m.level === "edit";
+      return canFromGrants(auth.access.grants, key, level);
     },
     [auth.access],
   );

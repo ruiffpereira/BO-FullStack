@@ -54,29 +54,33 @@ test.describe("Equipa — o dono do tenant", () => {
     await loginAs(context, DONO);
     await abrirEquipa(page, context);
 
-    // Convidar: nome, email e módulos — o tenant não tem Ginásio, por isso nem aparece.
+    // Convidar: nome, email e árvore — o tenant não tem Ginásio: o nó aparece bloqueado, com o motivo.
     await page.getByRole("button", { name: "Convidar utilizador" }).click();
     const invite = page.getByRole("dialog", { name: "Convidar utilizador" });
-    await expect(invite.getByRole("checkbox", { name: "Ginásio" })).toHaveCount(0);
+    await expect(invite.getByRole("radio", { name: /Escolher na árvore/ })).toBeChecked();
+    await expect(invite.getByRole("checkbox", { name: "Ginásio", exact: true })).toBeDisabled();
+    await expect(invite.getByText("O teu plano não inclui este módulo").first()).toBeVisible(); // Ginásio, Conteúdos e Páginas
     await invite.getByLabel("Nome").fill("Marta Recepção");
     await invite.getByLabel("Email").fill("marta.recepcao@e2e.local");
-    await invite.getByRole("checkbox", { name: "Agenda" }).check();
+    await invite.getByRole("checkbox", { name: "Agenda", exact: true }).check(); // marca o ramo inteiro (ao máximo)
+    await expect(invite.getByText("5 de 5")).toBeVisible();
     await invite.getByRole("checkbox", { name: "Estatísticas do site" }).check();
-    await expect(invite.getByText("Só ver")).toBeVisible(); // módulo só-leitura: sem [Ver | Editar]
+    await expect(invite.getByText("Só ver")).toBeVisible(); // nó só-leitura: sem [Ver | Editar]
     await invite.getByRole("button", { name: "Enviar convite" }).click();
 
     const marta = linha(page, "Marta Recepção");
     await expect(marta).toBeVisible({ timeout: 10_000 });
     await expect(marta).toContainText("Convidado");
 
-    // Ficha: passa a Agenda a "Editar" e junta Clientes.
+    // Ficha: baixa "Serviços" a só ver e junta Clientes (abre o topo Agenda pelo chevron).
     await marta.click();
     const ficha = page.getByRole("dialog", { name: "Marta Recepção" });
-    await expect(ficha.getByRole("tab", { name: "Agenda: só ver", selected: true })).toBeVisible();
+    await ficha.getByRole("button", { name: "Abrir Agenda" }).click();
+    await expect(ficha.getByRole("tab", { name: "Serviços: editar", selected: true })).toBeVisible();
     const guardar = ficha.getByRole("button", { name: "Guardar permissões" });
     await expect(guardar).toBeDisabled(); // nada mudou
-    await ficha.getByRole("tab", { name: "Agenda: editar" }).click();
-    await ficha.getByRole("checkbox", { name: "Clientes" }).check();
+    await ficha.getByRole("tab", { name: "Serviços: só ver" }).click();
+    await ficha.getByRole("checkbox", { name: "Clientes", exact: true }).check();
     await expect(guardar).toBeEnabled();
     await guardar.click();
     await expect(guardar).toBeDisabled({ timeout: 10_000 }); // gravou: o formulário volta a estar limpo
@@ -85,8 +89,10 @@ test.describe("Equipa — o dono do tenant", () => {
     // Reabrir confirma o que ficou gravado.
     await marta.click();
     const ficha2 = page.getByRole("dialog", { name: "Marta Recepção" });
-    await expect(ficha2.getByRole("tab", { name: "Agenda: editar", selected: true })).toBeVisible();
-    await expect(ficha2.getByRole("checkbox", { name: "Clientes" })).toBeChecked();
+    await ficha2.getByRole("button", { name: "Abrir Agenda" }).click();
+    await expect(ficha2.getByRole("tab", { name: "Serviços: só ver", selected: true })).toBeVisible();
+    await expect(ficha2.getByRole("tab", { name: "Horário e configurações: editar", selected: true })).toBeVisible();
+    await expect(ficha2.getByRole("checkbox", { name: "Clientes", exact: true })).toBeChecked();
 
     // Convidado: reenviar convite existe; reset de password não.
     await expect(ficha2.getByRole("button", { name: /Reenviar convite/ })).toBeVisible();
@@ -113,7 +119,7 @@ test.describe("Equipa — o dono do tenant", () => {
     const invite = page.getByRole("dialog", { name: "Convidar utilizador" });
     await invite.getByLabel("Nome").fill("Duplicado");
     await invite.getByLabel("Email").fill(MEMBRO);
-    await invite.getByRole("checkbox", { name: "Agenda" }).check();
+    await invite.getByRole("checkbox", { name: "Agenda", exact: true }).check();
     await invite.getByRole("button", { name: "Enviar convite" }).click();
     await expect(page.getByText(/já está a ser usado/)).toBeVisible({ timeout: 10_000 });
   });

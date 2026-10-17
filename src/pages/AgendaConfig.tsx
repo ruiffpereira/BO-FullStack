@@ -199,7 +199,7 @@ function BloqueioModal({ open, onClose, onSave, pending }: {
       width="max-w-md"
       title="Adicionar período"
       subtitle="Bloqueia datas por férias, feriados ou imprevistos. Aparecem tracejadas no calendário."
-      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><GuardButton icon="check" isLoading={pending} disabled={invalid} onClick={() => onSave(form)}>Bloquear</GuardButton></>}
+      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><GuardButton leaf="agenda.bloqueios" icon="check" isLoading={pending} disabled={invalid} onClick={() => onSave(form)}>Bloquear</GuardButton></>}
     >
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
@@ -383,7 +383,7 @@ export function ConfiguracoesPanel() {
             <h3 className="font-semibold text-zinc-900 dark:text-white">Férias & dias bloqueados</h3>
             <p className="text-[13px] text-zinc-500 mt-0.5">Datas sem atendimento. Aparecem tracejadas no calendário.</p>
           </div>
-          <GuardButton icon="plus" className="sm:ml-auto shrink-0" onClick={() => setBloqueioOpen(true)}>Adicionar período</GuardButton>
+          <GuardButton leaf="agenda.bloqueios" icon="plus" className="sm:ml-auto shrink-0" onClick={() => setBloqueioOpen(true)}>Adicionar período</GuardButton>
         </Card>
         {loadingSlots ? (
           <div className="h-16 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" />
@@ -401,7 +401,7 @@ export function ConfiguracoesPanel() {
                     <div className="flex items-center gap-2"><p className="font-medium text-zinc-900 dark:text-white text-sm truncate">{p.reason || meta.t}</p><Badge tone={meta.tone}>{meta.t}</Badge></div>
                     <p className="text-xs text-zinc-400 mt-0.5">{label}</p>
                   </div>
-                  <GuardIconButton icon="trash" label="Remover" onClick={() => removePeriodo(p.ids)} className="opacity-0 group-hover:opacity-100 hover:text-red-500" />
+                  <GuardIconButton leaf="agenda.bloqueios" icon="trash" label="Remover" onClick={() => removePeriodo(p.ids)} className="opacity-0 group-hover:opacity-100 hover:text-red-500" />
                 </Card>
               );
             })}

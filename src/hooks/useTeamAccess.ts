@@ -9,6 +9,8 @@ export function useTeamAccess(): {
   member: AccessMember | null
   isMember: boolean
   can: (key: string, level?: TeamLevel) => boolean
+  /** Alguma das chaves (OU). */
+  canAny: (keys: readonly string[], level?: TeamLevel) => boolean
 } {
   let ctx: ReturnType<typeof useAuth> | null = null
   try {
@@ -16,9 +18,11 @@ export function useTeamAccess(): {
   } catch {
     ctx = null
   }
+  const can = ctx?.can ?? (() => true)
   return {
     member: ctx?.member ?? null,
     isMember: !!ctx?.isMember,
-    can: ctx?.can ?? (() => true),
+    can,
+    canAny: (keys, level = 'view') => keys.some((k) => can(k, level)),
   }
 }

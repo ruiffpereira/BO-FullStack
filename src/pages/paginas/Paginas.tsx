@@ -74,7 +74,7 @@ export function Paginas() {
 }
 
 function Editor() {
-  const { state, select, configured } = useBuilder();
+  const { state, select, configured, readOnly, canPublish } = useBuilder();
   // Em ecrãs estreitos só se vê um ecrã de cada vez.
   const [view, setView] = useState<"list" | "page">("list");
   // Paleta "Adicionar": `pageId` null = só biblioteca (botão "Novo" dos Blocos).
@@ -101,17 +101,19 @@ function Editor() {
     <div className="flex flex-col h-full min-h-0 gap-3">
       <TopBar onWhere={() => setView("page")} onSeoSite={() => setSeoOpen(true)} onSettings={() => setSettingsOpen(true)} />
       <Notices />
+      {readOnly && <ReadOnlyNotice />}
+      {!readOnly && !canPublish && <DraftOnlyNotice />}
       {!configured && <NotConfigured />}
       <div className="flex flex-1 min-h-0 gap-4">
         <ListColumn
           className={`${view === "list" ? "flex" : "hidden"} min-[860px]:flex`}
           onOpen={() => setView("page")}
-          onNewBlock={configured ? () => setPalette({ pageId: null, at: 0 }) : undefined}
+          onNewBlock={configured && !readOnly ? () => setPalette({ pageId: null, at: 0 }) : undefined}
         />
         <CenterColumn
           className={`${view === "page" ? "flex" : "hidden"} min-[860px]:flex`}
           onBack={() => setView("list")}
-          onAdd={(at) => configured && setPalette({ pageId: state.pageId, at })}
+          onAdd={(at) => configured && !readOnly && setPalette({ pageId: state.pageId, at })}
           flash={flash}
           onFlash={setFlash}
         />
@@ -150,10 +152,13 @@ function TopBar({ onWhere, onSeoSite, onSettings }: { onWhere: () => void; onSeo
       <Button variant="ghost" size="sm" className="min-h-10" icon="search" onClick={onSeoSite} title="Ver o SEO de todas as páginas">
         SEO do site
       </Button>
-      {/* Abaixo de `sm` só o ícone: com o texto a barra passa a duas linhas e a lista encolhe (390 px). */}
-      <Button variant="ghost" size="sm" className="min-h-10 min-w-10" icon="settings" onClick={onSettings} title="Nome do site e outras definições" aria-label="Definições do site">
-        <span className="hidden sm:inline">Definições do site</span>
-      </Button>
+      {/* Abaixo de `sm` só o ícone: com o texto a barra passa a duas linhas e a lista encolhe (390 px).
+          Equipa (B41 2b): as definições do site são da acção `paginas.publicar`. */}
+      {b.canPublish && (
+        <Button variant="ghost" size="sm" className="min-h-10 min-w-10" icon="settings" onClick={onSettings} title="Nome do site e outras definições" aria-label="Definições do site">
+          <span className="hidden sm:inline">Definições do site</span>
+        </Button>
+      )}
       <div className="flex-1 min-w-0" />
       <StatusText />
       <PublishNowButton />
@@ -182,6 +187,24 @@ function TopBar({ onWhere, onSeoSite, onSettings }: { onWhere: () => void; onSeo
 }
 
 // ── avisos de gravação ────────────────────────────────────────────────────────
+
+/** Equipa (B41 2b): só `view` no rascunho — o editor abre para ler, não para alterar. */
+function ReadOnlyNotice() {
+  return (
+    <div role="status" className="shrink-0 flex items-start gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-200">
+      <span className="flex-1 min-w-0">Só tens permissão para ver — o rascunho abre em modo leitura.</span>
+    </div>
+  );
+}
+
+/** Equipa (B41 2b): sem `paginas.publicar` a API só aceita rascunhos (403 ao mexer no que está no ar). */
+function DraftOnlyNotice() {
+  return (
+    <div role="status" className="shrink-0 flex items-start gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-200">
+      <span className="flex-1 min-w-0">Só podes gravar rascunhos. Páginas publicadas, o topo, o rodapé e os blocos que elas usam só os altera quem pode publicar.</span>
+    </div>
+  );
+}
 
 /** Sem fundos no manifest nenhum bloco gravaria (422 BAD_BG): avisa em vez de deixar criar. */
 function NotConfigured() {

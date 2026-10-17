@@ -12,6 +12,7 @@ import { quickToast } from "../state/notify";
 import { Badge, Button, Modal, Tabs } from "../../../ui/ui.jsx";
 import { Icon } from "../../../ui/icons.jsx";
 import { NOT_CONFIGURED_HINT, useBuilder, type PageTab } from "../state/store";
+import { VIEW_ONLY_MESSAGE } from "../../../lib/teamAccess";
 import { blockSummary, buildDuplicateItem, buildSeparateItem, selFor } from "../state/blocks";
 import { blockUsage } from "../state/listing";
 import { pagePath, pageTitle } from "../state/tree";
@@ -130,8 +131,8 @@ function RowMenu({ name, actions }: { name: string; actions: MenuAction[] }) {
 // ── "＋" entre itens ──────────────────────────────────────────────────────────
 
 function InsertBar({ at, onAdd }: { at: number; onAdd: (at: number) => void }) {
-  const { configured } = useBuilder();
-  if (!configured) return <div className="h-6" />;
+  const { configured, readOnly } = useBuilder();
+  if (!configured || readOnly) return <div className="h-6" />;
   return (
     <div className="relative flex h-6 items-center justify-center">
       <button
@@ -263,7 +264,8 @@ function PinnedCard({ part, onOpen }: { part: PartName; onOpen: () => void }) {
 // ── vista ─────────────────────────────────────────────────────────────────────
 
 export function PageContent({ page, onAdd, flash, onFlash }: Props) {
-  const { state, lang, catalog, manifest, configured, missing, apply, select } = useBuilder();
+  const { state, lang, catalog, manifest, configured, missing, apply, select, readOnly } = useBuilder();
+  const addHint = !configured ? NOT_CONFIGURED_HINT : readOnly ? VIEW_ONLY_MESSAGE : undefined;
   const work = state.work;
   // O separador vive no store: o "SEO NN" dos editores, o «SEO do site» e o "Ver onde" abrem as definições.
   const tab = state.tab;
@@ -331,7 +333,7 @@ export function PageContent({ page, onAdd, flash, onFlash }: Props) {
   const footerNote: ReactNode = items.length === 0 && (
     <div className="my-3 flex flex-col items-center gap-3 rounded-xl border border-dashed border-zinc-300 px-4 py-6 text-center dark:border-zinc-700">
       <p className="text-sm text-zinc-500 dark:text-zinc-400">Esta página ainda não tem blocos.</p>
-      <Button className="min-h-10" icon="plus" disabled={!configured} title={configured ? undefined : NOT_CONFIGURED_HINT} onClick={() => onAdd(0)}>Adicionar bloco</Button>
+      <Button className="min-h-10" icon="plus" disabled={!!addHint} title={addHint} onClick={() => onAdd(0)}>Adicionar bloco</Button>
     </div>
   );
 
@@ -410,8 +412,8 @@ export function PageContent({ page, onAdd, flash, onFlash }: Props) {
             {items.length > 0 && (
               <button
                 type="button"
-                disabled={!configured}
-                title={configured ? undefined : NOT_CONFIGURED_HINT}
+                disabled={!!addHint}
+                title={addHint}
                 onClick={() => onAdd(items.length)}
                 className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 text-sm font-medium text-zinc-600 disabled:cursor-not-allowed disabled:opacity-50 enabled:hover:border-accent enabled:hover:bg-accent/5 enabled:hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 dark:border-zinc-600 dark:text-zinc-300"
               >

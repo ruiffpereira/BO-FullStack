@@ -44,6 +44,11 @@ function Probe() {
       <span data-testid="agenda-edit">{String(can("agenda", "edit"))}</span>
       <span data-testid="clientes-edit">{String(can("clientes", "edit"))}</span>
       <span data-testid="loja-view">{String(can("loja"))}</span>
+      <span data-testid="servicos-view">{String(can("agenda.servicos", "view"))}</span>
+      <span data-testid="servicos-edit">{String(can("agenda.servicos", "edit"))}</span>
+      <span data-testid="valores-view">{String(can("agenda.marcacoes.valores", "view"))}</span>
+      <span data-testid="lista-edit">{String(can("clientes.lista", "edit"))}</span>
+      <span data-testid="exportar">{String(can("clientes.lista.exportar", "edit"))}</span>
     </div>
   );
 }
@@ -75,6 +80,10 @@ describe("AuthContext — acesso da equipa (B41)", () => {
         { key: "agenda", label: "Agenda", level: "view" },
         { key: "clientes", label: "Clientes", level: "edit" },
       ],
+      grants: [
+        { key: "agenda.marcacoes", level: "view" },
+        { key: "clientes.lista", level: "edit" },
+      ],
     });
     renderAuth();
     await waitFor(() => expect(screen.queryByTestId("pending")).toBeNull());
@@ -85,6 +94,31 @@ describe("AuthContext — acesso da equipa (B41)", () => {
     expect(text("agenda-edit")).toBe("false");
     expect(text("clientes-edit")).toBe("true");
     expect(text("loja-view")).toBe("false");
+  });
+
+  it("folhas: `can` aceita chaves de folha e de agrupador; a acção não eleva a folha-pai", async () => {
+    getUserpermissionsAccessMock.mockResolvedValue({
+      member: { memberId: "m1", name: "Ana", email: "ana@x.pt", tenantName: "Tifas Barber" },
+      modules: [
+        { key: "agenda", label: "Agenda", level: "edit" },
+        { key: "clientes", label: "Clientes", level: "edit" },
+      ],
+      grants: [
+        { key: "agenda.marcacoes", level: "edit" },
+        { key: "agenda.servicos", level: "view" },
+        { key: "clientes.lista", level: "view" },
+        { key: "clientes.lista.exportar", level: "edit" },
+      ],
+    });
+    renderAuth();
+    await waitFor(() => expect(screen.queryByTestId("pending")).toBeNull());
+
+    expect(text("servicos-view")).toBe("true");
+    expect(text("servicos-edit")).toBe("false");
+    expect(text("valores-view")).toBe("false");
+    expect(text("agenda-edit")).toBe("true");
+    expect(text("lista-edit")).toBe("false");
+    expect(text("exportar")).toBe("true");
   });
 
   it("dono (`member: null`): pode tudo, `isMember` falso", async () => {

@@ -67,13 +67,36 @@ vi.mock("sonner", () => ({
 
 import { Equipa } from "../../src/pages/Equipa";
 
+const node = (key: string, label: string, over: Record<string, unknown> = {}) => ({
+  key,
+  label,
+  levels: ["view", "edit"],
+  action: false,
+  storable: true,
+  requiresComponents: [],
+  available: true,
+  children: [],
+  ...over,
+});
+const group = (key: string, label: string, children: unknown[], over: Record<string, unknown> = {}) =>
+  node(key, label, { levels: [], storable: false, children, ...over });
+
 const CATALOG = {
   maxMembers: 10,
-  modules: [
-    { key: "agenda", label: "Agenda", requiresComponent: "VIEW_SCHEDULE", levels: ["view", "edit"], available: true },
-    { key: "clientes", label: "Clientes", requiresComponent: "VIEW_CUSTOMERS", levels: ["view", "edit"], available: true },
-    { key: "loja", label: "Loja", requiresComponent: "VIEW_PRODUCTS", levels: ["view", "edit"], available: false },
-    { key: "estatisticas", label: "Estatísticas do site", requiresComponent: null, levels: ["view"], available: true },
+  tree: [
+    group("agenda", "Agenda", [
+      node("agenda.marcacoes", "Calendário e marcações", {
+        children: [node("agenda.marcacoes.valores", "Valores e pagamentos")],
+      }),
+      node("agenda.servicos", "Serviços"),
+    ]),
+    group("clientes", "Clientes", [
+      node("clientes.lista", "Lista e ficha", {
+        children: [node("clientes.lista.exportar", "Exportar dados (RGPD)", { levels: ["edit"], action: true })],
+      }),
+    ]),
+    group("loja", "Loja", [node("loja.produtos", "Produtos", { available: false })], { available: false }),
+    node("estatisticas", "Estatísticas do site", { levels: ["view"] }),
   ],
 };
 
@@ -85,11 +108,11 @@ const MEMBERS = [
     status: "active",
     lastLoginAt: "2026-10-10T09:30:00.000Z",
     grants: [
-      { key: "agenda", level: "view" },
-      { key: "clientes", level: "edit" },
+      { key: "agenda.marcacoes", level: "view" },
+      { key: "clientes.lista", level: "edit" },
     ],
   },
-  { memberId: "m-inv", name: "Rui Convidado", email: "rui@x.pt", status: "invited", lastLoginAt: null, grants: [{ key: "agenda", level: "edit" }] },
+  { memberId: "m-inv", name: "Rui Convidado", email: "rui@x.pt", status: "invited", lastLoginAt: null, grants: [{ key: "agenda.marcacoes", level: "edit" }] },
   { memberId: "m-off", name: "Zé Desactivado", email: "ze@x.pt", status: "disabled", lastLoginAt: null, grants: [] },
 ];
 
@@ -155,40 +178,83 @@ describe("Equipa — convidar", () => {
     fireEvent.click(screen.getByRole("button", { name: /Convidar utilizador/ }));
     return screen.getByRole("dialog", { name: "Convidar utilizador" });
   }
-
-  it("lista só os módulos disponíveis; os só-leitura mostram 'Só ver' em vez de [Ver | Editar]", () => {
-    const dialog = openInvite();
-    expect(within(dialog).getByRole("checkbox", { name: "Agenda" })).toBeInTheDocument();
-    expect(within(dialog).getByRole("checkbox", { name: "Clientes" })).toBeInTheDocument();
-    expect(within(dialog).queryByRole("checkbox", { name: "Loja" })).toBeNull(); // o tenant não tem o módulo
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Estatísticas do site" }));
-    expect(within(dialog).getByText("Só ver")).toBeInTheDocument();
-    expect(within(dialog).queryByRole("tab", { name: "Estatísticas do site: editar" })).toBeNull();
-  });
-
-  it("envia nome, email e as permissões marcadas (nível por módulo)", () => {
-    const dialog = openInvite();
+  const fill = (dialog: HTMLElement) => {
     fireEvent.change(within(dialog).getByLabelText("Nome"), { target: { value: "  Marta  " } });
     fireEvent.change(within(dialog).getByLabelText("Email"), { target: { value: "marta@x.pt" } });
+  };
+
+  it("oferece só 'Acesso total' ou 'Escolher na árvore' — com a ajuda sob o acesso total", () => {
+    const dialog = openInvite();
+    expect(within(dialog).getAllByRole("radio")).toHaveLength(2);
+    expect(within(dialog).getByRole("radio", { name: /Acesso total/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole("radio", { name: /Escolher na árvore/ })).toBeChecked();
+    expect(
+      within(dialog).getByText("Dá tudo o que existe hoje. Partes novas que apareçam no futuro ficam fechadas até as dares."),
+    ).toBeInTheDocument();
+  });
+
+  it("a árvore abre vazia e colapsada; os topos mostram o estado; o plano sem o módulo fica desactivado com o motivo", () => {
+    const dialog = openInvite();
+    expect(within(dialog).getByRole("checkbox", { name: "Agenda" })).not.toBeChecked();
+    expect(within(dialog).queryByRole("checkbox", { name: "Serviços" })).toBeNull(); // colapsado
+    const loja = within(dialog).getByRole("checkbox", { name: "Loja" });
+    expect(loja).toBeDisabled();
+    expect(within(dialog).getByText(/O teu plano não inclui este módulo/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abrir Agenda" }));
+    expect(within(dialog).getByRole("checkbox", { name: "Serviços" })).toBeInTheDocument();
+  });
+
+  it("marcar o pai marca os filhos; desmarcar um filho deixa o pai parcial; só Ver/Editar onde há níveis", () => {
+    const dialog = openInvite();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abrir Agenda" }));
     fireEvent.click(within(dialog).getByRole("checkbox", { name: "Agenda" }));
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Clientes" }));
-    fireEvent.click(within(dialog).getByRole("tab", { name: "Clientes: editar" }));
+    expect(within(dialog).getByRole("checkbox", { name: "Serviços" })).toBeChecked();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abrir Calendário e marcações" }));
+    expect(within(dialog).getByRole("checkbox", { name: "Valores e pagamentos" })).toBeChecked();
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Valores e pagamentos" }));
+    expect((within(dialog).getByRole("checkbox", { name: "Calendário e marcações" }) as HTMLInputElement).indeterminate).toBe(true);
+    expect((within(dialog).getByRole("checkbox", { name: "Agenda" }) as HTMLInputElement).indeterminate).toBe(true);
+    // baixar o pai para Ver: um filho nunca fica acima do pai
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Valores e pagamentos" }));
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Calendário e marcações: só ver" }));
+    expect(within(dialog).getByRole("tab", { name: "Calendário e marcações: só ver", selected: true })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("tab", { name: "Valores e pagamentos: editar" })).toBeNull();
+    // só-ver e acção
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Estatísticas do site" }));
+    expect(within(dialog).getAllByText("Só ver").length).toBeGreaterThan(0);
+  });
+
+  it("'Escolher na árvore' envia só as folhas marcadas (nunca o agrupador)", () => {
+    const dialog = openInvite();
+    fill(dialog);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abrir Agenda" }));
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Serviços" }));
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Serviços: só ver" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Enviar convite" }));
 
     expect(mutations.create).toHaveBeenCalledTimes(1);
     expect(mutations.create.mock.calls[0][0]).toEqual({
-      data: {
-        name: "Marta",
-        email: "marta@x.pt",
-        grants: [
-          { key: "agenda", level: "view" },
-          { key: "clientes", level: "edit" },
-        ],
-      },
+      data: { name: "Marta", email: "marta@x.pt", grants: [{ key: "agenda.servicos", level: "view" }] },
     });
   });
 
-  it("valida antes de enviar: nome, email e pelo menos um módulo", () => {
+  it("'Acesso total' envia todos os nós disponíveis ao nível máximo (sem os indisponíveis)", () => {
+    const dialog = openInvite();
+    fill(dialog);
+    fireEvent.click(within(dialog).getByRole("radio", { name: /Acesso total/ }));
+    expect(within(dialog).queryByRole("checkbox", { name: "Agenda" })).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Enviar convite" }));
+    expect(mutations.create.mock.calls[0][0].data.grants).toEqual([
+      { key: "agenda.marcacoes", level: "edit" },
+      { key: "agenda.marcacoes.valores", level: "edit" },
+      { key: "agenda.servicos", level: "edit" },
+      { key: "clientes.lista", level: "edit" },
+      { key: "clientes.lista.exportar", level: "edit" },
+      { key: "estatisticas", level: "view" },
+    ]);
+  });
+
+  it("valida antes de enviar: nome, email e pelo menos uma permissão", () => {
     const dialog = openInvite();
     fireEvent.click(within(dialog).getByRole("button", { name: "Enviar convite" }));
     expect(toastError).toHaveBeenLastCalledWith("Indica o nome.");
@@ -198,7 +264,7 @@ describe("Equipa — convidar", () => {
     expect(toastError).toHaveBeenLastCalledWith("Indica um email válido.");
     fireEvent.change(within(dialog).getByLabelText("Email"), { target: { value: "marta@x.pt" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Enviar convite" }));
-    expect(toastError).toHaveBeenLastCalledWith("Escolhe pelo menos um módulo.");
+    expect(toastError).toHaveBeenLastCalledWith("Escolhe pelo menos uma permissão.");
     expect(mutations.create).not.toHaveBeenCalled();
   });
 
@@ -222,11 +288,16 @@ describe("Equipa — ficha do membro", () => {
     return screen.getByRole("dialog");
   }
 
-  it("activo: permissões editáveis, 'Enviar reset de password', Desactivar, Terminar sessões — e sem 'Reenviar convite'", () => {
+  it("activo: árvore com o estado actual, 'Enviar reset de password', Desactivar, Terminar sessões — e sem 'Reenviar convite'", () => {
     const dialog = openMember(/Abrir Ana Silva/);
-    expect(within(dialog).getByRole("checkbox", { name: "Agenda" })).toBeChecked();
-    expect(within(dialog).getByRole("tab", { name: "Agenda: só ver", selected: true })).toBeInTheDocument();
-    expect(within(dialog).getByRole("tab", { name: "Clientes: editar", selected: true })).toBeInTheDocument();
+    // topos colapsados: o estado vê-se logo (Agenda parcial, Clientes parcial — a acção exportar está por dar)
+    expect((within(dialog).getByRole("checkbox", { name: "Agenda" }) as HTMLInputElement).indeterminate).toBe(true);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abrir Agenda" }));
+    // tem a folha própria, mas falta o filho (Valores): parcial
+    expect((within(dialog).getByRole("checkbox", { name: "Calendário e marcações" }) as HTMLInputElement).indeterminate).toBe(true);
+    expect(within(dialog).getByRole("tab", { name: "Calendário e marcações: só ver", selected: true })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abrir Clientes" }));
+    expect(within(dialog).getByRole("tab", { name: "Lista e ficha: editar", selected: true })).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: /Enviar reset de password/ })).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: /Desactivar/ })).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: /Terminar sessões/ })).toBeInTheDocument();
@@ -248,17 +319,21 @@ describe("Equipa — ficha do membro", () => {
     expect(within(dialog).queryByRole("button", { name: /Desactivar/ })).toBeNull();
   });
 
-  it("Guardar permissões só activa com alterações e envia o conjunto novo (substitui)", () => {
+  it("Guardar permissões só activa com alterações e envia as folhas novas (substitui)", () => {
     const dialog = openMember(/Abrir Ana Silva/);
     const save = within(dialog).getByRole("button", { name: "Guardar permissões" });
     expect(save).toBeDisabled();
-    fireEvent.click(within(dialog).getByRole("tab", { name: "Agenda: editar" }));
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Clientes" })); // tira o módulo
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abrir Agenda" }));
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Calendário e marcações: editar" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abrir Clientes" }));
+    const lista = within(dialog).getByRole("checkbox", { name: "Lista e ficha" });
+    fireEvent.click(lista); // parcial → completa o ramo
+    fireEvent.click(lista); // tudo marcado → tira a folha e arrasta a acção
     expect(save).not.toBeDisabled();
     fireEvent.click(save);
     expect(mutations.update.mock.calls[0][0]).toEqual({
       memberId: "m-active",
-      data: { name: "Ana Silva", grants: [{ key: "agenda", level: "edit" }] },
+      data: { name: "Ana Silva", grants: [{ key: "agenda.marcacoes", level: "edit" }] },
     });
   });
 

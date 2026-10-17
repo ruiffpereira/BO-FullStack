@@ -10,6 +10,7 @@
  *
  * Toda a regra está em `state/*`: o componente só chama `edit`, `undo`, `redo`, `save`…
  */
+import { useTeamAccess } from "../../../hooks/useTeamAccess";
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -189,6 +190,13 @@ export function reduce(s: StoreState, a: Action): StoreState {
 
 export interface Builder {
   state: StoreState;
+  /**
+   * Equipa (B41 2b): o membro só tem `view` em `paginas.rascunho` — o editor abre em modo leitura: `edit`, `apply`,
+   * desfazer/refazer e `save` ficam inertes (a API recusava na mesma). O dono nunca é afectado.
+   */
+  readOnly: boolean;
+  /** Equipa: `paginas.publicar` — publicar e as definições do site. */
+  canPublish: boolean;
   /** Há alterações por gravar (o changeset não está vazio). */
   dirty: boolean;
   /** O que o próximo `save` mandaria (`null` = nada). */
@@ -257,6 +265,11 @@ export function BuilderProvider({ data, siteName = "", refetch, children }: Prov
   const [state, dispatch] = useReducer(reduce, undefined, () => initState(fromServer(data), data.revision ?? 0));
   const latest = useRef(state);
   latest.current = state;
+  const { can } = useTeamAccess();
+  const readOnly = !can("paginas.rascunho", "edit");
+  const canPublish = can("paginas.publicar", "edit");
+  const readOnlyRef = useRef(readOnly);
+  readOnlyRef.current = readOnly;
 
   const queryClient = useQueryClient();
   const { mutateAsync: saveAsync } = useSaveSiteBuilder();
@@ -276,10 +289,18 @@ export function BuilderProvider({ data, siteName = "", refetch, children }: Prov
   missingRef.current = missing;
   const dirty = changeset !== null;
 
-  const edit = useCallback((update: (w: Work) => Work, key?: string) => dispatch({ type: "edit", update, key }), []);
-  const apply = useCallback((op: WorkOp) => dispatch({ type: "op", op }), []);
-  const undoFn = useCallback(() => dispatch({ type: "undo" }), []);
-  const redoFn = useCallback(() => dispatch({ type: "redo" }), []);
+  const edit = useCallback((update: (w: Work) => Work, key?: string) => {
+    if (!readOnlyRef.current) dispatch({ type: "edit", update, key });
+  }, []);
+  const apply = useCallback((op: WorkOp) => {
+    if (!readOnlyRef.current) dispatch({ type: "op", op });
+  }, []);
+  const undoFn = useCallback(() => {
+    if (!readOnlyRef.current) dispatch({ type: "undo" });
+  }, []);
+  const redoFn = useCallback(() => {
+    if (!readOnlyRef.current) dispatch({ type: "redo" });
+  }, []);
   const select = useCallback(
     (patch: { pageId?: string | null; libId?: string | null; sel?: Sel; tab?: PageTab }) => dispatch({ type: "select", ...patch }),
     [],
@@ -295,6 +316,7 @@ export function BuilderProvider({ data, siteName = "", refetch, children }: Prov
   }, []);
 
   const save = useCallback(async (): Promise<boolean> => {
+    if (readOnlyRef.current) return false;
     const s = latest.current;
     if (s.status === "saving") return false;
     if (missingRef.current.length > 0) {
@@ -364,7 +386,7 @@ export function BuilderProvider({ data, siteName = "", refetch, children }: Prov
   // Ctrl+Z · Ctrl+Shift+Z · Ctrl+Y — nunca dentro de caixas de texto (lá o browser desfaz o texto).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.altKey || isTyping(e.target)) return;
+      if (readOnlyRef.current || !(e.ctrlKey || e.metaKey) || e.altKey || isTyping(e.target)) return;
       const k = e.key.toLowerCase();
       if (k === "z" && !e.shiftKey) dispatch({ type: "undo" });
       else if ((k === "z" && e.shiftKey) || k === "y") dispatch({ type: "redo" });
@@ -388,6 +410,8 @@ export function BuilderProvider({ data, siteName = "", refetch, children }: Prov
 
   const value = useMemo<Builder>(
     () => ({
+      readOnly,
+      canPublish,
       state,
       dirty,
       changeset,
@@ -415,7 +439,7 @@ export function BuilderProvider({ data, siteName = "", refetch, children }: Prov
       publishNow,
       adoptRevision,
     }),
-    [state, dirty, changeset, missing, catalog, manifest, lang, data.limits, data.publish, data.redirects, siteName, edit, apply, undoFn, redoFn, select, goToMissing, save, reload, dismiss, publishNow, adoptRevision],
+    [readOnly, canPublish, state, dirty, changeset, missing, catalog, manifest, lang, data.limits, data.publish, data.redirects, siteName, edit, apply, undoFn, redoFn, select, goToMissing, save, reload, dismiss, publishNow, adoptRevision],
   );
 
   return createElement(BuilderContext.Provider, { value }, children);

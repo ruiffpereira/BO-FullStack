@@ -57,6 +57,16 @@ const BAR_CLASS: Record<ApptTone, string> = {
  * como "em dívida". */
 export function apptDebt(appt: ApptStatusInput): number {
   if ((appt.status ?? "pending") !== "completed") return 0;
+  // Equipa (B41 2b): sem `agenda.marcacoes.valores` a API nem envia os campos de dinheiro (ausentes, não `null`).
+  // Sem eles não se sabe o que foi pago — e cair no preço do catálogo mostraria uma "dívida" falsa (e o preço).
+  if (
+    appt.servicePrice === undefined &&
+    appt.paymentCash === undefined &&
+    appt.paymentMbway === undefined &&
+    appt.paymentCard === undefined
+  ) {
+    return 0;
+  }
   const paid =
     Number(appt.paymentCash || 0) +
     Number(appt.paymentMbway || 0) +

@@ -22,24 +22,32 @@ export interface SubmenuItem {
    * sempre visível. Um array é OR — basta UMA das permissões.
    */
   perm?: string | string[];
+  /**
+   * Equipa (B41 2b): folha(s) da árvore de permissões que dão este subitem a um MEMBRO (OU se for um array;
+   * basta `view`). O dono nunca olha para isto — vale `perm`. Um subitem sem `leaf` nem `ownerOnly` não
+   * aparece a membros (default-deny).
+   */
+  leaf?: string | string[];
+  /** Equipa: nunca aparece a um membro (agrega dinheiro de vários módulos — fase 2c). */
+  ownerOnly?: boolean;
 }
 
 export const SUBMENU: Record<string, SubmenuItem[]> = {
   "/financeiro": [
-    { id: "negocio", label: "O Negócio", path: "/financeiro" },
-    { id: "agenda", label: "Agenda", path: "/financeiro/agenda", perm: "VIEW_SCHEDULE" },
-    { id: "loja", label: "Loja", path: "/financeiro/loja", perm: "VIEW_PRODUCTS" },
-    { id: "ginasio", label: "Ginásio", path: "/financeiro/ginasio", perm: "VIEW_GYM" },
+    { id: "negocio", label: "O Negócio", path: "/financeiro", ownerOnly: true },
+    { id: "agenda", label: "Agenda", path: "/financeiro/agenda", perm: "VIEW_SCHEDULE", ownerOnly: true },
+    { id: "loja", label: "Loja", path: "/financeiro/loja", perm: "VIEW_PRODUCTS", ownerOnly: true },
+    { id: "ginasio", label: "Ginásio", path: "/financeiro/ginasio", perm: "VIEW_GYM", leaf: "financeiro.mensalidades" },
     // `VIEW_EXPENSES` acrescentado (B5): esta aba lê/escreve `/expenses`, que a
     // API gateia por essa permissão (routes/index.ts). Sem `perm` aqui, um
     // tenant criado pelo admin sem essa permissão via o subitem, entrava e
     // levava 403 em todos os hooks — `Despesas.tsx` não tratava `isError`.
-    { id: "despesas", label: "Despesas", path: "/financeiro/despesas", perm: "VIEW_EXPENSES" },
+    { id: "despesas", label: "Despesas", path: "/financeiro/despesas", perm: "VIEW_EXPENSES", leaf: "financeiro.despesas" },
   ],
   "/loja": [
-    { id: "produtos", label: "Produtos", path: "/loja" },
-    { id: "encomendas", label: "Encomendas", path: "/loja/encomendas" },
-    { id: "categorias", label: "Categorias", path: "/loja/categorias" },
+    { id: "produtos", label: "Produtos", path: "/loja", leaf: "loja.produtos" },
+    { id: "encomendas", label: "Encomendas", path: "/loja/encomendas", leaf: "loja.encomendas" },
+    { id: "categorias", label: "Categorias", path: "/loja/categorias", leaf: "loja.categorias" },
   ],
   "/clientes": [
     // Label do âncora ("Lista", não "Clientes") por desenho — evita duplicar o
@@ -54,17 +62,17 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     // Financeiro/Conteúdos), o guard do `Shell.tsx` trata a raiz inteira como
     // indisponível quando `allowedSubitems` devolve vazio, e cai para o
     // dashboard — não fica preso a mostrar um erro.
-    { id: "clientes", label: "Lista", path: "/clientes", perm: "VIEW_CUSTOMERS" },
-    { id: "leads", label: "Leads", path: "/clientes/leads", perm: "VIEW_CUSTOMERS" },
+    { id: "clientes", label: "Lista", path: "/clientes", perm: "VIEW_CUSTOMERS", leaf: "clientes.lista" },
+    { id: "leads", label: "Leads", path: "/clientes/leads", perm: "VIEW_CUSTOMERS", leaf: "clientes.leads" },
   ],
   "/agenda": [
     // Label do âncora ("Calendário", não "Agenda") pelo mesmo motivo dos
     // outros grupos acima — e é também o nome mais preciso: a raiz É o
     // calendário, não um resumo genérico da página.
-    { id: "cal", label: "Calendário", path: "/agenda" },
-    { id: "marcacoes", label: "Marcações", path: "/agenda/marcacoes" },
-    { id: "servicos", label: "Serviços", path: "/agenda/servicos" },
-    { id: "config", label: "Configurações", path: "/agenda/config" },
+    { id: "cal", label: "Calendário", path: "/agenda", leaf: "agenda.marcacoes" },
+    { id: "marcacoes", label: "Marcações", path: "/agenda/marcacoes", leaf: "agenda.marcacoes" },
+    { id: "servicos", label: "Serviços", path: "/agenda/servicos", leaf: "agenda.servicos" },
+    { id: "config", label: "Configurações", path: "/agenda/config", leaf: ["agenda.config", "agenda.bloqueios"] },
   ],
   "/admin": [
     // Label do âncora ("Utilizadores", não "Admin") pelo mesmo motivo dos
@@ -92,10 +100,10 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     // core visível). O conteúdo real da tab é atribuir/mudar planos e ver a
     // adesão/progresso de cada cliente — não uma lista de clientes por si só
     // — daí "Progresso de clientes", mais preciso e sem ambiguidade.
-    { id: "exercicios", label: "Exercícios", path: "/ginasio" },
-    { id: "treinos", label: "Dia de Treino", path: "/ginasio/treinos" },
-    { id: "planos", label: "Planos", path: "/ginasio/planos" },
-    { id: "clientes", label: "Progresso de clientes", path: "/ginasio/clientes" },
+    { id: "exercicios", label: "Exercícios", path: "/ginasio", leaf: "ginasio.exercicios" },
+    { id: "treinos", label: "Dia de Treino", path: "/ginasio/treinos", leaf: "ginasio.treinos" },
+    { id: "planos", label: "Planos", path: "/ginasio/planos", leaf: "ginasio.treinos" },
+    { id: "clientes", label: "Progresso de clientes", path: "/ginasio/clientes", leaf: "ginasio.clientes" },
   ],
   "/conteudos": [
     // Página com gating POR SUBITEM (T2.6): produtos/serviços/ginásio
@@ -118,13 +126,13 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     // ⚠ NÃO acrescentar o mesmo a "Emails"/"Notificações": esses lêem
     // `/cms/{email,notification}-templates`, que exigem só sessão iniciada. A UI
     // e a API concordam aí de propósito — são dados de referência, como Línguas.
-    { id: "website", label: "Website", path: "/conteudos", perm: "VIEW_CMS" },
-    { id: "product", label: "Produtos", path: "/conteudos/produtos", perm: "VIEW_PRODUCTS" },
-    { id: "service", label: "Serviços", path: "/conteudos/servicos", perm: "VIEW_SCHEDULE" },
-    { id: "gym", label: "Ginásio (nomes)", path: "/conteudos/ginasio", perm: "VIEW_GYM" },
-    { id: "linguas", label: "Línguas", path: "/conteudos/linguas" },
-    { id: "emails", label: "Emails", path: "/conteudos/emails" },
-    { id: "notificacoes", label: "Notificações", path: "/conteudos/notificacoes" },
+    { id: "website", label: "Website", path: "/conteudos", perm: "VIEW_CMS", leaf: "conteudos.website" },
+    { id: "product", label: "Produtos", path: "/conteudos/produtos", perm: "VIEW_PRODUCTS", leaf: "conteudos.produtos" },
+    { id: "service", label: "Serviços", path: "/conteudos/servicos", perm: "VIEW_SCHEDULE", leaf: "conteudos.servicos" },
+    { id: "gym", label: "Ginásio (nomes)", path: "/conteudos/ginasio", perm: "VIEW_GYM", leaf: "conteudos.ginasio" },
+    { id: "linguas", label: "Línguas", path: "/conteudos/linguas", leaf: "conteudos.linguas" },
+    { id: "emails", label: "Emails", path: "/conteudos/emails", leaf: "conteudos.emails" },
+    { id: "notificacoes", label: "Notificações", path: "/conteudos/notificacoes", leaf: "conteudos.notificacoes" },
   ],
 };
 
@@ -170,25 +178,66 @@ export function resolveLegacyTabTarget(root: string, id: string | null, restSear
 }
 
 /**
- * Equipa (B41): módulo do catálogo da API a que cada root da sidebar pertence. É o que o `useWriteGuard` usa para
- * saber se o membro só pode VER a página em que está. `/despesas` e `/financeiro/despesas` são o módulo `despesas`
- * (o resto do Financeiro é só do dono na fase 1).
+ * Equipa (B41 2b): subitens que um MEMBRO vê — por folha da árvore (`can(leaf, 'view')`), nunca por `perm` (o
+ * tecto do tenant já vem nas folhas que a API devolve). Sem `leaf` ou `ownerOnly` → escondido (default-deny).
+ * Uma raiz sem SUBMENU (Mensagens, Estatísticas, Páginas) não passa por aqui: vê-se pela folha do topo.
  */
-export const ROOT_MODULE: Record<string, string> = {
-  "/agenda": "agenda",
-  "/loja": "loja",
-  "/ginasio": "ginasio",
-  "/clientes": "clientes",
-  "/despesas": "despesas",
-  "/financeiro/despesas": "despesas",
-  "/conteudos": "conteudos",
-  "/paginas": "paginas",
-  "/mensagens": "mensagens",
-  "/estatisticas": "estatisticas",
-};
+export function memberSubitems(root: string, can: (key: string, level?: "view" | "edit") => boolean): SubmenuItem[] {
+  const items = SUBMENU[root];
+  if (!items) return [];
+  return items.filter((it) => {
+    if (it.ownerOnly || !it.leaf) return false;
+    const leaves = Array.isArray(it.leaf) ? it.leaf : [it.leaf];
+    return leaves.some((l) => can(l, "view"));
+  });
+}
 
-/** Chave do módulo da equipa a que `pathname` pertence, ou `undefined` (Dashboard, Perfil, Equipa, …). */
+/**
+ * Equipa (B41 2b): a FOLHA da árvore a que cada página/separador pertence — é o que o `useWriteGuard` usa para
+ * saber se o membro só pode VER a página em que está. Prefixo mais longo ganha. Uma página que mistura folhas
+ * (Configurações = `agenda.config` + `agenda.bloqueios`; Produtos com o custo; a ficha de cliente com
+ * apagar/exportar) guarda pela folha principal aqui e usa `can()`/`leaf` directo nos controlos que são de outra.
+ * `/despesas` e `/financeiro/despesas` são a mesma folha.
+ */
+export const LEAF_FOR_PATH: ReadonlyArray<readonly [string, string]> = [
+  ["/agenda/servicos", "agenda.servicos"],
+  ["/agenda/config", "agenda.config"],
+  ["/agenda/marcacoes", "agenda.marcacoes"],
+  ["/agenda", "agenda.marcacoes"],
+  ["/loja/encomendas", "loja.encomendas"],
+  ["/loja/categorias", "loja.categorias"],
+  ["/loja", "loja.produtos"],
+  ["/ginasio/treinos", "ginasio.treinos"],
+  ["/ginasio/planos", "ginasio.treinos"],
+  ["/ginasio/clientes", "ginasio.clientes"],
+  ["/ginasio", "ginasio.exercicios"],
+  ["/clientes/leads", "clientes.leads"],
+  ["/clientes", "clientes.lista"],
+  ["/financeiro/ginasio", "financeiro.mensalidades"],
+  ["/financeiro/despesas", "financeiro.despesas"],
+  ["/despesas", "financeiro.despesas"],
+  ["/conteudos/produtos", "conteudos.produtos"],
+  ["/conteudos/servicos", "conteudos.servicos"],
+  ["/conteudos/ginasio", "conteudos.ginasio"],
+  ["/conteudos/linguas", "conteudos.linguas"],
+  ["/conteudos/emails", "conteudos.emails"],
+  ["/conteudos/notificacoes", "conteudos.notificacoes"],
+  ["/conteudos", "conteudos.website"],
+  ["/paginas", "paginas.rascunho"],
+  ["/mensagens", "mensagens"],
+  ["/estatisticas", "estatisticas"],
+];
+
+/** Folha da árvore a que `pathname` pertence, ou `undefined` (Dashboard, Perfil, Equipa, …). */
+export function leafForPath(pathname: string): string | undefined {
+  for (const [prefix, leaf] of LEAF_FOR_PATH) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) return leaf;
+  }
+  return undefined;
+}
+
+/** Topo da árvore (`agenda`, `loja`, …) a que `pathname` pertence — o primeiro segmento da folha. */
 export function moduleForPath(pathname: string): string | undefined {
-  const root = findRoot(pathname, Object.keys(ROOT_MODULE));
-  return root ? ROOT_MODULE[root] : undefined;
+  const leaf = leafForPath(pathname);
+  return leaf ? leaf.split(".")[0] : undefined;
 }

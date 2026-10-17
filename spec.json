@@ -2961,6 +2961,62 @@
             ]
           }
         }
+      },
+      "TeamCatalogNode": {
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "levels",
+          "action",
+          "storable",
+          "requiresComponents",
+          "available",
+          "children"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Chave estável pontuada (ex. agenda.marcacoes.valores)"
+          },
+          "label": {
+            "type": "string"
+          },
+          "levels": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "view",
+                "edit"
+              ]
+            }
+          },
+          "action": {
+            "type": "boolean",
+            "description": "Acção sim/não (levels = [edit])"
+          },
+          "storable": {
+            "type": "boolean",
+            "description": "false = puro agrupador, nunca se guarda"
+          },
+          "requiresComponents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Componentes RBAC que o tenant tem de ter (topo + extra, herdados)"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamCatalogNode"
+            }
+          }
+        }
       }
     }
   },
@@ -5614,7 +5670,7 @@
     "/userpermissions/access": {
       "get": {
         "summary": "Módulos da equipa a que a sessão tem acesso, com o nível (B41)",
-        "description": "Calculado na API (o Backoffice nunca deduz permissões). Dono do tenant: `member` é `null` e `modules` são todos os módulos do catálogo que o tenant tem, ao nível máximo. Membro da equipa: só os módulos que lhe foram dados E que o tenant tem (`level` = `view` ou `edit`); `member` identifica-o. O `key` é o do catálogo (`GET /team/catalog`).",
+        "description": "Calculado na API (o Backoffice nunca deduz permissões). `grants` = as FOLHAS efectivas da árvore (B41 2b), já cortadas pelo tecto do tenant: dono do tenant → todas as disponíveis ao nível máximo (`member` é `null`); membro → as que lhe foram dadas E que o tenant tem. As acções (ex. `clientes.lista.exportar`) vêm com `level: edit`. `modules` resume por topo (o máximo das folhas desse topo) para o menu. As chaves são as de `GET /team/catalog`.",
         "tags": [
           "UserPermissions"
         ],
@@ -5663,6 +5719,12 @@
                             ]
                           }
                         }
+                      }
+                    },
+                    "grants": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TeamGrantInput"
                       }
                     }
                   }
@@ -6711,6 +6773,7 @@
     "/cms/entries": {
       "delete": {
         "summary": "Eliminar múltiplas entradas em bulk",
+        "description": "Membro da equipa: exige `edit` na folha de Conteúdos de CADA chave (403 `TEAM_FORBIDDEN`, nada é apagado) e só poda as secções vazias dos contextos onde tem `edit`. `keys` tem de ser uma lista de texto.",
         "tags": [
           "CMS"
         ],
@@ -6738,6 +6801,12 @@
         "responses": {
           "200": {
             "description": "Entradas eliminadas"
+          },
+          "400": {
+            "description": "keys em falta, vazio ou com elementos que não são texto"
+          },
+          "403": {
+            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver `FUNCIONALIDADES.md`"
           }
         }
       },
@@ -6754,6 +6823,7 @@
       },
       "put": {
         "summary": "Criar ou actualizar uma entrada (upsert por key + locale)",
+        "description": "Membro da equipa: a folha vem da classificação da chave (`email.`/`notif.` > secção > prefixo); mudar a secção exige `edit` também no contexto da nova. `key`, `locale` e `sectionId` têm de ser texto.",
         "tags": [
           "CMS"
         ],
@@ -6802,6 +6872,12 @@
         "responses": {
           "200": {
             "description": "Entrada guardada"
+          },
+          "400": {
+            "description": "key/value em falta, ou key/locale/sectionId que não são texto"
+          },
+          "403": {
+            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver `FUNCIONALIDADES.md`"
           }
         }
       }
@@ -6863,7 +6939,10 @@
             }
           },
           "400": {
-            "description": "orders em falta ou vazio"
+            "description": "orders em falta, vazio, ou com `key` que não é texto"
+          },
+          "403": {
+            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver `FUNCIONALIDADES.md`"
           }
         }
       }
@@ -6887,6 +6966,9 @@
         "responses": {
           "200": {
             "description": "Entrada eliminada"
+          },
+          "403": {
+            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver `FUNCIONALIDADES.md`"
           },
           "404": {
             "description": "Não encontrada"
@@ -6952,6 +7034,9 @@
         "responses": {
           "200": {
             "description": "Template aplicado"
+          },
+          "403": {
+            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver `FUNCIONALIDADES.md`"
           }
         }
       }
@@ -7036,7 +7121,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Lista de secções"
+            "description": "Lista de secções (membro da equipa: só dos contextos que pode ver)"
           }
         }
       },
@@ -7071,6 +7156,12 @@
         "responses": {
           "201": {
             "description": "Secção criada"
+          },
+          "400": {
+            "description": "name em falta, context inválido ou pai inexistente (ou de outro tenant)"
+          },
+          "403": {
+            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver `FUNCIONALIDADES.md`"
           }
         }
       }
@@ -7134,7 +7225,10 @@
             }
           },
           "400": {
-            "description": "orders em falta ou vazio"
+            "description": "orders em falta, vazio, ou com `id` que não é texto"
+          },
+          "403": {
+            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver `FUNCIONALIDADES.md`"
           }
         }
       }
@@ -7157,7 +7251,13 @@
         ],
         "responses": {
           "200": {
-            "description": "Secção actualizada"
+            "description": "Secção actualizada (o `context` não se muda por aqui)"
+          },
+          "400": {
+            "description": "pai inexistente (ou de outro tenant) ou a ser a própria secção"
+          },
+          "403": {
+            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver `FUNCIONALIDADES.md`"
           },
           "404": {
             "description": "Não encontrada"
@@ -7182,6 +7282,12 @@
         "responses": {
           "200": {
             "description": "Secção eliminada"
+          },
+          "403": {
+            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver `FUNCIONALIDADES.md`"
+          },
+          "404": {
+            "description": "Não encontrada"
           }
         }
       }
@@ -7741,7 +7847,7 @@
             "description": "Subscrição da plataforma inactiva (billingGate)"
           },
           "403": {
-            "description": "Sem permissão VIEW_SITE_PAGES (é o que activa o construtor)"
+            "description": "Sem permissão VIEW_SITE_PAGES (é o que activa o construtor) ou, para um membro da equipa SEM `paginas.publicar` (edit), uma gravação que mudaria o que está no ar (`code: TEAM_FORBIDDEN`, nada é gravado): publicar / despublicar, página nova já `published`, editar / reordenar / apagar uma página publicada (campos, `seo`, `slugs`, itens, endereço), alterar um bloco usado por uma página publicada, as partes `topo`/`rodape` (globais), ou criar/remover redireccionamentos de páginas publicadas. Um membro assim só grava rascunhos (e uma gravação sua não marca `liveAt` nem pede publicação).\n"
           },
           "404": {
             "description": "Um id (página, item, bloco, pasta) pertence a outro tenant, ou apagar algo que não é do tenant"
@@ -8366,6 +8472,7 @@
     "/customers/{id}/export": {
       "get": {
         "summary": "Exportar dados pessoais do cliente (RGPD)",
+        "description": "Membro da equipa: folha-acção `clientes.lista.exportar` (B41 2b). Sem `agenda.marcacoes.valores` (view) as marcações saem sem preços/pagamentos; sem `financeiro.mensalidades` (view) o bloco `gym` leva só `memberships` (sem `payments`); sem `loja.encomendas` (view) não há `orders`.",
         "tags": [
           "BackofficeCustomers"
         ],
@@ -8382,6 +8489,9 @@
         "responses": {
           "200": {
             "description": "Ficheiro JSON com os dados do cliente"
+          },
+          "403": {
+            "description": "Membro da equipa sem a acção `clientes.lista.exportar` (`TEAM_FORBIDDEN`)"
           },
           "404": {
             "description": "Cliente não encontrado"
@@ -8408,6 +8518,9 @@
         "responses": {
           "200": {
             "description": "Dados anonimizados"
+          },
+          "403": {
+            "description": "Membro da equipa sem a acção `clientes.lista.apagar` (`TEAM_FORBIDDEN`)"
           },
           "404": {
             "description": "Cliente não encontrado"
@@ -8497,6 +8610,9 @@
           "200": {
             "description": "Cliente actualizado"
           },
+          "403": {
+            "description": "Membro da equipa sem `clientes.lista` (edit), ou só com `agenda.marcacoes` e um corpo com chaves além de `nif`/`wantsInvoice` (`TEAM_FORBIDDEN`, nada é escrito)"
+          },
           "404": {
             "description": "Cliente não encontrado"
           }
@@ -8506,6 +8622,7 @@
     "/customers": {
       "get": {
         "summary": "Listar todos os clientes",
+        "description": "Membro da equipa: `clientes.lista` OU `agenda.marcacoes` (a Agenda usa a lista, a ficha e o histórico). Criar (POST): `clientes.lista` ou `agenda.marcacoes` (edit). PATCH: `clientes.lista` (edit) para tudo; só com `agenda.marcacoes` (edit) apenas `nif` e `wantsInvoice` — outro campo (ex. `blocked`, `name`) dá 403 `TEAM_FORBIDDEN` sem escrever. Apagar: `clientes.lista.apagar`.",
         "tags": [
           "BackofficeCustomers"
         ],
@@ -8595,6 +8712,7 @@
     "/customers/{id}/history": {
       "get": {
         "summary": "Histórico e estatísticas do cliente",
+        "description": "Membro da equipa SEM `agenda.marcacoes.valores` (view): `stats.totalSpent` não vem e as marcações saem sem preços/pagamentos (B41 2b).",
         "tags": [
           "BackofficeCustomers"
         ],
@@ -9403,6 +9521,7 @@
     "/coupons": {
       "get": {
         "summary": "List all coupons",
+        "description": "Só o dono do tenant: um membro da equipa recebe 403 `TEAM_OWNER_ONLY` em TODAS as rotas de `/coupons` (B41 2b; não têm ecrã no Backoffice).",
         "tags": [
           "Coupons"
         ],
@@ -9702,6 +9821,7 @@
     "/orders/{id}": {
       "get": {
         "summary": "Get an order by ID (includes customer and products)",
+        "description": "Membro da equipa SEM `loja.produtos.custo` (view): sem `cost`/`costAtPurchase` nos itens (B41 2b).",
         "tags": [
           "Orders"
         ],
@@ -9961,6 +10081,7 @@
     "/products": {
       "get": {
         "summary": "Listar todos os produtos",
+        "description": "Membro da equipa SEM `loja.produtos.custo` (view): os produtos saem sem `cost` (B41 2b). Leitura com qualquer folha `loja.*`.",
         "tags": [
           "Products"
         ],
@@ -10062,6 +10183,7 @@
     "/products/{id}": {
       "get": {
         "summary": "Obter produto por ID",
+        "description": "Membro da equipa SEM `loja.produtos.custo` (view): sem `cost`. No POST/PUT, sem `loja.produtos.custo` (edit) o `cost` do corpo é ignorado.",
         "tags": [
           "Products"
         ],
@@ -11718,7 +11840,7 @@
     "/gym/members/invite": {
       "post": {
         "summary": "Convidar um novo sócio do ginásio por email",
-        "description": "Cria (ou reutiliza) um Customer sem password + uma GymMembership \"pending\" com o plano indicado (ou o plano default do tenant), e envia um email com o link para o convidado definir a password (reutiliza o fluxo genérico de reset de password). Idempotente: repetir o convite para o mesmo email não duplica nem muda o plano já atribuído — para trocar o plano usa-se o endpoint já existente `PUT /gym/mensalidade/customers/:customerId/subscription`.",
+        "description": "Cria (ou reutiliza) um Customer sem password + uma GymMembership \"pending\" com o plano indicado (ou o plano default do tenant), e envia um email com o link para o convidado definir a password (reutiliza o fluxo genérico de reset de password). Idempotente: repetir o convite para o mesmo email não duplica nem muda o plano já atribuído — para trocar o plano usa-se o endpoint já existente `PUT /gym/mensalidade/customers/:customerId/subscription`.\nMembro da equipa (B41 2b): a resposta é GENÉRICA e igual para \"criado\" e \"já existia\" — sempre `201` com `{ customer:{ name, email } (os que enviou), alreadyInvited:false, emailSent, appUrl }`, sem `customerId`, `membership` nem dados de um cliente existente. Sem `financeiro.mensalidades` (edit) só pode convidar com o plano por defeito: um `subscriptionId` diferente do default → 403 `TEAM_FORBIDDEN`. O corpo só aceita `name`, `email` e `subscriptionId`.",
         "tags": [
           "GymMembers"
         ],
@@ -11778,6 +11900,9 @@
           },
           "400": {
             "description": "Dados inválidos, subscrição inválida (não pertence ao tenant, ou inativa) ou sem plano de mensalidade disponível"
+          },
+          "403": {
+            "description": "Membro sem `financeiro.mensalidades` (edit) a escolher um plano que não é o default (`TEAM_FORBIDDEN`)"
           }
         }
       }
@@ -12927,6 +13052,7 @@
     "/gym/planos/{id}/assign": {
       "post": {
         "summary": "Atribuir (copiar) um plano a um cliente, com datas — cria um Program",
+        "description": "Membro da equipa: exige `ginasio.treinos` (edit) E `ginasio.clientes` (edit) — escreve um programa no cliente (403 `TEAM_FORBIDDEN`).",
         "tags": [
           "GymPlanos"
         ],
@@ -13689,6 +13815,7 @@
     "/gym/workouts/{id}": {
       "get": {
         "summary": "Obter treino por ID",
+        "description": "Os treinos são de programas de CLIENTES: a rota (GET/PUT/DELETE) exige `ginasio.clientes` (view / edit) a um membro da equipa, não `ginasio.treinos` (403 `TEAM_FORBIDDEN`).",
         "tags": [
           "GymWorkouts"
         ],
@@ -14083,7 +14210,7 @@
     "/gym/workout-templates/{id}/assign": {
       "post": {
         "summary": "Atribuir (copiar) um template para o programa de um cliente, com dias",
-        "description": "Se o programa é weekly (dias da semana), daysOfWeek é obrigatório. Se o programa é free (dias numerados), dayLabel é opcional.",
+        "description": "Se o programa é weekly (dias da semana), daysOfWeek é obrigatório. Se o programa é free (dias numerados), dayLabel é opcional. Membro da equipa: exige `ginasio.treinos` (edit) E `ginasio.clientes` (edit) — escreve no programa de um cliente (403 `TEAM_FORBIDDEN`).",
         "tags": [
           "GymWorkoutTemplates"
         ],
@@ -14867,6 +14994,7 @@
     "/schedule/appointments": {
       "get": {
         "summary": "Listar marcações",
+        "description": "Membro da equipa SEM `agenda.marcacoes.valores` (view): a marcação sai sem `servicePrice`, `paymentCash`, `paymentMbway`, `paymentCard`, `paidAt` e `paymentHistory` (B41 2b). O dono vê tudo. Folha: `agenda.marcacoes`.",
         "tags": [
           "Appointments"
         ],
@@ -14938,6 +15066,7 @@
       },
       "post": {
         "summary": "Criar marcação manualmente (backoffice)",
+        "description": "O preço vem sempre do serviço. Membro da equipa SEM `agenda.marcacoes.valores` (view): a marcação sai sem `servicePrice`, `paymentCash`, `paymentMbway`, `paymentCard`, `paidAt` e `paymentHistory` (B41 2b). O dono vê tudo. (aplica-se à resposta).",
         "tags": [
           "Appointments"
         ],
@@ -14971,10 +15100,12 @@
                     "type": "string"
                   },
                   "clientEmail": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Obrigatório mas pode ser \"\" (o BO envia vazio quando a ficha não tem email)"
                   },
                   "clientPhone": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Obrigatório mas pode ser \"\""
                   },
                   "notes": {
                     "type": "string"
@@ -14987,6 +15118,9 @@
         "responses": {
           "201": {
             "description": "Marcação criada"
+          },
+          "400": {
+            "description": "Corpo inválido (zod): falta `clientEmail`/`clientPhone`/`clientName`/`serviceId`, `date` fora de AAAA-MM-DD ou `time` fora de HH:MM"
           }
         }
       }
@@ -14994,6 +15128,7 @@
     "/schedule/appointments/{id}": {
       "put": {
         "summary": "Atualizar marcação (estado, hora, serviço, pagamento)",
+        "description": "Membro da equipa SEM `agenda.marcacoes.valores` (edit): `paymentCash`, `paymentMbway`, `paymentCard` e `cancelPayment` do corpo são IGNORADOS (o resto do PUT aplica-se). Trocar o `serviceId` de uma marcação que já tem pagamentos exige a mesma folha (403 `TEAM_FORBIDDEN`). Mudar o `status` (cancelar, no_show, reabrir, concluir…) de uma marcação que já tem pagamentos (`paymentCash/Mbway/Card` > 0, `paidAt` ou `paymentHistory`) também exige `agenda.marcacoes.valores` (edit): 403 `TEAM_FORBIDDEN` sem gravar nada; numa marcação sem pagamentos o estado continua livre.",
         "tags": [
           "Appointments"
         ],
@@ -15070,6 +15205,7 @@
       },
       "delete": {
         "summary": "Eliminar marcação",
+        "description": "Membro da equipa SEM `agenda.marcacoes.valores` (edit): uma marcação com pagamentos registados não se elimina (403 `TEAM_FORBIDDEN`).",
         "tags": [
           "Appointments"
         ],
@@ -15086,6 +15222,9 @@
         "responses": {
           "200": {
             "description": "Marcação eliminada"
+          },
+          "403": {
+            "description": "Membro da equipa sem `agenda.marcacoes.valores` (edit) numa marcação com pagamentos (`TEAM_FORBIDDEN`)"
           },
           "404": {
             "description": "Marcação não encontrada"
@@ -15913,47 +16052,22 @@
     "/team/catalog": {
       "get": {
         "summary": "Catálogo de permissões que o tenant pode dar à equipa",
-        "description": "Só o dono do tenant (membro → 403 `TEAM_OWNER_ONLY`; conta admin → 403 `TEAM_ADMIN_FORBIDDEN`). Cada módulo do catálogo traz `available` (o tenant tem o componente RBAC que ele exige) — só os disponíveis se podem dar. Fase 1: primeiro nível (módulos); a fase 2 acrescenta nós.",
+        "description": "Só o dono do tenant (membro → 403 `TEAM_OWNER_ONLY`; conta admin → 403 `TEAM_ADMIN_FORBIDDEN`). Devolve a ÁRVORE de permissões (B41 fase 2b): cada nó traz `available` (o tenant tem TODOS os componentes RBAC que ele exige — `requiresComponents`) — só os disponíveis se podem dar. Só se guardam os nós com `storable: true` (folhas e nós com permissão própria); um agrupador (`storable: false`, `levels: []`) nunca se guarda. Uma acção sim/não (`action: true`) tem `levels: [\"edit\"]` e guarda-se com `level: edit`. Regras que a API valida em POST/PUT /team: o pai (guardável mais próximo) tem de estar presente e o nível do filho é ≤ ao do pai (as acções só exigem o pai).",
         "tags": [
           "Team"
         ],
         "responses": {
           "200": {
-            "description": "Catálogo",
+            "description": "Catálogo em árvore",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "modules": {
+                    "tree": {
                       "type": "array",
                       "items": {
-                        "type": "object",
-                        "properties": {
-                          "key": {
-                            "type": "string"
-                          },
-                          "label": {
-                            "type": "string"
-                          },
-                          "requiresComponent": {
-                            "type": "string",
-                            "nullable": true
-                          },
-                          "levels": {
-                            "type": "array",
-                            "items": {
-                              "type": "string",
-                              "enum": [
-                                "view",
-                                "edit"
-                              ]
-                            }
-                          },
-                          "available": {
-                            "type": "boolean"
-                          }
-                        }
+                        "$ref": "#/components/schemas/TeamCatalogNode"
                       }
                     },
                     "maxMembers": {
@@ -16057,10 +16171,13 @@
             "description": "`TEAM_OWNER_ONLY`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
           },
           "409": {
-            "description": "`EMAIL_IN_USE` (email de um User ou de outro membro) ou `TEAM_LIMIT`"
+            "description": "`EMAIL_IN_USE` (email de um User ou de outro membro com convite válido/conta activa; um convite expirado não conta) ou `TEAM_LIMIT`"
           },
           "422": {
-            "description": "`TEAM_GRANT_NOT_ALLOWED` — chave/nível fora do catálogo, repetida, ou módulo que o tenant não tem"
+            "description": "`TEAM_GRANT_NOT_ALLOWED` — chave desconhecida ou agrupador, nível proibido, repetida, filho sem o pai ou com mais nível que o pai, ou folha que o tenant não tem (tecto)"
+          },
+          "429": {
+            "description": "Limite de 20 convites por hora por actor"
           }
         }
       }
@@ -16201,6 +16318,9 @@
           },
           "409": {
             "description": "`TEAM_NOT_INVITED`"
+          },
+          "429": {
+            "description": "Limite de 20 convites por hora por actor"
           }
         }
       }
@@ -16403,6 +16523,7 @@
                     },
                     "modules": {
                       "type": "array",
+                      "description": "Nível por topo (o máximo das folhas desse topo)",
                       "items": {
                         "type": "object",
                         "properties": {
@@ -16420,6 +16541,13 @@
                             ]
                           }
                         }
+                      }
+                    },
+                    "grants": {
+                      "type": "array",
+                      "description": "Folhas efectivas (já cortadas pelo tecto do tenant)",
+                      "items": {
+                        "$ref": "#/components/schemas/TeamGrantInput"
                       }
                     }
                   }
@@ -16568,6 +16696,7 @@
       "post": {
         "operationId": "uploadImage",
         "summary": "Upload de imagem optimizada para SeaweedFS",
+        "description": "Membro da equipa: o `module` (contexto, fica na key) tem de ser de uma folha onde tem `edit` — `chat`→mensagens, `branding`→conteudos.website, `cms`→conteudos.website|paginas.rascunho, `products`→loja.produtos|conteudos.produtos, `gym`→ginasio.exercicios|treinos|clientes|conteudos.ginasio; `general`, `profile` ou desconhecido só o dono (403 `TEAM_FORBIDDEN`).",
         "tags": [
           "Uploads"
         ],
@@ -16737,6 +16866,7 @@
       "delete": {
         "operationId": "deleteUpload",
         "summary": "Eliminar ficheiro do SeaweedFS",
+        "description": "Membro da equipa: o contexto do ficheiro é o 2.º segmento da key (`<userId>/<module>/…`) e tem de ser de uma folha onde tem `edit` (mesma tabela do upload); basta UMA key fora de contexto (ou sem contexto, ou de módulo desconhecido) para recusar o pedido todo (403 `TEAM_FORBIDDEN`). O dono apaga qualquer ficheiro seu.",
         "tags": [
           "Uploads"
         ],
@@ -16783,6 +16913,7 @@
       "post": {
         "operationId": "uploadVideo",
         "summary": "Upload de vídeo (sem otimização) para SeaweedFS",
+        "description": "Mesma regra de contexto (`module`) por folha do upload de imagem para membros da equipa.",
         "tags": [
           "Uploads"
         ],
@@ -16855,7 +16986,7 @@
       "post": {
         "operationId": "uploadPdf",
         "summary": "Upload de PDF (sem processar) para SeaweedFS",
-        "description": "Aceita só `application/pdf` até 20MB cujo conteúdo comece por `%PDF-` (os bytes são verificados, não só o mimetype/extensão). Guardado tal-qual em `<userId>/site/<uuid>-<nome-limpo>.pdf`.\n",
+        "description": "Aceita só `application/pdf` até 20MB cujo conteúdo comece por `%PDF-` (os bytes são verificados, não só o mimetype/extensão). Guardado tal-qual em `<userId>/site/<uuid>-<nome-limpo>.pdf`. Membro da equipa: o contexto `site` exige `paginas.rascunho` (edit).\n",
         "tags": [
           "Uploads"
         ],

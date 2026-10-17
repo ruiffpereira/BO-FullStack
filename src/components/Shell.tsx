@@ -14,7 +14,7 @@ import { SupportSessionBar } from './SupportSessionBar'
 import { NavBadge } from './NavBadge'
 import { useSSE } from '../hooks/useSSE'
 import { useChatUnread } from '../hooks/useChat'
-import { SUBMENU, allowedSubitems, findRoot, type SubmenuItem } from '../lib/navigation'
+import { SUBMENU, allowedSubitems, findRoot, memberSubitems, type SubmenuItem } from '../lib/navigation'
 
 // Core: todos os tenants têm (sem permissão). Módulos: por permissão.
 const CORE_PATHS = ['/clientes', '/mensagens', '/financeiro', '/conteudos', '/estatisticas', '/faturacao']
@@ -34,23 +34,19 @@ const MODULE_PERM_TO_PATH: Record<string, string> = {
 // Cada item só aparece se for acessível ao tenant (permissões + admin).
 const MENU_ORDER = ['/dashboard', '/admin', '/clientes', '/mensagens', '/conteudos', '/paginas', '/estatisticas', '/loja', '/agenda', '/ginasio', '/financeiro', '/faturacao']
 
-// Equipa (B41): o módulo do catálogo da API → item da sidebar. `despesas` vive no Financeiro (que, para um
-// membro, só mostra a aba Despesas). Dashboard, Financeiro (resto), Faturação e o sino são só do dono.
+// Equipa (B41 2b): o TOPO da árvore da API → item da sidebar (`can(topo)` = alguma folha debaixo). O Financeiro só
+// mostra a um membro as abas com folha (Ginásio/mensalidades, Despesas); Dashboard, resto do Financeiro, Faturação e
+// o sino são só do dono. Os subitens de cada grupo filtram-se por folha (`memberSubitems`, `lib/navigation.ts`).
 const MEMBER_MODULE_PATH: Record<string, string> = {
   agenda: '/agenda',
   loja: '/loja',
   ginasio: '/ginasio',
   clientes: '/clientes',
-  despesas: '/financeiro',
+  financeiro: '/financeiro',
   conteudos: '/conteudos',
   paginas: '/paginas',
   estatisticas: '/estatisticas',
   mensagens: '/mensagens',
-}
-
-/** Subitens que um membro vê: no Financeiro só a aba Despesas (o resto agrega dinheiro de todos os módulos). */
-function memberOnlySubitems(root: string, items: SubmenuItem[]): SubmenuItem[] {
-  return root === '/financeiro' ? items.filter((it) => it.id === 'despesas') : items
 }
 
 const ROUTE_META: Record<string, { nome: string; icon: string }> = {
@@ -395,7 +391,7 @@ function SidebarContent({ accessiblePaths, collapsed }: {
   accessiblePaths: string[]
   collapsed: boolean
 }) {
-  const { hasPermission, isMember } = useAuth()
+  const { hasPermission, isMember, can } = useAuth()
   const location = useLocation()
   const navRef = useRef<HTMLElement | null>(null)
   // Só o item /mensagens usa isto — chamado aqui (e não por NavItem) para não
@@ -456,8 +452,7 @@ function SidebarContent({ accessiblePaths, collapsed }: {
         {!collapsed && <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Menu</p>}
         <nav ref={navRef} className="space-y-1" onKeyDown={handleNavKeyDown}>
           {accessiblePaths.map((path) => {
-            const allowed = allowedSubitems(path, hasPermission)
-            const groupItems = isMember ? memberOnlySubitems(path, allowed) : allowed
+            const groupItems = isMember ? memberSubitems(path, can) : allowedSubitems(path, hasPermission)
             // Um grupo só é menu EXPANSÍVEL com ≥2 subitens permitidos. Com 1 só
             // (ou 0), o expander abriria para um único filho — redundante: cai
             // para um NavItem simples (link ao root).
@@ -738,8 +733,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
     ...[...accessible].filter((p) => !MENU_ORDER.includes(p)),
   ].filter((p) => {
     if (!SUBMENU[p]?.length) return true
-    const allowed = allowedSubitems(p, hasPermission)
-    return (isMember ? memberOnlySubitems(p, allowed) : allowed).length > 0
+    return (isMember ? memberSubitems(p, can) : allowedSubitems(p, hasPermission)).length > 0
   })
 
   // Fecha o drawer ao navegar
@@ -771,8 +765,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
       navigate(accessiblePaths[0], { replace: true })
       return
     }
-    const allowedSubs = allowedSubitems(root, hasPermission)
-    const subs = isMember ? memberOnlySubitems(root, allowedSubs) : allowedSubs
+    const subs = isMember ? memberSubitems(root, can) : allowedSubitems(root, hasPermission)
     if (subs.length > 0 && !subs.some((s) => s.path === location.pathname)) {
       // Preserva a query string (coerente com o FinanceiroEntry, App.tsx, que
       // já faz o mesmo no seu próprio redirect de `?vista=`) — este redirect é
@@ -780,11 +773,15 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
       // não há nada próprio a remover daqui.
       navigate(`${subs[0].path}${location.search}`, { replace: true })
     }
-  }, [location.pathname, permissions, isMember]) // eslint-disable-line
+  }, [location.pathname, permissions, isMember, can]) // eslint-disable-line
 
   // Um membro nunca chega a montar uma página fora do que tem: enquanto o guard acima o redirige, não se
   // renderiza o conteúdo (montar a Faturação ou o Dashboard dispararia pedidos que a API recusa com 403).
-  const blockedForMember = isMember && !findRoot(location.pathname, guardRoots)
+  // Também uma ABA sem folha (ex.: /agenda com só `agenda.servicos`): o guard redirige, mas não se monta enquanto isso.
+  const memberRoot = isMember ? findRoot(location.pathname, guardRoots) : undefined
+  const memberSubs = memberRoot ? memberSubitems(memberRoot, can) : []
+  const blockedForMember =
+    isMember && (!memberRoot || (memberSubs.length > 0 && !memberSubs.some((s) => s.path === location.pathname)))
 
   // Teclado virtual (mobile): ao abrir, encolhe a altura da app para o espaço
   // visível (visualViewport) — o composer fica por cima do teclado e nada faz

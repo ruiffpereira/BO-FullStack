@@ -55,13 +55,15 @@ export function StatusText() {
 
 /** "Publicar agora": só em modo `github` (em `runtime` o site já lê a API). */
 export function PublishNowButton() {
-  const { state, dirty, publish, publishNow } = useBuilder();
+  const { state, dirty, publish, publishNow, canPublish } = useBuilder();
   const [busy, setBusy] = useState(false);
-  if (publish?.mode !== "github") return null;
+  // Equipa (B41 2b): publicar é a acção `paginas.publicar` — sem ela o botão nem aparece.
+  if (publish?.mode !== "github" || !canPublish) return null;
   const running = publish.status === "running";
   const blocked = dirty || state.status === "saving";
   return (
     <GuardButton
+      leaf="paginas.publicar"
       variant="outline"
       className="min-h-10"
       isLoading={busy}

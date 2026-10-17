@@ -81,6 +81,12 @@ describe("apptStatusView", () => {
     expect(debt).toBe(15);
   });
 
+  it("sem os campos de dinheiro (membro sem 'valores') não inventa dívida a partir do preço do catálogo", () => {
+    const appt = { status: "completed", service: { price: 40 } };
+    expect(apptDebt(appt)).toBe(0);
+    expect(apptStatusView(appt).label).toBe("Concluída");
+  });
+
   it("nunca há dívida fora de 'completed', mesmo sem pagamento", () => {
     expect(apptDebt({ status: "confirmed", servicePrice: 30 })).toBe(0);
     expect(apptDebt({ status: "pending", servicePrice: 30 })).toBe(0);

@@ -8,6 +8,7 @@ import { Icon } from '../ui/icons.jsx'
 import { Card, Badge, Avatar, Modal, Input, Button, IconButton, EmptyState, Tabs, Toggle } from '../ui/ui.jsx'
 import { usePageSubtitle } from '../context/PageMetaContext'
 import { GuardButton } from '../components/GuardButton'
+import { useTeamAccess } from '../hooks/useTeamAccess'
 import { usePagination, Pagination } from '../components/Pagination'
 import { DatePicker } from '../components/DatePicker'
 import { useGetCustomers, getCustomersQueryKey } from '../gen/backoffice/hooks/useGetCustomers.js'
@@ -53,7 +54,7 @@ type HistoryAppt = {
 }
 type CustomerHistory = {
   customer: Customer
-  stats: { visitCount: number; totalSpent: number; lastVisit: string | null; favoriteServiceId: string | null }
+  stats: { visitCount: number; totalSpent?: number; lastVisit: string | null; favoriteServiceId: string | null }
   appointments: HistoryAppt[]
 }
 
@@ -69,8 +70,15 @@ export type ClientesView = 'clientes' | 'leads'
  */
 export function Clientes({ view }: { view: ClientesView }) {
   const { hasPermission } = useAuth()
-  const canSchedule = hasPermission('VIEW_SCHEDULE')
-  const canGym = hasPermission('VIEW_GYM')
+  // Equipa (B41 2b): exportar/apagar são acções próprias; o dinheiro das marcações é `agenda.marcacoes.valores`
+  // (sem ele a API nem envia `totalSpent` nem os pagamentos — a caixa e o aviso de dívida somem).
+  const { can } = useTeamAccess()
+  const canExport = can('clientes.lista.exportar', 'edit')
+  const canErase = can('clientes.lista.apagar', 'edit')
+  const showMoney = can('agenda.marcacoes.valores', 'view')
+  // Um membro só vê os separadores Agenda/Ginásio da ficha se tiver as folhas desses módulos (a API recusa o resto).
+  const canSchedule = hasPermission('VIEW_SCHEDULE') && can('agenda', 'view')
+  const canGym = hasPermission('VIEW_GYM') && can('financeiro.mensalidades', 'view')
   const qc = useQueryClient()
   const navigate = useNavigate()
   const location = useLocation()
@@ -413,15 +421,17 @@ export function Clientes({ view }: { view: ClientesView }) {
             )}
             {profileTab === 'agenda' && canSchedule && !loadingHistory && history && (
               <>
-                <div className="grid grid-cols-3 gap-3">
+                <div className={`grid gap-3 ${showMoney && history.stats.totalSpent != null ? 'grid-cols-3' : 'grid-cols-2'}`}>
                   <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
                     <p className="text-2xl font-bold text-zinc-900 dark:text-white">{history.stats.visitCount}</p>
                     <p className="text-xs text-zinc-400 mt-0.5">visitas</p>
                   </div>
-                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
-                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{history.stats.totalSpent.toFixed(0)}€</p>
-                    <p className="text-xs text-zinc-400 mt-0.5">gasto total</p>
-                  </div>
+                  {showMoney && history.stats.totalSpent != null && (
+                    <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
+                      <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{history.stats.totalSpent.toFixed(0)}€</p>
+                      <p className="text-xs text-zinc-400 mt-0.5">gasto total</p>
+                    </div>
+                  )}
                   <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
                     <p className="text-sm font-bold text-zinc-900 dark:text-white leading-tight">{favoriteService?.name ?? '—'}</p>
                     <p className="text-xs text-zinc-400 mt-0.5">serviço favorito</p>
@@ -432,7 +442,7 @@ export function Clientes({ view }: { view: ClientesView }) {
                 )}
 
                 {/* Aviso de dívida — soma das marcações concluídas com saldo em falta */}
-                {(() => {
+                {showMoney && (() => {
                   const totalDebt = history.appointments.reduce((s, a) => {
                     if (a.status !== 'completed') return s
                     const paid = Number(a.paymentCash || 0) + Number(a.paymentMbway || 0) + Number(a.paymentCard || 0)
@@ -453,7 +463,7 @@ export function Clientes({ view }: { view: ClientesView }) {
                     <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
                       {history.appointments.map((a) => {
                         const totalPaid = Number(a.paymentCash || 0) + Number(a.paymentMbway || 0) + Number(a.paymentCard || 0)
-                        const paid = a.paidAt ? totalPaid : null
+                        const paid = showMoney && a.paidAt ? totalPaid : null
                         const view = apptStatusView(a)
                         return (
                           <button
@@ -483,11 +493,13 @@ export function Clientes({ view }: { view: ClientesView }) {
             )}
 
             {/* Privacidade (RGPD) */}
-            <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 flex flex-wrap items-center gap-2">
-              <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide mr-auto">Privacidade (RGPD)</span>
-              <Button variant="outline" size="sm" icon="package" isLoading={exporting} onClick={() => exportData(profileCustomer)}>Exportar dados</Button>
-              <GuardButton variant="outline" size="sm" icon="trash" className="text-red-500 border-red-200 hover:bg-red-50 dark:border-red-500/30 dark:hover:bg-red-500/10" onClick={() => setEraseTarget(profileCustomer)}>Apagar dados</GuardButton>
-            </div>
+            {(canExport || canErase) && (
+              <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide mr-auto">Privacidade (RGPD)</span>
+                {canExport && <Button variant="outline" size="sm" icon="package" isLoading={exporting} onClick={() => exportData(profileCustomer)}>Exportar dados</Button>}
+                {canErase && <GuardButton variant="outline" size="sm" icon="trash" className="text-red-500 border-red-200 hover:bg-red-50 dark:border-red-500/30 dark:hover:bg-red-500/10" onClick={() => setEraseTarget(profileCustomer)}>Apagar dados</GuardButton>}
+              </div>
+            )}
           </div>
         </Modal>
       )}

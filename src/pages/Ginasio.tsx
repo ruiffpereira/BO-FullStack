@@ -24,6 +24,7 @@ import { usePagination, Pagination } from '../components/Pagination'
 import { LineChart, DonutChart } from '../ui/charts.jsx'
 import { useGetCustomers } from '../gen/backoffice/hooks/useGetCustomers.js'
 import { useTeamAccess } from '../hooks/useTeamAccess'
+import { useWriteGuard } from '../hooks/useWriteGuard'
 import { useGetGymExercises, getGymExercisesQueryKey } from '../gen/backoffice/hooks/useGetGymExercises.js'
 import { postGymExercises } from '../gen/backoffice/hooks/usePostGymExercises.js'
 import { putGymExercisesId } from '../gen/backoffice/hooks/usePutGymExercisesId.js'
@@ -240,16 +241,42 @@ function Sortable({
   )
 }
 
-const DragHandle = (props: HTMLAttributes<HTMLElement>) => (
-  <button
-    {...props}
-    type="button"
-    className="flex items-center justify-center text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 cursor-grab active:cursor-grabbing touch-none transition-colors"
-    title="Arrastar para reordenar"
-  >
-    <Icon name="grip" className="w-4 h-4" />
-  </button>
-)
+/**
+ * <button> cru de ESCRITA (B41 2b): respeita o billing read-only e o "só ver" da equipa, como o `GuardButton`, mas
+ * sem mudar o aspecto do botão cru. Desactivado: `disabled`, sem clique e com o motivo no `title`.
+ */
+function WButton({ disabled, title, onClick, className = '', children, ...rest }: any) {
+  const { readOnly, message } = useWriteGuard()
+  return (
+    <button
+      {...rest}
+      type={rest.type ?? 'button'}
+      disabled={disabled || readOnly}
+      aria-disabled={disabled || readOnly || undefined}
+      title={readOnly ? message : title}
+      onClick={readOnly ? undefined : onClick}
+      className={`${className} ${readOnly ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
+    >
+      {children}
+    </button>
+  )
+}
+
+const DragHandle = (props: HTMLAttributes<HTMLElement>) => {
+  const { readOnly, message } = useWriteGuard()
+  // Só ver: a pega continua visível mas sem os listeners do arrasto.
+  return (
+    <button
+      {...(readOnly ? {} : props)}
+      type="button"
+      disabled={readOnly}
+      className={`flex items-center justify-center text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 touch-none transition-colors ${readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-grab active:cursor-grabbing'}`}
+      title={readOnly ? message : 'Arrastar para reordenar'}
+    >
+      <Icon name="grip" className="w-4 h-4" />
+    </button>
+  )
+}
 
 // Campo numérico opcional (vazio = não se aplica, ex: alongamentos)
 function NumField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
@@ -293,8 +320,8 @@ function SetRowsEditor({ rows, onChange }: { rows: SetRowDraft[]; onChange: (row
             <span className="text-[11px] font-medium text-zinc-500 tabular-nums">Série {i + 1}</span>
             {r.drop && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 font-medium">Composta</span>}
             <div className="ml-auto flex items-center gap-1">
-              <button type="button" onClick={() => toggleDrop(i)} title={r.drop ? 'Tornar série normal' : 'Tornar série composta (dropset)'} className={`w-6 h-6 flex items-center justify-center rounded ${r.drop ? 'text-amber-500' : 'text-zinc-400 hover:text-accent'}`}><Icon name="layers" className="w-3.5 h-3.5" /></button>
-              {rows.length > 1 && <button type="button" onClick={() => delRow(i)} title="Remover série" className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-red-500"><Icon name="trash" className="w-3.5 h-3.5" /></button>}
+              <WButton type="button" onClick={() => toggleDrop(i)} title={r.drop ? 'Tornar série normal' : 'Tornar série composta (dropset)'} className={`w-6 h-6 flex items-center justify-center rounded ${r.drop ? 'text-amber-500' : 'text-zinc-400 hover:text-accent'}`}><Icon name="layers" className="w-3.5 h-3.5" /></WButton>
+              {rows.length > 1 && <WButton type="button" onClick={() => delRow(i)} title="Remover série" className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-red-500"><Icon name="trash" className="w-3.5 h-3.5" /></WButton>}
             </div>
           </div>
           {!r.drop ? (
@@ -312,19 +339,19 @@ function SetRowsEditor({ rows, onChange }: { rows: SetRowDraft[]; onChange: (row
                   <SetNum value={s.reps} onChange={(v) => setStep(i, j, { reps: v })} />
                   <SetNum value={s.weight} onChange={(v) => setStep(i, j, { weight: v })} />
                   <SetNum value={s.rest} onChange={(v) => setStep(i, j, { rest: v })} />
-                  <div className="flex justify-center">{r.steps.length > 1 && <button type="button" onClick={() => delStep(i, j)} title="Remover passo" className="w-5 h-6 flex items-center justify-center text-zinc-400 hover:text-red-500"><Icon name="x" className="w-3 h-3" /></button>}</div>
+                  <div className="flex justify-center">{r.steps.length > 1 && <WButton type="button" onClick={() => delStep(i, j)} title="Remover passo" className="w-5 h-6 flex items-center justify-center text-zinc-400 hover:text-red-500"><Icon name="x" className="w-3 h-3" /></WButton>}</div>
                 </div>
               ))}
               <div className="flex justify-end items-center gap-1.5 pt-0.5">
                 <span className="text-[10px] text-zinc-400">Após série (s)</span>
                 <input type="number" min={0} value={r.rest} onChange={(e) => setRow(i, { rest: e.target.value })} className={SET_NUM_CLS + ' w-16'} />
               </div>
-              <button type="button" onClick={() => addStep(i)} className="w-full py-1.5 rounded-lg border border-dashed border-zinc-200 dark:border-zinc-700 text-[12px] text-zinc-500 hover:border-accent hover:text-accent transition flex items-center justify-center gap-1.5"><Icon name="plus" className="w-3 h-3" />Adicionar passo</button>
+              <WButton type="button" onClick={() => addStep(i)} className="w-full py-1.5 rounded-lg border border-dashed border-zinc-200 dark:border-zinc-700 text-[12px] text-zinc-500 hover:border-accent hover:text-accent transition flex items-center justify-center gap-1.5"><Icon name="plus" className="w-3 h-3" />Adicionar passo</WButton>
             </div>
           )}
         </div>
       ))}
-      <button type="button" onClick={addRow} className="w-full mt-1 py-1.5 rounded-lg border border-dashed border-zinc-200 dark:border-zinc-700 text-[13px] text-zinc-500 hover:border-accent hover:text-accent transition flex items-center justify-center gap-1.5"><Icon name="plus" className="w-3.5 h-3.5" />Adicionar série</button>
+      <WButton type="button" onClick={addRow} className="w-full mt-1 py-1.5 rounded-lg border border-dashed border-zinc-200 dark:border-zinc-700 text-[13px] text-zinc-500 hover:border-accent hover:text-accent transition flex items-center justify-center gap-1.5"><Icon name="plus" className="w-3.5 h-3.5" />Adicionar série</WButton>
     </div>
   )
 }
@@ -351,8 +378,8 @@ function StrengthFields({
       <div className="flex items-center justify-between mb-2">
         <span className="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Séries</span>
         <div className="inline-flex p-0.5 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-xs">
-          <button type="button" onClick={() => onMode('uniform')} className={`px-2.5 py-1 rounded-md font-medium transition ${mode === 'uniform' ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500'}`}>Iguais</button>
-          <button type="button" onClick={goPerSet} className={`px-2.5 py-1 rounded-md font-medium transition ${mode === 'perSet' ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500'}`}>Série a série</button>
+          <WButton type="button" onClick={() => onMode('uniform')} className={`px-2.5 py-1 rounded-md font-medium transition ${mode === 'uniform' ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500'}`}>Iguais</WButton>
+          <WButton type="button" onClick={goPerSet} className={`px-2.5 py-1 rounded-md font-medium transition ${mode === 'perSet' ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500'}`}>Série a série</WButton>
         </div>
       </div>
       {mode === 'perSet' ? (
@@ -484,11 +511,11 @@ function GrupoModal({ grupo, onClose }: { grupo: Group | null; onClose: () => vo
                       className="text-sm bg-transparent text-zinc-700 dark:text-zinc-200 focus:outline-none border-b border-zinc-300 dark:border-zinc-600"
                     />
                   ) : (
-                    <button type="button" onClick={() => setEditingSub(s.uid)} className="text-sm text-zinc-700 dark:text-zinc-200 hover:opacity-70">
+                    <WButton type="button" onClick={() => setEditingSub(s.uid)} className="text-sm text-zinc-700 dark:text-zinc-200 hover:opacity-70">
                       {s.name}
-                    </button>
+                    </WButton>
                   )}
-                  <button type="button" onClick={() => delSub(s)} className="text-zinc-400 hover:text-red-500 text-base leading-none">×</button>
+                  <WButton type="button" onClick={() => delSub(s)} className="text-zinc-400 hover:text-red-500 text-base leading-none">×</WButton>
                 </div>
               ))}
               {subs.length === 0 && <span className="text-sm text-zinc-400">Sem subgrupos.</span>}
@@ -882,8 +909,8 @@ function CatalogoTab() {
               <div className="border border-accent/30 bg-accent/[0.02] rounded-xl p-3 space-y-3">
                 <p className="text-[13px] font-semibold text-zinc-700 dark:text-zinc-200">{presetEdit.isNew ? 'Novo preset' : 'Editar preset'}</p>
                 <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => setEditField({ type: 'strength' })} className={togCls(presetEdit.form.type === 'strength')}>Força (séries/reps)</button>
-                  <button type="button" onClick={() => setEditField({ type: 'time' })} className={togCls(presetEdit.form.type === 'time')}>Tempo (duração)</button>
+                  <WButton type="button" onClick={() => setEditField({ type: 'strength' })} className={togCls(presetEdit.form.type === 'strength')}>Força (séries/reps)</WButton>
+                  <WButton type="button" onClick={() => setEditField({ type: 'time' })} className={togCls(presetEdit.form.type === 'time')}>Tempo (duração)</WButton>
                 </div>
                 <CmsCombo label="Nome do preset" context="gym" value={presetEdit.form.contentKey} name={presetEdit.form.name} onChange={(k, nm) => setEditField({ contentKey: k, name: nm })} placeholder="Ex: Iniciante" />
                 {presetEdit.form.type === 'time' ? (
@@ -1030,8 +1057,8 @@ function AjustarModal({ row, onClose, onSave }: {
       footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><GuardButton icon="check" onClick={save}>Guardar</GuardButton></>}>
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={() => setType('strength')} className={togCls(type === 'strength')}>Força (séries/reps)</button>
-          <button type="button" onClick={() => setType('time')} className={togCls(type === 'time')}>Tempo (duração)</button>
+          <WButton type="button" onClick={() => setType('strength')} className={togCls(type === 'strength')}>Força (séries/reps)</WButton>
+          <WButton type="button" onClick={() => setType('time')} className={togCls(type === 'time')}>Tempo (duração)</WButton>
         </div>
         {type === 'time' ? (
           <div className="grid grid-cols-2 gap-2">
@@ -1131,7 +1158,7 @@ function ExerciseRowsEditor({ rows, setRows, catalog }: {
                         )}
                         <span className="text-xs text-zinc-500 tabular-nums">{resumo}</span>
                         {personalizado && <Badge tone="amber" dot>Personalizado</Badge>}
-                        <button type="button" onClick={() => setAdjust(row)} className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline"><Icon name="edit" className="w-3.5 h-3.5" />Ajustar p/ este treino</button>
+                        <WButton type="button" onClick={() => setAdjust(row)} className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline"><Icon name="edit" className="w-3.5 h-3.5" />Ajustar p/ este treino</WButton>
                       </div>
                     </>
                   )}
@@ -1179,11 +1206,11 @@ function AddExercicioModal({ open, catalog, onClose, onAdd }: {
       </div>
       <div className="space-y-1.5 max-h-[50vh] overflow-y-auto -mx-1 px-1">
         {filtered.map((e) => (
-          <button key={e.exerciseId} onClick={() => onAdd(e)} className="w-full flex items-center gap-3 p-2.5 rounded-lg border border-zinc-100 dark:border-zinc-800 hover:border-accent hover:bg-accent/[0.03] transition text-left">
+          <WButton key={e.exerciseId} onClick={() => onAdd(e)} className="w-full flex items-center gap-3 p-2.5 rounded-lg border border-zinc-100 dark:border-zinc-800 hover:border-accent hover:bg-accent/[0.03] transition text-left">
             <span className="w-8 h-8 rounded-lg shrink-0" style={{ background: colorOf(e.muscleGroup) }} />
             <div className="min-w-0 flex-1"><p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{e.name}</p><p className="text-xs text-zinc-400">{e.muscleGroup} · {e.presets?.length ?? 0} preset{(e.presets?.length ?? 0) === 1 ? '' : 's'}</p></div>
             <Icon name="plus" className="w-4 h-4 text-accent" />
-          </button>
+          </WButton>
         ))}
         {filtered.length === 0 && <p className="text-sm text-zinc-400 text-center py-6">Nenhum exercício encontrado.</p>}
       </div>
@@ -1759,10 +1786,10 @@ function PickTreinoModal({ open, title, templates, onClose, onPick, onEdit, onCr
   const filtered = templates.filter((t) => t.name.toLowerCase().includes(q.toLowerCase()))
   return (
     <Modal open={open} onClose={onClose} width="max-w-lg" title={title ?? 'Atribuir treino ao dia'} subtitle="Reutiliza um treino existente (Usar), edita uma cópia (Editar) ou cria um novo.">
-      <button onClick={onCriarNovo} className="w-full flex items-center gap-3 p-3 mb-3 rounded-lg border border-dashed border-accent/40 text-accent hover:bg-accent/[0.04] transition">
+      <WButton onClick={onCriarNovo} className="w-full flex items-center gap-3 p-3 mb-3 rounded-lg border border-dashed border-accent/40 text-accent hover:bg-accent/[0.04] transition">
         <span className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center"><Icon name="plus" className="w-4 h-4" /></span>
         <span className="text-sm font-medium">Criar treino novo (só para este plano)</span>
-      </button>
+      </WButton>
       <Input value={q} onChange={(e: any) => setQ(e.target.value)} placeholder="Procurar treino…" />
       <div className="space-y-1.5 max-h-[44vh] overflow-y-auto mt-3 -mx-1 px-1">
         {filtered.map((t) => {
@@ -1970,8 +1997,8 @@ function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
             <div className="mt-3">
               <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Estrutura</span>
               <div className="grid grid-cols-2 gap-2 max-w-xs">
-                <button type="button" onClick={() => mudarTipo('weekly')} className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm font-medium transition ${mode === 'weekly' ? 'border-accent bg-accent/[0.04] text-accent' : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'}`}><Icon name="calendar" className="w-4 h-4" />Semana fixa</button>
-                <button type="button" onClick={() => mudarTipo('free')} className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm font-medium transition ${mode === 'free' ? 'border-accent bg-accent/[0.04] text-accent' : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'}`}><Icon name="layers" className="w-4 h-4" />Dias livres</button>
+                <WButton type="button" onClick={() => mudarTipo('weekly')} className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm font-medium transition ${mode === 'weekly' ? 'border-accent bg-accent/[0.04] text-accent' : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'}`}><Icon name="calendar" className="w-4 h-4" />Semana fixa</WButton>
+                <WButton type="button" onClick={() => mudarTipo('free')} className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm font-medium transition ${mode === 'free' ? 'border-accent bg-accent/[0.04] text-accent' : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'}`}><Icon name="layers" className="w-4 h-4" />Dias livres</WButton>
               </div>
             </div>
           </Card>
@@ -1999,9 +2026,9 @@ function PlanoModal({ open, onClose, plano, catalog, templates, onSaved }: {
                       <IconButton icon="x" label="Remover treino" onClick={() => clearTreino(d.uid)} />
                     </>
                   ) : (
-                    <button onClick={() => setPickFor(d.uid)} className="flex-1 flex items-center gap-2 py-1.5 text-sm text-zinc-400 hover:text-accent transition">
+                    <WButton onClick={() => setPickFor(d.uid)} className="flex-1 flex items-center gap-2 py-1.5 text-sm text-zinc-400 hover:text-accent transition">
                       <Icon name="plus" className="w-4 h-4" />Atribuir treino <span className="text-zinc-300 dark:text-zinc-600">· ou descanso</span>
-                    </button>
+                    </WButton>
                   )}
                   {mode === 'free' && <GuardIconButton icon="trash" label="Remover dia" onClick={() => removeDia(d.uid)} className="hover:text-red-500" />}
                 </Card>
@@ -2531,8 +2558,8 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
             <div className="mt-3">
               <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Estrutura</span>
               <div className="grid grid-cols-2 gap-2 max-w-xs">
-                <button type="button" onClick={() => mudarTipo('weekly')} className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm font-medium transition ${mode === 'weekly' ? 'border-accent bg-accent/[0.04] text-accent' : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'}`}><Icon name="calendar" className="w-4 h-4" />Semana fixa</button>
-                <button type="button" onClick={() => mudarTipo('free')} className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm font-medium transition ${mode === 'free' ? 'border-accent bg-accent/[0.04] text-accent' : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'}`}><Icon name="layers" className="w-4 h-4" />Dias livres</button>
+                <WButton type="button" onClick={() => mudarTipo('weekly')} className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm font-medium transition ${mode === 'weekly' ? 'border-accent bg-accent/[0.04] text-accent' : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'}`}><Icon name="calendar" className="w-4 h-4" />Semana fixa</WButton>
+                <WButton type="button" onClick={() => mudarTipo('free')} className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm font-medium transition ${mode === 'free' ? 'border-accent bg-accent/[0.04] text-accent' : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'}`}><Icon name="layers" className="w-4 h-4" />Dias livres</WButton>
               </div>
             </div>
           </Card>
@@ -2560,9 +2587,9 @@ function ClientePlanoEditor({ program, customer, templates, catalog, onClose, on
                       <IconButton icon="x" label="Remover treino" onClick={() => clearTreino(d.uid)} />
                     </>
                   ) : (
-                    <button onClick={() => setPickFor(d.uid)} className="flex-1 flex items-center gap-2 py-1.5 text-sm text-zinc-400 hover:text-accent transition">
+                    <WButton onClick={() => setPickFor(d.uid)} className="flex-1 flex items-center gap-2 py-1.5 text-sm text-zinc-400 hover:text-accent transition">
                       <Icon name="plus" className="w-4 h-4" />Atribuir treino <span className="text-zinc-300 dark:text-zinc-600">· ou descanso</span>
-                    </button>
+                    </WButton>
                   )}
                   {mode === 'free' && <GuardIconButton icon="trash" label="Remover dia" onClick={() => removeDia(d.uid)} className="hover:text-red-500" />}
                 </Card>
@@ -2673,7 +2700,7 @@ function AtribuirPlanoModal({ open, customer, planos, onClose, onSaved }: {
 const formatDate = (iso?: string) => iso ? format(new Date(iso + 'T00:00:00'), 'dd/MM/yy') : '—'
 
 // Detalhe do cliente: cabeçalho com ações + dashboard de progresso.
-function ClienteProgresso({ customer, onBack, onAtribuir, onEditar }: { customer: Cliente; onBack: () => void; onAtribuir: () => void; onEditar: () => void }) {
+function ClienteProgresso({ customer, onBack, onAtribuir, onEditar }: { customer: Cliente; onBack: () => void; onAtribuir?: () => void; onEditar: () => void }) {
   const { data: programsData, isLoading } = useGetGymPrograms({ customerId: customer.customerId }, { query: { enabled: !!customer.customerId } })
   const qc = useQueryClient()
   const programs = ((programsData ?? []) as GymProgram[])
@@ -2748,7 +2775,7 @@ function ClienteProgresso({ customer, onBack, onAtribuir, onEditar }: { customer
             {active ? <Badge tone="blue" dot>{active.name}</Badge> : <Badge tone="amber" dot>Sem plano</Badge>}
             {active && <Button variant="outline" size="sm" icon="edit" onClick={onEditar}>Editar plano</Button>}
             {active && <Button variant="outline" size="sm" icon="printer" onClick={handlePdf}>PDF do plano</Button>}
-            <GuardButton variant={active ? 'ghost' : 'outline'} size="sm" icon="calendar" onClick={onAtribuir}>{active ? 'Mudar plano' : 'Atribuir plano'}</GuardButton>
+            {onAtribuir && <GuardButton variant={active ? 'ghost' : 'outline'} size="sm" icon="calendar" onClick={onAtribuir}>{active ? 'Mudar plano' : 'Atribuir plano'}</GuardButton>}
           </div>
         </div>
       </Card>
@@ -2868,6 +2895,9 @@ function ClientesTab({ customers }: { customers: Cliente[] }) {
   const [sel, setSel] = useState<Cliente | null>(null)
   const [atribuir, setAtribuir] = useState<Cliente | null>(null)
   const [editing, setEditing] = useState<Cliente | null>(null)
+  // Equipa (B41 2b): atribuir um plano escreve no programa do cliente E usa um plano — a API exige `ginasio.clientes`
+  // e `ginasio.treinos` (edit). O `clientes` já é o da página (GuardButton); o `treinos` vê-se aqui.
+  const canAssign = useTeamAccess().can('ginasio.treinos', 'edit')
   const [q, setQ] = useState('')
   const { data: planosData } = useGetGymPlanos()
   const planos = (planosData ?? []) as GymPlano[]
@@ -2880,13 +2910,13 @@ function ClientesTab({ customers }: { customers: Cliente[] }) {
 
   // "Editar plano" → editor do programa ativo do cliente em ecrã cheio.
   if (editing) {
-    return <ClientePlanoEditorLoader customer={editing} onClose={() => setEditing(null)} onAtribuir={() => { setEditing(null); setAtribuir(editing) }} />
+    return <ClientePlanoEditorLoader customer={editing} onClose={() => setEditing(null)} onAtribuir={canAssign ? () => { setEditing(null); setAtribuir(editing) } : undefined} />
   }
 
   if (sel) {
     return (
       <>
-        <ClienteProgresso customer={sel} onBack={() => setSel(null)} onAtribuir={() => setAtribuir(sel)} onEditar={() => setEditing(sel)} />
+        <ClienteProgresso customer={sel} onBack={() => setSel(null)} onAtribuir={canAssign ? () => setAtribuir(sel) : undefined} onEditar={() => setEditing(sel)} />
         <AtribuirPlanoModal open={!!atribuir} customer={atribuir} planos={planos} onClose={() => setAtribuir(null)} onSaved={() => {}} />
       </>
     )
@@ -2926,7 +2956,7 @@ function ClientesTab({ customers }: { customers: Cliente[] }) {
               >
                 <Avatar name={c.name} size={36} />
                 <p className="font-medium text-zinc-900 dark:text-white truncate flex-1 min-w-0">{c.name}</p>
-                <GuardButton variant="ghost" size="sm" icon="calendar" onClick={(e?: any) => { e?.stopPropagation(); setAtribuir(c) }}>Atribuir plano</GuardButton>
+                {canAssign && <GuardButton variant="ghost" size="sm" icon="calendar" onClick={(e?: any) => { e?.stopPropagation(); setAtribuir(c) }}>Atribuir plano</GuardButton>}
                 <Icon name="chevronRight" className="w-4 h-4 text-zinc-300 shrink-0" />
               </div>
             ))}
@@ -2956,8 +2986,8 @@ function ClientesTab({ customers }: { customers: Cliente[] }) {
  */
 export function Ginasio({ view }: { view: GinasioView }) {
   // Equipa (B41): um membro sem o módulo Clientes não lê `/customers` (403) — nem se pede.
-  const { can: canTeam } = useTeamAccess()
-  const { data: custData } = useGetCustomers({ query: { enabled: canTeam('clientes') } })
+  const { canAny: canTeamAny } = useTeamAccess()
+  const { data: custData } = useGetCustomers({ query: { enabled: canTeamAny(['agenda.marcacoes', 'clientes.lista']) } })
   const customers = (custData?.rows ?? []) as { customerId: string; name: string }[]
   usePageSubtitle('Exercícios, treinos, planos e progresso dos clientes.')
 

@@ -13,6 +13,7 @@ import { Badge, Button, Input } from "../../../ui/ui.jsx";
 import { Icon } from "../../../ui/icons.jsx";
 import { useSupportSession } from "../../../context/AuthContext";
 import { NOT_CONFIGURED_HINT, useBuilder } from "../state/store";
+import { VIEW_ONLY_MESSAGE } from "../../../lib/teamAccess";
 import { newEntityId } from "../state/ids";
 import { FOLDER_NAME_MAX, buildAddPage, canMoveLibrary } from "../state/ops";
 import {
@@ -155,7 +156,7 @@ function visibleRows(pages: readonly Page[], closed: ReadonlySet<string>): PageR
 }
 
 function PagesGroup({ shell, idx, onOpen }: { shell: Shell; idx: MissingIndex; onOpen: () => void }) {
-  const { state, lang, limits, select, apply } = useBuilder();
+  const { state, lang, limits, select, apply, readOnly } = useBuilder();
   const pages = state.work.pages;
   const maxDepth = num(limits, "maxDepth", MAX_DEPTH);
   const maxPages = num(limits, "pages", 200);
@@ -173,7 +174,7 @@ function PagesGroup({ shell, idx, onOpen }: { shell: Shell; idx: MissingIndex; o
   };
 
   const actions = (
-    <Button type="button" variant="ghost" size="sm" aria-label="Nova página" disabled={full} title={full ? `Limite de ${maxPages} páginas atingido` : "Criar uma página nova"} className={headBtn} onClick={() => addPage(null)}>
+    <Button type="button" variant="ghost" size="sm" aria-label="Nova página" disabled={full || readOnly} title={readOnly ? VIEW_ONLY_MESSAGE : full ? `Limite de ${maxPages} páginas atingido` : "Criar uma página nova"} className={headBtn} onClick={() => addPage(null)}>
       <Icon name="plus" className="h-4 w-4" />
       Nova
     </Button>

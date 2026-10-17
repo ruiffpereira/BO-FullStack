@@ -27,6 +27,7 @@ import {
 import { usePageSubtitle } from "../context/PageMetaContext";
 import { GuardButton } from "../components/GuardButton";
 import { useWriteGuard } from "../hooks/useWriteGuard";
+import { useTeamAccess } from "../hooks/useTeamAccess";
 import { Combobox } from "../components/Combobox";
 import {
   useGetProducts,
@@ -198,6 +199,11 @@ function ProdutoModal({
   defaultLang: string;
 }) {
   const [form, setForm] = useState<ProdForm>(emptyForm);
+  // Equipa (B41 2b): o custo de compra é a folha `loja.produtos.custo`. Sem ver, o campo some (a API nem o envia);
+  // só a ver, fica em leitura.
+  const { can } = useTeamAccess();
+  const showCost = can("loja.produtos.custo", "view");
+  const editCost = can("loja.produtos.custo", "edit");
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Reset form whenever the modal opens or the product changes
@@ -375,13 +381,17 @@ function ProdutoModal({
             value={form.stock}
             onChange={set("stock")}
           />
-          <Input
-            label="Custo (€)"
-            type="number"
-            placeholder="0.00"
-            value={form.cost}
-            onChange={set("cost")}
-          />
+          {showCost && (
+            <Input
+              label="Custo (€)"
+              type="number"
+              placeholder="0.00"
+              value={form.cost}
+              onChange={set("cost")}
+              disabled={!editCost}
+              title={!editCost ? "Só tens permissão para ver" : undefined}
+            />
+          )}
           <Input
             label="IVA (%)"
             type="number"
@@ -418,6 +428,9 @@ export type LojaView = "produtos" | "encomendas" | "categorias";
 export function Loja({ view }: { view: LojaView }) {
   const { authHeader } = useAuth();
   const { readOnly: writeLocked, message: writeMessage } = useWriteGuard();
+  // O custo só segue no pedido a quem o pode editar (a API também o ignora a quem não pode).
+  const { can: canTeam } = useTeamAccess();
+  const canEditCost = canTeam("loja.produtos.custo", "edit");
   const qc = useQueryClient();
   const headers = authHeader();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -689,7 +702,7 @@ export function Loja({ view }: { view: LojaView }) {
           data: {
             reference: form.reference || undefined,
             price: form.price ? Number(form.price) : undefined,
-            cost: form.cost !== "" ? Number(form.cost) : undefined,
+            cost: canEditCost && form.cost !== "" ? Number(form.cost) : undefined,
             vatRate: form.vatRate !== "" ? Number(form.vatRate) : undefined,
             stock: form.stock !== "" ? Number(form.stock) : undefined,
             categoryId: form.categoryId || undefined,
@@ -703,7 +716,7 @@ export function Loja({ view }: { view: LojaView }) {
           data: {
             reference: form.reference || undefined,
             price: form.price ? Number(form.price) : undefined,
-            cost: form.cost !== "" ? Number(form.cost) : undefined,
+            cost: canEditCost && form.cost !== "" ? Number(form.cost) : undefined,
             vatRate: form.vatRate !== "" ? Number(form.vatRate) : undefined,
             stock: form.stock !== "" ? Number(form.stock) : undefined,
             categoryId: form.categoryId || undefined,

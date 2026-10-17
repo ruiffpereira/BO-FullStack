@@ -126,6 +126,7 @@ function SiteNameSection() {
           <Input label="Nome" value={name} maxLength={80} onChange={(e: any) => setName(e.target.value)} autoComplete="off" />
         </div>
         <GuardButton
+          leaf="paginas.publicar"
           className="min-h-10"
           isLoading={m.isPending}
           disabled={!changed || m.isPending || dirty}
@@ -249,7 +250,7 @@ function ManifestSection({ summary, onDone }: { summary: Summary; onDone: () => 
             <ul className="mt-1 list-disc pl-5 space-y-0.5 break-words">{failure.usages.map((x, i) => <li key={i}>{x}</li>)}</ul>
           </div>
         )}
-        <GuardButton className="min-h-10" isLoading={m.isPending} disabled={!text.trim() || m.isPending} onClick={load}>
+        <GuardButton leaf="paginas.publicar" className="min-h-10" isLoading={m.isPending} disabled={!text.trim() || m.isPending} onClick={load}>
           Carregar manifest
         </GuardButton>
       </div>
@@ -339,7 +340,7 @@ function PublishSection({ publish, onDone }: { publish: PublishCfg; onDone: () =
         </details>
         {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div className="flex flex-wrap items-center gap-2">
-          <GuardButton className="min-h-10" isLoading={saveM.isPending} disabled={saveM.isPending || !dirty || !repo.trim()}
+          <GuardButton leaf="paginas.publicar" className="min-h-10" isLoading={saveM.isPending} disabled={saveM.isPending || !dirty || !repo.trim()}
             onClick={() => saveM.mutate({ data: buildPublishBody({ repo, workflow, ref, token }) })}>
             Guardar publicação
           </GuardButton>

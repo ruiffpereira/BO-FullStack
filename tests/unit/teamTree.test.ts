@@ -8,6 +8,7 @@ import {
   serializeGrants,
   setNodeLevel,
   toggleNode,
+  visibleTree,
   type TreeNode,
 } from "../../src/lib/teamTree";
 
@@ -207,5 +208,18 @@ describe("acesso total e serialização", () => {
     const idx = indexTree(TREE);
     expect(idx.get("agenda.marcacoes.valores")?.storableParent).toBe("agenda.marcacoes");
     expect(idx.get("agenda.marcacoes")?.storableParent).toBeNull();
+  });
+});
+
+describe("visibleTree — o que o plano não inclui não aparece", () => {
+  it("tira os nós indisponíveis e os agrupadores que ficam vazios; o resto mantém-se", () => {
+    const keys = (t: TreeNode[]): string[] => t.flatMap((n) => [n.key, ...keys(n.children ?? [])]);
+    const v = visibleTree(TREE);
+    expect(keys(v)).not.toContain("loja");
+    expect(keys(v)).not.toContain("loja.produtos");
+    expect(keys(v)).toContain("agenda.marcacoes.valores");
+    expect(keys(v)).toContain("estatisticas");
+    // Um topo guardável indisponível também sai, com os filhos.
+    expect(visibleTree([node("x", { available: false, children: [node("x.y")] })])).toEqual([]);
   });
 });

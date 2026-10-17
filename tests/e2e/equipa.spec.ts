@@ -54,12 +54,14 @@ test.describe("Equipa — o dono do tenant", () => {
     await loginAs(context, DONO);
     await abrirEquipa(page, context);
 
-    // Convidar: nome, email e árvore — o tenant não tem Ginásio: o nó aparece bloqueado, com o motivo.
+    // Convidar: nome, email e árvore — o tenant não tem Ginásio, Conteúdos nem Páginas: esses módulos nem aparecem.
     await page.getByRole("button", { name: "Convidar utilizador" }).click();
     const invite = page.getByRole("dialog", { name: "Convidar utilizador" });
     await expect(invite.getByRole("radio", { name: /Escolher na árvore/ })).toBeChecked();
-    await expect(invite.getByRole("checkbox", { name: "Ginásio", exact: true })).toBeDisabled();
-    await expect(invite.getByText("O teu plano não inclui este módulo").first()).toBeVisible(); // Ginásio, Conteúdos e Páginas
+    await expect(invite.getByRole("checkbox", { name: "Agenda", exact: true })).toBeVisible();
+    for (const name of ["Ginásio", "Conteúdos", "Páginas"]) {
+      await expect(invite.getByRole("checkbox", { name, exact: true })).toHaveCount(0);
+    }
     await invite.getByLabel("Nome").fill("Marta Recepção");
     await invite.getByLabel("Email").fill("marta.recepcao@e2e.local");
     await invite.getByRole("checkbox", { name: "Agenda", exact: true }).check(); // marca o ramo inteiro (ao máximo)

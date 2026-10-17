@@ -6,6 +6,7 @@ import {
   indexTree,
   setNodeLevel,
   subtreeOf,
+  visibleTree,
   toggleNode,
   type CheckState,
   type GrantMap,
@@ -13,8 +14,6 @@ import {
   type TreeNode,
 } from "../lib/teamTree";
 
-/** Motivo mostrado num nó que o plano do tenant não inclui (`available: false`). */
-export const UNAVAILABLE_REASON = "O teu plano não inclui este módulo";
 
 /** Caixa de três estados (marcado / parcial / vazio). O `indeterminate` só se define por JS. */
 function TriCheckbox({
@@ -53,7 +52,7 @@ function TriCheckbox({
  * `[Ver | Editar]` desce para uma linha própria, por isso nunca transborda.
  */
 export function PermissionTree({
-  tree,
+  tree: fullTree,
   value,
   onChange,
   disabled,
@@ -63,6 +62,8 @@ export function PermissionTree({
   onChange: (next: GrantMap) => void;
   disabled?: boolean;
 }) {
+  // Módulos que o plano não inclui não aparecem (decisão do dono, 2026-10-17).
+  const tree = visibleTree(fullTree);
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const idx = indexTree(tree);
 
@@ -78,17 +79,15 @@ export function PermissionTree({
       return next;
     });
 
-  const renderNode = (node: TreeNode, depth: number, parentAvailable: boolean) => {
+  const renderNode = (node: TreeNode, depth: number) => {
     const key = node.key;
     const state = checkState(node, value);
     const own = value[key];
     const hasChildren = (node.children ?? []).length > 0;
     const expanded = open.has(key);
-    const sel = subtreeOf(node).filter((n) => n.storable && n.available);
+    const sel = subtreeOf(node).filter((n) => n.storable);
     const marked = sel.filter((n) => value[n.key] !== undefined).length;
-    const unavailable = !node.available;
-    const showReason = unavailable && parentAvailable;
-    const disabledRow = disabled || unavailable || sel.length === 0;
+    const disabledRow = disabled || sel.length === 0;
 
     // Tecto do pai (um filho não-acção nunca fica acima do pai).
     const sp = idx.get(key)?.storableParent ?? null;
@@ -96,7 +95,7 @@ export function PermissionTree({
     const bothLevels = node.levels.includes("view") && node.levels.includes("edit");
 
     let levelControl: JSX.Element | null = null;
-    if (node.storable && !node.action && own && !unavailable) {
+    if (node.storable && !node.action && own) {
       if (bothLevels && !parentIsView) {
         levelControl = (
           <Tabs
@@ -125,9 +124,7 @@ export function PermissionTree({
     return (
       <li key={key} data-node={key}>
         <div
-          className={`flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between py-2.5 pr-3 ${
-            unavailable ? "opacity-60" : ""
-          }`}
+          className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between py-2.5 pr-3"
           style={{ paddingLeft: 12 + depth * 18 }}
         >
           <div className="flex items-center gap-2 min-w-0">
@@ -153,18 +150,17 @@ export function PermissionTree({
               />
               <span className="truncate">{node.label}</span>
             </label>
-            {hasChildren && !unavailable && sel.length > 1 && (
+            {hasChildren && sel.length > 1 && (
               <span className="text-xs text-zinc-400 whitespace-nowrap">
                 {marked} de {sel.length}
               </span>
             )}
-            {showReason && <span className="text-xs text-zinc-500">· {UNAVAILABLE_REASON}</span>}
           </div>
           {levelControl && <div className="pl-[30px] sm:pl-0 shrink-0">{levelControl}</div>}
         </div>
         {hasChildren && expanded && (
           <ul className="border-l border-zinc-100 dark:border-zinc-800 ml-5">
-            {node.children.map((c) => renderNode(c, depth, node.available))}
+            {node.children.map((c) => renderNode(c, depth))}
           </ul>
         )}
       </li>
@@ -176,7 +172,7 @@ export function PermissionTree({
       aria-label="Permissões"
       className="divide-y divide-zinc-100 dark:divide-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
     >
-      {tree.map((top) => renderNode(top, 0, true))}
+      {tree.map((top) => renderNode(top, 0))}
     </ul>
   );
 }

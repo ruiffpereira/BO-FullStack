@@ -193,13 +193,12 @@ describe("Equipa — convidar", () => {
     ).toBeInTheDocument();
   });
 
-  it("a árvore abre vazia e colapsada; os topos mostram o estado; o plano sem o módulo fica desactivado com o motivo", () => {
+  it("a árvore abre vazia e colapsada; os topos mostram o estado; o módulo que o plano não inclui nem aparece", () => {
     const dialog = openInvite();
     expect(within(dialog).getByRole("checkbox", { name: "Agenda" })).not.toBeChecked();
     expect(within(dialog).queryByRole("checkbox", { name: "Serviços" })).toBeNull(); // colapsado
-    const loja = within(dialog).getByRole("checkbox", { name: "Loja" });
-    expect(loja).toBeDisabled();
-    expect(within(dialog).getByText(/O teu plano não inclui este módulo/)).toBeInTheDocument();
+    expect(within(dialog).queryByRole("checkbox", { name: "Loja" })).toBeNull();
+    expect(within(dialog).queryByText(/O teu plano não inclui/)).toBeNull();
     fireEvent.click(within(dialog).getByRole("button", { name: "Abrir Agenda" }));
     expect(within(dialog).getByRole("checkbox", { name: "Serviços" })).toBeInTheDocument();
   });

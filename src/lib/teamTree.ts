@@ -85,6 +85,21 @@ export function subtreeOf(n: TreeNode): TreeNode[] {
 /** Nós seleccionáveis do ramo: guardáveis e disponíveis no plano. */
 const selectable = (n: TreeNode) => n.storable && n.available;
 
+/**
+ * A árvore que o editor mostra: sem os nós que o plano do tenant não inclui (`available: false`) — decisão do dono,
+ * não aparecem de todo — e sem os agrupadores que fiquem sem nada seleccionável debaixo.
+ */
+export function visibleTree(tree: TreeNode[]): TreeNode[] {
+  const out: TreeNode[] = [];
+  for (const n of tree) {
+    if (!n.available) continue;
+    const children = visibleTree(n.children ?? []);
+    if (!n.storable && children.length === 0) continue;
+    out.push({ ...n, children });
+  }
+  return out;
+}
+
 /* ───────────────────────── Estado de uma caixa ───────────────────────── */
 
 export type CheckState = "on" | "partial" | "off";

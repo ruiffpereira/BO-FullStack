@@ -151,6 +151,25 @@ Hoje uma marcação não tem profissional. Para o âmbito `meus` existir:
 É o item 6 do ROADMAP ("Multi-staff"), do tamanho de um épico próprio. Por isso fica num **épico à parte, depois das fases 0–3**:
 até lá o âmbito aparece desligado ("em breve").
 
+**Requisitos do dono (2026-10-18)** — o épico não é só a agenda, é o negócio dividido por profissional:
+- **Financeiro por profissional:** cada profissional tem o seu financeiro (o que faturou, recebeu, dívida); o dono
+  tem **o dele** (como profissional) **e o global** de todos. Liga com a árvore: um membro ligado a um profissional
+  vê o seu financeiro, nunca o dos colegas, salvo se lhe derem "Todos".
+- **Produtos e loja:** também passam a ter profissional (ex.: quem vendeu) e entram no financeiro de cada um.
+  *(a detalhar com o dono — ver perguntas abaixo)*
+- **Serviços:** criados **num só sítio** (como hoje); por omissão **todos os profissionais** fazem cada serviço; há
+  uma opção para **tirar** um profissional de um serviço (quem não o quer/não o faz).
+- **Site:** opção de **aparecer ou não no website** *(a confirmar: por profissional, por serviço, ou os dois)*.
+- Continuam as perguntas já anotadas: preço próprio por profissional? no site o cliente escolhe sempre ou pode
+  "qualquer um"?
+
+**Respostas do dono (2026-10-18):** (1) **conta quem vendeu** — o produto é do negócio, a venda entra no financeiro
+de quem a fez. (2) **as duas coisas**: o profissional tem "aparece no site" e o serviço tem "disponível no site"
+(ex.: um serviço activo no BO mas que não se marca online); e cada serviço tem a lista de quem o faz (por omissão
+todos). **Confirmado pelo dono:** a ficha do profissional tem a caixa **"Aparece no site de marcações"** (marcada
+por omissão; desmarcada = não aparece no site mas continua a receber marcações feitas no BO); o serviço tem
+"Disponível no site". Sem interruptor por par serviço × profissional. (3) **as despesas também se atribuem a cada profissional** (e o global soma tudo).
+
 ## Fases — cada uma fecha a funcionar em produção
 
 > Decisão do dono (2026-10-16): por fases, cada uma a funcionar antes da seguinte. A numeração continua no

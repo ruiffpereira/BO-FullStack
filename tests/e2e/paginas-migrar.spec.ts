@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { API, loginAs } from "./fixtures/login";
 import { ADMIN, apiLogin, grantSupportAccess, openSupportTab } from "./fixtures/support";
 import { PaginasPage, VIEWPORTS, uniq } from "./pages/PaginasPage";
-import { buildZip } from "../../../API-FullStack/tests/helpers/zip";
+import { buildZip } from "./fixtures/zip";
 
 /**
  * B38 · P1 — «Migrar site» (zip) em Páginas → Definições do site, só numa sessão de suporte («Entrar como»).

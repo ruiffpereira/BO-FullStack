@@ -6,7 +6,7 @@ import { loginAs } from "./fixtures/login";
 import { ADMIN, grantSupportAccess, openSupportTab } from "./fixtures/support";
 import { patchSiteBuilder } from "./fixtures/siteBuilderRoute";
 import { solidPng } from "./fixtures/png";
-import { buildZip } from "../../../API-FullStack/tests/helpers/zip";
+import { buildZip } from "./fixtures/zip";
 import { PaginasPage, VIEWPORTS, uniq } from "./pages/PaginasPage";
 
 /**

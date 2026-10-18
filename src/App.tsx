@@ -208,7 +208,7 @@ function App() {
         <Route path="/mensagens" element={<Mensagens />} />
         {/* Core, fora da sidebar — acede-se pelo menu do avatar no topbar (Shell.tsx). */}
         <Route path="/perfil" element={<Perfil theme={theme} onToggleTheme={toggleTheme} />} />
-        {/* Equipa (B41): só o dono do tenant — o guard do Shell expulsa a conta admin e os membros. */}
+        {/* Equipa (B41): o dono, ou um membro com o nó `equipa` — o guard do Shell expulsa a conta admin e os restantes. */}
         <Route path="/equipa" element={<Equipa />} />
         <Route path="/loja" element={<LegacyTabEntry root="/loja" param="tab"><Loja view="produtos" /></LegacyTabEntry>} />
         <Route path="/loja/encomendas" element={<Loja view="encomendas" />} />

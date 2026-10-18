@@ -2922,6 +2922,27 @@
             "type": "string",
             "nullable": true
           },
+          "disabledByOwner": {
+            "type": "boolean",
+            "description": "Desactivado pelo dono: só o dono reactiva (um delegado -> 403 TEAM_OWNER_DISABLED). Só vai a quem gere o membro, nunca na vista Ver."
+          },
+          "createdBy": {
+            "type": "object",
+            "nullable": true,
+            "description": "Quem o convidou; null = o dono da conta",
+            "properties": {
+              "memberId": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "canManage": {
+            "type": "boolean",
+            "description": "true = pode ver o detalhe e gerir (dono, ou o criador directo com Gerir)"
+          },
           "grants": {
             "type": "array",
             "items": {
@@ -2940,6 +2961,53 @@
                 }
               }
             }
+          }
+        }
+      },
+      "TeamMemberBasic": {
+        "type": "object",
+        "description": "Entrada reduzida da lista (quem só VÊ a equipa, ou um membro que não é criador deste): sem email, permissões nem acções",
+        "properties": {
+          "memberId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "invited",
+              "active",
+              "disabled"
+            ]
+          },
+          "lastLoginAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdBy": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "memberId": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "isSelf": {
+            "type": "boolean"
+          },
+          "canManage": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
           }
         }
       },
@@ -2972,6 +3040,9 @@
           "storable",
           "requiresComponents",
           "available",
+          "excludeFromFullAccess",
+          "levelLabels",
+          "maxLevel",
           "children"
         ],
         "properties": {
@@ -3009,6 +3080,26 @@
           },
           "available": {
             "type": "boolean"
+          },
+          "excludeFromFullAccess": {
+            "type": "boolean",
+            "description": "true = o BO não inclui este nó no 'Acesso total' (ex. equipa)"
+          },
+          "levelLabels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Rótulos de nível para o BO (ex. { edit: 'Gerir' })"
+          },
+          "maxLevel": {
+            "type": "string",
+            "enum": [
+              "view",
+              "edit"
+            ],
+            "nullable": true,
+            "description": "Nível máximo que QUEM PEDE pode dar neste nó (dono: o do nó; membro: o seu; null = nenhum)"
           },
           "children": {
             "type": "array",
@@ -16162,7 +16253,7 @@
     "/team/catalog": {
       "get": {
         "summary": "Catálogo de permissões que o tenant pode dar à equipa",
-        "description": "Só o dono do tenant (membro → 403 `TEAM_OWNER_ONLY`; conta admin → 403 `TEAM_ADMIN_FORBIDDEN`). Devolve a ÁRVORE de permissões (B41 fase 2b): cada nó traz `available` (o tenant tem TODOS os componentes RBAC que ele exige — `requiresComponents`) — só os disponíveis se podem dar. Só se guardam os nós com `storable: true` (folhas e nós com permissão própria); um agrupador (`storable: false`, `levels: []`) nunca se guarda. Uma acção sim/não (`action: true`) tem `levels: [\"edit\"]` e guarda-se com `level: edit`. Regras que a API valida em POST/PUT /team: o pai (guardável mais próximo) tem de estar presente e o nível do filho é ≤ ao do pai (as acções só exigem o pai).",
+        "description": "Dono, ou membro com a folha `equipa` (sem ela → 403 `TEAM_FORBIDDEN`; conta admin → 403 `TEAM_ADMIN_FORBIDDEN`). Devolve a ÁRVORE de permissões (B41 fase 2b): cada nó traz `available` (o tenant tem TODOS os componentes RBAC que ele exige — `requiresComponents`) — só os disponíveis se podem dar. Só se guardam os nós com `storable: true` (folhas e nós com permissão própria); um agrupador (`storable: false`, `levels: []`) nunca se guarda. Uma acção sim/não (`action: true`) tem `levels: [\"edit\"]` e guarda-se com `level: edit`. Regras que a API valida em POST/PUT /team: o pai (guardável mais próximo) tem de estar presente e o nível do filho é ≤ ao do pai (as acções só exigem o pai). Fase 3: cada nó traz `maxLevel` — o nível máximo que QUEM PEDE pode dar (dono: o máximo do nó; membro: o seu próprio nível, ou `null` se não o tem — o BO desactiva o resto) —, `excludeFromFullAccess` (o nó `equipa` nunca entra no \"Acesso total\") e `levelLabels` (ex. `{ edit: \"Gerir\" }`).",
         "tags": [
           "Team"
         ],
@@ -16189,7 +16280,7 @@
             }
           },
           "403": {
-            "description": "`TEAM_OWNER_ONLY` ou `TEAM_ADMIN_FORBIDDEN`"
+            "description": "`TEAM_FORBIDDEN` ou `TEAM_ADMIN_FORBIDDEN`"
           }
         }
       }
@@ -16197,7 +16288,7 @@
     "/team": {
       "get": {
         "summary": "Membros da equipa do tenant",
-        "description": "Só o dono. Devolve os membros do tenant autenticado com as suas permissões (folhas). Nunca devolve password nem tokens.",
+        "description": "Dono, ou membro com `equipa` (ver/Gerir). O dono vê o detalhe completo de todos (`TeamMember`: email, permissões, `canManage: true`). Um membro vê a lista de TODA a equipa do negócio só com nome, estado, último acesso e \"criado por\" (`TeamMemberBasic`: sem email nem permissões); com Gerir, nos membros que ele criou directamente vê o detalhe completo (`canManage: true`). Nunca devolve password nem tokens.",
         "tags": [
           "Team"
         ],
@@ -16209,20 +16300,27 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/TeamMember"
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/TeamMember"
+                      },
+                      {
+                        "$ref": "#/components/schemas/TeamMemberBasic"
+                      }
+                    ]
                   }
                 }
               }
             }
           },
           "403": {
-            "description": "`TEAM_OWNER_ONLY` ou `TEAM_ADMIN_FORBIDDEN`"
+            "description": "`TEAM_FORBIDDEN` ou `TEAM_ADMIN_FORBIDDEN`"
           }
         }
       },
       "post": {
         "summary": "Convidar um membro para a equipa",
-        "description": "Só o dono; escrita fechada em sessão de suporte (`IMPERSONATION_FORBIDDEN`). Cria o membro em `invited` e envia o email com o link de definição de password (24 h, o ecrã `SetupPassword`). O email é único entre `Users` e `TeamMembers`. Tecto: só chaves do catálogo, níveis permitidos e módulos que o tenant tem.",
+        "description": "Dono, ou membro com `equipa` Gerir (fase 3: o convidado fica com `createdByMemberId` = o membro; o dono => null). Escrita fechada em sessão de suporte (`IMPERSONATION_FORBIDDEN`). Cria o membro em `invited` e envia o email com o link de definição de password (24 h, o ecrã `SetupPassword`). O email é único entre `Users` e `TeamMembers`. Tecto: só chaves do catálogo, níveis permitidos e módulos que o tenant tem; um MEMBRO só dá o que ele próprio tem, ao mesmo nível ou menos (validado sob o lock).",
         "tags": [
           "Team"
         ],
@@ -16278,16 +16376,16 @@
             "description": "Dados inválidos (zod)"
           },
           "403": {
-            "description": "`TEAM_OWNER_ONLY`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
+            "description": "`TEAM_FORBIDDEN` (sem `equipa` Gerir), `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
           },
           "409": {
-            "description": "`EMAIL_IN_USE` (email de um User ou de outro membro com convite válido/conta activa; um convite expirado não conta) ou `TEAM_LIMIT`"
+            "description": "`EMAIL_IN_USE` (email de um User ou de outro membro com convite válido/conta activa; um convite expirado não conta), `TEAM_LIMIT` ou `TEAM_DELEGATE_LIMIT` (um membro tem no máximo 20 convidados directos; o dono não tem este tecto)"
           },
           "422": {
-            "description": "`TEAM_GRANT_NOT_ALLOWED` — chave desconhecida ou agrupador, nível proibido, repetida, filho sem o pai ou com mais nível que o pai, ou folha que o tenant não tem (tecto)"
+            "description": "`TEAM_GRANT_NOT_ALLOWED` — chave desconhecida ou agrupador, nível proibido, repetida, filho sem o pai ou com mais nível que o pai, folha que o tenant não tem (tecto) ou, num membro, acima do que ele próprio tem (tecto do delegado)"
           },
           "429": {
-            "description": "Limite de 20 convites por hora por actor"
+            "description": "Limite de 20 convites por hora por actor e de 60 por hora por negócio"
           }
         }
       }
@@ -16295,7 +16393,7 @@
     "/team/{memberId}": {
       "put": {
         "summary": "Editar o nome e as permissões de um membro",
-        "description": "Só o dono. `grants`, se vier, SUBSTITUI as permissões do membro (mesmo tecto do convite). O efeito é no pedido seguinte do membro (as permissões são lidas a cada pedido). Membro de outro tenant → 404.",
+        "description": "Dono (qualquer membro do tenant), ou membro com `equipa` Gerir **nos membros que ele criou directamente** (outro membro do mesmo tenant → 403 `TEAM_NOT_CREATOR`; ele próprio → 403 `TEAM_SELF_FORBIDDEN`). `grants`, se vier, SUBSTITUI as permissões do membro (mesmo tecto do convite; um membro só dá o que tem, ao mesmo nível ou menos). **Cascata (fase 3):** se as permissões baixam, as de TODA a descendência do membro (recursiva por quem convidou quem) são cortadas ao que o respectivo criador tem depois do corte, na mesma transacção e sob o lock do tenant, e as ligações SSE dos afectados fecham. A resposta traz `cascadeAffected` (nº de descendentes cujas permissões mudaram); para o saber ANTES de guardar, usar `POST /team/{memberId}/grants-preview`. O efeito é no pedido seguinte do membro (as permissões são lidas a cada pedido). Membro de outro tenant → 404.",
         "tags": [
           "Team"
         ],
@@ -16337,7 +16435,20 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TeamMember"
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/TeamMember"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "cascadeAffected": {
+                          "type": "integer",
+                          "description": "Descendentes cujas permissões foram cortadas"
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -16346,19 +16457,19 @@
             "description": "Dados inválidos (zod)"
           },
           "403": {
-            "description": "`TEAM_OWNER_ONLY`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
+            "description": "`TEAM_FORBIDDEN`, `TEAM_NOT_CREATOR`, `TEAM_SELF_FORBIDDEN`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
           },
           "404": {
             "description": "Membro não encontrado (ou de outro tenant)"
           },
           "422": {
-            "description": "`TEAM_GRANT_NOT_ALLOWED`"
+            "description": "`TEAM_GRANT_NOT_ALLOWED` (tecto do tenant ou, num membro, acima do que ele próprio tem)"
           }
         }
       },
       "delete": {
         "summary": "Remover um membro",
-        "description": "Só o dono. Apaga o membro, as permissões e as sessões (o registo de auditoria fica com o nome, sem FK). O email fica livre. Membro de outro tenant → 404.",
+        "description": "Dono, ou membro com `equipa` Gerir nos que criou (`TEAM_NOT_CREATOR`/`TEAM_SELF_FORBIDDEN` como no PUT). Apaga o membro, as permissões e as sessões (o registo de auditoria fica com o nome, sem FK). O email fica livre. **Os membros que ele convidou NÃO saem**: passam para o dono (`createdByMemberId = null`) com as permissões que tinham, na mesma transacção. Membro de outro tenant → 404.",
         "tags": [
           "Team"
         ],
@@ -16378,7 +16489,187 @@
             "description": "Membro removido"
           },
           "403": {
-            "description": "`TEAM_OWNER_ONLY`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
+            "description": "`TEAM_FORBIDDEN`, `TEAM_NOT_CREATOR`, `TEAM_SELF_FORBIDDEN`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
+          },
+          "404": {
+            "description": "Membro não encontrado (ou de outro tenant)"
+          }
+        }
+      }
+    },
+    "/team/{memberId}/grants-preview": {
+      "post": {
+        "summary": "Quantos utilizadores saem/descem se estas permissões forem guardadas (cascata, sem escrever nada)",
+        "description": "Mesmas regras de acesso e de validação do `PUT /team/{memberId}` (dono, ou membro com Gerir nos que criou; mesmo tecto do tenant e do delegado), mas NÃO escreve: devolve em `affected` o nº de descendentes do membro (recursivo, por quem convidou quem) cujas permissões seriam cortadas — para o BO avisar \"Também sai a N utilizadores criados por este membro\" antes de guardar.",
+        "tags": [
+          "Team"
+        ],
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "grants"
+                ],
+                "properties": {
+                  "grants": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/TeamGrantInput"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Descendentes afectados",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "affected": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos (zod)"
+          },
+          "403": {
+            "description": "`TEAM_FORBIDDEN`, `TEAM_NOT_CREATOR`, `TEAM_SELF_FORBIDDEN` ou `TEAM_ADMIN_FORBIDDEN`"
+          },
+          "404": {
+            "description": "Membro não encontrado (ou de outro tenant)"
+          },
+          "422": {
+            "description": "`TEAM_GRANT_NOT_ALLOWED`"
+          }
+        }
+      }
+    },
+    "/team/{memberId}/activity": {
+      "get": {
+        "summary": "Actividade de um membro (do registo de auditoria)",
+        "description": "O dono (qualquer membro do tenant) ou o criador directo com `equipa` Gerir (outro membro → 403 `TEAM_NOT_CREATOR`; só \"Ver\" → 403 `TEAM_FORBIDDEN`). Lê do audit log as acções com `actorMemberId` = o membro **e** do tenant certo, da mais recente para a mais antiga, paginado. Allowlist: data, acção (código + etiqueta), área legível e estado — nunca corpos de pedido, caminhos, ids, IPs, user agents nem mensagens de erro.",
+        "tags": [
+          "Team"
+        ],
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de actividade",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "login",
+                              "logout",
+                              "create",
+                              "update",
+                              "delete",
+                              "other"
+                            ]
+                          },
+                          "actionLabel": {
+                            "type": "string"
+                          },
+                          "area": {
+                            "type": "string"
+                          },
+                          "ok": {
+                            "type": "boolean",
+                            "description": "false = recusada ou falhada"
+                          },
+                          "statusCode": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Query inválida"
+          },
+          "403": {
+            "description": "`TEAM_FORBIDDEN`, `TEAM_NOT_CREATOR`, `TEAM_SELF_FORBIDDEN` ou `TEAM_ADMIN_FORBIDDEN`"
           },
           "404": {
             "description": "Membro não encontrado (ou de outro tenant)"
@@ -16389,7 +16680,7 @@
     "/team/{memberId}/resend-invite": {
       "post": {
         "summary": "Reenviar o convite a um membro ainda não aceite",
-        "description": "Só o dono. Só para `invited` (senão 409 `TEAM_NOT_INVITED`). Gera um token novo (o anterior deixa de valer).",
+        "description": "Dono, ou membro com `equipa` Gerir nos membros que criou (`TEAM_NOT_CREATOR`/`TEAM_SELF_FORBIDDEN` fora disso). Só para `invited` (senão 409 `TEAM_NOT_INVITED`). Gera um token novo (o anterior deixa de valer).",
         "tags": [
           "Team"
         ],
@@ -16421,7 +16712,7 @@
             }
           },
           "403": {
-            "description": "`TEAM_OWNER_ONLY`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
+            "description": "`TEAM_FORBIDDEN`, `TEAM_NOT_CREATOR`, `TEAM_SELF_FORBIDDEN`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
           },
           "404": {
             "description": "Membro não encontrado (ou de outro tenant)"
@@ -16430,7 +16721,7 @@
             "description": "`TEAM_NOT_INVITED`"
           },
           "429": {
-            "description": "Limite de 20 convites por hora por actor"
+            "description": "Limite de 20 convites por hora por actor e de 60 por hora por negócio"
           }
         }
       }
@@ -16438,7 +16729,7 @@
     "/team/{memberId}/send-reset": {
       "post": {
         "summary": "Enviar a um membro activo o email para redefinir a password",
-        "description": "Só o dono (\"esqueci a password\" de um membro: as contas também não têm fluxo público). Só para `active` (senão 409 `TEAM_NOT_ACTIVE`). O token é o `setupToken`, consumido por `POST /users/setup-password`, que também termina as sessões do membro.",
+        "description": "Dono, ou membro com `equipa` Gerir nos membros que criou (`TEAM_NOT_CREATOR`/`TEAM_SELF_FORBIDDEN` fora disso). (\"esqueci a password\" de um membro: as contas também não têm fluxo público). Só para `active` (senão 409 `TEAM_NOT_ACTIVE`). O token é o `setupToken`, consumido por `POST /users/setup-password`, que também termina as sessões do membro.",
         "tags": [
           "Team"
         ],
@@ -16470,7 +16761,7 @@
             }
           },
           "403": {
-            "description": "`TEAM_OWNER_ONLY`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
+            "description": "`TEAM_FORBIDDEN`, `TEAM_NOT_CREATOR`, `TEAM_SELF_FORBIDDEN`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
           },
           "404": {
             "description": "Membro não encontrado (ou de outro tenant)"
@@ -16484,7 +16775,7 @@
     "/team/{memberId}/disable": {
       "post": {
         "summary": "Desactivar um membro",
-        "description": "Só o dono. `status=disabled`, `tokenVersion++` e refresh tokens revogados: a sessão morre no pedido seguinte (401). O convite pendente também deixa de valer. Idempotente.",
+        "description": "Dono, ou membro com `equipa` Gerir nos membros que criou (`TEAM_NOT_CREATOR`/`TEAM_SELF_FORBIDDEN` fora disso). `status=disabled`, `tokenVersion++` e refresh tokens revogados: a sessão morre no pedido seguinte (401). O convite pendente também deixa de valer. Idempotente. Se o actor é o dono, marca `disabledByOwner=true` (um delegado não o reactiva); se é um delegado, `false`.",
         "tags": [
           "Team"
         ],
@@ -16511,7 +16802,7 @@
             }
           },
           "403": {
-            "description": "`TEAM_OWNER_ONLY`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
+            "description": "`TEAM_FORBIDDEN`, `TEAM_NOT_CREATOR`, `TEAM_SELF_FORBIDDEN`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
           },
           "404": {
             "description": "Membro não encontrado (ou de outro tenant)"
@@ -16522,7 +16813,7 @@
     "/team/{memberId}/enable": {
       "post": {
         "summary": "Reactivar um membro desactivado",
-        "description": "Só o dono. Volta a `active` se já tinha password; senão volta a `invited` e é enviado um convite novo. Só para `disabled` (senão 409 `TEAM_NOT_DISABLED`).",
+        "description": "Dono, ou membro com `equipa` Gerir nos membros que criou (`TEAM_NOT_CREATOR`/`TEAM_SELF_FORBIDDEN` fora disso). Volta a `active` se já tinha password; senão volta a `invited` e é enviado um convite novo. Só para `disabled` (senão 409 `TEAM_NOT_DISABLED`). Um membro desactivado PELO DONO (`disabledByOwner`) só o dono reactiva: um delegado recebe 403 `TEAM_OWNER_DISABLED`. Actor e alvo são revalidados sob o lock do tenant.",
         "tags": [
           "Team"
         ],
@@ -16557,7 +16848,7 @@
             }
           },
           "403": {
-            "description": "`TEAM_OWNER_ONLY`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
+            "description": "`TEAM_FORBIDDEN`, `TEAM_NOT_CREATOR`, `TEAM_SELF_FORBIDDEN`, `TEAM_ADMIN_FORBIDDEN`, `TEAM_OWNER_DISABLED` ou `IMPERSONATION_FORBIDDEN`"
           },
           "404": {
             "description": "Membro não encontrado (ou de outro tenant)"
@@ -16571,7 +16862,7 @@
     "/team/{memberId}/revoke-sessions": {
       "post": {
         "summary": "Terminar todas as sessões de um membro",
-        "description": "Só o dono. `tokenVersion++` e refresh tokens revogados; o membro tem de voltar a entrar.",
+        "description": "Dono, ou membro com `equipa` Gerir nos membros que criou (`TEAM_NOT_CREATOR`/`TEAM_SELF_FORBIDDEN` fora disso). `tokenVersion++` e refresh tokens revogados; o membro tem de voltar a entrar.",
         "tags": [
           "Team"
         ],
@@ -16591,7 +16882,7 @@
             "description": "Sessões terminadas"
           },
           "403": {
-            "description": "`TEAM_OWNER_ONLY`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
+            "description": "`TEAM_FORBIDDEN`, `TEAM_NOT_CREATOR`, `TEAM_SELF_FORBIDDEN`, `TEAM_ADMIN_FORBIDDEN` ou `IMPERSONATION_FORBIDDEN`"
           },
           "404": {
             "description": "Membro não encontrado (ou de outro tenant)"

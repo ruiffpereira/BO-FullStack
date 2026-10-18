@@ -51,6 +51,11 @@ describe("teamErrorMessage", () => {
     expect(teamErrorMessage(err("TEAM_LIMIT"), "x")).toMatch(/máximo/);
     expect(teamErrorMessage(err("TEAM_ADMIN_FORBIDDEN"), "x")).toMatch(/administrador/);
   });
+  it("códigos da fase 3: limite de convidados, desactivado pelo dono e 429 do limite de convites", () => {
+    expect(teamErrorMessage(err("TEAM_DELEGATE_LIMIT"), "x")).toMatch(/20 utilizadores/);
+    expect(teamErrorMessage(err("TEAM_OWNER_DISABLED"), "x")).toBe("Foi o dono que desactivou este utilizador.");
+    expect(teamErrorMessage({ response: { status: 429, data: {} } }, "x")).toMatch(/demasiados convites/);
+  });
   it("cai na mensagem da API e depois no fallback", () => {
     expect(teamErrorMessage(err("OUTRO", "Mensagem da API"), "x")).toBe("Mensagem da API");
     expect(teamErrorMessage({}, "fallback")).toBe("fallback");

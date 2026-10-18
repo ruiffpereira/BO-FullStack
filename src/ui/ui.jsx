@@ -122,7 +122,8 @@ function Avatar({ name, color = '#2A6FDB', size = 36 }) {
 const modalStack = [];
 let modalSeq = 0;
 
-function Modal({ open, onClose, title, subtitle, children, footer, width = 'max-w-lg' }) {
+// `labelledBy`: id de um elemento do corpo que serve de título (diálogos sem `title`, ex.: ConfirmDialog).
+function Modal({ open, onClose, title, subtitle, children, footer, width = 'max-w-lg', labelledBy }) {
   const modalIdRef = useRefUI(null);
   const panelRef = useRefUI(null);
   const savedActiveElementRef = useRefUI(null);
@@ -189,7 +190,8 @@ function Modal({ open, onClose, title, subtitle, children, footer, width = 'max-
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label={typeof title === 'string' ? title : undefined}
+        aria-labelledby={labelledBy}
+        aria-label={labelledBy ? undefined : typeof title === 'string' ? title : undefined}
         tabIndex={-1}
         className={`relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 w-full ${width} rounded-t-2xl sm:rounded-2xl shadow-xl animate-[pop_.18s_cubic-bezier(.2,.8,.2,1)] max-h-[92vh] flex flex-col`}
       >
@@ -242,14 +244,16 @@ function ImgPlaceholder({ label = 'imagem', className = '', tint = '#2A6FDB', ro
 }
 
 // Segmented pill tabs — the canonical way to switch sections across the app.
-// tabs: [{ id, label, icon?, ariaLabel? }] (ariaLabel opcional: nome acessível quando o label visível é abreviado). Keyboard: ←/→ move between tabs.
+// tabs: [{ id, label, icon?, ariaLabel?, disabled?, title? }] (ariaLabel opcional: nome acessível quando o label visível é abreviado; disabled = não seleccionável, com `title` a explicar). Keyboard: ←/→ move between tabs.
 function Tabs({ tabs, value, onChange, fullWidth = false, size = 'md', className = '' }) {
   const onKey = (e) => {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
     e.preventDefault();
-    const i = tabs.findIndex((t) => t.id === value);
+    const enabled = tabs.filter((t) => !t.disabled);
+    if (!enabled.length) return;
+    const i = enabled.findIndex((t) => t.id === value);
     const dir = e.key === 'ArrowRight' ? 1 : -1;
-    onChange(tabs[(i + dir + tabs.length) % tabs.length].id);
+    onChange(enabled[(i + dir + enabled.length) % enabled.length].id);
   };
   const pad = size === 'sm' ? 'px-3 py-1.5' : 'px-3.5 py-2';
   return (
@@ -259,8 +263,9 @@ function Tabs({ tabs, value, onChange, fullWidth = false, size = 'md', className
         const active = t.id === value;
         return (
           <button key={t.id} role="tab" aria-selected={active} aria-label={t.ariaLabel} tabIndex={active ? 0 : -1}
-            onClick={() => onChange(t.id)}
-            className={`inline-flex items-center gap-1.5 ${pad} rounded-lg text-sm font-medium whitespace-nowrap transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${fullWidth ? 'flex-1 justify-center' : ''} ${active ? 'bg-white dark:bg-zinc-900 text-accent shadow-sm' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}>
+            disabled={t.disabled} title={t.title}
+            onClick={() => !t.disabled && onChange(t.id)}
+            className={`inline-flex items-center gap-1.5 ${pad} rounded-lg text-sm font-medium whitespace-nowrap transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${fullWidth ? 'flex-1 justify-center' : ''} ${t.disabled ? 'text-zinc-300 dark:text-zinc-600 cursor-not-allowed' : active ? 'bg-white dark:bg-zinc-900 text-accent shadow-sm' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}>
             {t.icon && <Icon name={t.icon} className="w-4 h-4" />}
             {t.label}
           </button>

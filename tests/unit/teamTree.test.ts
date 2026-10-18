@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   canFromGrants,
+  cascadeWarning,
+  giveLevelOf,
+  hasLimitedNodes,
+  levelLabel,
   checkState,
   fullAccess,
   grantsToMap,
@@ -221,5 +225,63 @@ describe("visibleTree — o que o plano não inclui não aparece", () => {
     expect(keys(v)).toContain("estatisticas");
     // Um topo guardável indisponível também sai, com os filhos.
     expect(visibleTree([node("x", { available: false, children: [node("x.y")] })])).toEqual([]);
+  });
+});
+
+describe("fase 3 — Equipa na árvore", () => {
+  const T: TreeNode[] = [
+    group("agenda", [node("agenda.servicos")]),
+    node("equipa", { excludeFromFullAccess: true, levelLabels: { edit: "Gerir" } }),
+  ];
+
+  it("'Acesso total' exclui os nós excludeFromFullAccess (equipa)", () => {
+    const g = fullAccess(T);
+    expect(g["agenda.servicos"]).toBe("edit");
+    expect(g.equipa).toBeUndefined();
+    expect(serializeGrants(T, g).map((e) => e.key)).not.toContain("equipa");
+  });
+
+  it("levelLabel usa levelLabels da API e cai para Ver/Editar", () => {
+    expect(levelLabel(T[1], "edit")).toBe("Gerir");
+    expect(levelLabel(T[1], "view")).toBe("Ver");
+    expect(levelLabel(T[0], "edit")).toBe("Editar");
+  });
+
+  it("maxLevel 'view': Gerir não se dá (setNodeLevel ignora) e marcar fica em Ver", () => {
+    const M: TreeNode[] = [node("equipa", { maxLevel: "view" }), node("agenda", { maxLevel: "edit" })];
+    expect(giveLevelOf(M[0])).toBe("view");
+    expect(setNodeLevel(M, "equipa", "edit", {})).toEqual({});
+    expect(toggleNode(M, "equipa", {})).toEqual({ equipa: "view" });
+    expect(setNodeLevel(M, "agenda", "edit", {})).toEqual({ agenda: "edit" });
+  });
+
+  it("maxLevel null: o nó não se pode dar (marcar não faz nada, não entra no acesso total nem na serialização)", () => {
+    const M: TreeNode[] = [node("equipa", { maxLevel: null }), node("agenda", { maxLevel: "edit" })];
+    expect(giveLevelOf(M[0])).toBeNull();
+    expect(toggleNode(M, "equipa", {})).toEqual({});
+    expect(checkState(M[0], {})).toBe("off");
+    expect(fullAccess(M)).toEqual({ agenda: "edit" });
+    expect(serializeGrants(M, { equipa: "view", agenda: "view" })).toEqual([{ key: "agenda", level: "view" }]);
+  });
+});
+
+describe("cascadeWarning", () => {
+  it("nada afectado → sem aviso", () => {
+    expect(cascadeWarning(0)).toBeNull();
+    expect(cascadeWarning(undefined)).toBeNull();
+  });
+  it("singular e plural", () => {
+    expect(cascadeWarning(1)).toBe("Também sai a 1 utilizador criado por este membro.");
+    expect(cascadeWarning(3)).toBe("Também sai a 3 utilizadores criados por este membro.");
+  });
+});
+
+describe("hasLimitedNodes", () => {
+  it("só há nota quando quem edita não pode dar algum nó (ou só o nível 'ver')", () => {
+    expect(hasLimitedNodes([node("a", { maxLevel: "edit" }), node("b", { maxLevel: "edit" })])).toBe(false);
+    expect(hasLimitedNodes([node("a", { maxLevel: "view" })])).toBe(true);
+    expect(hasLimitedNodes([node("a", { maxLevel: null })])).toBe(true);
+    expect(hasLimitedNodes([group("g", [node("a", { maxLevel: "edit" }), node("b", { maxLevel: null })])])).toBe(true);
+    expect(hasLimitedNodes([node("a", { maxLevel: "view", levels: ["view"] })])).toBe(false);
   });
 });

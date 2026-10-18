@@ -19,6 +19,12 @@ export interface TreeNode {
   storable: boolean;
   requiresComponents?: string[];
   available: boolean;
+  /** Fase 3: o "Acesso total" não inclui este nó (ex. `equipa`). */
+  excludeFromFullAccess?: boolean;
+  /** Fase 3: rótulos de nível para mostrar (ex. `{ edit: "Gerir" }`). */
+  levelLabels?: Partial<Record<TeamLevel, string>>;
+  /** Fase 3: o máximo que QUEM PEDE pode dar neste nó (`null` = nada). Omitido = sem tecto (dono). */
+  maxLevel?: TeamLevel | null;
   children: TreeNode[];
 }
 
@@ -82,8 +88,30 @@ export function subtreeOf(n: TreeNode): TreeNode[] {
   return out;
 }
 
-/** Nós seleccionáveis do ramo: guardáveis e disponíveis no plano. */
-const selectable = (n: TreeNode) => n.storable && n.available;
+/** Nós seleccionáveis do ramo: guardáveis, disponíveis no plano e que quem edita pode dar (`maxLevel !== null`). */
+const selectable = (n: TreeNode) => n.storable && n.available && n.maxLevel !== null;
+
+/** Texto do tooltip dos nós que quem edita não pode dar. */
+export const CANNOT_GIVE_MESSAGE = "Só podes dar o que tens";
+
+/** Nível máximo que quem edita pode dar neste nó (cruza o que o nó permite com o `maxLevel`). */
+export function giveLevelOf(n: TreeNode): TeamLevel | null {
+  if (n.maxLevel === null) return null;
+  const own = maxLevelOf(n);
+  return own === "edit" && n.maxLevel === "view" && n.levels.includes("view") ? "view" : own;
+}
+
+/** Há nós que quem edita não pode dar (ou só ao nível "ver")? — para mostrar o motivo como texto (o tooltip não existe em ecrãs táteis). */
+export function hasLimitedNodes(tree: TreeNode[]): boolean {
+  return tree.some(
+    (n) => (n.storable && n.available && giveLevelOf(n) !== maxLevelOf(n)) || hasLimitedNodes(n.children ?? []),
+  );
+}
+
+/** Rótulo de um nível num nó (`levelLabels` da API, ou "Ver" / "Editar"). */
+export function levelLabel(n: Pick<TreeNode, "levelLabels">, level: TeamLevel): string {
+  return n.levelLabels?.[level] ?? (level === "view" ? "Ver" : "Editar");
+}
 
 /**
  * A árvore que o editor mostra: sem os nós que o plano do tenant não inclui (`available: false`) — decisão do dono,
@@ -179,6 +207,7 @@ export function toggleNode(tree: readonly TreeNode[], key: string, grants: Grant
 function clampTo(n: TreeNode, wanted: TeamLevel, ceiling: TeamLevel): TeamLevel {
   let l: TeamLevel = n.levels.includes(wanted) ? wanted : maxLevelOf(n);
   if (l === "edit" && ceiling === "view" && !n.action) l = "view";
+  if (l === "edit" && n.maxLevel === "view" && !n.action && n.levels.includes("view")) l = "view";
   return n.levels.includes(l) ? l : maxLevelOf(n);
 }
 
@@ -195,6 +224,7 @@ export function setNodeLevel(tree: readonly TreeNode[], key: string, level: Team
   const idx = indexTree(tree);
   const info = idx.get(key);
   if (!info || !selectable(info.node) || !info.node.levels.includes(level)) return grants;
+  if (level === "edit" && giveLevelOf(info.node) !== "edit") return grants;
   const g = clone(grants);
   // Um filho não-acção não passa o nível do pai: se o pai só tem `view`, o filho fica em `view`.
   const lvl = clampLevel(info.node, level, idx, g);
@@ -208,10 +238,14 @@ export function setNodeLevel(tree: readonly TreeNode[], key: string, level: Team
   return g;
 }
 
-/** Acesso total: todos os nós seleccionáveis ao nível máximo. */
+/** Acesso total: todos os nós seleccionáveis ao nível máximo — menos os `excludeFromFullAccess` (ex. `equipa`). */
 export function fullAccess(tree: readonly TreeNode[]): GrantMap {
   const g: GrantMap = {};
-  for (const top of tree) for (const n of subtreeOf(top)) if (selectable(n)) g[n.key] = maxLevelOf(n);
+  for (const top of tree) {
+    for (const n of subtreeOf(top)) {
+      if (selectable(n) && !n.excludeFromFullAccess) g[n.key] = giveLevelOf(n) ?? maxLevelOf(n);
+    }
+  }
   return g;
 }
 
@@ -265,6 +299,18 @@ export function selectableCount(tree: readonly TreeNode[]): number {
 }
 
 /** Pelo menos um nó seleccionável marcado? */
+/**
+ * Aviso da cascata (B41 fase 3): retirar permissões a um membro que criou outros tira-as também aos convidados dele.
+ * `null` quando ninguém é afectado.
+ */
+export function cascadeWarning(affected: number | undefined | null): string | null {
+  const n = affected ?? 0;
+  if (n <= 0) return null;
+  return n === 1
+    ? "Também sai a 1 utilizador criado por este membro."
+    : `Também sai a ${n} utilizadores criados por este membro.`;
+}
+
 export function hasAnyGrant(tree: readonly TreeNode[], grants: GrantMap): boolean {
   return serializeGrants(tree, grants).length > 0;
 }

@@ -594,7 +594,7 @@ function AvatarMenu({ onLogout, showTeam }: { onLogout: () => void; showTeam: bo
             <Icon name="user" className="w-4 h-4" />
             O meu perfil
           </button>
-          {/* Equipa (B41): só o dono do tenant (nunca a conta admin nem um membro). Ao lado do Perfil. */}
+          {/* Equipa (B41): o dono, ou um membro com o nó `equipa` (nunca a conta admin). Ao lado do Perfil. */}
           {showTeam && (
             <button
               role="menuitem"
@@ -722,9 +722,9 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
           ...(isAdmin ? ['/admin'] : []),
         ],
   )
-  // Equipa (B41): só o dono do tenant (a conta admin não tem equipa; um membro não a gere). Em sessão de suporte
-  // o admin entra como o dono e vê-a (só leitura).
-  const showTeam = !isAdmin && !isMember
+  // Equipa (B41): o dono do tenant, ou um membro com o nó `equipa` (Ver lê, Gerir convida). A conta admin não tem
+  // equipa. Em sessão de suporte o admin entra como o dono e vê-a (só leitura).
+  const showTeam = !isAdmin && (!isMember || can('equipa'))
   // …apresentadas pela ordem fixa de MENU_ORDER (extras desconhecidos vão para o fim).
   // Um root com SUBMENU mas sem NENHUM subitem permitido (ex.: /clientes sem
   // VIEW_CUSTOMERS — "Lista" e "Leads" exigem-na as duas) sai daqui: some da

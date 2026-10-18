@@ -47,3 +47,10 @@ describe("ConfirmDialog", () => {
     expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled();
   });
 });
+
+describe("ConfirmDialog — nome acessível", () => {
+  it("o diálogo é nomeado pelo título (aria-labelledby)", () => {
+    render(<ConfirmDialog {...base} />);
+    expect(screen.getByRole("dialog", { name: "Eliminar item?" })).toBeInTheDocument();
+  });
+});

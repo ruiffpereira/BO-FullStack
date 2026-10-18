@@ -1,4 +1,4 @@
-import { ReactNode } from 'react'
+import { ReactNode, useId } from 'react'
 import { Modal, Button } from '../ui/ui.jsx'
 import { Icon } from '../ui/icons.jsx'
 
@@ -25,6 +25,7 @@ export function ConfirmDialog({
   isPending = false,
   variant = 'danger',
 }: ConfirmDialogProps) {
+  const titleId = useId()
   const iconName = variant === 'danger' ? 'trash' : 'alertTriangle'
   const iconColor = variant === 'danger'
     ? 'text-red-600 dark:text-red-400'
@@ -41,6 +42,7 @@ export function ConfirmDialog({
       open={open}
       onClose={() => !isPending && onClose()}
       width="max-w-sm"
+      labelledBy={titleId}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={isPending}>
@@ -68,7 +70,7 @@ export function ConfirmDialog({
           <Icon name={iconName} className={`w-5 h-5 ${iconColor}`} />
         </div>
         <div>
-          <p className="font-semibold text-zinc-900 dark:text-zinc-100 leading-snug">{title}</p>
+          <p id={titleId} className="font-semibold text-zinc-900 dark:text-zinc-100 leading-snug">{title}</p>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">{description}</p>
         </div>
       </div>

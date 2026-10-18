@@ -47,9 +47,12 @@ export function AdminTeamModal({
                 <p className="text-sm font-medium text-zinc-900 dark:text-white truncate">{m.name}</p>
                 <p className="text-xs text-zinc-500 truncate">{m.email}</p>
               </div>
-              <div className="flex items-center gap-3 text-xs text-zinc-500">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
                 <StatusBadge status={memberStatus(m)} />
                 <span className="whitespace-nowrap">{lastAccessLabel(m)}</span>
+                {m.createdBy !== undefined && (
+                  <span className="whitespace-nowrap">Criado por: {m.createdBy?.name ?? "Dono"}</span>
+                )}
               </div>
             </li>
           ))}

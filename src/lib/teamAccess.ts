@@ -7,6 +7,8 @@ import { toast } from "sonner";
 
 /** Motivo único (PT) dos CTAs de escrita desactivados a um membro que só tem `view` no módulo da página. */
 export const VIEW_ONLY_MESSAGE = "Só tens permissão para ver";
+/** 403 `TEAM_OWNER_DISABLED`: o dono desactivou o membro; só ele o reactiva. */
+export const OWNER_DISABLED_MESSAGE = "Foi o dono que desactivou este utilizador.";
 /** 403 `TEAM_OWNER_ONLY`: área que nunca é delegável (faturação, perfil do negócio, …). */
 export const OWNER_ONLY_MESSAGE = "Esta área é só do dono da conta";
 
@@ -58,12 +60,19 @@ export function teamErrorMessage(error: unknown, fallback: string): string {
       return "Atingiste o número máximo de membros da equipa.";
     case "TEAM_GRANT_NOT_ALLOWED":
       return "Há permissões que o teu negócio não pode dar.";
+    case "TEAM_DELEGATE_LIMIT":
+      return "Este membro já tem 20 utilizadores convidados — é o máximo por membro.";
+    case "TEAM_OWNER_DISABLED":
+      return OWNER_DISABLED_MESSAGE;
     case "TEAM_ADMIN_FORBIDDEN":
       return "A conta de administrador não tem equipa.";
     case "TEAM_OWNER_ONLY":
       return OWNER_ONLY_MESSAGE + ".";
     case "IMPERSONATION_FORBIDDEN":
       return "Esta acção não está disponível numa sessão de suporte.";
+  }
+  if ((error as any)?.response?.status === 429) {
+    return "Foram enviados demasiados convites a partir desta conta. Tenta de novo daqui a uma hora.";
   }
   if (typeof data?.error === "string" && data.error) return data.error;
   if (typeof data?.message === "string" && data.message) return data.message;

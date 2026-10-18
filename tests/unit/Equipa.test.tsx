@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 //
 // Mockamos os hooks gerados (lista, catálogo, mutações) e a sessão; o QueryClient é real (as invalidações usam
 // `useQueryClient`). O write-guard passa pelo GuardButton → billing mockado.
-const { useGetTeamMock, useGetCatalogMock, authMock, toastSuccess, toastError, toastWarning, mutations, mut } = vi.hoisted(() => {
+const { useGetTeamMock, useGetCatalogMock, useActivityMock, authMock, toastSuccess, toastError, toastWarning, mutations, mut } = vi.hoisted(() => {
   const mutations = {
     create: vi.fn(),
     update: vi.fn(),
@@ -16,10 +16,12 @@ const { useGetTeamMock, useGetCatalogMock, authMock, toastSuccess, toastError, t
     enable: vi.fn(),
     revoke: vi.fn(),
     remove: vi.fn(),
+    preview: vi.fn(),
   };
   return {
     useGetTeamMock: vi.fn(),
     useGetCatalogMock: vi.fn(),
+    useActivityMock: vi.fn(),
     authMock: vi.fn(),
     toastSuccess: vi.fn(),
     toastError: vi.fn(),
@@ -50,6 +52,12 @@ vi.mock("../../src/gen/backoffice/hooks/usePostTeamMemberidEnable", () => ({
 }));
 vi.mock("../../src/gen/backoffice/hooks/usePostTeamMemberidRevokeSessions", () => ({
   usePostTeamMemberidRevokeSessions: mut(mutations.revoke),
+}));
+vi.mock("../../src/gen/backoffice/hooks/usePostTeamMemberidGrantsPreview", () => ({
+  usePostTeamMemberidGrantsPreview: mut(mutations.preview),
+}));
+vi.mock("../../src/gen/backoffice/hooks/useGetTeamMemberidActivity", () => ({
+  useGetTeamMemberidActivity: (...a: unknown[]) => useActivityMock(...a),
 }));
 vi.mock("../../src/gen/backoffice/hooks/useDeleteTeamMemberid", () => ({ useDeleteTeamMemberid: mut(mutations.remove) }));
 
@@ -130,6 +138,7 @@ beforeEach(() => {
   useGetTeamMock.mockReturnValue({ data: MEMBERS, isLoading: false, isError: false });
   useGetCatalogMock.mockReturnValue({ data: CATALOG });
   authMock.mockReturnValue({ supportSession: null });
+  useActivityMock.mockReturnValue({ data: { items: [], page: 1, limit: 15, total: 0 }, isLoading: false, isError: false });
 });
 
 describe("Equipa — lista", () => {
@@ -189,7 +198,7 @@ describe("Equipa — convidar", () => {
     expect(within(dialog).getByRole("radio", { name: /Acesso total/ })).toBeInTheDocument();
     expect(within(dialog).getByRole("radio", { name: /Escolher na árvore/ })).toBeChecked();
     expect(
-      within(dialog).getByText("Dá tudo o que existe hoje. Partes novas que apareçam no futuro ficam fechadas até as dares."),
+      within(dialog).getByText("Dá tudo o que existe hoje, menos gerir a equipa. Partes novas que apareçam no futuro ficam fechadas até as dares."),
     ).toBeInTheDocument();
   });
 
@@ -369,5 +378,260 @@ describe("Equipa — sessão de suporte", () => {
       expect(b).toBeDisabled();
       expect(b).toHaveAttribute("title", "Indisponível numa sessão de suporte");
     }
+  });
+});
+
+// ── Fase 3 — delegação ────────────────────────────────────────────────────────
+
+const EQUIPA_CATALOG = {
+  maxMembers: 10,
+  tree: [
+    ...CATALOG.tree,
+    node("equipa", "Equipa", { excludeFromFullAccess: true, levelLabels: { edit: "Gerir" }, maxLevel: "edit" }),
+  ],
+};
+
+const asMember = (level: "view" | "edit") => ({
+  supportSession: null,
+  isMember: true,
+  member: { memberId: "me", name: "Barbeiro", tenantName: "Barbearia Navalha" },
+  can: (key: string, l: "view" | "edit" = "view") => key === "equipa" && (l === "view" || level === "edit"),
+});
+
+const WITH_CHILD = [
+  { ...MEMBERS[0], createdBy: null, canManage: true },
+  { ...MEMBERS[1], createdBy: { memberId: "m-active", name: "Ana Silva" }, canManage: true },
+];
+
+describe("Equipa — fase 3 · dono", () => {
+  it("mostra 'Criado por': Tu para o dono, o nome do membro para os convidados dele", () => {
+    useGetTeamMock.mockReturnValue({ data: WITH_CHILD, isLoading: false, isError: false });
+    renderPage();
+    expect(screen.getByRole("columnheader", { name: "Criado por" })).toBeInTheDocument();
+    expect(within(screen.getByRole("row", { name: /Abrir Ana Silva/ })).getByText("Tu")).toBeInTheDocument();
+    expect(within(screen.getByRole("row", { name: /Abrir Rui Convidado/ })).getByText("Ana Silva")).toBeInTheDocument();
+  });
+
+  it("'Acesso total' não dá o nó Equipa", () => {
+    useGetCatalogMock.mockReturnValue({ data: EQUIPA_CATALOG });
+    renderPage();
+    fireEvent.click(screen.getAllByRole("button", { name: /Convidar utilizador/ })[0]);
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Nome"), { target: { value: "Novo" } });
+    fireEvent.change(within(dialog).getByLabelText("Email"), { target: { value: "novo@x.pt" } });
+    fireEvent.click(within(dialog).getByRole("radio", { name: /Acesso total/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Enviar convite" }));
+    const sent = mutations.create.mock.calls[0][0].data.grants.map((g: { key: string }) => g.key);
+    expect(sent).toContain("agenda.servicos");
+    expect(sent).not.toContain("equipa");
+  });
+
+  it("cascata: se o membro criou outros e há afectados, pede confirmação antes do PUT", () => {
+    useGetTeamMock.mockReturnValue({ data: WITH_CHILD, isLoading: false, isError: false });
+    mutations.preview.mockImplementation((_v, opts) => opts.onSuccess({ affected: 2 }));
+    renderPage();
+    fireEvent.click(screen.getByRole("row", { name: /Abrir Ana Silva/ }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abrir Agenda" }));
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Calendário e marcações: editar" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Guardar permissões" }));
+    expect(mutations.preview).toHaveBeenCalled();
+    expect(mutations.update).not.toHaveBeenCalled();
+    expect(screen.getByText("Também sai a 2 utilizadores criados por este membro.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Guardar e retirar" }));
+    expect(mutations.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("cascata: sem afectados guarda logo, sem aviso", () => {
+    useGetTeamMock.mockReturnValue({ data: WITH_CHILD, isLoading: false, isError: false });
+    mutations.preview.mockImplementation((_v, opts) => opts.onSuccess({ affected: 0 }));
+    renderPage();
+    fireEvent.click(screen.getByRole("row", { name: /Abrir Ana Silva/ }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abrir Agenda" }));
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Calendário e marcações: editar" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Guardar permissões" }));
+    expect(mutations.update).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/Também sai/)).toBeNull();
+  });
+
+  it("membro que não criou ninguém: não chama o preview", () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("row", { name: /Abrir Ana Silva/ }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abrir Agenda" }));
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Calendário e marcações: editar" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Guardar permissões" }));
+    expect(mutations.preview).not.toHaveBeenCalled();
+    expect(mutations.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("ficha: separador Actividade lista as acções", () => {
+    useActivityMock.mockReturnValue({
+      data: {
+        items: [{ id: "1", at: "2026-10-10T09:30:00.000Z", action: "update", actionLabel: "Alterou", area: "Agenda", ok: false, statusCode: 403 }],
+        page: 1,
+        limit: 15,
+        total: 1,
+      },
+      isLoading: false,
+      isError: false,
+    });
+    renderPage();
+    fireEvent.click(screen.getByRole("row", { name: /Abrir Ana Silva/ }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Actividade" }));
+    expect(within(dialog).getByText("Alterou")).toBeInTheDocument();
+    expect(within(dialog).getByText("Agenda")).toBeInTheDocument();
+    expect(within(dialog).getByText("Falhou")).toBeInTheDocument();
+    expect(useActivityMock).toHaveBeenCalledWith("m-active", { page: 1, limit: 15 });
+  });
+
+  it("Actividade vazia: 'Ainda sem actividade'", () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("row", { name: /Abrir Ana Silva/ }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Actividade" }));
+    expect(within(dialog).getByText("Ainda sem actividade")).toBeInTheDocument();
+  });
+});
+
+describe("Equipa — fase 3 · membro", () => {
+  const BASIC = [
+    { memberId: "me", name: "Barbeiro", status: "active", lastLoginAt: null, createdBy: null, isSelf: true, canManage: false },
+    { memberId: "x", name: "Colega", status: "active", lastLoginAt: null, createdBy: { memberId: "me", name: "Barbeiro" }, isSelf: false, canManage: false },
+  ];
+
+  it("só Ver: lista de leitura, sem email, sem Convidar, sem abrir ficha; criado por mostra o negócio", () => {
+    authMock.mockReturnValue(asMember("view"));
+    useGetTeamMock.mockReturnValue({ data: BASIC, isLoading: false, isError: false });
+    useGetCatalogMock.mockReturnValue({ data: EQUIPA_CATALOG });
+    renderPage();
+    expect(screen.queryByRole("button", { name: /Convidar utilizador/ })).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "Email" })).toBeNull();
+    expect(screen.queryByRole("row", { name: /Abrir/ })).toBeNull();
+    expect(screen.getByText("Barbearia Navalha")).toBeInTheDocument();
+    expect(screen.getByText("(tu)")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Colega"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("Gerir: convida (sem 'Acesso total'); abre só as linhas com canManage, nunca a própria", () => {
+    authMock.mockReturnValue(asMember("edit"));
+    useGetTeamMock.mockReturnValue({
+      data: [
+        BASIC[0],
+        { ...MEMBERS[0], memberId: "x", name: "Colega", createdBy: { memberId: "me", name: "Barbeiro" }, canManage: true, isSelf: false },
+        { memberId: "y", name: "Outro", status: "active", lastLoginAt: null, createdBy: null, isSelf: false, canManage: false },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+    useGetCatalogMock.mockReturnValue({ data: EQUIPA_CATALOG });
+    renderPage();
+    expect(screen.getAllByRole("row", { name: /Abrir/ })).toHaveLength(1);
+    expect(screen.getByRole("row", { name: "Abrir Colega" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: /Convidar utilizador/ })[0]);
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).queryByRole("radio", { name: /Acesso total/ })).toBeNull();
+    expect(within(dialog).getByRole("list", { name: "Permissões" })).toBeInTheDocument();
+  });
+
+  it("nós acima do maxLevel ficam desactivados com 'Só podes dar o que tens'", () => {
+    authMock.mockReturnValue(asMember("edit"));
+    useGetTeamMock.mockReturnValue({ data: [BASIC[0]], isLoading: false, isError: false });
+    useGetCatalogMock.mockReturnValue({
+      data: {
+        maxMembers: 10,
+        tree: [
+          node("equipa", "Equipa", { levelLabels: { edit: "Gerir" }, maxLevel: "view" }),
+          node("agenda.servicos", "Serviços", { maxLevel: null }),
+        ],
+      },
+    });
+    renderPage();
+    fireEvent.click(screen.getAllByRole("button", { name: /Convidar utilizador/ })[0]);
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("checkbox", { name: "Serviços" })).toBeDisabled();
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Equipa" }));
+    const gerir = within(dialog).getByRole("tab", { name: "Equipa: Gerir" });
+    expect(gerir).toBeDisabled();
+    expect(gerir).toHaveAttribute("title", "Só podes dar o que tens");
+  });
+});
+
+describe("Equipa — fase 3 · fecho (remover com convidados, desactivado pelo dono, motivo visível)", () => {
+  const BOSS = { ...MEMBERS[0], memberId: "boss", name: "Chefe", createdBy: null, canManage: true, isSelf: false };
+  const kid = (id: string) => ({ ...MEMBERS[0], memberId: id, name: `Conv ${id}`, createdBy: { memberId: "boss", name: "Chefe" }, canManage: true, isSelf: false });
+
+  it("dono: remover um membro com 2 convidados avisa que passam para ti", () => {
+    useGetTeamMock.mockReturnValue({ data: [BOSS, kid("k1"), kid("k2")], isLoading: false, isError: false });
+    renderPage();
+    fireEvent.click(screen.getByRole("row", { name: /Abrir Chefe/ }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Remover" }));
+    expect(screen.getByTestId("remove-guests-note")).toHaveTextContent(
+      "Os 2 utilizadores que este membro convidou passam para ti, com as permissões que têm.",
+    );
+  });
+
+  it("singular com 1 convidado; sem convidados não há aviso", () => {
+    useGetTeamMock.mockReturnValue({ data: [BOSS, kid("k1")], isLoading: false, isError: false });
+    renderPage();
+    fireEvent.click(screen.getByRole("row", { name: /Abrir Chefe/ }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Remover" }));
+    expect(screen.getByTestId("remove-guests-note")).toHaveTextContent(
+      "O utilizador que este membro convidou passa para ti, com as permissões que tem.",
+    );
+  });
+
+  it("o diálogo de confirmação tem nome acessível (o título)", () => {
+    useGetTeamMock.mockReturnValue({ data: [BOSS], isLoading: false, isError: false });
+    renderPage();
+    fireEvent.click(screen.getByRole("row", { name: /Abrir Chefe/ }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Remover" }));
+    expect(screen.getByRole("dialog", { name: "Remover Chefe?" })).toBeInTheDocument();
+    expect(screen.queryByTestId("remove-guests-note")).toBeNull();
+  });
+
+  it("delegado: Reactivar fica desactivado, com o motivo visível, num membro desactivado pelo dono", () => {
+    authMock.mockReturnValue(asMember("edit"));
+    useGetTeamMock.mockReturnValue({
+      data: [
+        { memberId: "me", name: "Barbeiro", status: "active", lastLoginAt: null, createdBy: null, isSelf: true, canManage: false },
+        { ...MEMBERS[2], memberId: "off", name: "Desligado", createdBy: { memberId: "me", name: "Barbeiro" }, canManage: true, isSelf: false, disabledByOwner: true },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+    useGetCatalogMock.mockReturnValue({ data: EQUIPA_CATALOG });
+    renderPage();
+    fireEvent.click(screen.getByRole("row", { name: "Abrir Desligado" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("button", { name: "Reactivar" })).toBeDisabled();
+    expect(within(dialog).getByTestId("owner-disabled-note")).toHaveTextContent("Foi o dono que desactivou este utilizador.");
+  });
+
+  it("dono: Reactivar continua activo num membro desactivado por ele", () => {
+    useGetTeamMock.mockReturnValue({ data: [{ ...MEMBERS[2], disabledByOwner: true }], isLoading: false, isError: false });
+    renderPage();
+    fireEvent.click(screen.getByRole("row", { name: /Abrir Zé Desactivado/ }));
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Reactivar" })).toBeEnabled();
+  });
+
+  it("a árvore mostra o motivo 'Só podes dar o que tens' como texto quando há nós bloqueados", () => {
+    authMock.mockReturnValue(asMember("edit"));
+    useGetTeamMock.mockReturnValue({ data: [], isLoading: false, isError: false });
+    useGetCatalogMock.mockReturnValue({
+      data: { maxMembers: 10, tree: [node("agenda.servicos", "Serviços", { maxLevel: null }), node("equipa", "Equipa", { maxLevel: "view" })] },
+    });
+    renderPage();
+    fireEvent.click(screen.getAllByRole("button", { name: /Convidar utilizador/ })[0]);
+    expect(within(screen.getByRole("dialog")).getByTestId("tree-limit-note")).toHaveTextContent("Só podes dar o que tens");
+  });
+
+  it("sem nós bloqueados não há nota", () => {
+    renderPage();
+    fireEvent.click(screen.getAllByRole("button", { name: /Convidar utilizador/ })[0]);
+    expect(screen.queryByTestId("tree-limit-note")).toBeNull();
   });
 });

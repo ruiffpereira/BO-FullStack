@@ -2,8 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { Tabs } from "../ui/ui.jsx";
 import { Icon } from "../ui/icons.jsx";
 import {
+  CANNOT_GIVE_MESSAGE,
   checkState,
+  giveLevelOf,
+  hasLimitedNodes,
   indexTree,
+  levelLabel,
   setNodeLevel,
   subtreeOf,
   visibleTree,
@@ -85,9 +89,12 @@ export function PermissionTree({
     const own = value[key];
     const hasChildren = (node.children ?? []).length > 0;
     const expanded = open.has(key);
-    const sel = subtreeOf(node).filter((n) => n.storable);
+    const sel = subtreeOf(node).filter((n) => n.storable && n.maxLevel !== null);
     const marked = sel.filter((n) => value[n.key] !== undefined).length;
+    // Fase 3: nós que quem edita não tem (`maxLevel: null`) ficam desactivados — só se dá o que se tem.
+    const cannotGive = !disabled && sel.length === 0 && subtreeOf(node).some((n) => n.storable);
     const disabledRow = disabled || sel.length === 0;
+    const giveLevel = giveLevelOf(node);
 
     // Tecto do pai (um filho não-acção nunca fica acima do pai).
     const sp = idx.get(key)?.storableParent ?? null;
@@ -101,8 +108,14 @@ export function PermissionTree({
           <Tabs
             size="sm"
             tabs={[
-              { id: "view", label: "Ver", ariaLabel: `${node.label}: só ver` },
-              { id: "edit", label: "Editar", ariaLabel: `${node.label}: editar` },
+              { id: "view", label: levelLabel(node, "view"), ariaLabel: `${node.label}: ${node.levelLabels?.view ?? "só ver"}` },
+              {
+                id: "edit",
+                label: levelLabel(node, "edit"),
+                ariaLabel: `${node.label}: ${node.levelLabels?.edit ?? "editar"}`,
+                disabled: giveLevel !== "edit",
+                title: giveLevel !== "edit" ? CANNOT_GIVE_MESSAGE : undefined,
+              },
             ]}
             value={own}
             onChange={(id: string) => !disabled && onChange(setNodeLevel(tree, key, id as TeamLevel, value))}
@@ -141,7 +154,12 @@ export function PermissionTree({
             ) : (
               <span className="h-5 w-5 shrink-0" aria-hidden="true" />
             )}
-            <label className="flex items-center gap-2.5 min-w-0 text-sm font-medium text-zinc-800 dark:text-zinc-100 cursor-pointer">
+            <label
+              title={cannotGive ? CANNOT_GIVE_MESSAGE : undefined}
+              className={`flex items-center gap-2.5 min-w-0 text-sm font-medium ${
+                cannotGive ? "text-zinc-400 dark:text-zinc-500 cursor-not-allowed" : "text-zinc-800 dark:text-zinc-100 cursor-pointer"
+              }`}
+            >
               <TriCheckbox
                 state={state}
                 label={node.label}
@@ -168,11 +186,18 @@ export function PermissionTree({
   };
 
   return (
-    <ul
-      aria-label="Permissões"
-      className="divide-y divide-zinc-100 dark:divide-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
-    >
-      {tree.map((top) => renderNode(top, 0))}
-    </ul>
+    <div className="space-y-2">
+      {!disabled && hasLimitedNodes(tree) && (
+        <p data-testid="tree-limit-note" className="text-xs text-zinc-500 dark:text-zinc-400">
+          {CANNOT_GIVE_MESSAGE}: o que aparece a cinzento, ou só em &quot;Ver&quot;, não to foi dado a ti, por isso não o podes dar.
+        </p>
+      )}
+      <ul
+        aria-label="Permissões"
+        className="divide-y divide-zinc-100 dark:divide-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+      >
+        {tree.map((top) => renderNode(top, 0))}
+      </ul>
+    </div>
   );
 }

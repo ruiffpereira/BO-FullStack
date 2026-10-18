@@ -1,17 +1,21 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Card, Badge, Button, Input, Modal, PageHeader, EmptyState, SectionTitle } from "../ui/ui.jsx";
+import { Card, Badge, Button, Input, Modal, PageHeader, EmptyState, SectionTitle, Tabs } from "../ui/ui.jsx";
 import { Icon } from "../ui/icons.jsx";
 import { useAuth } from "../context/AuthContext";
+import { useTeamAccess } from "../hooks/useTeamAccess";
+import { Pagination } from "../components/Pagination";
 import { usePageSubtitle } from "../context/PageMetaContext";
 import { GuardButton } from "../components/GuardButton";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useNarrow } from "../hooks/useNarrow";
 import { PermissionTree } from "../components/PermissionTree";
 import {
+  cascadeWarning,
   fullAccess,
   grantsToMap,
+  type GrantEntry,
   serializeGrants,
   type GrantMap,
   type TreeNode,
@@ -21,6 +25,7 @@ import { formatDatePt, formatTimePt } from "../lib/supportLog";
 import {
   MEMBER_STATUS_LABEL,
   MEMBER_STATUS_TONE,
+  OWNER_DISABLED_MESSAGE,
   teamErrorMessage,
   type TeamMemberStatus,
 } from "../lib/teamAccess";
@@ -34,7 +39,22 @@ import { usePostTeamMemberidDisable } from "../gen/backoffice/hooks/usePostTeamM
 import { usePostTeamMemberidEnable } from "../gen/backoffice/hooks/usePostTeamMemberidEnable";
 import { usePostTeamMemberidRevokeSessions } from "../gen/backoffice/hooks/usePostTeamMemberidRevokeSessions";
 import { useDeleteTeamMemberid } from "../gen/backoffice/hooks/useDeleteTeamMemberid";
+import { usePostTeamMemberidGrantsPreview } from "../gen/backoffice/hooks/usePostTeamMemberidGrantsPreview";
+import { useGetTeamMemberidActivity } from "../gen/backoffice/hooks/useGetTeamMemberidActivity";
 import type { TeamMember } from "../gen/backoffice/types/TeamMember";
+
+/** Linha da lista: o dono (e o criador com Gerir, nos seus) recebe `TeamMember`; quem só vê recebe `TeamMemberBasic` (+ `isSelf`). */
+type Row = TeamMember & { isSelf?: boolean };
+
+/** Quem criou o membro, em texto: para o dono, `null` lê-se "Tu"; para um membro, o nome do negócio (dono). */
+export function createdByLabel(
+  m: Pick<Row, "createdBy">,
+  viewer: { isMember: boolean; selfId?: string; ownerName?: string },
+): string {
+  if (!m.createdBy) return viewer.isMember ? viewer.ownerName || "Dono" : "Tu";
+  if (viewer.selfId && m.createdBy.memberId === viewer.selfId) return "Tu";
+  return m.createdBy.name || "—";
+}
 
 export function lastAccessLabel(m: Pick<TeamMember, "lastLoginAt">): string {
   if (!m.lastLoginAt) return "Nunca";
@@ -61,7 +81,17 @@ export function Equipa() {
   const { supportSession } = useAuth();
   const inSupport = !!supportSession;
   const narrow = useNarrow(760);
-  const { data: members = [], isLoading, isError, error } = useGetTeam();
+  const { isMember, member: me, can } = useTeamAccess();
+  // Fase 3: o dono gere tudo; um membro só com `equipa` Ver lê (sem convidar nem abrir fichas); com Gerir convida e gere os que criou.
+  const canManageTeam = !isMember || can("equipa", "edit");
+  const viewer = { isMember, selfId: me?.memberId, ownerName: me?.tenantName };
+  const { data, isLoading, isError, error } = useGetTeam();
+  const members = (data ?? []) as Row[];
+  const showEmail = members.some((m) => !!m.email);
+  const isManageable = (m: Row) => canManageTeam && !m.isSelf && (m.canManage ?? !isMember);
+  const openRow = (m: Row) => {
+    if (isManageable(m)) setSelectedId(m.memberId ?? null);
+  };
   const { data: catalog } = useGetTeamCatalog();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -74,9 +104,13 @@ export function Equipa() {
   const maxMembers = catalog?.maxMembers;
   const atLimit = maxMembers != null && members.length >= maxMembers;
   usePageSubtitle(
-    maxMembers != null
-      ? `${members.length} de ${maxMembers} membros · quem convidas vê só o que lhe deres.`
-      : "Quem convidas vê só o que lhe deres.",
+    !canManageTeam
+      ? "Quem faz parte da equipa. Só podes ver."
+      : isMember
+        ? "Convidas e geres os utilizadores que criaste — só podes dar o que tens."
+        : maxMembers != null
+          ? `${members.length} de ${maxMembers} membros · quem convidas vê só o que lhe deres.`
+          : "Quem convidas vê só o que lhe deres.",
   );
 
   const inviteDisabledReason = inSupport
@@ -88,11 +122,13 @@ export function Equipa() {
   return (
     <div className="flex flex-col min-h-0 space-y-4">
       <PageHeader>
-        <span title={inviteDisabledReason} className="inline-flex">
-          <GuardButton icon="plus" onClick={() => setInviteOpen(true)} disabled={!!inviteDisabledReason}>
-            Convidar utilizador
-          </GuardButton>
-        </span>
+        {canManageTeam ? (
+          <span title={inviteDisabledReason} className="inline-flex">
+            <GuardButton icon="plus" leaf="equipa" onClick={() => setInviteOpen(true)} disabled={!!inviteDisabledReason}>
+              Convidar utilizador
+            </GuardButton>
+          </span>
+        ) : null}
       </PageHeader>
 
       {isLoading ? (
@@ -116,37 +152,47 @@ export function Equipa() {
             title="Ainda não tens equipa"
             desc="Convida a recepcionista, o barbeiro ou o treinador e escolhe o que cada um pode ver e editar."
             action={
-              <span title={inviteDisabledReason} className="inline-flex">
-                <GuardButton icon="plus" onClick={() => setInviteOpen(true)} disabled={!!inviteDisabledReason}>
-                  Convidar utilizador
-                </GuardButton>
-              </span>
+              canManageTeam ? (
+                <span title={inviteDisabledReason} className="inline-flex">
+                  <GuardButton icon="plus" leaf="equipa" onClick={() => setInviteOpen(true)} disabled={!!inviteDisabledReason}>
+                    Convidar utilizador
+                  </GuardButton>
+                </span>
+              ) : undefined
             }
           />
         </Card>
       ) : narrow ? (
         <ul className="space-y-2" aria-label="Membros da equipa">
-          {members.map((m) => (
-            <li key={m.memberId}>
-              <button
-                type="button"
-                onClick={() => setSelectedId(m.memberId ?? null)}
-                className="w-full text-left"
-                aria-label={`Abrir ${m.name}`}
-              >
-                <Card className="p-4 hover:border-accent/40 transition">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-medium text-zinc-900 dark:text-white truncate">{m.name}</p>
-                      <p className="text-sm text-zinc-500 truncate">{m.email}</p>
-                    </div>
-                    <StatusBadge status={memberStatus(m)} />
+          {members.map((m) => {
+            const body = (
+              <Card className={`p-4 transition ${isManageable(m) ? "hover:border-accent/40" : ""}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-zinc-900 dark:text-white truncate">
+                      {m.name}
+                      {m.isSelf && <span className="ml-1.5 text-xs font-normal text-zinc-400">(tu)</span>}
+                    </p>
+                    {m.email && <p className="text-sm text-zinc-500 truncate">{m.email}</p>}
                   </div>
-                  <p className="text-xs text-zinc-400 mt-2">Último acesso: {lastAccessLabel(m)}</p>
-                </Card>
-              </button>
-            </li>
-          ))}
+                  <StatusBadge status={memberStatus(m)} />
+                </div>
+                <p className="text-xs text-zinc-400 mt-2">Último acesso: {lastAccessLabel(m)}</p>
+                <p className="text-xs text-zinc-400 mt-0.5">Criado por: {createdByLabel(m, viewer)}</p>
+              </Card>
+            );
+            return (
+              <li key={m.memberId}>
+                {isManageable(m) ? (
+                  <button type="button" onClick={() => openRow(m)} className="w-full text-left" aria-label={`Abrir ${m.name}`}>
+                    {body}
+                  </button>
+                ) : (
+                  body
+                )}
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <div className="overflow-hidden rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm">
@@ -155,34 +201,50 @@ export function Equipa() {
               <thead className="bg-zinc-50 dark:bg-zinc-800/50 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">
                 <tr>
                   <th className="px-4 py-3">Nome</th>
-                  <th className="px-4 py-3">Email</th>
+                  {showEmail && <th className="px-4 py-3">Email</th>}
                   <th className="px-4 py-3">Estado</th>
                   <th className="px-4 py-3">Último acesso</th>
+                  <th className="px-4 py-3">Criado por</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-50 dark:divide-zinc-800/50">
-                {members.map((m) => (
-                  <tr
-                    key={m.memberId}
-                    onClick={() => setSelectedId(m.memberId ?? null)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setSelectedId(m.memberId ?? null);
+                {members.map((m) => {
+                  const manageable = isManageable(m);
+                  return (
+                    <tr
+                      key={m.memberId}
+                      onClick={manageable ? () => openRow(m) : undefined}
+                      onKeyDown={
+                        manageable
+                          ? (e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                openRow(m);
+                              }
+                            }
+                          : undefined
                       }
-                    }}
-                    tabIndex={0}
-                    aria-label={`Abrir ${m.name}`}
-                    className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 transition cursor-pointer focus:outline-none focus-visible:bg-zinc-50 dark:focus-visible:bg-zinc-800/40"
-                  >
-                    <td className="px-4 py-3.5 font-medium text-zinc-900 dark:text-white">{m.name}</td>
-                    <td className="px-4 py-3.5 text-zinc-500">{m.email}</td>
-                    <td className="px-4 py-3.5">
-                      <StatusBadge status={memberStatus(m)} />
-                    </td>
-                    <td className="px-4 py-3.5 text-zinc-500 whitespace-nowrap">{lastAccessLabel(m)}</td>
-                  </tr>
-                ))}
+                      tabIndex={manageable ? 0 : undefined}
+                      aria-label={manageable ? `Abrir ${m.name}` : undefined}
+                      className={
+                        manageable
+                          ? "hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 transition cursor-pointer focus:outline-none focus-visible:bg-zinc-50 dark:focus-visible:bg-zinc-800/40"
+                          : undefined
+                      }
+                    >
+                      <td className="px-4 py-3.5 font-medium text-zinc-900 dark:text-white">
+                        {m.name}
+                        {m.isSelf && <span className="ml-1.5 text-xs font-normal text-zinc-400">(tu)</span>}
+                      </td>
+                      {showEmail && <td className="px-4 py-3.5 text-zinc-500">{m.email}</td>}
+                      <td className="px-4 py-3.5">
+                        <StatusBadge status={memberStatus(m)} />
+                      </td>
+                      <td className="px-4 py-3.5 text-zinc-500 whitespace-nowrap">{lastAccessLabel(m)}</td>
+                      <td className="px-4 py-3.5 text-zinc-500 whitespace-nowrap">{createdByLabel(m, viewer)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -194,12 +256,15 @@ export function Equipa() {
         onClose={() => setInviteOpen(false)}
         tree={tree}
         inSupport={inSupport}
+        isMember={isMember}
       />
       <MemberModal
         member={selected}
+        rows={members}
         onClose={() => setSelectedId(null)}
         tree={tree}
         inSupport={inSupport}
+        isMember={isMember}
       />
     </div>
   );
@@ -220,9 +285,10 @@ function TeamButton({
   ...rest
 }: { inSupport: boolean; title?: string; children?: ReactNode; [key: string]: unknown }) {
   if (inSupport) {
+    const { leaf: _leaf, ...btn } = rest;
     return (
       <span className="inline-flex" title={SUPPORT_UNAVAILABLE_NOTE}>
-        <Button {...rest} disabled aria-disabled="true" title={SUPPORT_UNAVAILABLE_NOTE} />
+        <Button {...btn} disabled aria-disabled="true" title={SUPPORT_UNAVAILABLE_NOTE} />
       </span>
     );
   }
@@ -273,11 +339,14 @@ function InviteModal({
   onClose,
   tree,
   inSupport,
+  isMember,
 }: {
   open: boolean;
   onClose: () => void;
   tree: TreeNode[];
   inSupport: boolean;
+  /** Um membro (com Gerir) só escolhe na árvore — "Acesso total" é do dono. */
+  isMember: boolean;
 }) {
   const qc = useQueryClient();
   const [name, setName] = useState("");
@@ -299,7 +368,7 @@ function InviteModal({
   const submit = () => {
     if (!name.trim()) return toast.error("Indica o nome.");
     if (!EMAIL_RE.test(email.trim())) return toast.error("Indica um email válido.");
-    const toSend = serializeGrants(tree, mode === "total" ? fullAccess(tree) : grants);
+    const toSend = serializeGrants(tree, mode === "total" && !isMember ? fullAccess(tree) : grants);
     if (toSend.length === 0) return toast.error("Escolhe pelo menos uma permissão.");
     create.mutate(
       { data: { name: name.trim(), email: email.trim(), grants: toSend } },
@@ -348,12 +417,14 @@ function InviteModal({
         <div>
           <SectionTitle>O que pode usar</SectionTitle>
           <div role="radiogroup" aria-label="Tipo de acesso" className="space-y-2">
-            <AccessOption
-              checked={mode === "total"}
-              onSelect={() => setMode("total")}
-              title="Acesso total"
-              help="Dá tudo o que existe hoje. Partes novas que apareçam no futuro ficam fechadas até as dares."
-            />
+            {!isMember && (
+              <AccessOption
+                checked={mode === "total"}
+                onSelect={() => setMode("total")}
+                title="Acesso total"
+                help="Dá tudo o que existe hoje, menos gerir a equipa. Partes novas que apareçam no futuro ficam fechadas até as dares."
+              />
+            )}
             <AccessOption
               checked={mode === "tree"}
               onSelect={() => setMode("tree")}
@@ -361,7 +432,7 @@ function InviteModal({
               help="Marca só o que esta pessoa pode ver ou editar."
             />
           </div>
-          {mode === "tree" && (
+          {(mode === "tree" || isMember) && (
             <div className="mt-3">
               <PermissionTree tree={tree} value={grants} onChange={setGrants} />
             </div>
@@ -372,18 +443,33 @@ function InviteModal({
   );
 }
 
+/** Aviso ao remover um membro que convidou outros: eles NÃO saem, passam para o dono (com as permissões que têm). */
+export function removeGuestsNote(count: number, viewerIsMember: boolean): string | null {
+  if (count <= 0) return null;
+  const to = viewerIsMember ? "o dono" : "ti";
+  return count === 1
+    ? `O utilizador que este membro convidou passa para ${to}, com as permissões que tem.`
+    : `Os ${count} utilizadores que este membro convidou passam para ${to}, com as permissões que têm.`;
+}
+
 // ── Ficha do membro ─────────────────────────────────────────────────────────
 
 function MemberModal({
   member,
+  rows,
   onClose,
   tree,
   inSupport,
+  isMember,
 }: {
   member: TeamMember | null;
+  /** A lista toda — para saber se o membro criou outros (cascata). */
+  rows: Row[];
   onClose: () => void;
   tree: TreeNode[];
   inSupport: boolean;
+  /** Quem vê é um membro (delegado) e não o dono — muda a quem passam os convidados e se pode reactivar. */
+  isMember: boolean;
 }) {
   const qc = useQueryClient();
   const memberId = member?.memberId ?? "";
@@ -391,6 +477,8 @@ function MemberModal({
   const [name, setName] = useState("");
   const [grants, setGrants] = useState<GrantMap>({});
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [tab, setTab] = useState<"perms" | "activity">("perms");
+  const [cascade, setCascade] = useState<{ text: string; toSend: GrantEntry[] } | null>(null);
 
   // Semeia o formulário quando se abre outro membro (ou o servidor devolve dados novos e o form está limpo).
   const serverGrants = useMemo(() => grantsToMap(tree, member?.grants), [tree, member?.grants]);
@@ -400,6 +488,8 @@ function MemberModal({
     if (!member) return;
     setName(member.name ?? "");
     setGrants(serverGrants);
+    setTab("perms");
+    setCascade(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memberId, treeReady]);
 
@@ -413,25 +503,54 @@ function MemberModal({
   const enable = usePostTeamMemberidEnable();
   const revoke = usePostTeamMemberidRevokeSessions();
   const remove = useDeleteTeamMemberid();
+  const preview = usePostTeamMemberidGrantsPreview();
 
   const dirty =
     !!member && (name.trim() !== (member.name ?? "") || grantsSignature(tree, grants) !== grantsSignature(tree, serverGrants));
+
+  const guestCount = rows.filter((r) => r.createdBy?.memberId === memberId).length;
+  const hasCreated = guestCount > 0;
+  const removeNote = removeGuestsNote(guestCount, isMember);
+  // Desactivado pelo dono: um delegado não reactiva (a API recusa com TEAM_OWNER_DISABLED; aqui mostra-se o motivo).
+  const ownerLocked = isMember && !!member?.disabledByOwner;
+
+  const doSave = (toSend: GrantEntry[]) =>
+    update.mutate(
+      { memberId, data: { name: name.trim(), grants: toSend } },
+      {
+        onSuccess: (res) => {
+          setCascade(null);
+          refresh();
+          toast.success("Permissões guardadas. Valem no próximo pedido do membro.");
+          const w = cascadeWarning((res as { cascadeAffected?: number } | undefined)?.cascadeAffected);
+          if (w) toast.warning(w);
+        },
+        onError: onError("Não foi possível guardar."),
+      },
+    );
 
   const save = () => {
     if (!member) return;
     if (!name.trim()) return toast.error("O nome não pode ficar vazio.");
     const toSend = serializeGrants(tree, grants);
     if (toSend.length === 0) return toast.error("Escolhe pelo menos uma permissão.");
-    update.mutate(
-      { memberId, data: { name: name.trim(), grants: toSend } },
-      {
-        onSuccess: () => {
-          refresh();
-          toast.success("Permissões guardadas. Valem no próximo pedido do membro.");
+    const grantsChanged = grantsSignature(tree, grants) !== grantsSignature(tree, serverGrants);
+    // Fase 3: retirar permissões a quem convidou outros tira-as também a eles — avisar ANTES de escrever.
+    if (hasCreated && grantsChanged) {
+      preview.mutate(
+        { memberId, data: { grants: toSend } },
+        {
+          onSuccess: (res) => {
+            const w = cascadeWarning(res?.affected);
+            if (w) setCascade({ text: w, toSend });
+            else doSave(toSend);
+          },
+          onError: onError("Não foi possível verificar o efeito nas permissões."),
         },
-        onError: onError("Não foi possível guardar."),
-      },
-    );
+      );
+      return;
+    }
+    doSave(toSend);
   };
 
   return (
@@ -456,7 +575,13 @@ function MemberModal({
             <Button variant="ghost" onClick={onClose}>
               Fechar
             </Button>
-            <TeamButton inSupport={inSupport} onClick={save} disabled={!dirty} isLoading={update.isPending}>
+            <TeamButton
+              inSupport={inSupport}
+              leaf="equipa"
+              onClick={save}
+              disabled={!dirty || tab !== "perms"}
+              isLoading={update.isPending || preview.isPending}
+            >
               Guardar permissões
             </TeamButton>
           </>
@@ -469,6 +594,19 @@ function MemberModal({
               <span>Último acesso: {lastAccessLabel(member)}</span>
             </div>
 
+            <Tabs
+              tabs={[
+                { id: "perms", label: "Permissões" },
+                { id: "activity", label: "Actividade" },
+              ]}
+              value={tab}
+              onChange={(id: string) => setTab(id as "perms" | "activity")}
+            />
+
+            {tab === "activity" ? (
+              <ActivityTab key={memberId} memberId={memberId} />
+            ) : (
+              <>
             <Input label="Nome" value={name} onChange={(e: any) => setName(e.target.value)} disabled={inSupport} />
 
             <div>
@@ -550,6 +688,8 @@ function MemberModal({
                     variant="outline"
                     size="sm"
                     icon="check"
+                    disabled={ownerLocked}
+                    title={ownerLocked ? OWNER_DISABLED_MESSAGE : undefined}
                     isLoading={enable.isPending}
                     onClick={() =>
                       enable.mutate(
@@ -566,6 +706,11 @@ function MemberModal({
                   >
                     Reactivar
                   </TeamButton>
+                )}
+                {ownerLocked && status === "disabled" && (
+                  <p data-testid="owner-disabled-note" className="basis-full text-xs text-zinc-500">
+                    {OWNER_DISABLED_MESSAGE} Só ele o pode reactivar.
+                  </p>
                 )}
                 <TeamButton
                   inSupport={inSupport}
@@ -587,15 +732,38 @@ function MemberModal({
                 </TeamButton>
               </div>
             </div>
+              </>
+            )}
           </div>
         )}
       </Modal>
 
       <ConfirmDialog
+        open={!!cascade}
+        onClose={() => setCascade(null)}
+        title="Retirar permissões?"
+        description={cascade?.text ?? ""}
+        variant="warning"
+        confirmLabel="Guardar e retirar"
+        pendingLabel="A guardar…"
+        isPending={update.isPending}
+        onConfirm={() => cascade && doSave(cascade.toSend)}
+      />
+
+      <ConfirmDialog
         open={confirmRemove}
         onClose={() => setConfirmRemove(false)}
         title={`Remover ${member?.name ?? "membro"}?`}
-        description="O acesso termina de imediato e o email fica livre. O nome continua no registo de auditoria. Não dá para desfazer."
+        description={
+          <>
+            O acesso termina de imediato e o email fica livre. O nome continua no registo de auditoria. Não dá para desfazer.
+            {removeNote && (
+              <span data-testid="remove-guests-note" className="mt-2 block font-medium text-amber-700 dark:text-amber-400">
+                {removeNote}
+              </span>
+            )}
+          </>
+        }
         confirmLabel="Remover"
         pendingLabel="A remover…"
         isPending={remove.isPending}
@@ -615,5 +783,73 @@ function MemberModal({
         }
       />
     </>
+  );
+}
+
+// ── Actividade do membro (fase 3) ───────────────────────────────────────────
+
+const ACTIVITY_PAGE_SIZE = 15;
+
+/** O que o membro fez (registo de auditoria): data/hora · acção · área · ok/falhou. Lista paginada pelo servidor. */
+function ActivityTab({ memberId }: { memberId: string }) {
+  const [page, setPage] = useState(1);
+  const { data, isLoading, isError, error } = useGetTeamMemberidActivity(memberId, {
+    page,
+    limit: ACTIVITY_PAGE_SIZE,
+  });
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2" aria-busy="true">
+        <div className="h-12 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+        <div className="h-12 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+        <div className="h-12 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <p role="status" className="text-sm text-red-600 dark:text-red-400">
+        {teamErrorMessage(error, "Não foi possível carregar a actividade.")}
+      </p>
+    );
+  }
+  if (items.length === 0) {
+    return <EmptyState icon="clock" title="Ainda sem actividade" desc="Quando este membro fizer alguma coisa, aparece aqui." />;
+  }
+  return (
+    <div>
+      <ul
+        aria-label="Actividade do membro"
+        className="divide-y divide-zinc-100 dark:divide-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-800"
+      >
+        {items.map((it) => (
+          <li key={it.id} className="px-3.5 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{it.actionLabel}</p>
+              <p className="text-xs text-zinc-500 truncate">{it.area}</p>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-zinc-500 shrink-0">
+              <span className="whitespace-nowrap tabular-nums">
+                {formatDatePt(it.at)} {formatTimePt(it.at)}
+              </span>
+              <Badge tone={it.ok ? "green" : "red"} dot>
+                {it.ok ? "Ok" : "Falhou"}
+              </Badge>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <Pagination
+        page={page}
+        setPage={setPage}
+        pageCount={Math.max(1, Math.ceil(total / ACTIVITY_PAGE_SIZE))}
+        total={total}
+        start={(page - 1) * ACTIVITY_PAGE_SIZE}
+        end={Math.min(page * ACTIVITY_PAGE_SIZE, total)}
+      />
+    </div>
   );
 }

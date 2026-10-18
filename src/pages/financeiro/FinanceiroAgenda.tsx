@@ -11,8 +11,14 @@ const STATUS_PT: Record<string, string> = { pending: 'Pendentes', confirmed: 'Co
 export function FinanceiroAgenda({ period, iva, customStart, customEnd }: {
   period: DashboardPeriod; iva: VatMode; customStart?: string; customEnd?: string
 }) {
-  const { data, isLoading } = useAgendaFinance(period, iva, customStart, customEnd)
+  const { data, isLoading, isError } = useAgendaFinance(period, iva, customStart, customEnd)
+  // `access.lostCustomers=false` (membro sem `clientes.lista`): a lista vem vazia e não se mostra.
+  const showLost = data?.access?.lostCustomers !== false
 
+  // 403 TEAM_FORBIDDEN (sem `agenda.marcacoes.valores`): não deve acontecer pela navegação, mas não rebenta.
+  if (isError) {
+    return <Card className="p-2"><EmptyState icon="lock" title="Sem acesso" desc="Não tens acesso aos valores da agenda." /></Card>
+  }
   if (!isLoading && (!data || data.counts.total === 0)) {
     return <Card className="p-2"><EmptyState icon="calendar" title="Sem marcações no período" desc="Quando houver marcações concluídas, o financeiro da agenda aparece aqui." /></Card>
   }
@@ -99,7 +105,7 @@ export function FinanceiroAgenda({ period, iva, customStart, customEnd }: {
         <KpiCard label="Perdidos" icon="ban" tone="red" loading={isLoading} value={String(data?.customers.perdidos ?? 0)} sub={`sem marcar há +${data?.customers.lostAfterDays ?? 60}d`} info={INFO.perdidos} />
       </div>
 
-      {(data?.lostCustomers ?? []).length > 0 && (
+      {showLost && (data?.lostCustomers ?? []).length > 0 && (
         <Card className="overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800">
             <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Clientes a fugir</h3>

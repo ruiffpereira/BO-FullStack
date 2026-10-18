@@ -46,6 +46,7 @@ const VIEW_ONLY = "Só tens permissão para ver";
 const MONEY_UI = /Dívida|gasto total|Pagamento|\bPago\b|77[.,]5|63[.,]25|43[.,]25|97[.,]5/;
 const MONEY_KEYS = /"(servicePrice|paymentCash|paymentMbway|paymentCard|paidAt|paymentHistory|totalSpent)"/;
 const ALL_LEAF_KEYS = [
+  "dashboard", "financeiro.negocio", "financeiro.agenda", "financeiro.loja",
   "agenda.marcacoes", "agenda.marcacoes.valores", "agenda.servicos", "agenda.bloqueios", "agenda.config",
   "loja.produtos", "loja.produtos.custo", "loja.encomendas", "loja.categorias",
   "ginasio.exercicios", "ginasio.treinos", "ginasio.clientes",
@@ -510,7 +511,8 @@ test.describe("Árvore — 'Acesso total'", () => {
     const sent = (await req).postDataJSON() as { grants: { key: string; level: string }[] };
     expect(sent.grants.map((g) => g.key).sort()).toEqual([...ALL_LEAF_KEYS].sort());
     const edits = sent.grants.filter((g) => g.level === "edit").length;
-    expect(edits, "tudo ao nível máximo (só Estatísticas é só-ver)").toBe(ALL_LEAF_KEYS.length - 1);
+    // Só-ver por desenho: Estatísticas e as 4 folhas da 2c (Dashboard, O Negócio, Agenda, Loja do Financeiro).
+    expect(edits, "tudo ao nível máximo (excepto as folhas só-ver)").toBe(ALL_LEAF_KEYS.length - 5);
 
     const ficha = await eq.openMember("Olga Acessototal");
     for (const topo of ["Agenda", "Loja", "Ginásio", "Clientes", "Financeiro", "Conteúdos", "Páginas", "Estatísticas do site", "Mensagens"]) {
@@ -526,14 +528,14 @@ test.describe("Árvore — 'Acesso total'", () => {
     await enter(page, context, M.total, "/clientes", async () => {
       await expect(page.getByText("Cliente Ametista Rosa").first()).toBeVisible({ timeout: 10_000 });
     });
-    for (const modulo of ["Clientes", "Mensagens", "Conteúdos", "Estatísticas", "Loja", "Agenda", "Ginásio", "Financeiro", "Páginas"]) {
+    for (const modulo of ["Clientes", "Mensagens", "Conteúdos", "Estatísticas", "Loja", "Agenda", "Ginásio", "Financeiro", "Páginas", "Dashboard"]) { // Dashboard desde a 2c (folha `dashboard` no acesso total)
       await expect(navBtn(page, modulo), modulo).toBeVisible();
     }
-    for (const fora of ["Dashboard", "Faturação", "Admin", "Equipa"]) {
+    for (const fora of ["Faturação", "Admin", "Equipa"]) {
       await expect(navBtn(page, fora), fora).toHaveCount(0);
     }
     // Rotas do dono: expulsas. O perfil é o do membro (sem dados do negócio).
-    for (const route of ["/faturacao", "/dashboard", "/equipa", "/admin"]) {
+    for (const route of ["/faturacao", "/equipa", "/admin"]) {
       await page.goto(route);
       await expect(page, route).not.toHaveURL(new RegExp(`${route}$`), { timeout: 10_000 });
     }

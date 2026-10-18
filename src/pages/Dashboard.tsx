@@ -14,6 +14,7 @@ import { useGetScheduleServices } from '../gen/backoffice/hooks/useGetScheduleSe
 import { useGetGymMensalidadeFinance } from '../gen/backoffice/hooks/useGetGymMensalidadeFinance.js'
 import { useDashboard } from '../hooks/useDashboard'
 import { useNow } from '../hooks/useNow'
+import { dashboardBlocks, dashboardSpine, hasRevenue, revenueSourcesLabel } from '../lib/dashboardBlocks'
 
 const fmtEur = (n: number) =>
   '€' + n.toLocaleString('pt-PT', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })
@@ -438,31 +439,46 @@ function CustomersWelcome({ total, newCount, loading }: { total: number; newCoun
 }
 
 export function Dashboard() {
-  const { authHeader, hasPermission, username } = useAuth()
+  const { authHeader, hasPermission, username, isMember, can, member } = useAuth()
   const headers = authHeader()
   const now = useNow()
   const thisMonth = format(now, 'yyyy-MM')
   const today = format(now, 'yyyy-MM-dd')
   const monthLabel = format(now, 'MMMM', { locale: pt })
 
-  const canProducts = hasPermission('VIEW_PRODUCTS')
-  const canSchedule = hasPermission('VIEW_SCHEDULE')
-  const canGym = hasPermission('VIEW_GYM')
-  // Clientes é core (todos os tenants) — não gatear no Dashboard.
-
   // Agregados cross-vertical (receita de hoje por módulo, sócios, alertas, etc.)
   const { data: dash, isLoading: loadingDash } = useDashboard('today')
 
-  const { data: customersData, isLoading: loadingCustomers } = useGetCustomers({ client: { headers } })
+  // O que se mostra (B41 2c): o dono vê os módulos do tenant (Clientes é core); um membro vê só os blocos que a API
+  // pôs em `included` — e enquanto o `/dashboard` não responde não pede nada que a API possa recusar com 403.
+  const blocks = useMemo(
+    () => dashboardBlocks({
+      isMember,
+      included: dash?.included,
+      perms: {
+        schedule: hasPermission('VIEW_SCHEDULE'),
+        products: hasPermission('VIEW_PRODUCTS'),
+        gym: hasPermission('VIEW_GYM'),
+      },
+    }),
+    [isMember, dash?.included, hasPermission],
+  )
+  const canSchedule = blocks.schedule
+  const canOrders = blocks.orders
+  const canGym = blocks.gymRevenue
+
+  const { data: customersData, isLoading: loadingCustomers } = useGetCustomers({
+    query: { enabled: blocks.customers }, client: { headers },
+  })
   const { data: ordersData, isLoading: loadingOrders } = useGetOrders(undefined, {
-    query: { enabled: canProducts }, client: { headers },
+    query: { enabled: canOrders }, client: { headers },
   })
   const { data: appointmentsData, isLoading: loadingAppts } = useGetScheduleAppointments(
     { month: thisMonth },
     { query: { enabled: canSchedule }, client: { headers } },
   )
   const { data: servicesData } = useGetScheduleServices({
-    query: { enabled: canSchedule }, client: { headers },
+    query: { enabled: canSchedule && (!isMember || can('agenda.servicos')) }, client: { headers },
   })
   const { data: gymFinanceData, isLoading: loadingGym } = useGetGymMensalidadeFinance(
     { period: thisMonth },
@@ -484,9 +500,12 @@ export function Dashboard() {
   const pendingToday = apptsToday.filter((a) => a.status === 'pending').length
 
   // Receita de hoje agregada (agenda + loja + ginásio), dos dados reais do /dashboard.
-  const revToday = (dash?.schedule?.period.revenue ?? 0) + (dash?.ecommerce?.period.revenue ?? 0) + (dash?.gym?.period.revenue ?? 0)
-  const salesToday = dash?.ecommerce?.period.revenue ?? 0
-  const stockAlerts = dash?.ecommerce?.stockAlerts ?? []
+  // Só soma as fontes visíveis (sem `schedule.valores` a agenda nem traz o campo).
+  const revToday = (blocks.scheduleValues ? dash?.schedule?.period.revenue ?? 0 : 0)
+    + (blocks.orders ? dash?.ecommerce?.period?.revenue ?? 0 : 0)
+    + (blocks.gymRevenue ? dash?.gym?.period?.revenue ?? 0 : 0)
+  const salesToday = dash?.ecommerce?.period?.revenue ?? 0
+  const stockAlerts = blocks.stock ? dash?.ecommerce?.stockAlerts ?? [] : []
   const openOrders = useMemo(() => orders.filter((o) => o.status && OPEN_ORDER.has(o.status)).length, [orders])
   const recentOrders = useMemo(
     () => [...orders].sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()).slice(0, 6),
@@ -528,30 +547,28 @@ export function Dashboard() {
   // ── KPI band: âncora por vertical ativa + "Receita de hoje" agregada ───────
   const kpis = useMemo(() => {
     const list: Kpi[] = []
-    const hasRevenue = canSchedule || canProducts || canGym
-    if (hasRevenue) list.push({ label: 'Receita de hoje', value: fmtEur(revToday), sub: 'agenda + loja + ginásio', icon: 'euro', tone: 'green', loading: loadingDash, href: '/financeiro' })
+    if (hasRevenue(blocks)) list.push({ label: 'Receita de hoje', value: fmtEur(revToday), sub: revenueSourcesLabel(blocks), icon: 'euro', tone: 'green', loading: loadingDash, href: '/financeiro' })
     if (canSchedule) list.push({ label: 'Marcações hoje', value: apptsToday.length, sub: pendingToday ? `${pendingToday} por confirmar` : apptsToday.length ? 'tudo confirmado' : 'dia livre', icon: 'calendar', tone: 'blue', loading: loadingAppts, href: `/agenda?data=${today}` })
     if (canGym) {
       list.push(gym.emAtraso > 0
         ? { label: 'Em atraso', value: gym.emAtraso, sub: 'mensalidades', icon: 'alertTriangle', tone: 'red', loading: loadingGym, href: '/financeiro/ginasio' }
         : { label: 'Por cobrar', value: fmtEur(gym.porCobrar), sub: `de ${fmtEur(gym.previsto)} previstos`, icon: 'card', tone: 'amber', loading: loadingGym, href: '/financeiro/ginasio' })
     }
-    if (canProducts) {
+    if (canOrders) {
       list.push(openOrders > 0
         ? { label: 'Por despachar', value: openOrders, sub: 'encomendas', icon: 'package', tone: 'amber', loading: loadingOrders, href: '/loja/encomendas' }
         : { label: 'Vendas de hoje', value: fmtEur(salesToday), sub: 'loja', icon: 'cart', tone: 'blue', loading: loadingDash, href: '/loja/encomendas' })
     }
     // Core + fillers (só para encher a faixa em tenants de uma só vertical).
-    list.push({ label: 'Clientes', value: totalCustomers, sub: newCustomers ? `${newCustomers} novos esta semana` : 'no total', icon: 'users', tone: 'violet', loading: loadingCustomers, href: '/clientes' })
+    if (blocks.customers) list.push({ label: 'Clientes', value: totalCustomers, sub: newCustomers ? `${newCustomers} novos esta semana` : 'no total', icon: 'users', tone: 'violet', loading: loadingCustomers, href: '/clientes' })
     if (canSchedule) list.push({ label: 'Marcações · 14 dias', value: weekCount, sub: 'últimos 7 dias', icon: 'trend', tone: 'violet', loading: loadingAppts, delta: weekDelta, spark: spark14, href: '/agenda' })
-    if (canGym) list.push({ label: 'Sócios ativos', value: dash?.gym?.activeMembers ?? '—', sub: 'ginásio', icon: 'users', tone: 'violet', loading: loadingDash, href: '/financeiro/ginasio' })
-    if (canProducts) list.push({ label: 'Ticket médio', value: fmtEur(dash?.ecommerce?.period.avgOrderValue ?? 0), sub: 'por encomenda', icon: 'cart', tone: 'blue', loading: loadingDash, href: '/loja/encomendas' })
+    if (blocks.gymMembers) list.push({ label: 'Sócios ativos', value: dash?.gym?.activeMembers ?? '—', sub: 'ginásio', icon: 'users', tone: 'violet', loading: loadingDash, href: '/financeiro/ginasio' })
+    if (canOrders) list.push({ label: 'Ticket médio', value: fmtEur(dash?.ecommerce?.period?.avgOrderValue ?? 0), sub: 'por encomenda', icon: 'cart', tone: 'blue', loading: loadingDash, href: '/loja/encomendas' })
     return list.slice(0, 4)
-  }, [canSchedule, canProducts, canGym, revToday, apptsToday.length, pendingToday, today, gym.emAtraso, gym.porCobrar, gym.previsto, openOrders, salesToday, totalCustomers, newCustomers, weekCount, weekDelta, spark14, dash, loadingDash, loadingAppts, loadingGym, loadingOrders, loadingCustomers])
+  }, [blocks, canSchedule, canOrders, canGym, revToday, apptsToday.length, pendingToday, today, gym.emAtraso, gym.porCobrar, gym.previsto, openOrders, salesToday, totalCustomers, newCustomers, weekCount, weekDelta, spark14, dash, loadingDash, loadingAppts, loadingGym, loadingOrders, loadingCustomers])
 
   // ── Espinha (peça central) por prioridade operacional ─────────────────────
-  const spine: 'agenda' | 'gym' | 'loja' | 'core' =
-    canSchedule ? 'agenda' : canGym ? 'gym' : canProducts ? 'loja' : 'core'
+  const spine = dashboardSpine(blocks)
 
   // ── Carris de apoio (as outras verticais ativas) ──────────────────────────
   const rail: ReactNode[] = []
@@ -576,7 +593,7 @@ export function Dashboard() {
     )
   }
   if (canGym && spine !== 'gym') rail.push(<GymMiniCard key="gym" fin={gymFin} monthLabel={monthLabel} />)
-  if (canProducts && spine !== 'loja') {
+  if (canOrders && spine !== 'loja') {
     if (recentOrders.length > 0 || openOrders > 0) {
       rail.push(
         <Card key="orders" className="p-5">
@@ -587,14 +604,19 @@ export function Dashboard() {
         </Card>,
       )
     }
-    if (stockAlerts.length > 0) rail.push(<StockAlerts key="stock" alerts={stockAlerts} />)
   }
+  // O stock tem folha própria (loja.produtos): pode haver stock sem encomendas, e vice-versa.
+  if (stockAlerts.length > 0 && spine !== 'loja') rail.push(<StockAlerts key="stock" alerts={stockAlerts} />)
 
   const hasRail = rail.length > 0
+  const hasSpine = spine !== 'none'
+  // Nada para mostrar (um membro sem nenhum cartão visível, ou o /dashboard ainda a carregar): estado vazio, sem buracos.
+  const nothingToShow = kpis.length === 0 && !hasSpine && !hasRail
 
   return (
     <div className="space-y-6">
-      <FirstValueChecklist />
+      {/* Onboarding do dono: lê clientes/serviços/produtos que um membro pode não ter. */}
+      {!isMember && <FirstValueChecklist />}
 
       {/* Header — frames the day, not a vanity greeting */}
       <div className="flex flex-col sm:flex-row sm:items-end gap-2 sm:gap-4">
@@ -608,7 +630,7 @@ export function Dashboard() {
             <span className="font-mono tabular-nums text-zinc-400 text-lg">{format(now, 'HH:mm')}</span>
           </h1>
         </div>
-        <p className="sm:ml-auto text-sm text-zinc-400">Olá, {username ?? '—'}</p>
+        <p className="sm:ml-auto text-sm text-zinc-400">Olá, {(isMember ? member?.name?.split(' ')[0] : username) ?? '—'}</p>
       </div>
 
       {/* KPI band */}
@@ -618,8 +640,17 @@ export function Dashboard() {
         </div>
       )}
 
+      {/* Sem acesso a nenhum bloco (ou o /dashboard ainda a carregar, para um membro) */}
+      {nothingToShow && (
+        loadingDash
+          ? <div className="space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" />)}</div>
+          : <EmptyState icon="lock" title="Sem dados para mostrar" desc="O dono da conta ainda não te deu acesso a nenhuma área deste resumo." />
+      )}
+
       {/* Main — spine adapts to the tenant's business */}
+      {(hasSpine || hasRail) && (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {hasSpine && (
         <Card className={`p-5 ${hasRail ? 'lg:col-span-7' : 'lg:col-span-12'}`}>
           {spine === 'agenda' && (
             <>
@@ -633,9 +664,11 @@ export function Dashboard() {
           {spine === 'loja' && <FulfillmentSpine orders={orders} openCount={openOrders} salesToday={salesToday} alerts={stockAlerts} loading={loadingOrders} />}
           {spine === 'core' && <CustomersWelcome total={totalCustomers} newCount={newCustomers} loading={loadingCustomers} />}
         </Card>
+        )}
 
-        {hasRail && <div className="lg:col-span-5 space-y-4">{rail}</div>}
+        {hasRail && <div className={hasSpine ? 'lg:col-span-5 space-y-4' : 'lg:col-span-12 space-y-4'}>{rail}</div>}
       </div>
+      )}
     </div>
   )
 }

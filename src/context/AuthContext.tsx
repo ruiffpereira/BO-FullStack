@@ -87,6 +87,12 @@ interface AuthCtx extends AuthState {
    * debaixo). O dono do tenant pode sempre; um membro só o que a API lhe deu (`edit` implica `view`). A decisão final é sempre da API.
    */
   can: (key: string, level?: TeamLevel) => boolean;
+  /**
+   * Volta a pedir `GET /userpermissions/access` (folhas do membro) sem tocar no resto da sessão. Usado pelo SSE
+   * quando o servidor fecha a ligação de um membro (mudou de folhas, foi desactivado, mudou de password): um 401
+   * passa pelo interceptor → refresh → login, como qualquer pedido; senão as folhas novas entram sem recarregar.
+   */
+  refreshAccess: () => Promise<void>;
   loading: boolean;
   loggingOut: boolean;
   error: string | null;
@@ -910,6 +916,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [auth.access],
   );
 
+  const refreshAccess = useCallback(async () => {
+    const token = authRef.current.accessToken;
+    if (!token || supportActiveRef.current) return;
+    const access = await fetchAccess(token);
+    setAuth((prev) => (prev.accessToken ? { ...prev, access } : prev));
+  }, []);
+
   // Ver docstring em `AuthCtx.setAccessToken` — adota o token devolvido por
   // `PUT /users/me/password` sem passar por login/refresh, e realinha o
   // temporizador de refresh automático com a validade real do token novo.
@@ -959,6 +972,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         member: auth.access.member,
         isMember: !!auth.access.member,
         can,
+        refreshAccess,
         loading,
         loggingOut,
         error,

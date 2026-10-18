@@ -22,7 +22,7 @@ import { API_BASE } from "../lib/env";
 const EVENTS_STREAM_PATH = getEventsStreamQueryKey()[0].url;
 
 export function useSSE() {
-  const { accessToken, isAuthenticated, supportSession, isMember } = useAuth();
+  const { accessToken, isAuthenticated, supportSession, isMember, refreshAccess } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const abortRef = useRef<AbortController | null>(null);
@@ -30,11 +30,20 @@ export function useSSE() {
   useEffect(() => {
     // Sessão de suporte: a API devolve 403 IMPERSONATION_FORBIDDEN em
     // /events/stream — nem se tenta ligar.
-    // Membro da equipa (B41): /events/stream é só do dono (403 TEAM_OWNER_ONLY) — nem se tenta ligar.
-    if (!isAuthenticated || !accessToken || supportSession || isMember) return;
+    // Membro da equipa (B41 2c): o stream já aceita membros e filtra os eventos pelas folhas que têm. O servidor
+    // FECHA a ligação quando o membro é desactivado/removido, muda de folhas ou de password — daí o retry com
+    // backoff também quando o stream termina limpo, e o `refreshAccess` (folhas novas; um 401 cai no
+    // interceptor → refresh → login, como qualquer pedido).
+    if (!isAuthenticated || !accessToken || supportSession) return;
 
     let active = true;
     let retryDelay = 2000;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    function revalidateSession() {
+      // Falha de rede/401 duro: o interceptor trata (refresh → login); aqui só não deixa a promise solta.
+      void refreshAccess?.().catch(() => {});
+    }
 
     async function connect() {
       if (!active) return;
@@ -50,6 +59,7 @@ export function useSSE() {
         });
 
         if (!res.ok || !res.body) {
+          if (res.status === 401 || res.status === 403) revalidateSession();
           scheduleRetry();
           return;
         }
@@ -79,6 +89,11 @@ export function useSSE() {
               // ignore parse errors
             }
           }
+        }
+        // O servidor fechou a ligação (membro desactivado/removido/mudou de folhas ou de password): voltar a ligar.
+        if (active) {
+          revalidateSession();
+          scheduleRetry();
         }
       } catch (err: any) {
         if (err?.name === "AbortError") return;
@@ -136,7 +151,7 @@ export function useSSE() {
 
     function scheduleRetry() {
       if (!active) return;
-      setTimeout(() => { if (active) connect(); }, retryDelay);
+      timer = setTimeout(() => { if (active) connect(); }, retryDelay);
       retryDelay = Math.min(retryDelay * 2, 30000);
     }
 
@@ -144,7 +159,8 @@ export function useSSE() {
 
     return () => {
       active = false;
+      if (timer) clearTimeout(timer);
       abortRef.current?.abort();
     };
-  }, [accessToken, isAuthenticated, supportSession, isMember, queryClient, navigate]);
+  }, [accessToken, isAuthenticated, supportSession, isMember, refreshAccess, queryClient, navigate]);
 }

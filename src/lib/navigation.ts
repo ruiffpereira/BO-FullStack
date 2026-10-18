@@ -28,15 +28,15 @@ export interface SubmenuItem {
    * aparece a membros (default-deny).
    */
   leaf?: string | string[];
-  /** Equipa: nunca aparece a um membro (agrega dinheiro de vários módulos — fase 2c). */
+  /** Equipa: nunca aparece a um membro (sem folha própria). Desde a 2c nenhum subitem o usa. */
   ownerOnly?: boolean;
 }
 
 export const SUBMENU: Record<string, SubmenuItem[]> = {
   "/financeiro": [
-    { id: "negocio", label: "O Negócio", path: "/financeiro", ownerOnly: true },
-    { id: "agenda", label: "Agenda", path: "/financeiro/agenda", perm: "VIEW_SCHEDULE", ownerOnly: true },
-    { id: "loja", label: "Loja", path: "/financeiro/loja", perm: "VIEW_PRODUCTS", ownerOnly: true },
+    { id: "negocio", label: "O Negócio", path: "/financeiro", leaf: "financeiro.negocio" },
+    { id: "agenda", label: "Agenda", path: "/financeiro/agenda", perm: "VIEW_SCHEDULE", leaf: "financeiro.agenda" },
+    { id: "loja", label: "Loja", path: "/financeiro/loja", perm: "VIEW_PRODUCTS", leaf: "financeiro.loja" },
     { id: "ginasio", label: "Ginásio", path: "/financeiro/ginasio", perm: "VIEW_GYM", leaf: "financeiro.mensalidades" },
     // `VIEW_EXPENSES` acrescentado (B5): esta aba lê/escreve `/expenses`, que a
     // API gateia por essa permissão (routes/index.ts). Sem `perm` aqui, um
@@ -213,9 +213,12 @@ export const LEAF_FOR_PATH: ReadonlyArray<readonly [string, string]> = [
   ["/ginasio", "ginasio.exercicios"],
   ["/clientes/leads", "clientes.leads"],
   ["/clientes", "clientes.lista"],
+  ["/financeiro/agenda", "financeiro.agenda"],
+  ["/financeiro/loja", "financeiro.loja"],
   ["/financeiro/ginasio", "financeiro.mensalidades"],
   ["/financeiro/despesas", "financeiro.despesas"],
   ["/despesas", "financeiro.despesas"],
+  ["/financeiro", "financeiro.negocio"],
   ["/conteudos/produtos", "conteudos.produtos"],
   ["/conteudos/servicos", "conteudos.servicos"],
   ["/conteudos/ginasio", "conteudos.ginasio"],

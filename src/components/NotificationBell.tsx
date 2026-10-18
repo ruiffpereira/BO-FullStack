@@ -10,6 +10,7 @@ import {
 import { notificationHref } from "../lib/notificationTarget";
 import { usePushSubscription } from "../hooks/usePushSubscription";
 import { CountBadge } from "./NavBadge";
+import { useAuth } from "../context/AuthContext";
 
 // Taxonomia unificada (espelha src/utils/notifyUser.ts na API): label + cores
 // por tipo, para o centro de notificações renderizar tudo de forma consistente.
@@ -90,6 +91,8 @@ function NotificationItem({
   });
   const meta = NOTIF_META[n.type] ?? NOTIF_META.system;
   const navigable = notificationHref(n) !== null;
+  // Equipa (B41 2c): um membro "apaga" só para si (o dono apaga de vez, para todos).
+  const { isMember: hideOnlyForMe } = useAuth();
 
   return (
     <div
@@ -142,6 +145,7 @@ function NotificationItem({
         <button
           onClick={() => onDelete(n.notificationId)}
           aria-label="Eliminar"
+          title={hideOnlyForMe ? "Eliminar — só deixa de aparecer para ti" : undefined}
           className="p-2 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
         >
           <TrashIcon className="w-4 h-4" />

@@ -34,10 +34,11 @@ const MODULE_PERM_TO_PATH: Record<string, string> = {
 // Cada item só aparece se for acessível ao tenant (permissões + admin).
 const MENU_ORDER = ['/dashboard', '/admin', '/clientes', '/mensagens', '/conteudos', '/paginas', '/estatisticas', '/loja', '/agenda', '/ginasio', '/financeiro', '/faturacao']
 
-// Equipa (B41 2b): o TOPO da árvore da API → item da sidebar (`can(topo)` = alguma folha debaixo). O Financeiro só
-// mostra a um membro as abas com folha (Ginásio/mensalidades, Despesas); Dashboard, resto do Financeiro, Faturação e
-// o sino são só do dono. Os subitens de cada grupo filtram-se por folha (`memberSubitems`, `lib/navigation.ts`).
+// Equipa (B41 2b/2c): o TOPO da árvore da API → item da sidebar (`can(topo)` = alguma folha debaixo). O Dashboard tem
+// folha própria (`dashboard`) e o Financeiro mostra a um membro as abas com folha (O Negócio, Agenda, Loja, Ginásio/
+// mensalidades, Despesas); só a Faturação é do dono. O sino e o tempo real (SSE) valem também para membros. Os subitens de cada grupo filtram-se por folha (`memberSubitems`, `lib/navigation.ts`).
 const MEMBER_MODULE_PATH: Record<string, string> = {
+  dashboard: '/dashboard',
   agenda: '/agenda',
   loja: '/loja',
   ginasio: '/ginasio',
@@ -658,7 +659,7 @@ function Topbar({ theme, onToggleTheme, onMenu, onCollapse, onLogout, showTeam }
       <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
         {/* Sessão de suporte: sem sino — as notificações são escritas (marcar/apagar)
             que a API recusa, e o push não arranca. */}
-        {!supportSession && !isMember && <NotificationBell />}
+        {!supportSession && <NotificationBell />}
         {(!isMember || can('mensagens')) && <ChatLauncher />}
         {/* Equipa (B41): quem está ligado — "Ana · equipa de Tifas Barber". */}
         {member && (
@@ -693,8 +694,8 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   const [drawer, setDrawer] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
 
-  // Stream de eventos em tempo real (o próprio hook não liga para um membro da equipa: a API devolve 403 em
-  // /events/stream — decisão do dono para a fase 1 da Equipa; o tempo-real chega com a fase 2).
+  // Stream de eventos em tempo real. Desde a 2c também para membros (a API filtra os eventos por folha); o próprio
+  // hook trata a sessão de suporte e volta a ligar quando o servidor fecha a ligação.
   useSSE()
 
   const handleLogout = () => {
@@ -710,7 +711,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
 
   const isAdmin = permissions.some((p) => p.name === 'VIEW_ADMIN')
   // Conjunto de rotas acessíveis (dashboard + módulos por permissão + core + admin). Um MEMBRO da equipa vê só os
-  // módulos que a API lhe deu: nada de Dashboard, Financeiro (excepto Despesas) nem Faturação.
+  // módulos que a API lhe deu (Dashboard e Financeiro incluídos, por folha); Faturação nunca.
   const accessible = new Set<string>(
     isMember
       ? Object.entries(MEMBER_MODULE_PATH).filter(([key]) => can(key)).map(([, path]) => path)

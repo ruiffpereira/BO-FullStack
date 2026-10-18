@@ -81,8 +81,8 @@ export function MoneyTriad({ money, loading }: { money?: Money; loading?: boolea
     <Card className="p-5">
       <div className="grid grid-cols-3 divide-x divide-zinc-100 dark:divide-zinc-800">
         {items.map((it) => (
-          <div key={it.key} className="px-2 first:pl-0 last:pr-0">
-            <div className="flex items-center gap-1.5">
+          <div key={it.key} className="min-w-0 px-2 first:pl-0 last:pr-0">
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">{it.label}</p>
               <InfoDot title={it.label} body={it.info} />
               {it.key === 'recebido' && <DeltaPill delta={money?.recebidoGrowth} good="up" />}

@@ -34,6 +34,8 @@ export interface AgendaFinance {
   heatmap: { dayOfWeek: number; day: string; hour: number; count: number }[]
   occupancy: { availableHours: number; bookedHours: number; occupancyPct: number; revenuePerHour: number }
   customers: { novos: number; recorrentes: number; taxaRetorno: number; novosGrowth: number | null; perdidos: number; lostAfterDays: number }
+  /** Membro sem `clientes.lista`: `lostCustomers` vem vazio e `access.lostCustomers` é false. */
+  access?: { lostCustomers?: boolean }
   lostCustomers: { customerId: string; name: string; contact: string | null; email: string | null; lastVisit: string; daysSince: number; visits: number }[]
 }
 
@@ -41,18 +43,20 @@ export interface LojaFinance {
   period: DashboardPeriod
   iva: VatMode
   money: Money
-  margem: { total: number; coverage: number; marginPct: number }
+  /** Sem `loja.produtos.custo` (membro) a API nem envia a margem — `access.cost` é false. */
+  margem?: { total: number; coverage: number; marginPct: number }
+  access?: { cost?: boolean }
   valorMedioPorCompra: number
   counts: { orders: number; byStatus: Record<string, number> }
   devolucoes: number
   descontoDado: number
-  revenueByPeriod: { date: string; faturado: number; margem: number }[]
-  topProducts: { productId: string; name: string | null; stock: number | null; qty: number; faturado: number; margem: number | null }[]
+  revenueByPeriod: { date: string; faturado: number; margem?: number }[]
+  topProducts: { productId: string; name: string | null; stock: number | null; qty: number; faturado: number; margem?: number | null }[]
   topCategories: { categoryId: string | null; name: string; faturado: number }[]
   customers: { novos: number; recorrentes: number; perdidos: number; taxaRecompra: number; ltv: number; novosGrowth: number | null; lostAfterDays: number }
   inventory: {
     lowStock: { name: string; reference: string | null; stock: number }[]
-    deadStock: { count: number; value: number; items: { name: string; stock: number; value: number }[] }
+    deadStock: { count: number | null; value: number | null; items: { name: string; stock: number; value: number }[] }
   }
   abandonedCarts: { count: number; value: number }
 }
@@ -60,16 +64,20 @@ export interface LojaFinance {
 export interface NegocioFinance {
   period: DashboardPeriod
   modules: { agenda: boolean; loja: boolean; gym: boolean }
+  /** Blocos que entraram (tenant tem o módulo E a sessão tem acesso). Falso = "sem acesso", nunca 0 €. */
+  included?: { agenda?: boolean; loja?: boolean; gym?: boolean; despesas?: boolean }
   money: Money
-  despesas: number
-  lucro: number
-  margem: number
+  /** `null` sem o bloco das despesas (e então `lucro`/`margem` também). */
+  despesas: number | null
+  lucro: number | null
+  margem: number | null
   revenueBySource: Partial<Record<'agenda' | 'loja' | 'gym', number>>
+  /** `null` se faltar algum bloco do tenant. */
   health: {
     score: number
     hasData: boolean
     factors: { key: string; label: string; score: number; weight: number; detail: string }[]
-  }
+  } | null
 }
 
 // path → função gerada. Mantém a MESMA query key de sempre

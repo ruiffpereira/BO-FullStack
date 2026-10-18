@@ -186,8 +186,8 @@ test.describe("Equipa — o membro", () => {
           await expect(navBtn(page, hidden)).toHaveCount(0);
         }
         await expect(page.getByTestId("member-identity")).toHaveText(`${MEMBRO_NOME} · equipa de ${TENANT}`);
-        // Sem sino nem atalho de mensagens (não tem o módulo).
-        await expect(page.getByRole("button", { name: /notifica/i })).toHaveCount(0);
+        // Com sino desde a 2c (notificações por folha) mas sem atalho de mensagens (não tem o módulo).
+        await expect(page.getByRole("button", { name: /notifica/i })).toBeVisible();
         await expect(page.getByRole("button", { name: /^Mensagens/ })).toHaveCount(0);
       },
     );

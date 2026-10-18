@@ -67,6 +67,9 @@ describe("moduleForPath", () => {
     ["/despesas", "financeiro"],
     ["/financeiro/despesas", "financeiro"],
     ["/financeiro/ginasio", "financeiro"],
+    ["/financeiro", "financeiro"],
+    ["/financeiro/agenda", "financeiro"],
+    ["/financeiro/loja", "financeiro"],
     ["/conteudos/emails", "conteudos"],
     ["/paginas", "paginas"],
     ["/mensagens", "mensagens"],
@@ -75,8 +78,8 @@ describe("moduleForPath", () => {
     expect(moduleForPath(path)).toBe(mod);
   });
 
-  it("Dashboard, Financeiro (O Negócio/Agenda/Loja), Faturação, Perfil e Equipa não têm módulo", () => {
-    for (const p of ["/dashboard", "/financeiro", "/financeiro/agenda", "/financeiro/loja", "/faturacao", "/perfil", "/equipa", "/agendamento"]) {
+  it("Dashboard, Faturação, Perfil e Equipa não têm módulo", () => {
+    for (const p of ["/dashboard", "/faturacao", "/perfil", "/equipa", "/agendamento"]) {
       expect(moduleForPath(p)).toBeUndefined();
     }
   });
@@ -97,6 +100,9 @@ describe("leafForPath — página/separador → folha da árvore", () => {
     ["/ginasio/clientes", "ginasio.clientes"],
     ["/clientes", "clientes.lista"],
     ["/clientes/leads", "clientes.leads"],
+    ["/financeiro", "financeiro.negocio"],
+    ["/financeiro/agenda", "financeiro.agenda"],
+    ["/financeiro/loja", "financeiro.loja"],
     ["/financeiro/ginasio", "financeiro.mensalidades"],
     ["/financeiro/despesas", "financeiro.despesas"],
     ["/conteudos", "conteudos.website"],
@@ -121,9 +127,13 @@ describe("memberSubitems — submenus por folha", () => {
     expect(memberSubitems("/agenda", can({ "agenda.bloqueios": "view" })).map((i) => i.id)).toEqual(["config"]);
     expect(memberSubitems("/agenda", can({ "agenda.marcacoes": "edit" })).map((i) => i.id)).toEqual(["cal", "marcacoes"]);
   });
-  it("Financeiro: só Ginásio (mensalidades) e Despesas; O Negócio/Agenda/Loja nunca", () => {
-    const all = can({ "financeiro.mensalidades": "view", "financeiro.despesas": "edit", "agenda.marcacoes": "edit" });
-    expect(memberSubitems("/financeiro", all).map((i) => i.id)).toEqual(["ginasio", "despesas"]);
+  it("Financeiro (2c): cada aba pela sua folha — O Negócio, Agenda, Loja, Ginásio, Despesas", () => {
+    const some = can({ "financeiro.mensalidades": "view", "financeiro.despesas": "edit", "agenda.marcacoes": "edit" });
+    expect(memberSubitems("/financeiro", some).map((i) => i.id)).toEqual(["ginasio", "despesas"]);
+    const all = can({ "financeiro.negocio": "view", "financeiro.agenda": "view", "financeiro.loja": "view", "financeiro.mensalidades": "view", "financeiro.despesas": "view" });
+    expect(memberSubitems("/financeiro", all).map((i) => i.id)).toEqual(["negocio", "agenda", "loja", "ginasio", "despesas"]);
+    // A folha do Negócio não abre as outras abas.
+    expect(memberSubitems("/financeiro", can({ "financeiro.negocio": "view" })).map((i) => i.id)).toEqual(["negocio"]);
   });
   it("Conteúdos: os 7 separadores têm folha; Ginásio: Planos e Dia de Treino pela mesma folha", () => {
     expect(SUBMENU["/conteudos"].every((i) => !!i.leaf)).toBe(true);

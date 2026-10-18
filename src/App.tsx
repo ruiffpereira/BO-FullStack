@@ -98,7 +98,7 @@ function App() {
   // (localStorage > sistema > dark) até autenticar, servidor > localStorage >
   // sistema depois de GET /users/me resolver — ver docstring do hook.
   const { theme, toggleTheme } = useThemeSync();
-  const { isAuthenticated, initializing, reconnecting, supportEnded, isMember } = useAuth();
+  const { isAuthenticated, initializing, reconnecting, supportEnded, isMember, can } = useAuth();
   const location = useLocation();
 
   useEffect(() => {
@@ -189,9 +189,9 @@ function App() {
     <Shell theme={theme} onToggleTheme={toggleTheme}>
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        {/* Um membro da equipa não tem Dashboard (agrega todos os módulos — fase 2): o Shell leva-o ao 1.º módulo
+        {/* Um membro só tem Dashboard com a folha `dashboard` (2c); sem ela o Shell leva-o ao 1.º módulo
             que tem; sem nenhum, vê este estado vazio em vez de a página montar e levar 403. */}
-        <Route path="/dashboard" element={isMember ? <MemberHome /> : <Dashboard />} />
+        <Route path="/dashboard" element={isMember && !can("dashboard") ? <MemberHome /> : <Dashboard />} />
         <Route path="/estatisticas" element={<Estatisticas />} />
         {/* Construtor de páginas: o item "Páginas" da sidebar só existe com VIEW_SITE_PAGES; o guard do Shell trata o resto. */}
         <Route path="/paginas" element={<Paginas />} />

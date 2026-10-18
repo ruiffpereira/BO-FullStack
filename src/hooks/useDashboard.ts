@@ -37,12 +37,13 @@ export type RevenuePoint = ScheduleStats["revenueByPeriod"][number] & { orders?:
  * `ecommerce`, `gym` e `expenses` — os tipos locais acima derivam agora do
  * gerado em vez de uma `interface` à parte.
  */
-export function useDashboard(period: DashboardPeriod = "30d", customStart?: string, customEnd?: string) {
+export function useDashboard(period: DashboardPeriod = "30d", customStart?: string, customEnd?: string, enabled = true) {
   const { isAuthenticated } = useAuth();
   const isCustomValid = period !== "custom" || (!!customStart && !!customEnd);
   return useQuery<DashboardData>({
     queryKey: ["dashboard", period, customStart, customEnd],
-    enabled: isAuthenticated && isCustomValid,
+    // `enabled`: um membro sem a folha `dashboard` não pede (a API recusa com 403 TEAM_FORBIDDEN).
+    enabled: enabled && isAuthenticated && isCustomValid,
     queryFn: async () => {
       const params: Record<string, string> = { period };
       if (period === "custom" && customStart && customEnd) {

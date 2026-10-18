@@ -10,8 +10,15 @@ import { INFO } from '../../components/financeiro/info'
 export function FinanceiroLoja({ period, iva, customStart, customEnd }: {
   period: DashboardPeriod; iva: VatMode; customStart?: string; customEnd?: string
 }) {
-  const { data, isLoading } = useLojaFinance(period, iva, customStart, customEnd)
+  const { data, isLoading, isError } = useLojaFinance(period, iva, customStart, customEnd)
+  // Equipa (B41 2c): `null` = sem acesso ao stock; enquanto carrega, mostra-se o cartão (skeleton do dono).
+  const showDeadStock = isLoading || data?.inventory.deadStock.value != null
+  // Membro sem `loja.produtos.custo`: a API não envia margem nem custos (`access.cost=false`) — somem, não viram 0.
+  const showCost = data?.access?.cost !== false && !!data?.margem
 
+  if (isError) {
+    return <Card className="p-2"><EmptyState icon="lock" title="Sem acesso" desc="Não tens acesso ao financeiro da loja." /></Card>
+  }
   if (!isLoading && (!data || data.counts.orders === 0)) {
     return <Card className="p-2"><EmptyState icon="cart" title="Sem vendas no período" desc="Quando houver encomendas, o financeiro da loja aparece aqui." /></Card>
   }
@@ -24,7 +31,7 @@ export function FinanceiroLoja({ period, iva, customStart, customEnd }: {
       <MoneyTriad money={data?.money} loading={isLoading} />
 
       {/* Aviso: definir custo p/ margem real */}
-      {data && data.margem.coverage < 100 && (
+      {showCost && data && data.margem && data.margem.coverage < 100 && (
         <div className="flex items-center gap-3 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
           <Icon name="alertTriangle" className="w-5 h-5 text-amber-500 shrink-0" />
           <p className="text-sm text-amber-800 dark:text-amber-300 flex-1">
@@ -34,8 +41,8 @@ export function FinanceiroLoja({ period, iva, customStart, customEnd }: {
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Margem bruta" icon="trend" tone="green" loading={isLoading} value={fmtEur(data?.margem.total ?? 0)} sub={`${data?.margem.marginPct ?? 0}% de margem`} info={INFO.margem} />
+      <div className={`grid grid-cols-2 gap-4 ${showCost ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+        {showCost && <KpiCard label="Margem bruta" icon="trend" tone="green" loading={isLoading} value={fmtEur(data?.margem?.total ?? 0)} sub={`${data?.margem?.marginPct ?? 0}% de margem`} info={INFO.margem} />}
         <KpiCard label="Valor médio por compra" icon="star" tone="blue" loading={isLoading} value={fmtEur(data?.valorMedioPorCompra ?? 0)} info={INFO.valorCompra} />
         <KpiCard label="LTV do cliente" icon="users" tone="violet" loading={isLoading} value={fmtEur(data?.customers.ltv ?? 0)} sub="receita média / cliente" info={INFO.ltvLoja} />
         <KpiCard label="Taxa de recompra" icon="cart" tone="amber" loading={isLoading} value={`${data?.customers.taxaRecompra ?? 0}%`} sub="clientes com ≥2 compras" info={INFO.taxaRecompra} />
@@ -71,7 +78,7 @@ export function FinanceiroLoja({ period, iva, customStart, customEnd }: {
             <table className="w-full text-sm">
               <thead><tr className="text-left text-zinc-500 border-b border-zinc-100 dark:border-zinc-800">
                 <th className="font-medium py-2 pr-3">Produto</th><th className="font-medium py-2 px-3">Qtd</th>
-                <th className="font-medium py-2 px-3">Faturado</th><th className="font-medium py-2 px-3 hidden sm:table-cell">Margem</th>
+                <th className="font-medium py-2 px-3">Faturado</th>{showCost && <th className="font-medium py-2 px-3 hidden sm:table-cell">Margem</th>}
                 <th className="font-medium py-2 px-3 hidden md:table-cell">Stock</th>
               </tr></thead>
               <tbody>
@@ -80,7 +87,7 @@ export function FinanceiroLoja({ period, iva, customStart, customEnd }: {
                     <td className="py-2.5 pr-3 font-medium text-zinc-900 dark:text-white truncate max-w-[200px]">{p.name ?? '—'}</td>
                     <td className="py-2.5 px-3 text-zinc-500 tabular-nums">{p.qty}</td>
                     <td className="py-2.5 px-3 text-zinc-700 dark:text-zinc-200 tabular-nums">{fmtEur(p.faturado)}</td>
-                    <td className="py-2.5 px-3 tabular-nums hidden sm:table-cell">{p.margem != null ? <span className="text-emerald-600 dark:text-emerald-400">{fmtEur(p.margem)}</span> : <span className="text-zinc-400">—</span>}</td>
+                    {showCost && <td className="py-2.5 px-3 tabular-nums hidden sm:table-cell">{p.margem != null ? <span className="text-emerald-600 dark:text-emerald-400">{fmtEur(p.margem)}</span> : <span className="text-zinc-400">—</span>}</td>}
                     <td className="py-2.5 px-3 hidden md:table-cell">{p.stock != null && p.stock <= 5 ? <Badge tone="red">{p.stock}</Badge> : <span className="text-zinc-400 tabular-nums">{p.stock ?? '—'}</span>}</td>
                   </tr>
                 ))}
@@ -97,8 +104,9 @@ export function FinanceiroLoja({ period, iva, customStart, customEnd }: {
       </div>
 
       {/* Inventário + carrinhos */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="p-5">
+      {/* Equipa (B41 2c): sem `loja.produtos` o stock parado vem `null` — o cartão sai (nunca "0 €"). */}
+      <div className={`grid grid-cols-1 ${showDeadStock ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-4`}>
+        {showDeadStock && <Card className="p-5">
           <SectionTitle right={<InfoDot title={INFO.stockParado.title} body={INFO.stockParado.body} />}>Stock parado</SectionTitle>
           <p className="text-2xl font-semibold text-zinc-900 dark:text-white mt-2 tabular-nums">{fmtEur(data?.inventory.deadStock.value ?? 0)}</p>
           <p className="text-xs text-zinc-400">{data?.inventory.deadStock.count ?? 0} produtos sem vendas há 90 dias</p>
@@ -107,7 +115,7 @@ export function FinanceiroLoja({ period, iva, customStart, customEnd }: {
               <div key={i} className="flex items-center justify-between text-xs"><span className="text-zinc-500 truncate">{it.name}</span><span className="text-zinc-400 tabular-nums">{it.stock}× · {fmtEur(it.value)}</span></div>
             ))}
           </div>
-        </Card>
+        </Card>}
         <Card className="p-5">
           <SectionTitle right={<InfoDot title={INFO.carrinhos.title} body={INFO.carrinhos.body} />}>Carrinhos abandonados</SectionTitle>
           <p className="text-2xl font-semibold text-zinc-900 dark:text-white mt-2 tabular-nums">{data?.abandonedCarts.count ?? 0}</p>

@@ -1,8 +1,9 @@
-import { test, expect, type APIRequestContext, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { API, E2E_PASSWORD, loginAs, nextClientIp } from "./fixtures/login";
+import { API, loginAs } from "./fixtures/login";
+import { ADMIN, apiLogin, grantSupportAccess, openSupportTab } from "./fixtures/support";
 import { withSessionRetry } from "./fixtures/session";
 import { AdminPage } from "./pages/AdminPage";
 import { PaginasPage, VIEWPORTS, uniq } from "./pages/PaginasPage";
@@ -15,58 +16,19 @@ import { PaginasPage, VIEWPORTS, uniq } from "./pages/PaginasPage";
  *   403 SUPPORT_SESSION_REQUIRED fora de uma sessão de suporte).
  * - Numa sessão de suporte (o admin entra na conta de `pagesB@e2e` com o consentimento dele) aparecem o
  *   «Manifest» (JSON partido, manifest recusado, manifest que tira um fundo em uso, ficheiro válido) e a
- *   «Publicação (GitHub)» (só o repositório; «Testar» nunca se carrega: falaria com o GitHub).
+ *   «Publicação (Coolify)» (a secção existe; o fluxo do webhook está em `paginas-publicacao.spec.ts`).
  * - Admin → Utilizadores já não tem o botão «Construtor de páginas».
  *
  * `pagesB@e2e` serve a sessão de suporte porque tem o construtor e o manifest da Winterplateau (recarregá-lo é
- * idempotente); a publicação é reposta a «por configurar» no fim para não deixar o tenant em modo GitHub
- * (onde guardar passaria a «À espera de publicar» e não «No ar»).
+ * idempotente).
  */
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
 const TENANT = "pages@e2e";
 const SUPPORT_TENANT = "pagesB@e2e";
-const ADMIN = "admin@e2e";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MANIFEST = path.resolve(HERE, "../../../API-FullStack/tests/fixtures/manifest-winterplateau.json");
-
-/** Login por API (sessão isolada do browser): devolve o token e o id do tenant. */
-async function apiLogin(request: APIRequestContext, email: string) {
-  const res = await request.post(`${API}/users/login`, {
-    data: { username: email, password: E2E_PASSWORD },
-    headers: { "CF-Connecting-IP": nextClientIp() },
-  });
-  expect(res.ok(), `login de ${email} falhou (${res.status()})`).toBeTruthy();
-  const body = await res.json();
-  return { headers: { Authorization: `Bearer ${body.accessToken as string}` }, userId: body.userId as string };
-}
-
-/** O tenant dá consentimento ao suporte (como no Perfil) para o admin poder entrar. */
-async function grantSupportAccess(request: APIRequestContext, email: string) {
-  const { headers, userId } = await apiLogin(request, email);
-  const res = await request.put(`${API}/users/me/support-access`, { headers, data: { days: 7 } });
-  expect(res.ok(), `consentimento de ${email}: ${res.status()} ${await res.text()}`).toBeTruthy();
-  return { headers, userId };
-}
-
-/** Abre o separador de suporte (como o «Entrar como»); reautentica o admin e repete se a sessão cair sob carga. */
-async function openSupportTab(context: BrowserContext, userId: string): Promise<Page> {
-  let lastErr: unknown;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const page = await context.newPage();
-    await page.goto(`/suporte/entrar/${userId}`);
-    try {
-      await expect(page.getByRole("region", { name: "Sessão de suporte" })).toBeVisible({ timeout: 20_000 });
-      return page;
-    } catch (err) {
-      lastErr = err;
-      await page.close();
-      await loginAs(context, ADMIN);
-    }
-  }
-  throw lastErr;
-}
 
 const nameSection = (dialog: Locator) => dialog.getByRole("region", { name: "Nome do site" });
 const nameInput = (dialog: Locator) => nameSection(dialog).getByRole("textbox", { name: "Nome", exact: true });
@@ -87,7 +49,9 @@ for (const vp of VIEWPORTS) {
       await expect(dialog.getByRole("region", { name: "Manifest" })).toHaveCount(0);
       await expect(dialog.getByRole("region", { name: "Publicação" })).toHaveCount(0);
       await expect(dialog.getByRole("button", { name: "Carregar manifest" })).toHaveCount(0);
-      await expect(dialog.getByRole("button", { name: "Guardar publicação" })).toHaveCount(0);
+      await expect(dialog.getByRole("button", { name: "Guardar webhook" })).toHaveCount(0);
+      await expect(dialog.getByTestId("publish-webhook")).toHaveCount(0);
+      await expect(dialog.getByTestId("import-section")).toHaveCount(0);
       await expect(dialog.getByRole("textbox", { name: "Manifest (JSON)" })).toHaveCount(0);
       await expect(dialog).not.toContainText("Só visível numa sessão de suporte");
 
@@ -96,7 +60,7 @@ for (const vp of VIEWPORTS) {
       for (const call of [
         () => request.get(`${API}/cms/site-builder/support`, { headers }),
         () => request.put(`${API}/cms/site-builder/support/manifest`, { headers, data: { version: 1, backgrounds: [{ id: "claro", label: "Claro" }] } }),
-        () => request.put(`${API}/cms/site-builder/support/publish`, { headers, data: { repo: "dono/repo" } }),
+        () => request.put(`${API}/cms/site-builder/support/publish`, { headers, data: { webhookUrl: "https://coolify.exemplo.pt/api/v1/deploy?uuid=abcd1234&force=false" } }),
       ]) {
         const res = await call();
         expect(res.status()).toBe(403);
@@ -197,7 +161,7 @@ for (const vp of VIEWPORTS) {
       await p.closeSettings();
     });
 
-    test("sessão de suporte: o manifest (JSON partido, recusado, fundo em uso, ficheiro válido) e a publicação (só o repositório)", async ({ page, context, request }) => {
+    test("sessão de suporte: o manifest (JSON partido, recusado, fundo em uso, ficheiro válido) e a secção da publicação", async ({ page, context, request }) => {
       // O tenant dá o consentimento e fica com um bloco que usa o fundo «marca».
       const { headers, userId } = await grantSupportAccess(request, SUPPORT_TENANT);
       const state = await (await request.get(`${API}/cms/site-builder`, { headers })).json();
@@ -213,7 +177,6 @@ for (const vp of VIEWPORTS) {
       await loginAs(context, ADMIN);
       const support = await openSupportTab(context, userId);
       const sp = new PaginasPage(support, context, ADMIN);
-      let sentHeaders: Record<string, string> | null = null;
       try {
         await sp.gotoInSession();
         const dialog = await sp.openSettings();
@@ -265,46 +228,10 @@ for (const vp of VIEWPORTS) {
         await expect(area).toHaveValue("");
         await expect(alert).toHaveCount(0);
 
-        // ── Publicação (GitHub) ─────────────────────────────────────────────────
-        const repo = pub.getByRole("textbox", { name: "Repositório", exact: true });
-        const guardar = pub.getByRole("button", { name: "Guardar publicação" });
-        const testar = pub.getByRole("button", { name: "Testar" });
-        await expect(pub).toContainText("Por configurar");
-        await expect(guardar).toBeDisabled();
-        await expect(testar).toBeDisabled();
-        // O avançado (workflow, branch, token) está recolhido; o token é um campo de password que começa vazio.
-        const avancado = pub.locator("details");
-        await expect(avancado).not.toHaveAttribute("open", "");
-        await avancado.locator("summary").click();
-        await expect(pub.getByRole("textbox", { name: "Workflow", exact: true })).toBeVisible();
-        await expect(pub.getByRole("textbox", { name: "Branch", exact: true })).toBeVisible();
-        const token = pub.getByLabel(/^Token do GitHub/);
-        await expect(token).toHaveAttribute("type", "password");
-        await expect(token).toHaveValue("");
-
-        // Só o repositório chega (workflow/branch/token são opcionais).
-        await repo.fill(`dono/repo-e2e-${uniq()}`);
-        await expect(guardar).toBeEnabled();
-        const putReq = support.waitForRequest((r) => r.method() === "PUT" && r.url().includes("/cms/site-builder/support/publish"));
-        await guardar.click();
-        const sent = await putReq;
-        sentHeaders = await sent.allHeaders();
-        const body = sent.postDataJSON() as Record<string, unknown>;
-        expect(body.repo).toMatch(/^dono\/repo-e2e-/);
-        expect(body).not.toHaveProperty("token"); // vazio nunca segue
-        await expect(support.getByText("Publicação guardada")).toBeVisible();
-        await expect(guardar).toBeDisabled(); // sem alterações
-        await expect(testar).toBeEnabled(); // (não se carrega: falaria com o GitHub)
-        await expect(repo).toHaveValue(/^dono\/repo-e2e-/);
+        // ── Publicação (Coolify): o fluxo todo está em paginas-publicacao.spec.ts; aqui só a secção ──
+        await expect(pub).toContainText("Publicação (Coolify)");
+        await expect(pub.getByTestId("publish-webhook")).toBeVisible();
       } finally {
-        // Repõe «por configurar» (repo vazio = volta a runtime) com os cabeçalhos da própria sessão de suporte.
-        if (sentHeaders) {
-          const h = Object.fromEntries(
-            Object.entries(sentHeaders).filter(([k]) => !["content-length", "host", "cookie", "connection"].includes(k.toLowerCase())),
-          );
-          const res = await request.put(`${API}/cms/site-builder/support/publish`, { headers: h, data: { repo: null } });
-          expect(res.ok(), `repor a publicação: ${res.status()} ${await res.text()}`).toBeTruthy();
-        }
         await support.close();
       }
       void page;

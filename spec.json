@@ -5322,7 +5322,7 @@
             }
           }
         },
-        "description": "Se `languages` mudou de facto (o conjunto, a base incluída — a ordem e `[]` vs só a base não contam) e o tenant tem o construtor de páginas activo, sobe a `revision` do construtor e pede publicação na mesma transacção (`github` → `publishStatus=pending`; `runtime` → `liveAt`). Sem construtor (ou desligado) não faz mais nada.",
+        "description": "Se `languages` mudou de facto (o conjunto, a base incluída — a ordem e `[]` vs só a base não contam) e o tenant tem o construtor de páginas activo, sobe a `revision` do construtor e pede publicação na mesma transacção (`coolify` → `publishStatus=pending`; `runtime` → `liveAt`). Sem construtor (ou desligado) não faz mais nada.",
         "responses": {
           "200": {
             "description": "User updated successfully"
@@ -7386,7 +7386,7 @@
     "/cms/site-builder": {
       "get": {
         "summary": "Estado completo do construtor de páginas do tenant (para o editor)",
-        "description": "O construtor está activo para quem tem `VIEW_SITE_PAGES` (não há interruptor próprio): quem chega aqui tem-no, por isso `enabled` é sempre `true` (campo mantido por compatibilidade). Se o tenant ainda não tem linha (primeira abertura), cria-a e devolve o estado vazio. Sem a permissão a rota responde 403. Devolve o estado inteiro do tenant autenticado: nome do site (`siteName`, `null` se não houver), revisão, línguas (`User.languages`, ou só a língua base se vazia), catálogo do núcleo, manifest, páginas (por ordem), itens por página (ordenados), blocos, pastas, partes comuns (topo/rodapé), redireccionamentos, estado da publicação (sem credenciais) e limites. Tudo filtrado pelo `userId` do token. Exige `VIEW_SITE_PAGES`.\n",
+        "description": "O construtor está activo para quem tem `VIEW_SITE_PAGES` (não há interruptor próprio): quem chega aqui tem-no, por isso `enabled` é sempre `true` (campo mantido por compatibilidade). Se o tenant ainda não tem linha (primeira abertura), cria-a e devolve o estado vazio. Sem a permissão a rota responde 403. Devolve o estado inteiro do tenant autenticado: nome do site (`siteName`, `null` se não houver), imagem de partilha por omissão (`shareImage` + `shareImageAlt`, `null` se não houver), revisão, línguas (`User.languages`, ou só a língua base se vazia), catálogo do núcleo, manifest, páginas (por ordem), itens por página (ordenados), blocos, pastas, partes comuns (topo/rodapé), redireccionamentos, estado da publicação e limites. O `publish` traz o que a barra persistente do Backoffice precisa: `mode`, `status`, `phase` (`queued`/`building`/`confirming`, só a correr), `startedAt`, `estimatedMs` (duração média dos deploys anteriores do site; `null` no primeiro), `liveAt` e `error` — nunca credenciais nem endereços internos. Tudo filtrado pelo `userId` do token. Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
           "CMS"
         ],
@@ -7414,6 +7414,19 @@
                       "type": "string",
                       "nullable": true,
                       "description": "Nome do site (definido pelo dono da plataforma)"
+                    },
+                    "shareImage": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Imagem de partilha por omissão do site (media do tenant); null se não houver"
+                    },
+                    "shareImageAlt": {
+                      "type": "object",
+                      "nullable": true,
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "description": "Texto alternativo da imagem de partilha por língua ({ pt, en, … }); null se não houver"
                     },
                     "revision": {
                       "type": "integer"
@@ -7477,7 +7490,7 @@
                           "type": "string",
                           "enum": [
                             "runtime",
-                            "github"
+                            "coolify"
                           ]
                         },
                         "status": {
@@ -7489,6 +7502,27 @@
                             "live",
                             "failed"
                           ]
+                        },
+                        "phase": {
+                          "type": "string",
+                          "enum": [
+                            "queued",
+                            "building",
+                            "confirming"
+                          ],
+                          "nullable": true,
+                          "description": "Fase do deploy em curso (só com status running)"
+                        },
+                        "startedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true,
+                          "description": "Quando começou o deploy em curso"
+                        },
+                        "estimatedMs": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Duração média dos deploys anteriores do site (base da percentagem estimada); null no primeiro"
                         },
                         "liveRevision": {
                           "type": "integer",
@@ -7507,7 +7541,7 @@
                           "type": "string",
                           "format": "date-time",
                           "nullable": true,
-                          "description": "Quando o site passou a servir a revisão actual (job em github; cada gravação em runtime)"
+                          "description": "Quando o site passou a servir a revisão actual (job em coolify; cada gravação em runtime)"
                         }
                       }
                     },
@@ -7536,8 +7570,8 @@
     },
     "/cms/site-builder/publish": {
       "post": {
-        "summary": "Publicar agora (salta a espera de 60 s) o site do tenant",
-        "description": "Só para sites com `publishMode = github` (Astro). Dispara já o workflow configurado pelo dono da plataforma, sem esperar o minuto de debounce, e devolve `202` com o estado da publicação (`running`). O `GET /cms/site-builder` passa a mostrar `running` → `live`/`failed` à medida que o job confirma o `cms-build.json` do site (`publish.liveAt` = quando passou a `live`). Limite: 1 pedido por minuto por tenant (429). Resolve sempre pelo tenant autenticado. Exige `VIEW_SITE_PAGES`.\n",
+        "summary": "Publicar agora o site do tenant (pede já um deploy ao Coolify)",
+        "description": "Só para sites com `publishMode = coolify`. Pede já o deploy da app do site ao Coolify (a gravação do editor já o faz sozinha; isto serve para repetir, p.ex. depois de um `failed`) e devolve `202` com o estado da publicação (`running`). O `GET /cms/site-builder` passa a mostrar `running` (com `phase`) → `live`/`failed` à medida que o job confirma o `cms-build.json` do site (`publish.liveAt` = quando passou a `live`). Limite: 1 pedido por minuto por tenant (429). Resolve sempre pelo tenant autenticado. Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
           "CMS"
         ],
@@ -7548,7 +7582,7 @@
         ],
         "responses": {
           "202": {
-            "description": "Workflow disparado",
+            "description": "Deploy pedido",
             "content": {
               "application/json": {
                 "schema": {
@@ -7561,7 +7595,7 @@
                           "type": "string",
                           "enum": [
                             "runtime",
-                            "github"
+                            "coolify"
                           ]
                         },
                         "status": {
@@ -7573,6 +7607,27 @@
                             "live",
                             "failed"
                           ]
+                        },
+                        "phase": {
+                          "type": "string",
+                          "enum": [
+                            "queued",
+                            "building",
+                            "confirming"
+                          ],
+                          "nullable": true,
+                          "description": "Fase do deploy em curso (só com status running)"
+                        },
+                        "startedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true,
+                          "description": "Quando começou o deploy em curso"
+                        },
+                        "estimatedMs": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Duração média dos deploys anteriores do site (base da percentagem estimada); null no primeiro"
                         },
                         "liveRevision": {
                           "type": "integer",
@@ -7591,7 +7646,7 @@
                           "type": "string",
                           "format": "date-time",
                           "nullable": true,
-                          "description": "Quando o site passou a servir a revisão actual (job em github; cada gravação em runtime)"
+                          "description": "Quando o site passou a servir a revisão actual (job em coolify; cada gravação em runtime)"
                         }
                       }
                     }
@@ -7610,16 +7665,16 @@
             "description": "Sem permissão VIEW_SITE_PAGES"
           },
           "409": {
-            "description": "`{ code }` — `PUBLISH_NOT_GITHUB` (o site publica em runtime, nada a disparar), `PUBLISH_NOT_CONFIGURED` (falta repo, workflow ou token — nem próprio nem o global da plataforma; pedir ao dono da plataforma) ou `PUBLISH_IN_PROGRESS` (já há uma publicação a correr).\n"
+            "description": "`{ code }` — `PUBLISH_NOT_COOLIFY` (o site publica em runtime, nada a disparar), `PUBLISH_NOT_CONFIGURED` (falta a app do Coolify do site ou o token da plataforma; pedir ao dono da plataforma) ou `PUBLISH_IN_PROGRESS` (já há uma publicação a correr).\n"
           },
           "429": {
-            "description": "Pedido há menos de um minuto: `{ error }` do limitador, ou `{ code: TOO_SOON }` se o último dispatch foi há menos de 60 s.\n"
+            "description": "Pedido há menos de um minuto: `{ error }` do limitador, ou `{ code: TOO_SOON }` se o último deploy foi pedido há menos de 60 s.\n"
           },
           "500": {
             "description": "Erro interno"
           },
           "502": {
-            "description": "O GitHub recusou o dispatch: `{ code: DISPATCH_FAILED, error, publish }` (mensagem truncada, sem credenciais).\n"
+            "description": "O Coolify recusou o pedido de deploy: `{ code: DISPATCH_FAILED, error, publish }` (mensagem truncada, sem credenciais).\n"
           }
         }
       }
@@ -7627,7 +7682,7 @@
     "/cms/site-builder/save": {
       "post": {
         "summary": "Grava páginas, itens, blocos, pastas e partes comuns do construtor (uma gravação = uma transacção)",
-        "description": "Aplica `pages.upsert`/`pages.delete` e as listas COMPLETAS de itens (`items[pageId]`) sobre o estado do tenant, valida o estado FINAL (árvore, endereços por língua, traduções, referências, itens) e escreve tudo numa só transacção, com lock na linha do tenant (`SELECT … FOR UPDATE`). O `path` é calculado pelo servidor. Se o endereço de uma página mudar (slug, mãe ou `slugs` por língua), criam-se redireccionamentos do antigo para a página e para as descendentes (o `fromPath` leva o prefixo `/en/…` nas línguas que não a base) e apagam-se os que passaram a ser endereço vivo. `revision` sobe 1; com `publishMode='github'` marca `publishRequestedAt` (e `publishStatus=pending`); em `runtime` grava `liveAt` (o site lê a API ao vivo). Ids de outro tenant → 404 (nada é alterado). `blocks.upsert/delete` e `folders.upsert/delete` mexem na biblioteca; `parts.topo`/`parts.rodape` substituem a parte inteira (`null`/ausente = não mexer; `{comps:[]}` esvazia). Um ÚNICO varrimento valida o estado final do tenant (páginas, TODOS os blocos usados ou não, partes, itens e especiais, traduções, limites do §6.8): o `422` pode apontar para um bloco que não vinha no pedido. Apagar bloco ainda numa página → `409 BLOCK_IN_USE`; apagar pasta com blocos → `409 FOLDER_NOT_EMPTY` (ambos contados no estado final: tirar o bloco da página no mesmo pedido é legítimo). Âncoras únicas por tenant (trocar duas âncoras no mesmo pedido é permitido). `folderId` de uma pasta que não é do tenant → `422 BAD_REF` (igual a uma pasta inexistente). Exige `VIEW_SITE_PAGES`.\n",
+        "description": "Aplica `pages.upsert`/`pages.delete` e as listas COMPLETAS de itens (`items[pageId]`) sobre o estado do tenant, valida o estado FINAL (árvore, endereços por língua, traduções, referências, itens) e escreve tudo numa só transacção, com lock na linha do tenant (`SELECT … FOR UPDATE`). O `path` é calculado pelo servidor. Se o endereço de uma página mudar (slug, mãe ou `slugs` por língua), criam-se redireccionamentos do antigo para a página e para as descendentes (o `fromPath` leva o prefixo `/en/…` nas línguas que não a base) e apagam-se os que passaram a ser endereço vivo. `revision` sobe 1; com `publishMode='coolify'` marca `publishRequestedAt` (e `publishStatus=pending`) e o deploy começa logo a seguir ao commit; em `runtime` grava `liveAt` (o site lê a API ao vivo). Ids de outro tenant → 404 (nada é alterado). `blocks.upsert/delete` e `folders.upsert/delete` mexem na biblioteca; `parts.topo`/`parts.rodape` substituem a parte inteira (`null`/ausente = não mexer; `{comps:[]}` esvazia). Um ÚNICO varrimento valida o estado final do tenant (páginas, TODOS os blocos usados ou não, partes, itens e especiais, traduções, limites do §6.8): o `422` pode apontar para um bloco que não vinha no pedido. Apagar bloco ainda numa página → `409 BLOCK_IN_USE`; apagar pasta com blocos → `409 FOLDER_NOT_EMPTY` (ambos contados no estado final: tirar o bloco da página no mesmo pedido é legítimo). Âncoras únicas por tenant (trocar duas âncoras no mesmo pedido é permitido). `folderId` de uma pasta que não é do tenant → `422 BAD_REF` (igual a uma pasta inexistente). Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
           "CMS"
         ],
@@ -8100,8 +8155,8 @@
     },
     "/cms/site-builder/settings": {
       "put": {
-        "summary": "Definir o nome do site do tenant autenticado",
-        "description": "Corpo `{ siteName }` (obrigatório; senão 400). Age sempre sobre o tenant autenticado (`req.user`) — também numa sessão de suporte. Cria a linha do construtor se ainda não existir. `siteName` é aparado; `null` ou `\"\"` apaga; 1–80 caracteres, sem caracteres de controlo nem `<` `>` (400). **Mudar de facto o `siteName` é uma mudança visível no site**: sobe a `revision` e pede publicação (`pending`/`publishRequestedAt` quando há repo GitHub configurado; em `runtime` grava `liveAt`). Gravar o mesmo nome não faz nada. A resposta traz a `revision` **já actualizada**: o editor deve usá-la como `baseRevision` do próximo `save` (senão levava `409 REVISION_CONFLICT` por uma mudança que ele próprio fez). Campos extra do corpo são ignorados. Exige `VIEW_SITE_PAGES`.\n",
+        "summary": "Definir o nome do site e a imagem de partilha por omissão do tenant autenticado",
+        "description": "Corpo `{ siteName?, shareImage?, shareImageAlt? }`; **pelo menos um** (senão 400). Cada campo: **ausente = manter**; `null` ou `\"\"` apaga. Age sempre sobre o tenant autenticado (`req.user`) — também numa sessão de suporte. Cria a linha do construtor se ainda não existir. `siteName` é aparado, 1–80 caracteres, sem caracteres de controlo nem `<` `>` (400). `shareImage` é o URL de uma imagem da biblioteca **do próprio tenant** (media de outro tenant ou URL externo → 400). `shareImageAlt` é um mapa `{ língua: texto }` só com línguas do tenant (400 senão), cada texto até 160 caracteres, sem caracteres de controlo nem `<` `>`; textos vazios saem do mapa e um mapa vazio apaga. A API não faz fallback: o site usa esta imagem quando a página não tem a sua. **Mudar de facto qualquer dos três é uma mudança visível no site**: sobe a `revision` (uma vez por pedido) e pede publicação (`pending`/`publishRequestedAt` quando o site publica pelo Coolify, e o deploy começa logo a seguir ao commit; em `runtime` grava `liveAt`). Gravar o mesmo valor não faz nada. A resposta traz a `revision` **já actualizada**: o editor deve usá-la como `baseRevision` do próximo `save` (senão levava `409 REVISION_CONFLICT` por uma mudança que ele próprio fez). Campos extra do corpo são ignorados. Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
           "CMS"
         ],
@@ -8116,15 +8171,32 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "siteName"
-                ],
+                "minProperties": 1,
                 "properties": {
                   "siteName": {
                     "type": "string",
                     "nullable": true,
                     "maxLength": 80,
-                    "description": "Aparado; null ou \"\" apaga"
+                    "description": "Aparado; null ou \"\" apaga; ausente mantém"
+                  },
+                  "shareImage": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 500,
+                    "description": "URL de media do próprio tenant; null ou \"\" apaga; ausente mantém"
+                  },
+                  "shareImageAlt": {
+                    "type": "object",
+                    "nullable": true,
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 160
+                    },
+                    "example": {
+                      "pt": "Fachada da loja",
+                      "en": "Shop front"
+                    },
+                    "description": "Texto alternativo por língua do tenant; null ou {} apaga; ausente mantém"
                   }
                 }
               }
@@ -8133,7 +8205,7 @@
         },
         "responses": {
           "200": {
-            "description": "Nome gravado",
+            "description": "Definições gravadas",
             "content": {
               "application/json": {
                 "schema": {
@@ -8142,6 +8214,17 @@
                     "siteName": {
                       "type": "string",
                       "nullable": true
+                    },
+                    "shareImage": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "shareImageAlt": {
+                      "type": "object",
+                      "nullable": true,
+                      "additionalProperties": {
+                        "type": "string"
+                      }
                     },
                     "revision": {
                       "type": "integer",
@@ -8153,7 +8236,7 @@
             }
           },
           "400": {
-            "description": "`siteName` em falta ou inválido (vazio depois de aparado é válido = apagar)"
+            "description": "Nenhum campo, ou campo inválido: `siteName` mal formado, `shareImage` que não é do tenant, `shareImageAlt` com língua que o tenant não tem / texto > 160 / `<` `>` (vazio é válido = apagar)"
           },
           "401": {
             "description": "Não autenticado"
@@ -8173,7 +8256,7 @@
     "/cms/site-builder/support": {
       "get": {
         "summary": "Configuração técnica do construtor do tenant da sessão de suporte (só sessão de suporte)",
-        "description": "Devolve o resumo do manifest (contagens e chaves, nunca o JSON inteiro) e a configuração de publicação por GitHub: `repo`, `workflow`, `ref`, `hasToken` (o tenant tem token **próprio**), `usesGlobalToken` (não tem, mas há o token global de fallback da plataforma, `GITHUB_DISPATCH_TOKEN`), `status` e `liveAt`. **Nunca** devolve um token (nem o do tenant nem o global). `mode` é `github` quando há repo e `runtime` enquanto não está configurado. Só funciona numa sessão de suporte (o dono entrou na conta do cliente com \"Entrar como\", `impersonatorId` definido); um tenant normal recebe 403 `SUPPORT_SESSION_REQUIRED`. Resolve sempre pelo tenant da sessão. Exige `VIEW_SITE_PAGES`.\n",
+        "description": "Devolve o resumo do manifest (contagens e chaves, nunca o JSON inteiro) e a publicação pelo Coolify: o estado (`mode`, `status`, `phase`, `startedAt`, `estimatedMs`, `liveAt`, `error` — o mesmo que `GET /cms/site-builder`) e a configuração: `coolifyApp` (uuid da app, `null` se por configurar), `force` e `hasToken` (a API tem o token do Coolify na env). **Nunca** devolve o token nem o endereço interno. `mode` é `coolify` quando há app e `runtime` enquanto não está configurado. Só funciona numa sessão de suporte (o dono entrou na conta do cliente com \"Entrar como\", `impersonatorId` definido); um tenant normal recebe 403 `SUPPORT_SESSION_REQUIRED`. Resolve sempre pelo tenant da sessão. Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
           "CMS"
         ],
@@ -8221,28 +8304,8 @@
                           "type": "string",
                           "enum": [
                             "runtime",
-                            "github"
+                            "coolify"
                           ]
-                        },
-                        "repo": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "workflow": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "ref": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "hasToken": {
-                          "type": "boolean",
-                          "description": "O tenant tem token próprio"
-                        },
-                        "usesGlobalToken": {
-                          "type": "boolean",
-                          "description": "Sem token próprio, mas há o global de fallback"
                         },
                         "status": {
                           "type": "string",
@@ -8254,10 +8317,45 @@
                             "failed"
                           ]
                         },
+                        "phase": {
+                          "type": "string",
+                          "enum": [
+                            "queued",
+                            "building",
+                            "confirming"
+                          ],
+                          "nullable": true
+                        },
+                        "startedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
+                        },
+                        "estimatedMs": {
+                          "type": "integer",
+                          "nullable": true
+                        },
                         "liveAt": {
                           "type": "string",
                           "format": "date-time",
                           "nullable": true
+                        },
+                        "error": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "coolifyApp": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "uuid da aplicação no Coolify (do webhook colado)"
+                        },
+                        "force": {
+                          "type": "boolean",
+                          "description": "Build sem cache (force=true do webhook)"
+                        },
+                        "hasToken": {
+                          "type": "boolean",
+                          "description": "A API tem o token do Coolify configurado (env) — nunca o valor"
                         }
                       }
                     }
@@ -8384,8 +8482,8 @@
     },
     "/cms/site-builder/support/publish": {
       "put": {
-        "summary": "Configurar a publicação (GitHub) do site do tenant da sessão de suporte (só sessão de suporte)",
-        "description": "A publicação é **sempre por GitHub** (`workflow_dispatch`, CONTRATO §8): cada gravação do editor marca um pedido e um job dispara o workflow ~60 s depois da última. Não há `mode` (se vier no corpo, é ignorado): gravar com `repo` (`dono/repo`) põe `publishMode = \"github\"`; `repo: null`/`\"\"` desliga (volta a `runtime` = por configurar e limpa o pedido pendente); sem repo guardado nem no corpo → 400. `workflow` (ficheiro `.yml`/`.yaml` ou id numérico) e `ref` (branch/tag) omitidos **mantêm** o valor actual (primeira vez: `deploy.yml` / `main`); `null` ou `\"\"` repõem o default. O `token` (fine-grained, só `Actions: write`) é **só de escrita**: omitir = manter, `null`/`\"\"` = apagar; é cifrado em repouso e nunca é devolvido (`hasToken` = token próprio; `usesGlobalToken` = sem token próprio mas há o global de fallback da env `GITHUB_DISPATCH_TOKEN`, usado pelo dispatch, pelo teste e pelo \"publicar agora\"). Mudar a config tira um `failed` anterior. Só numa sessão de suporte; age sobre o tenant da sessão. Exige `VIEW_SITE_PAGES`. O audit regista o corpo com o `token` redigido.\n",
+        "summary": "Configurar a publicação (webhook do Coolify) do site do tenant da sessão de suporte (só sessão de suporte)",
+        "description": "A publicação é pelo **Coolify**: cada gravação do editor marca um pedido e a API pede logo o deploy da app do site (sem espera). O dono cola o webhook de deploy tal como o Coolify o mostra (`webhookUrl`, p.ex. `https://coolify.exemplo.com/api/v1/deploy?uuid=abc123def456&force=false`); a API tira-lhe o `uuid` e o `force` e guarda **só** esses dois (`coolifyApp`, `force`). O host do URL é ignorado e nunca guardado nem usado: o Coolify é sempre chamado pelo endereço interno da env `COOLIFY_INTERNAL_URL`, com o token da env `COOLIFY_DEPLOY_TOKEN` (um para todos os sites; o tenant não o envia nem o vê) — por isso nenhum dado do tenant escolhe para onde a API liga. Validação: URL http(s), caminho a acabar em `/api/v1/deploy`, `uuid` presente (8 a 64 minúsculas/dígitos), `force` opcional `true`|`false`, sem outros parâmetros nem repetidos, sem utilizador/palavra-passe no endereço (400 com uma mensagem para pessoas). `webhookUrl: null` (ou texto vazio) desliga: volta a `runtime` e limpa a app, o pedido pendente e o estado. Ausente → 400. Mudar a config tira um `failed` anterior. Só numa sessão de suporte; age sobre o tenant da sessão. Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
           "CMS"
         ],
@@ -8400,32 +8498,16 @@
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": [
+                  "webhookUrl"
+                ],
                 "properties": {
-                  "repo": {
+                  "webhookUrl": {
                     "type": "string",
                     "nullable": true,
-                    "maxLength": 140,
-                    "example": "dono/repo"
-                  },
-                  "workflow": {
-                    "type": "string",
-                    "nullable": true,
-                    "maxLength": 140,
-                    "example": "deploy.yml",
-                    "description": "Default deploy.yml"
-                  },
-                  "ref": {
-                    "type": "string",
-                    "nullable": true,
-                    "maxLength": 100,
-                    "example": "main",
-                    "description": "Default main"
-                  },
-                  "token": {
-                    "type": "string",
-                    "nullable": true,
-                    "maxLength": 255,
-                    "description": "Só de escrita; nunca devolvido"
+                    "maxLength": 600,
+                    "example": "https://coolify.exemplo.com/api/v1/deploy?uuid=k14crbgmw4findxbx2erv80a&force=false",
+                    "description": "O webhook de deploy do Coolify; null desliga a publicação"
                   }
                 }
               }
@@ -8434,7 +8516,7 @@
         },
         "responses": {
           "200": {
-            "description": "Configuração gravada (sem token)",
+            "description": "Configuração gravada",
             "content": {
               "application/json": {
                 "schema": {
@@ -8447,26 +8529,8 @@
                           "type": "string",
                           "enum": [
                             "runtime",
-                            "github"
+                            "coolify"
                           ]
-                        },
-                        "repo": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "workflow": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "ref": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "hasToken": {
-                          "type": "boolean"
-                        },
-                        "usesGlobalToken": {
-                          "type": "boolean"
                         },
                         "status": {
                           "type": "string",
@@ -8478,10 +8542,45 @@
                             "failed"
                           ]
                         },
+                        "phase": {
+                          "type": "string",
+                          "enum": [
+                            "queued",
+                            "building",
+                            "confirming"
+                          ],
+                          "nullable": true
+                        },
+                        "startedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
+                        },
+                        "estimatedMs": {
+                          "type": "integer",
+                          "nullable": true
+                        },
                         "liveAt": {
                           "type": "string",
                           "format": "date-time",
                           "nullable": true
+                        },
+                        "error": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "coolifyApp": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "uuid da aplicação no Coolify (do webhook colado)"
+                        },
+                        "force": {
+                          "type": "boolean",
+                          "description": "Build sem cache (force=true do webhook)"
+                        },
+                        "hasToken": {
+                          "type": "boolean",
+                          "description": "A API tem o token do Coolify configurado (env) — nunca o valor"
                         }
                       }
                     }
@@ -8491,7 +8590,7 @@
             }
           },
           "400": {
-            "description": "Corpo inválido, ou sem repo"
+            "description": "Corpo inválido ou webhook que não parece o de deploy do Coolify"
           },
           "401": {
             "description": "Não autenticado"
@@ -8502,16 +8601,19 @@
           "403": {
             "description": "Sem permissão VIEW_SITE_PAGES, ou fora de uma sessão de suporte (SUPPORT_SESSION_REQUIRED)"
           },
+          "409": {
+            "description": "`{ code: COOLIFY_APP_IN_USE }` — a app do webhook já publica o site de outro tenant (uma app = um site)"
+          },
           "500": {
-            "description": "Erro interno (incluindo chave de cifra por configurar)"
+            "description": "Erro interno"
           }
         }
       }
     },
     "/cms/site-builder/support/publish/test": {
       "post": {
-        "summary": "Testar a ligação ao workflow do GitHub do tenant da sessão de suporte (só sessão de suporte)",
-        "description": "Faz `GET https://api.github.com/repos/{repo}/actions/workflows/{workflow}` com o token do tenant (ou, se não tem, o global de fallback `GITHUB_DISPATCH_TOKEN`) e diz se chega ao workflow. Não dispara nada. Com configuração, a resposta é sempre `200 { ok, status, message }` (`status` = HTTP do GitHub, `0` = sem resposta/tempo esgotado); `message` vem truncada e **nunca** leva um token. Sem repo/workflow, ou sem nenhum token → 400. Só numa sessão de suporte. Exige `VIEW_SITE_PAGES`.\n",
+        "summary": "Testar a ligação ao Coolify e à app do site do tenant da sessão de suporte, sem fazer deploy (só sessão de suporte)",
+        "description": "Confirma, **sem fazer deploy**: (1) há token na env da API; (2) `GET /api/health` do Coolify responde; (3) `GET /api/v1/applications/<uuid>` — 200 diz o nome da app; 401 token inválido; 403 o token não tem a permissão de leitura (não dá para confirmar a app sem fazer deploy; a publicação funciona, mas só com confirmação pelo site); 404 a app não existe no Coolify (ou é de outra equipa). Os passos seguintes só correm se o anterior passou. A resposta é sempre `200 { ok, checks: [{ id, ok, message }], appName? }` (`ok` = todos passaram); as mensagens são truncadas e **nunca** levam o token nem o endereço interno. Sem app configurada → 400. Só numa sessão de suporte. Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
           "CMS"
         ],
@@ -8527,15 +8629,43 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "required": [
+                    "ok",
+                    "checks"
+                  ],
                   "properties": {
                     "ok": {
                       "type": "boolean"
                     },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "message": {
+                    "appName": {
                       "type": "string"
+                    },
+                    "checks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "ok",
+                          "message"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "enum": [
+                              "token",
+                              "health",
+                              "application"
+                            ]
+                          },
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -8543,7 +8673,7 @@
             }
           },
           "400": {
-            "description": "Falta repo, workflow ou token (nem próprio nem global)"
+            "description": "O site ainda não tem a app do Coolify configurada"
           },
           "401": {
             "description": "Não autenticado"
@@ -8556,6 +8686,191 @@
           },
           "500": {
             "description": "Erro interno"
+          }
+        }
+      }
+    },
+    "/cms/site-builder/support/import": {
+      "post": {
+        "operationId": "importSiteZip",
+        "summary": "Migrar site — importar um zip (manifest + conteúdo + ficheiros) para o construtor do tenant da sessão de suporte",
+        "description": "Substitui o script de terminal (`pnpm import:site-pages`), o `PUT /support/manifest` e os ficheiros carregados à mão. `multipart/form-data`: `file` = o zip, `mode` = `dry-run` | `apply`, `replace` = `\"true\"` (ausente = não). **Layout do zip:** `manifest.json` (o corpo de `PUT /support/manifest`), `content.json` (o corpo do `save` sem `baseRevision`, com ids simbólicos `@page:`/`@block:`/`@folder:`, ids em falta gerados e ficheiros como `@media:<nome>`) e `media/<nome>` (nomes só `[A-Za-z0-9._-]`). Imagens JPEG/PNG/WebP (optimizadas como no upload de imagens) e PDF (até 20 MB); o tipo vem dos **bytes**, não da extensão; SVG é recusado. `__MACOSX/` e `.DS_Store` ignoram-se; qualquer outra entrada fora do layout é erro com o nome. **Tectos:** zip 60 MB (413), 120 MB descomprimidos contados enquanto se descomprime (413), 300 entradas (413), `manifest.json`/`content.json` 1 MB cada (413), ficheiro de `media/` 20 MB. Entradas encriptadas, ligações simbólicas, nomes com `..`, barra invertida, caminho absoluto ou unicode, e métodos de compressão desconhecidos são recusados (422). **`dry-run`** valida tudo (zip, manifest, ficheiros, conteúdo contra o manifest DO ZIP) e não escreve nada (nem BD nem storage); se o tenant já tem conteúdo simula a substituição e devolve `existing` para o Backoffice pedir confirmação. **`apply`** carrega os ficheiros referidos para o storage do tenant e, numa transacção com o lock da linha do construtor (o mesmo do `save`), grava o manifest e aplica o conteúdo pelo `applySave`; se falhar, apaga (melhor esforço) o que carregou — nunca fica meio-importado. Com conteúdo existente e sem `replace=true` → 409 `HAS_CONTENT`. Ficheiros do zip não referidos no conteúdo não são carregados (`warnings`); um `@media:` sem ficheiro no zip é erro. O `manifest.json` e o `content.json` recebem o MESMO tratamento de sanitização que qualquer corpo de pedido (HTML removido das strings, chaves `$`/`__proto__` descartadas, aninhamento máximo 100 → 422), por isso um `<script>` no zip nunca fica gravado (e um `&` passa a `&amp;`, como no editor). Dois `apply` em paralelo no mesmo tenant: um ganha e o outro recebe 409 `HAS_CONTENT` (sem `replace`) — os ficheiros do perdedor são apagados. Ids de páginas/blocos/pastas/itens de OUTRO tenant no `content.json` → 404 (nada é alterado nem carregado). Só numa sessão de suporte; age sempre sobre o tenant da sessão. Rate limit: 6 por 10 minutos por tenant. Exige `VIEW_SITE_PAGES`.\n",
+        "tags": [
+          "CMS"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "mode"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "O zip (máx 60 MB)"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "dry-run",
+                      "apply"
+                    ]
+                  },
+                  "replace": {
+                    "type": "string",
+                    "enum": [
+                      "true"
+                    ],
+                    "description": "true apaga primeiro o conteúdo existente do construtor (páginas, blocos, pastas)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Simulação válida (`dryRun true`) ou importação feita (`dryRun false`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "dryRun",
+                    "summary",
+                    "existing",
+                    "warnings"
+                  ],
+                  "properties": {
+                    "dryRun": {
+                      "type": "boolean"
+                    },
+                    "summary": {
+                      "type": "object",
+                      "required": [
+                        "pages",
+                        "blocks",
+                        "folders",
+                        "languages",
+                        "files"
+                      ],
+                      "properties": {
+                        "pages": {
+                          "type": "integer"
+                        },
+                        "blocks": {
+                          "type": "integer"
+                        },
+                        "folders": {
+                          "type": "integer"
+                        },
+                        "languages": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "files": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "name",
+                              "kind",
+                              "bytes"
+                            ],
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "image",
+                                  "pdf"
+                                ]
+                              },
+                              "bytes": {
+                                "type": "integer"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "existing": {
+                      "type": "object",
+                      "description": "O que o tenant tinha no construtor antes (páginas, blocos e partes comuns — topo/rodapé com componentes)",
+                      "required": [
+                        "pages",
+                        "blocks",
+                        "parts"
+                      ],
+                      "properties": {
+                        "pages": {
+                          "type": "integer"
+                        },
+                        "blocks": {
+                          "type": "integer"
+                        },
+                        "parts": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sem ficheiro `file` ou `mode` inválido"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "402": {
+            "description": "Subscrição da plataforma inactiva (billingGate)"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_SITE_PAGES, ou fora de uma sessão de suporte (SUPPORT_SESSION_REQUIRED)"
+          },
+          "404": {
+            "description": "O `content.json` aponta para páginas, blocos, pastas ou itens que não são do tenant da sessão (nada é alterado)"
+          },
+          "409": {
+            "description": "`{ code: \"HAS_CONTENT\", pages, blocks, parts }` (já há conteúdo — páginas, blocos ou topo/rodapé — e falta `replace=true`), `{ code: \"MANIFEST_IN_USE\", usages }` (sem substituição, o manifest do zip deixaria órfão algo em uso) ou um conflito do `save` (`PAGE_IN_USE`, `BLOCK_IN_USE`…).\n"
+          },
+          "413": {
+            "description": "Zip, total descomprimido, número de entradas ou ficheiro acima do tecto"
+          },
+          "422": {
+            "description": "`{ code: \"VALIDATION\", issues: [Issue] }` — `entity` `zip` (layout, nomes, JSON), `manifest`, `media` (tipo, ficheiro em falta ou corrompido) ou o do `save` (`page`, `block`, `item`, `part`, `folder`).\n"
+          },
+          "429": {
+            "description": "Rate limit, ou servidor ocupado a processar imagens"
+          },
+          "500": {
+            "description": "Erro interno"
+          },
+          "503": {
+            "description": "Armazenamento de ficheiros não configurado"
           }
         }
       }
@@ -16179,7 +16494,7 @@
       },
       "put": {
         "summary": "Update tenant's language selection",
-        "description": "Se as línguas do site mudaram DE FACTO (o conjunto de línguas, a base incluída, ou a língua por omissão — a ordem e `[]` vs só a base não contam) e o tenant tem o construtor de páginas activo, sobe a `revision` do construtor e pede publicação, na mesma transacção: em `github` `publishStatus` passa a `pending` (ou fica `running`) e marca `publishRequestedAt`; em `runtime` grava `liveAt`. Um editor aberto leva `409 REVISION_CONFLICT` no próximo save. Sem construtor (ou desligado) não faz mais nada.",
+        "description": "Se as línguas do site mudaram DE FACTO (o conjunto de línguas, a base incluída, ou a língua por omissão — a ordem e `[]` vs só a base não contam) e o tenant tem o construtor de páginas activo, sobe a `revision` do construtor e pede publicação, na mesma transacção: em `coolify` `publishStatus` passa a `pending` (ou fica `running`) e marca `publishRequestedAt`; em `runtime` grava `liveAt`. Um editor aberto leva `409 REVISION_CONFLICT` no próximo save. Sem construtor (ou desligado) não faz mais nada.",
         "tags": [
           "Settings"
         ],

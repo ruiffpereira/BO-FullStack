@@ -56,7 +56,7 @@ const data = (specials: Record<string, unknown> = {}) => ({
   folders: [],
   parts: { topo: null, rodape: null },
   redirects: [],
-  publish: { mode: "github", status: "live", liveRevision: 1, requestedAt: null, error: null },
+  publish: { mode: "coolify", status: "live", liveRevision: 1, requestedAt: null, error: null },
   limits: {},
 });
 

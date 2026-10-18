@@ -11,7 +11,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { quickToast } from "../state/notify";
 import { Button, SectionTitle, Select } from "../../../ui/ui.jsx";
 import { Icon } from "../../../ui/icons.jsx";
-import { buildFieldCtx, orderedLanguages, revealFor } from "../fields/ctx";
+import { buildFieldCtx, normalizeMedia, orderedLanguages, revealFor } from "../fields/ctx";
 import { FieldRenderer } from "../fields/FieldRenderer";
 import { Issues, LangBadge } from "../fields/shared";
 import type { FieldCtx } from "../fields/types";
@@ -23,6 +23,22 @@ import { pagePathIn, pageTitle, parentPathIn, pathChanges } from "../state/tree"
 import type { FieldSpec, Issue, Page, Work } from "../state/types";
 import { Confirm, Lbl, Seg, dangerBtn } from "./EditorBits";
 import { CheckList, ScoreHead, Serp, useSeoReport } from "./SeoBits";
+import { SharePreview, effectiveShareImage } from "./SharePreview";
+import { useSiteBuilderQuery } from "../../../hooks/useSiteBuilder";
+
+/** Valor de um campo i18n (`{ pt: "…" }`) numa língua, com queda na base. */
+const textIn = (v: unknown, l: string, base: string): string => {
+  if (typeof v === "string") return v;
+  if (!v || typeof v !== "object") return "";
+  const m = v as Record<string, unknown>;
+  const x = typeof m[l] === "string" && m[l] ? m[l] : m[base];
+  return typeof x === "string" ? x : "";
+};
+/** URL de um campo `media` numa língua ("a mesma em todas" ou uma por língua, com queda na base). */
+const mediaIn = (v: unknown, l: string, base: string): string | null => {
+  const m = normalizeMedia(v);
+  return (m.same ? m.values[base] ?? Object.values(m.values)[0] : m.values[l] ?? m.values[base]) || null;
+};
 
 // ── definições dos campos (rótulos em português; limites do servidor, CONTRATO §2) ──
 
@@ -31,6 +47,7 @@ const SEO_TITLE_DEF: FieldSpec = { type: "text", i18n: true, max: 120, label: "T
 const SEO_DESC_DEF: FieldSpec = { type: "text", i18n: true, multiline: true, max: 320, label: "Descrição no Google" };
 const SEO_KEYWORDS_DEF: FieldSpec = { type: "text", i18n: true, max: 300, label: "Palavras-chave" };
 const SEO_IMAGE_DEF: FieldSpec = { type: "media", kind: "image", label: "Imagem ao partilhar" };
+const SEO_IMAGE_ALT_DEF: FieldSpec = { type: "text", i18n: true, max: 160, label: "Descrição da imagem (alt)" };
 
 const boxLine =
   "flex min-h-10 min-w-0 items-stretch overflow-hidden rounded-lg border bg-white focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20 dark:bg-zinc-900";
@@ -139,6 +156,7 @@ export function PageSettings({ page }: { page: Page }) {
   const [locale, setLocale] = useState(base);
   const [confirm, setConfirm] = useState(false);
   const report = useSeoReport(page.id, langs.includes(locale) ? locale : base);
+  const siteShare = useSiteBuilderQuery().data;
 
   const put = (f: (w: Work) => Work, key?: string) => edit(f, key ? `page:${page.id}|${key}` : undefined);
   const seo = (typeof page.seo === "object" && page.seo !== null ? page.seo : {}) as Record<string, unknown>;
@@ -298,8 +316,23 @@ export function PageSettings({ page }: { page: Page }) {
         </div>
         <div>
           {seoField(SEO_IMAGE_DEF, "image")}
-          <Hint>Aparece no WhatsApp, Facebook e LinkedIn. Sem imagem, usa a primeira da página.</Hint>
+          <Hint>Aparece no WhatsApp, Facebook, LinkedIn e X. Ideal: 1200×630. Sem imagem, usa a imagem de partilha do site (Definições do site).</Hint>
         </div>
+        <div>
+          {seoField(SEO_IMAGE_ALT_DEF, "imageAlt")}
+          <Hint>Descreve a imagem para quem não a vê (leitores de ecrã). Só acompanha a imagem desta página.</Hint>
+        </div>
+        {report && (() => {
+          const l = report.locale;
+          const share = effectiveShareImage(mediaIn(seo.image, l, base), siteShare?.shareImage);
+          const alt = share?.fromSite ? textIn(siteShare?.shareImageAlt, l, base) : textIn(seo.imageAlt, l, base);
+          return (
+            <div>
+              <Lbl hint={langs.length > 1 ? l.toUpperCase() : undefined}>Ao partilhar</Lbl>
+              <SharePreview image={share?.url ?? null} fromSite={share?.fromSite} alt={alt} title={report.googleTitle} description={report.description} siteName={siteName} />
+            </div>
+          );
+        })()}
         <details className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700">
           <summary className="flex min-h-10 cursor-pointer items-center text-sm font-medium text-zinc-600 dark:text-zinc-300">Avançado</summary>
           <div className="pb-2 pt-1">

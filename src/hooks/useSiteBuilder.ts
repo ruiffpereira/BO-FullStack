@@ -12,7 +12,7 @@ import type { GetCmsSiteBuilder200 } from "../gen/backoffice/types/GetCmsSiteBui
 export { getCmsSiteBuilderQueryKey as siteBuilderQueryKey };
 
 /** Enquanto o site está a publicar, volta a perguntar de tempos a tempos (o resto do estado é do editor). */
-export const POLL_MS = 10_000;
+export const POLL_MS = 5_000;
 
 /** `pending`/`running` → volta a perguntar; qualquer outro estado (ou sem dados) → pára. */
 export function publishRefetchInterval(data: unknown): number | false {
@@ -63,7 +63,7 @@ export function readApiFailure(err: unknown): ApiFailure {
 
 /** "Publicar agora" (CONTRATO §5.3/§11): a resposta da API em linguagem de cliente. */
 export function publishErrorMessage(f: ApiFailure): string {
-  if (f.status === 409 && f.code === "PUBLISH_NOT_GITHUB") return "Este site publica sozinho ao guardar — não há nada para publicar à mão.";
+  if (f.status === 409 && f.code === "PUBLISH_NOT_COOLIFY") return "Este site publica sozinho ao guardar — não há nada para publicar à mão.";
   if (f.status === 409 && f.code === "PUBLISH_NOT_CONFIGURED") return "A publicação ainda não está configurada para este site. Fala com a equipa.";
   if (f.status === 409 && f.code === "PUBLISH_IN_PROGRESS") return "Já há uma publicação a decorrer. Aguarda que termine.";
   if (f.status === 429 || f.code === "TOO_SOON") return "Acabaste de publicar. Espera um minuto antes de tentar de novo.";

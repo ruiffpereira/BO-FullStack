@@ -78,6 +78,7 @@ const SEO_FIELDS: FieldSpecs = {
   description: { type: "text", i18n: true },
   keywords: { type: "text", i18n: true },
   image: { type: "media", kind: "image" },
+  imageAlt: { type: "text", i18n: true },
 };
 
 /**

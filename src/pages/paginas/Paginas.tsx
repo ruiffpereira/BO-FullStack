@@ -9,7 +9,7 @@ import { BlockPalette, type Created } from "./components/BlockPalette";
 import { SiteSeoModal } from "./components/SiteSeoModal";
 import { SiteSettingsModal } from "./components/SiteSettingsModal";
 import { useAuth } from "../../context/AuthContext";
-import { PublishNowButton, StatusText } from "./components/PublishStatus";
+import { PublishBar, PublishNowButton, StatusText } from "./components/PublishStatus";
 
 /**
  * Páginas (construtor de páginas, F10): o esqueleto — barra de topo, lista | centro e os avisos de
@@ -100,6 +100,7 @@ function Editor() {
   return (
     <div className="flex flex-col h-full min-h-0 gap-3">
       <TopBar onWhere={() => setView("page")} onSeoSite={() => setSeoOpen(true)} onSettings={() => setSettingsOpen(true)} />
+      <PublishBar />
       <Notices />
       {readOnly && <ReadOnlyNotice />}
       {!readOnly && !canPublish && <DraftOnlyNotice />}

@@ -44,7 +44,7 @@ const data = () => ({
   folders: [{ id: "f1", name: "Rodapés", sortOrder: 0 }, { id: "f2", name: "Vazia", sortOrder: 1 }],
   parts: { topo: null, rodape: null },
   redirects: [],
-  publish: { mode: "github", status: "live", liveRevision: 1, requestedAt: null, error: null },
+  publish: { mode: "coolify", status: "live", liveRevision: 1, requestedAt: null, error: null },
   limits: {},
 });
 

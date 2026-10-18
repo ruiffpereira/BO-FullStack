@@ -63,7 +63,7 @@ const data = () => ({
   folders: [],
   parts: { topo: null, rodape: null },
   redirects: [{ fromPath: "/obra-antiga", pageId: "p2" }],
-  publish: { mode: "github", status: "live", liveRevision: 1, requestedAt: null, error: null },
+  publish: { mode: "coolify", status: "live", liveRevision: 1, requestedAt: null, error: null },
   limits: {},
 });
 

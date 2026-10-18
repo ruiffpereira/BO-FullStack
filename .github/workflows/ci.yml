@@ -178,13 +178,44 @@ jobs:
             -w '\nHTTP %{http_code}\n' || echo "aviso: PATCH da env falhou (segue o deploy)"
 
       - name: Disparar deploy no Coolify
+        id: trigger
         env:
           HOOK: ${{ secrets.COOLIFY_DEPLOY_HOOK_BO }}
           TOKEN: ${{ secrets.COOLIFY_TOKEN }}
         run: |
           # Coolify: normalmente GET ao endpoint de deploy com Bearer (API v1).
           # Se o teu hook for um URL simples sem token, deixa COOLIFY_TOKEN vazio.
-          curl --fail --silent --show-error "$HOOK" ${TOKEN:+-H "Authorization: Bearer $TOKEN"}
+          resp=$(curl --fail --silent --show-error "$HOOK" ${TOKEN:+-H "Authorization: Bearer $TOKEN"})
+          echo "$resp"
+          dep=$(printf '%s' "$resp" | grep -o '"deployment_uuid":"[^"]*"' | head -1 | cut -d'"' -f4)
+          echo "deployment_uuid=$dep" >> "$GITHUB_OUTPUT"
+
+      # "Deployment queued" não diz se o build passou: acompanha o deploy no Coolify até acabar e, se falhar, mostra o
+      # fim do log aqui (sem isto o smoke só diz "versão nova não ficou live", sem o porquê — 2026-10-18).
+      # Diagnóstico de um deploy antigo: workflow manual coolify-deploy-log.yml.
+      - name: Acompanhar o deploy no Coolify (estado; log se falhar)
+        if: steps.trigger.outputs.deployment_uuid != ''
+        env:
+          BASE: ${{ vars.COOLIFY_BASE_URL }}
+          TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          DEP: ${{ steps.trigger.outputs.deployment_uuid }}
+        run: |
+          if [ -z "$BASE" ] || [ -z "$TOKEN" ]; then echo "Sem COOLIFY_BASE_URL/COOLIFY_TOKEN — não acompanho (o smoke decide)."; exit 0; fi
+          st=""
+          for i in $(seq 1 90); do
+            body=$(curl -sS "${BASE%/}/api/v1/deployments/$DEP" -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" || true)
+            st=$(printf '%s' "$body" | jq -r '.status // empty' 2>/dev/null || true)
+            echo "[$i] estado=${st:-?}"
+            case "$st" in
+              finished) echo "✔ Coolify: deploy terminado."; exit 0 ;;
+              failed|cancelled*|canceled*)
+                echo "::error::Coolify: deploy $st. Fim do log:"
+                printf '%s' "$body" | jq -r '.logs | (try fromjson catch []) | map(select(.hidden != true) | .output) | .[-120:] | .[]' 2>/dev/null || printf '%s\n' "$body" | tail -c 4000
+                exit 1 ;;
+            esac
+            sleep 15
+          done
+          echo "::error::Coolify: o deploy não terminou em ~22 min (estado: ${st:-?})."; exit 1
 
   smoke:
     name: Smoke — verifica que ESTE commit ficou live (Backoffice)

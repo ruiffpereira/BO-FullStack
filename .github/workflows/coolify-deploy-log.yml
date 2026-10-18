@@ -1,0 +1,56 @@
+name: Coolify — estado de um deploy
+
+# Diagnóstico manual (Actions → "Coolify — estado de um deploy" → Run workflow, ou
+# `gh workflow run coolify-deploy-log.yml -f deployment_uuid=<uuid>`): imprime o estado e o fim do log
+# de um deploy do Coolify — o `deployment_uuid` que o passo "Disparar deploy no Coolify" do CI mostra.
+# Só leitura (GET /api/v1/deployments/<uuid>). Entra na WireGuard como o job de deploy do ci.yml.
+# ⚠ Um peer WireGuard não aguenta dois runners ao mesmo tempo: não correr enquanto um deploy do CI está a decorrer.
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_uuid:
+        description: "deployment_uuid do Coolify"
+        required: true
+      lines:
+        description: "Linhas do fim do log"
+        required: false
+        default: "120"
+
+jobs:
+  log:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Entrar na rede WireGuard (o painel do Coolify não é público)
+        env:
+          WG_CONFIG: ${{ secrets.WIREGUARD_CONFIG }}
+        run: |
+          if [ -z "$WG_CONFIG" ]; then echo "::error::Falta o secret WIREGUARD_CONFIG."; exit 1; fi
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq wireguard-tools
+          printf '%s\n' "$WG_CONFIG" | sudo tee /etc/wireguard/wg0.conf > /dev/null
+          sudo chmod 600 /etc/wireguard/wg0.conf
+          sudo wg-quick up wg0
+          for i in $(seq 1 10); do
+            hs=$(sudo wg show wg0 latest-handshakes | awk '{print $2}' | head -1)
+            [ -n "$hs" ] && [ "$hs" != "0" ] && break
+            sleep 3
+          done
+          if [ -z "$hs" ] || [ "$hs" = "0" ]; then echo "::error::Túnel sem handshake ao fim de 30s."; exit 1; fi
+          echo "Handshake OK."
+
+      - name: Estado e log do deploy
+        env:
+          BASE: ${{ vars.COOLIFY_BASE_URL }}
+          TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          DEP: ${{ inputs.deployment_uuid }}
+          LINES: ${{ inputs.lines }}
+        run: |
+          if ! printf '%s' "$DEP" | grep -Eq '^[A-Za-z0-9]{8,40}$'; then echo "::error::deployment_uuid inválido"; exit 1; fi
+          if ! printf '%s' "$LINES" | grep -Eq '^[0-9]{1,4}$'; then LINES=120; fi
+          body=$(curl -sS "${BASE%/}/api/v1/deployments/$DEP" -H "Authorization: Bearer $TOKEN" -H "Accept: application/json")
+          printf '%s' "$body" | jq -r '"estado: \(.status // "?")\ncommit: \(.commit // "?")\ncriado: \(.created_at // "?")\nactualizado: \(.updated_at // "?")"' 2>/dev/null \
+            || { echo "Resposta não-JSON:"; printf '%s\n' "$body" | head -c 2000; exit 1; }
+          echo "──── últimas $LINES linhas do log ────"
+          printf '%s' "$body" | jq -r --argjson n "$LINES" '.logs | (try fromjson catch []) | map(select(.hidden != true) | .output) | .[-$n:] | .[]' 2>/dev/null \
+            || echo "(sem log legível)"

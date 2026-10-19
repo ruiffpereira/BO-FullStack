@@ -198,3 +198,56 @@ describe("ClienteMensalidade — badge de sócio pendente", () => {
     expect(screen.queryByText("Convidado")).not.toBeInTheDocument();
   });
 });
+
+// R1.8 (B5): só subscrições ACTIVAS se atribuem (convite e atribuição a um cliente).
+describe("subscrições inactivas — não se atribuem", () => {
+  const COM_INACTIVA: Sub[] = [
+    ...SUBS,
+    { subscriptionId: "sub-old", name: "Antigo", price: 15, dueDay: 8, active: false, isDefault: false, clientCount: 0 },
+  ];
+
+  it("Convidar sócio: o plano inactivo não é opção", async () => {
+    const user = userEvent.setup();
+    useGetGymSubscriptionsMock.mockReturnValue({ data: COM_INACTIVA });
+    renderWithQC(<ConvidarSocioModal onClose={vi.fn()} onInvited={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Mensal · Predefinido" }));
+    expect(screen.getByRole("button", { name: "Básico" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Antigo" })).not.toBeInTheDocument();
+  });
+
+  it("Convidar sócio: sem nenhum plano activo avisa e não deixa convidar", () => {
+    useGetGymSubscriptionsMock.mockReturnValue({ data: [{ ...COM_INACTIVA[2] }] });
+    renderWithQC(<ConvidarSocioModal onClose={vi.fn()} onInvited={vi.fn()} />);
+
+    expect(screen.getByText("Cria uma subscrição ativa primeiro (em Subscrições).")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Ana" } });
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "ana@example.com" } });
+    expect(screen.getByRole("button", { name: "Convidar" })).toBeDisabled();
+  });
+
+  it("Atribuir subscrição a um cliente: lista as activas e esconde a inactiva", () => {
+    useGetGymSubscriptionsMock.mockReturnValue({ data: COM_INACTIVA });
+    useGetGymMensalidadeCustomersCustomeridMock.mockReturnValue({
+      data: {
+        customerId: "cust-1",
+        name: "Ana Sócia",
+        blocked: false,
+        payOnly: false,
+        subscription: null,
+        payments: [],
+        currentPeriod: "2026-07",
+        today: "2026-07-04",
+        status: "active",
+      },
+      isLoading: false,
+    });
+    renderWithQC(<ClienteMensalidade customerId="cust-1" />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Atribuir subscrição/ }));
+    expect(screen.getByText("Básico")).toBeInTheDocument();
+    expect(screen.getByText("Mensal")).toBeInTheDocument();
+    expect(screen.queryByText("Antigo")).not.toBeInTheDocument();
+    expect(screen.getByText("Sem subscrição")).toBeInTheDocument();
+  });
+});

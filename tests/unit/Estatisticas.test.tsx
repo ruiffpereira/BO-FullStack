@@ -140,3 +140,44 @@ describe("Estatisticas — sem snippet de tracking", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 });
+
+// R1.8 (B5): troca de período — cada botão pede ao hook o período certo.
+describe("Estatisticas — período", () => {
+  const configured: SiteAnalyticsResponse = {
+    configured: true,
+    domain: "exemplo.pt",
+    period: "month",
+    aggregate: {},
+    timeseries: [],
+    topPages: [],
+    sources: [],
+  };
+
+  it("arranca em 'Este mês' e cada preset pede o período certo", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+    mockAnalytics(configured);
+    render(<Estatisticas />);
+
+    expect(useSiteAnalyticsMock).toHaveBeenLastCalledWith("month");
+    const casos: [string, string][] = [
+      ["Hoje", "day"],
+      ["7 dias", "7d"],
+      ["30 dias", "30d"],
+      ["6 meses", "6mo"],
+      ["Este mês", "month"],
+    ];
+    for (const [label, periodo] of casos) {
+      await user.click(screen.getByRole("button", { name: label }));
+      expect(useSiteAnalyticsMock).toHaveBeenLastCalledWith(periodo);
+    }
+  });
+
+  it("sem visitas mostra os estados vazios do período", () => {
+    mockAnalytics(configured);
+    render(<Estatisticas />);
+    expect(screen.getByText("Sem visitas registadas no período.")).toBeInTheDocument();
+    expect(screen.getByText("Sem páginas no período.")).toBeInTheDocument();
+    expect(screen.getByText("Sem origens no período.")).toBeInTheDocument();
+  });
+});

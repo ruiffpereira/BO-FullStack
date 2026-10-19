@@ -372,3 +372,46 @@ describe("ApptModal — botão único de pagamento (cor por tom)", () => {
     expect(payBtn.className).toContain("bg-emerald-600");
   });
 });
+
+// R1.8 (B5): "Editar marcação" numa concluída destranca os detalhes e grava a hora nova.
+describe("ApptModal — editar uma marcação concluída", () => {
+  it("'Editar marcação' activa a edição: aparece 'Guardar' (desactivado até haver alteração) e 'Cancelar'", async () => {
+    const user = userEvent.setup();
+    renderModal(paidAppt);
+
+    await user.click(screen.getByRole("button", { name: "Editar marcação" }));
+
+    expect(screen.queryByRole("button", { name: "Editar marcação" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Guardar" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancelar" })).toBeInTheDocument();
+  });
+
+  it("mudar a hora e Guardar envia só a hora (o pagamento não é tocado)", async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderModal(paidAppt);
+
+    await user.click(screen.getByRole("button", { name: "Editar marcação" }));
+    await user.click(screen.getByRole("button", { name: /10:00/ }));
+    await user.click(screen.getByRole("button", { name: "11:30" }));
+
+    const guardar = screen.getByRole("button", { name: "Guardar" });
+    expect(guardar).toBeEnabled();
+    await user.click(guardar);
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenCalledWith("appt-1", { time: "11:30" });
+  });
+
+  it("Cancelar descarta a alteração de hora — não grava", async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderModal(paidAppt);
+
+    await user.click(screen.getByRole("button", { name: "Editar marcação" }));
+    await user.click(screen.getByRole("button", { name: /10:00/ }));
+    await user.click(screen.getByRole("button", { name: "11:30" }));
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Editar marcação" })).toBeInTheDocument();
+  });
+});

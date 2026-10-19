@@ -25,6 +25,7 @@ let deleteMutationOptions: any = null;
 let deleteIsPending = false;
 const domainMutate = vi.fn();
 let domainMutationOptions: any = null;
+let createMutationOptions: any = null;
 const authMock = vi.fn();
 
 vi.mock("../../src/gen/backoffice/hooks/useGetUsers.js", () => ({
@@ -36,7 +37,10 @@ vi.mock("../../src/gen/backoffice/hooks/useGetPermissions.js", () => ({
   getPermissionsQueryKey: () => [{ url: "/permissions" }],
 }));
 vi.mock("../../src/gen/backoffice/hooks/usePostUsersRegister.js", () => ({
-  usePostUsersRegister: () => ({ mutate: postUsersRegisterMutate, isPending: false }),
+  usePostUsersRegister: (opts: any) => {
+    createMutationOptions = opts;
+    return { mutate: postUsersRegisterMutate, isPending: false };
+  },
 }));
 vi.mock("../../src/gen/backoffice/hooks/usePutUsers.js", () => ({
   usePutUsers: () => ({ mutate: putUsersMutate, isPending: false }),
@@ -239,5 +243,78 @@ describe("Admin — domínio do site do tenant", () => {
       domainMutationOptions.mutation.onError({ response: { status: 400 } });
     });
     expect(toastError).toHaveBeenCalledWith("Domínio inválido.");
+  });
+});
+
+// R1.8 (B5): formulário "Novo utilizador" — validação e mensagens de erro.
+describe("Admin — formulário de novo utilizador", () => {
+  function abrirNovo() {
+    mockUsers([TENANT]);
+    useGetPermissionsMock.mockReturnValue({ data: [{ permissionId: "perm-1", name: "Cliente", protected: false }] });
+    renderAdmin();
+    fireEvent.click(screen.getByRole("button", { name: "Novo utilizador" }));
+  }
+
+  it("tudo vazio: recusa com a mensagem de obrigatórios e não chama a API", () => {
+    abrirNovo();
+    fireEvent.click(screen.getByRole("button", { name: "Criar" }));
+    expect(toastError).toHaveBeenCalledWith("Nome, email e permissão são obrigatórios");
+    expect(postUsersRegisterMutate).not.toHaveBeenCalled();
+  });
+
+  it("falta o nome, o email ou a permissão: cada um sozinho basta para recusar", () => {
+    abrirNovo();
+    const nome = screen.getByPlaceholderText("Nome");
+    const email = screen.getByPlaceholderText("email@exemplo.com");
+
+    // Só o nome.
+    fireEvent.change(nome, { target: { value: "Ana" } });
+    fireEvent.click(screen.getByRole("button", { name: "Criar" }));
+    // Nome + email, sem permissão.
+    fireEvent.change(email, { target: { value: "ana@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Criar" }));
+    // Só o email (nome limpo).
+    fireEvent.change(nome, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Criar" }));
+
+    expect(toastError).toHaveBeenCalledTimes(3);
+    expect(postUsersRegisterMutate).not.toHaveBeenCalled();
+  });
+
+  it("completo: chama a API com o payload certo (sem website vazio)", () => {
+    abrirNovo();
+    fireEvent.change(screen.getByPlaceholderText("Nome"), { target: { value: "Ana" } });
+    fireEvent.change(screen.getByPlaceholderText("email@exemplo.com"), { target: { value: "ana@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Seleccionar permissão" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cliente" }));
+    fireEvent.click(screen.getByRole("button", { name: "Criar" }));
+
+    expect(toastError).not.toHaveBeenCalled();
+    expect(postUsersRegisterMutate).toHaveBeenCalledTimes(1);
+    expect(postUsersRegisterMutate.mock.calls[0][0].data).toEqual({
+      name: "Ana",
+      email: "ana@example.com",
+      phone: undefined,
+      permissionId: "perm-1",
+      websiteDomain: undefined,
+    });
+  });
+
+  it("erros da API: mostra a mensagem do servidor; domain_taken tem texto próprio", () => {
+    abrirNovo();
+    act(() => {
+      createMutationOptions.mutation.onError({ response: { status: 409, data: { error: "Email já registado" } } });
+    });
+    expect(toastError).toHaveBeenCalledWith("Email já registado");
+
+    act(() => {
+      createMutationOptions.mutation.onError({ response: { status: 409, data: { error: "domain_taken" } } });
+    });
+    expect(toastError).toHaveBeenCalledWith("Esse website já pertence a outro cliente.");
+
+    act(() => {
+      createMutationOptions.mutation.onError({});
+    });
+    expect(toastError).toHaveBeenCalledWith("Ocorreu um erro");
   });
 });

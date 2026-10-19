@@ -3494,6 +3494,72 @@
           }
         }
       },
+      "AdminMailbox": {
+        "type": "object",
+        "properties": {
+          "mailboxId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "address": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "business",
+              "member"
+            ]
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled"
+            ]
+          },
+          "quotaMb": {
+            "type": "integer"
+          },
+          "usedMb": {
+            "type": "number",
+            "nullable": true,
+            "description": "Espaço usado; null se o servidor não respondeu"
+          },
+          "forwardTo": {
+            "type": "string",
+            "nullable": true,
+            "description": "Caixa desactivada: o correio passou a ser reencaminhado para este endereço"
+          },
+          "pendingSync": {
+            "type": "boolean",
+            "description": "A desactivação ainda não chegou ao servidor de correio (o job repete)"
+          }
+        }
+      },
+      "AdminMailboxList": {
+        "type": "object",
+        "properties": {
+          "configured": {
+            "type": "boolean",
+            "description": "false = servidor de correio por configurar"
+          },
+          "moduleEnabled": {
+            "type": "boolean",
+            "description": "O tenant tem o componente VIEW_EMAIL"
+          },
+          "mailboxes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminMailbox"
+            }
+          }
+        }
+      },
       "Lead": {
         "type": "object",
         "properties": {
@@ -3550,6 +3616,172 @@
           "createdAt",
           "updatedAt"
         ]
+      },
+      "MailAddress": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string"
+          }
+        }
+      },
+      "MailboxItem": {
+        "type": "object",
+        "properties": {
+          "mailboxId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "address": {
+            "type": "string",
+            "example": "geral@tifas.rufvision.com"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "business",
+              "member"
+            ]
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "own": {
+            "type": "boolean",
+            "description": "true = a caixa pessoal do utilizador autenticado"
+          },
+          "unread": {
+            "type": "integer",
+            "nullable": true,
+            "description": "null se o servidor não respondeu"
+          }
+        }
+      },
+      "MailThreadSummary": {
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string"
+          },
+          "emailId": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "preview": {
+            "type": "string"
+          },
+          "from": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MailAddress"
+            }
+          },
+          "to": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MailAddress"
+            }
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "unread": {
+            "type": "boolean"
+          },
+          "hasAttachment": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MailAttachment": {
+        "type": "object",
+        "properties": {
+          "attachmentId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "cid": {
+            "type": "string",
+            "nullable": true
+          },
+          "inline": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MailMessage": {
+        "type": "object",
+        "properties": {
+          "emailId": {
+            "type": "string"
+          },
+          "from": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MailAddress"
+            }
+          },
+          "to": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MailAddress"
+            }
+          },
+          "cc": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MailAddress"
+            }
+          },
+          "subject": {
+            "type": "string"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "unread": {
+            "type": "boolean"
+          },
+          "outgoing": {
+            "type": "boolean",
+            "description": "Enviado por esta caixa"
+          },
+          "text": {
+            "type": "string",
+            "nullable": true
+          },
+          "html": {
+            "type": "string",
+            "nullable": true,
+            "description": "HTML SANEADO na API (sem scripts, on*, javascript:; imagens remotas trocadas por um placeholder). Mostrar num iframe sandbox."
+          },
+          "hasRemoteImages": {
+            "type": "boolean"
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MailAttachment"
+            }
+          }
+        }
       },
       "Staff": {
         "type": "object",
@@ -3863,6 +4095,23 @@
           "canManage": {
             "type": "boolean",
             "description": "true = pode ver o detalhe e gerir (dono, ou o criador directo com Gerir)"
+          },
+          "mailbox": {
+            "type": "object",
+            "nullable": true,
+            "description": "Endereço de email do membro (B42, caixa só dele); null = não tem. Só a morada, nunca o conteúdo.",
+            "properties": {
+              "address": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "disabled"
+                ]
+              }
+            }
           },
           "staff": {
             "type": "object",
@@ -5490,6 +5739,246 @@
           "403": {
             "description": "Sem VIEW_ADMIN",
             "ou sessão de suporte": null
+          }
+        }
+      }
+    },
+    "/admin/users/{userId}/mailboxes": {
+      "get": {
+        "summary": "Caixas de correio de um tenant (endereço, estado, espaço usado)",
+        "description": "Só o dono da plataforma (`VIEW_ADMIN`); fechada em sessão de suporte. Não devolve conteúdo de emails.",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Caixas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMailboxList"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem VIEW_ADMIN",
+            "ou sessão de suporte": null
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          }
+        }
+      }
+    },
+    "/admin/users/{userId}/mailboxes/business": {
+      "post": {
+        "summary": "Activar a caixa do negócio (cria o domínio e geral@ no servidor de correio)",
+        "description": "Exige o módulo Correio (VIEW_EMAIL) no tenant, o domínio de email já criado (subdomínio da plataforma) e o servidor de correio configurado. Idempotente (201 ao criar, 200 se já existia/reactivada). 409 `module_not_enabled`, `email_domain_not_found`, `own_domain_not_supported`; 503 `mail_not_configured`; 502 se o servidor falhar.",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "quotaMb": {
+                    "type": "integer",
+                    "minimum": 50,
+                    "maximum": 51200,
+                    "description": "Quota da caixa (omissão 1024)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Já existia",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMailbox"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Criada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMailbox"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido"
+          },
+          "403": {
+            "description": "Sem VIEW_ADMIN",
+            "ou sessão de suporte": null
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          },
+          "409": {
+            "description": "Módulo desligado",
+            "sem domínio de email ou domínio próprio": null
+          },
+          "502": {
+            "description": "O servidor de correio falhou"
+          },
+          "503": {
+            "description": "Correio por configurar"
+          }
+        }
+      }
+    },
+    "/admin/users/{userId}/mailboxes/{mailboxId}/disable": {
+      "post": {
+        "summary": "Desactivar uma caixa de membro (o endereço passa a reencaminhar para geral@)",
+        "description": "Idempotente. A caixa do negócio não se desactiva (409 `business_mailbox_protected`). Caixa de outro tenant = 404.",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mailboxId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMailbox"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem VIEW_ADMIN",
+            "ou sessão de suporte": null
+          },
+          "404": {
+            "description": "Utilizador ou caixa não encontrada"
+          },
+          "409": {
+            "description": "Caixa do negócio"
+          }
+        }
+      }
+    },
+    "/admin/users/{userId}/mailboxes/{mailboxId}/enable": {
+      "post": {
+        "summary": "Reactivar uma caixa desactivada",
+        "description": "Idempotente. 409 `member_removed` se o membro da caixa já não existe. Caixa de outro tenant = 404.",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mailboxId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMailbox"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem VIEW_ADMIN",
+            "ou sessão de suporte": null
+          },
+          "404": {
+            "description": "Utilizador ou caixa não encontrada"
+          },
+          "409": {
+            "description": "Membro removido"
+          },
+          "503": {
+            "description": "Correio por configurar"
           }
         }
       }
@@ -16818,6 +17307,651 @@
         }
       }
     },
+    "/mail/mailboxes": {
+      "get": {
+        "summary": "Caixas a que tenho acesso (a do negócio e a minha, se tiver)",
+        "description": "`correio.caixa` (Ver) + VIEW_EMAIL. O dono vê a do negócio; um membro vê a do negócio e a sua própria (a de um colega nunca aparece, nem ao dono). `configured` false = o servidor de correio não está configurado (Por configurar).",
+        "tags": [
+          "Mail"
+        ],
+        "responses": {
+          "200": {
+            "description": "Caixas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "mailboxes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MailboxItem"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem correio.caixa ou sem o módulo"
+          }
+        }
+      }
+    },
+    "/mail/mailboxes/{mailboxId}/threads": {
+      "get": {
+        "summary": "Conversas de uma caixa (Por ler, Todas, Arquivo, Enviados, pesquisa)",
+        "description": "Paginado (`page`, `limit` até 50). Caixa que não é minha = 404. 502 se o servidor de correio falhar; 503 `mail_not_configured`.",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "mailboxId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "folder",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "unread",
+                "all",
+                "archive",
+                "sent"
+              ],
+              "default": "all"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de conversas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MailThreadSummary"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetros inválidos"
+          },
+          "403": {
+            "description": "Sem correio.caixa"
+          },
+          "404": {
+            "description": "Caixa não encontrada"
+          },
+          "502": {
+            "description": "O servidor de correio falhou"
+          },
+          "503": {
+            "description": "Correio por configurar"
+          }
+        }
+      }
+    },
+    "/mail/mailboxes/{mailboxId}/threads/{threadId}": {
+      "get": {
+        "summary": "Abrir uma conversa (HTML saneado na API)",
+        "description": "Mensagens por ordem cronológica. O `html` vem SEMPRE saneado; as imagens remotas vêm bloqueadas e `hasRemoteImages` diz se havia. Com `remoteImages=true` deixa-as passar (escolha do utilizador, por conversa). Não marca como lida (usar `.../read`).",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "mailboxId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "threadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "remoteImages",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "threadId": {
+                      "type": "string"
+                    },
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MailMessage"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem correio.caixa"
+          },
+          "404": {
+            "description": "Caixa ou conversa não encontrada"
+          },
+          "502": {
+            "description": "O servidor de correio falhou"
+          }
+        }
+      }
+    },
+    "/mail/mailboxes/{mailboxId}/threads/{threadId}/read": {
+      "post": {
+        "summary": "Marcar a conversa como lida",
+        "description": "Exige `correio.caixa` Responder. Idempotente.",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "mailboxId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "threadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feito"
+          },
+          "403": {
+            "description": "Sem Responder"
+          },
+          "404": {
+            "description": "Caixa ou conversa não encontrada"
+          },
+          "502": {
+            "description": "O servidor de correio falhou"
+          }
+        }
+      }
+    },
+    "/mail/mailboxes/{mailboxId}/threads/{threadId}/unread": {
+      "post": {
+        "summary": "Marcar a conversa como não lida",
+        "description": "Exige `correio.caixa` Responder. Idempotente.",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "mailboxId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "threadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feito"
+          },
+          "403": {
+            "description": "Sem Responder"
+          },
+          "404": {
+            "description": "Caixa ou conversa não encontrada"
+          },
+          "502": {
+            "description": "O servidor de correio falhou"
+          }
+        }
+      }
+    },
+    "/mail/mailboxes/{mailboxId}/threads/{threadId}/archive": {
+      "post": {
+        "summary": "Arquivar a conversa",
+        "description": "Exige `correio.caixa` Responder. Idempotente.",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "mailboxId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "threadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feito"
+          },
+          "403": {
+            "description": "Sem Responder"
+          },
+          "404": {
+            "description": "Caixa ou conversa não encontrada"
+          },
+          "502": {
+            "description": "O servidor de correio falhou"
+          }
+        }
+      }
+    },
+    "/mail/mailboxes/{mailboxId}/threads/{threadId}/unarchive": {
+      "post": {
+        "summary": "Tirar a conversa do arquivo",
+        "description": "Exige `correio.caixa` Responder. Idempotente.",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "mailboxId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "threadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feito"
+          },
+          "403": {
+            "description": "Sem Responder"
+          },
+          "404": {
+            "description": "Caixa ou conversa não encontrada"
+          },
+          "502": {
+            "description": "O servidor de correio falhou"
+          }
+        }
+      }
+    },
+    "/mail/mailboxes/{mailboxId}/send": {
+      "post": {
+        "summary": "Novo email, responder, responder a todos ou encaminhar",
+        "description": "Exige `correio.caixa` Responder. O remetente é SEMPRE o endereço da caixa. Em `reply`, `reply_all` e `forward`, `emailId` é obrigatório e tem de ser da MESMA caixa (senão 404); os destinatários derivam do original se `to` não vier. Anexos são URLs do storage do próprio tenant (fotos JPEG/PNG/WebP até 10 MB e PDF até 20 MB, máx. 5, 20 MB no total; carregar antes por `POST /uploads` ou `/uploads/pdf` com `module=mail`). Máx. 20 destinatários; 30 envios por hora. O envio sai pelo relay do servidor de correio.",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "mailboxId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "new",
+                      "reply",
+                      "reply_all",
+                      "forward"
+                    ],
+                    "default": "new"
+                  },
+                  "emailId": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "email"
+                    }
+                  },
+                  "cc": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "email"
+                    }
+                  },
+                  "bcc": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "email"
+                    }
+                  },
+                  "subject": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "attachments": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "url"
+                      ],
+                      "properties": {
+                        "url": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "mime": {
+                          "type": "string",
+                          "enum": [
+                            "image/jpeg",
+                            "image/png",
+                            "image/webp",
+                            "application/pdf"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Enviado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "emailId": {
+                      "type": "string"
+                    },
+                    "threadId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Inválido (MAIL_NO_RECIPIENTS, MAIL_EMPTY, ATTACHMENT_INVALID, MAIL_ORIGINAL_REQUIRED)"
+          },
+          "403": {
+            "description": "Sem Responder"
+          },
+          "404": {
+            "description": "Caixa ou email original não encontrado"
+          },
+          "429": {
+            "description": "Limite de envios"
+          },
+          "502": {
+            "description": "O servidor de correio falhou"
+          }
+        }
+      }
+    },
+    "/mail/mailboxes/{mailboxId}/emails/{emailId}/attachments/{attachmentId}": {
+      "get": {
+        "summary": "Descarregar um anexo recebido (autenticado)",
+        "description": "O anexo tem de pertencer ao email e o email à caixa a que o utilizador tem acesso (senão 404). Nunca há um URL do servidor de correio. Sai sempre como descarga (`Content-Disposition` attachment, `nosniff`); tipos executáveis pelo browser (html, svg) saem como binário.",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "mailboxId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "emailId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "attachmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "O ficheiro",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem correio.caixa"
+          },
+          "404": {
+            "description": "Caixa",
+            "email ou anexo não encontrado": null
+          },
+          "502": {
+            "description": "O servidor de correio falhou"
+          }
+        }
+      }
+    },
+    "/mail/by-customer/{customerId}": {
+      "get": {
+        "summary": "Emails de um cliente (separador Emails da ficha)",
+        "description": "Conversas da caixa DO NEGÓCIO em que o email do cliente aparece (de, para ou cc; correspondência exacta). Exige `correio.caixa` (Ver) e `clientes.lista` (Ver). Cliente de outro tenant = 404. Cliente sem email, ou negócio sem caixa activa, devolve lista vazia.",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mailboxId": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MailThreadSummary"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem correio.caixa ou sem clientes.lista"
+          },
+          "404": {
+            "description": "Cliente não encontrado"
+          },
+          "502": {
+            "description": "O servidor de correio falhou"
+          }
+        }
+      }
+    },
     "/messages/customers/conversations": {
       "get": {
         "operationId": "listCustomerConversations",
@@ -19791,6 +20925,14 @@
                     "items": {
                       "$ref": "#/components/schemas/TeamGrantInput"
                     }
+                  },
+                  "giveMailbox": {
+                    "type": "boolean",
+                    "description": "Dar-lhe um endereço de email (cria nome@subdomínio como caixa SÓ dele). Exige o módulo Correio, a caixa do negócio activa e o Correio (Responder) em quem convida; senão 409/422 antes de criar o membro."
+                  },
+                  "mailboxLocalPart": {
+                    "type": "string",
+                    "description": "Parte local escolhida (omissão: derivada do nome). Reservados (geral, postmaster…) recusados."
                   }
                 }
               }
@@ -19810,6 +20952,11 @@
                     },
                     "emailSent": {
                       "type": "boolean"
+                    },
+                    "mailboxError": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Se pediste a caixa e falhou depois de criar o membro: o código (mailbox_address_unavailable, mail_provider_error…). O convite segue."
                     }
                   }
                 }
@@ -19867,6 +21014,13 @@
                     "items": {
                       "$ref": "#/components/schemas/TeamGrantInput"
                     }
+                  },
+                  "giveMailbox": {
+                    "type": "boolean",
+                    "description": "Dar-lhe um endereço de email (como no convite). Nunca retira: remover o membro desactiva a caixa."
+                  },
+                  "mailboxLocalPart": {
+                    "type": "string"
                   }
                 }
               }
@@ -19889,6 +21043,10 @@
                         "cascadeAffected": {
                           "type": "integer",
                           "description": "Descendentes cujas permissões foram cortadas"
+                        },
+                        "mailboxError": {
+                          "type": "string",
+                          "nullable": true
                         }
                       }
                     }
@@ -19913,7 +21071,7 @@
       },
       "delete": {
         "summary": "Remover um membro",
-        "description": "Dono, ou membro com `equipa` Gerir nos que criou (`TEAM_NOT_CREATOR`/`TEAM_SELF_FORBIDDEN` como no PUT). Apaga o membro, as permissões e as sessões (o registo de auditoria fica com o nome, sem FK). O email fica livre. **Os membros que ele convidou NÃO saem**: passam para o dono (`createdByMemberId = null`) com as permissões que tinham, na mesma transacção. Membro de outro tenant → 404.",
+        "description": "Dono, ou membro com `equipa` Gerir nos que criou (`TEAM_NOT_CREATOR`/`TEAM_SELF_FORBIDDEN` como no PUT). Apaga o membro, as permissões e as sessões (o registo de auditoria fica com o nome, sem FK). O email fica livre. A caixa de email do membro (se tinha) fica desactivada e o endereço passa a reencaminhar para a caixa do negócio. **Os membros que ele convidou NÃO saem**: passam para o dono (`createdByMemberId = null`) com as permissões que tinham, na mesma transacção. Membro de outro tenant → 404.",
         "tags": [
           "Team"
         ],
@@ -20541,7 +21699,7 @@
       "post": {
         "operationId": "uploadImage",
         "summary": "Upload de imagem optimizada para SeaweedFS",
-        "description": "Membro da equipa: o `module` (contexto, fica na key) tem de ser de uma folha onde tem `edit` — `chat`→mensagens.clientes|equipa|suporte, `branding`→conteudos.website, `cms`→conteudos.website|paginas.rascunho, `products`→loja.produtos|conteudos.produtos, `gym`→ginasio.exercicios|treinos|clientes|conteudos.ginasio; `general`, `profile` ou desconhecido só o dono (403 `TEAM_FORBIDDEN`).",
+        "description": "Membro da equipa: o `module` (contexto, fica na key) tem de ser de uma folha onde tem `edit` — `chat`→mensagens.clientes|equipa|suporte, `branding`→conteudos.website, `cms`→conteudos.website|paginas.rascunho, `products`→loja.produtos|conteudos.produtos, `gym`→ginasio.exercicios|treinos|clientes|conteudos.ginasio, `mail`→correio.caixa (anexos de um email); `general`, `profile` ou desconhecido só o dono (403 `TEAM_FORBIDDEN`).",
         "tags": [
           "Uploads"
         ],
@@ -20854,9 +22012,10 @@
                     "type": "string",
                     "enum": [
                       "site",
-                      "chat"
+                      "chat",
+                      "mail"
                     ],
-                    "description": "Contexto do ficheiro (por omissão `site`; `chat` = anexos das Mensagens, B43). Qualquer outro valor conta como `site`."
+                    "description": "Contexto do ficheiro (por omissão `site`; `chat` = anexos das Mensagens, B43; `mail` = anexos de um email, B42). Qualquer outro valor conta como `site`."
                   }
                 }
               }
@@ -21047,6 +22206,10 @@
     {
       "name": "Leads",
       "description": "Leads/orçamentos capturados no site público do tenant (backoffice)"
+    },
+    {
+      "name": "Mail",
+      "description": "Caixa de correio do negócio no Backoffice (Stalwart). Módulo Correio (VIEW_EMAIL), folha correio.caixa."
     },
     {
       "name": "Mensagens",

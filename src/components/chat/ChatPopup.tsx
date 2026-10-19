@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Icon } from "../../ui/icons.jsx";
-import { Avatar, Input } from "../../ui/ui.jsx";
+import { useNavigate } from "react-router-dom";
+import { Avatar, Button, Input } from "../../ui/ui.jsx";
 import { useAuth } from "../../context/AuthContext";
 import { useAdminConversations } from "../../hooks/useChat";
 import { ChatConversationView } from "./ChatConversationView";
@@ -61,6 +62,20 @@ function PopupHeader({
 }
 
 function TenantPopup({ onClose }: { onClose: () => void }) {
+  const { can } = useAuth();
+  const navigate = useNavigate();
+  // B43: o mini-chat é o do Suporte; quem não tem `mensagens.suporte` (só Clientes/Equipa) leva à página.
+  if (!can("mensagens.suporte")) {
+    return (
+      <>
+        <PopupHeader title="Mensagens" subtitle="Clientes e equipa" onClose={onClose} />
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
+          <p className="text-sm text-zinc-500">As tuas conversas estão na página Mensagens.</p>
+          <Button size="sm" onClick={() => { onClose(); navigate("/mensagens"); }}>Abrir Mensagens</Button>
+        </div>
+      </>
+    );
+  }
   return (
     <>
       <PopupHeader title="Suporte" subtitle="Falamos contigo por aqui" onClose={onClose} avatarName="Suporte" avatarColor="#0EA5A4" />

@@ -77,6 +77,17 @@ describe("notificationHref", () => {
     expect(notificationHref(notif("reminder"))).toBe("/agenda");
   });
 
+  it("message (cliente, B43) → separador Clientes das Mensagens, nessa conversa", () => {
+    expect(
+      notificationHref(notif("message", { kind: "customer_message", conversationId: "cv-1", customerId: "c-7" })),
+    ).toBe("/mensagens?conversa=cv-1");
+  });
+
+  it("message sem conversationId → /mensagens; o id vai codificado", () => {
+    expect(notificationHref(notif("message"))).toBe("/mensagens");
+    expect(notificationHref(notif("message", { conversationId: "a b&c" }))).toBe("/mensagens?conversa=a%20b%26c");
+  });
+
   it("system (ou tipo desconhecido) → sem destino (null)", () => {
     expect(notificationHref(notif("system"))).toBeNull();
     expect(

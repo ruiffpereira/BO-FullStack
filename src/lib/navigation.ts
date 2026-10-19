@@ -230,7 +230,10 @@ export const LEAF_FOR_PATH: ReadonlyArray<readonly [string, string]> = [
   ["/conteudos/notificacoes", "conteudos.notificacoes"],
   ["/conteudos", "conteudos.website"],
   ["/paginas", "paginas.rascunho"],
-  ["/mensagens", "mensagens"],
+  // Mensagens (B43): dois separadores, duas folhas. O Backoffice mistura equipa e Suporte — o compositor guarda-se
+  // pela folha da própria conversa (`ChatConversationView`), não por esta.
+  ["/mensagens/backoffice", "mensagens.equipa"],
+  ["/mensagens", "mensagens.clientes"],
   ["/estatisticas", "estatisticas"],
 ];
 

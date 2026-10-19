@@ -26,6 +26,7 @@ import { ClienteMensalidade } from './GymMensalidade'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { LeadsInbox } from './clientes/LeadsInbox'
 import { colorFromName } from '../lib/avatarColor'
+import { OpenConversationShortcut } from '../components/chat/OpenConversationShortcut'
 import { apptStatusView } from '../lib/apptStatus'
 
 
@@ -396,6 +397,9 @@ export function Clientes({ view }: { view: ClientesView }) {
               {profileCustomer.contact && <div className="flex items-center gap-2.5"><Icon name="phone" className="w-4 h-4 text-zinc-400" />{profileCustomer.contact}</div>}
               {profileCustomer.nif && <div className="flex items-center gap-2.5"><Icon name="layers" className="w-4 h-4 text-zinc-400" />NIF {profileCustomer.nif}</div>}
             </div>
+
+            {/* Atalho para a conversa do cliente (Mensagens → Clientes), se existir */}
+            <OpenConversationShortcut customerId={profileCustomer.customerId} onNavigate={closeProfile} />
 
             {/* Notes */}
             {profileCustomer.notes && (

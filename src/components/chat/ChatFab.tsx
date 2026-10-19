@@ -30,7 +30,7 @@ export function ChatFab() {
     setOpen(false);
   }, [location.pathname]);
 
-  if (location.pathname === "/mensagens") return null;
+  if (location.pathname === "/mensagens" || location.pathname.startsWith("/mensagens/")) return null;
 
   return (
     <>

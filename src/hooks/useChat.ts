@@ -6,6 +6,7 @@ import { postChatSupportRead } from "../gen/backoffice/hooks/usePostChatSupportR
 import { getAdminChatConversations } from "../gen/backoffice/hooks/useGetAdminChatConversations.js";
 import { getAdminChatConversationsTenantuseridMessages } from "../gen/backoffice/hooks/useGetAdminChatConversationsTenantuseridMessages.js";
 import { postAdminChatConversationsTenantuseridMessages } from "../gen/backoffice/hooks/usePostAdminChatConversationsTenantuseridMessages.js";
+import { useMessagesSummary } from "./useMessages";
 import { postAdminChatConversationsTenantuseridRead } from "../gen/backoffice/hooks/usePostAdminChatConversationsTenantuseridRead.js";
 
 /**
@@ -19,7 +20,8 @@ import { postAdminChatConversationsTenantuseridRead } from "../gen/backoffice/ho
  * `as` abaixo fazem a ponte, o payload em runtime não muda.
  */
 
-export type SenderRole = "admin" | "tenant";
+/** Suporte: admin/tenant · Clientes (B43): business/customer · Equipa (B43): me/other. */
+export type SenderRole = "admin" | "tenant" | "business" | "customer" | "me" | "other";
 
 export interface ChatAttachment {
   url: string;
@@ -53,6 +55,10 @@ export interface ChatThread {
   hasMore: boolean;
   unread: number;
   otherLastReadAt: string | null;
+  /** B43: nome para o cabeçalho (cliente / pessoa da equipa) e conversa só de leitura (membro removido). */
+  title?: string;
+  subtitle?: string | null;
+  readOnly?: boolean;
 }
 
 export interface ChatConversation {
@@ -179,17 +185,18 @@ export async function fetchOlderMessages(
 
 /**
  * Contador de não-lidas do utilizador atual (serve o badge do topbar/FAB/sidebar):
- *  - Admin → nº de conversas com mensagens por ler (`unreadTotal`).
- *  - Tenant → não-lidas da sua conversa de suporte.
+ *  - Admin → nº de conversas com mensagens por ler (`unreadTotal`) do Suporte.
+ *  - Tenant/membro → `summary.total` (B43: Clientes + Equipa + Suporte, cada um só com a sua folha).
  * Gere a query certa conforme o papel (evita 403 do lado errado).
  */
 export function useChatUnread(): number {
   const { permissions, isMember, can } = useAuth();
   const isAdmin = permissions.some((p) => p.name === "VIEW_ADMIN");
-  // Um membro sem o módulo Mensagens não tem chat (a API devolveria 403): nem se pede.
+  // Um membro sem nenhuma folha de Mensagens não tem chat (a API devolveria 403): nem se pede.
+  const hasLeaf = !isMember || can("mensagens");
   const admin = useAdminConversations("", isAdmin);
-  const support = useSupportThread(!isAdmin && (!isMember || can("mensagens")));
-  return isAdmin ? admin.data?.unreadTotal ?? 0 : support.data?.unread ?? 0;
+  const summary = useMessagesSummary(!isAdmin && hasLeaf);
+  return isAdmin ? admin.data?.unreadTotal ?? 0 : summary.data?.total ?? 0;
 }
 
 /** Une mensagens por messageId (incoming sobrepõe), mantém otimistas e ordena. */

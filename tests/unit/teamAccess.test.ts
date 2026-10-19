@@ -78,6 +78,7 @@ describe("moduleForPath", () => {
     ["/conteudos/emails", "conteudos"],
     ["/paginas", "paginas"],
     ["/mensagens", "mensagens"],
+    ["/mensagens/backoffice", "mensagens"],
     ["/estatisticas", "estatisticas"],
   ])("%s → %s", (path, mod) => {
     expect(moduleForPath(path)).toBe(mod);
@@ -118,6 +119,8 @@ describe("leafForPath — página/separador → folha da árvore", () => {
     ["/conteudos/emails", "conteudos.emails"],
     ["/conteudos/notificacoes", "conteudos.notificacoes"],
     ["/paginas", "paginas.rascunho"],
+    ["/mensagens", "mensagens.clientes"],
+    ["/mensagens/backoffice", "mensagens.equipa"],
   ])("%s → %s", (path, leaf) => {
     expect(leafForPath(path)).toBe(leaf);
   });

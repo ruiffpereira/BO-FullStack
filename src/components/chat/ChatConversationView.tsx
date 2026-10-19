@@ -18,8 +18,34 @@ import {
   type MessageInput,
   type SenderRole,
 } from "../../hooks/useChat";
+import {
+  useCustomerThread,
+  useReplyCustomer,
+  useMarkCustomerRead,
+  useTeamThread,
+  useSendTeam,
+  useMarkTeamRead,
+  fetchOlderCustomer,
+  fetchOlderTeam,
+} from "../../hooks/useMessages";
 
-export type ChatScope = { kind: "support" } | { kind: "admin"; tenantUserId: string; tenantName?: string };
+/** Suporte/admin (já existiam) + B43: conversa com um cliente do site e conversa 1-para-1 da equipa. */
+export type ChatScope =
+  | { kind: "support" }
+  | { kind: "admin"; tenantUserId: string; tenantName?: string }
+  | { kind: "customer"; conversationId: string }
+  | { kind: "team"; personKey: string };
+
+const REMOVED_NOTE = "Esta pessoa já não está na equipa — a conversa fica só para leitura.";
+
+function scopeKeyOf(scope: ChatScope): string {
+  switch (scope.kind) {
+    case "support": return "support";
+    case "admin": return `admin:${scope.tenantUserId}`;
+    case "customer": return `customer:${scope.conversationId}`;
+    case "team": return `team:${scope.personKey}`;
+  }
+}
 
 /**
  * Vista de uma conversa: thread (mensagens) + composer. Liga os hooks certos
@@ -28,23 +54,41 @@ export type ChatScope = { kind: "support" } | { kind: "admin"; tenantUserId: str
  */
 export function ChatConversationView({ scope, active = true }: { scope: ChatScope; active?: boolean }) {
   const { authHeader, userId, supportSession, can } = useAuth();
-  // Equipa (B41): `mensagens` com `view` lê a conversa mas não envia.
-  const viewOnly = scope.kind === "support" && can("mensagens", "view") && !can("mensagens", "edit");
+  // Equipa (B41/B43): cada conversa guarda-se pela SUA folha — só `view` lê mas não envia. (O dono pode sempre.)
+  const leaf =
+    scope.kind === "support" ? "mensagens.suporte"
+    : scope.kind === "customer" ? "mensagens.clientes"
+    : scope.kind === "team" ? "mensagens.equipa"
+    : null;
+  const viewOnlyByTree = leaf !== null && can(leaf, "view") && !can(leaf, "edit");
   // Sessão de suporte: o chat é só de leitura (a API recusa enviar e marcar lida).
   const inSupport = !!supportSession;
-  const meRole: SenderRole = scope.kind === "support" ? "tenant" : "admin";
+  const meRole: SenderRole =
+    scope.kind === "support" ? "tenant" : scope.kind === "admin" ? "admin" : scope.kind === "customer" ? "business" : "me";
   const adminTenantId = scope.kind === "admin" ? scope.tenantUserId : null;
-  const scopeKey = scope.kind === "support" ? "support" : `admin:${scope.tenantUserId}`;
+  const customerId = scope.kind === "customer" ? scope.conversationId : null;
+  const teamKey = scope.kind === "team" ? scope.personKey : null;
+  const scopeKey = scopeKeyOf(scope);
 
   const support = useSupportThread(scope.kind === "support" && active);
   const admin = useAdminThread(adminTenantId);
-  const thread: ChatThread | undefined = scope.kind === "support" ? support.data : admin.data;
-  const isLoading = scope.kind === "support" ? support.isLoading : admin.isLoading;
+  const customer = useCustomerThread(customerId);
+  const team = useTeamThread(teamKey);
+  const current = { support, admin, customer, team }[scope.kind];
+  const thread: ChatThread | undefined = current.data;
+  const isLoading = current.isLoading;
+  // Membro removido (equipa): o fio fica para leitura, com o nome guardado.
+  const removedReadOnly = scope.kind === "team" && !!thread?.readOnly;
+  const viewOnly = viewOnlyByTree || removedReadOnly;
 
   const sendSupport = useSendSupportMessage();
   const sendAdmin = useSendAdminMessage(adminTenantId ?? "");
+  const sendCustomer = useReplyCustomer(customerId ?? "");
+  const sendTeam = useSendTeam(teamKey ?? "");
   const markSupport = useMarkSupportRead();
   const markAdmin = useMarkAdminRead();
+  const markCustomer = useMarkCustomerRead();
+  const markTeam = useMarkTeamRead();
 
   const [optimistic, setOptimistic] = useState<ChatMessage[]>([]);
   const [older, setOlder] = useState<ChatMessage[]>([]);
@@ -75,7 +119,9 @@ export function ChatConversationView({ scope, active = true }: { scope: ChatScop
   useEffect(() => {
     if (inSupport || !active || !thread || thread.unread <= 0) return;
     if (scope.kind === "support") markSupport.mutate();
-    else markAdmin.mutate(scope.tenantUserId);
+    else if (scope.kind === "admin") markAdmin.mutate(scope.tenantUserId);
+    else if (scope.kind === "customer") markCustomer.mutate(scope.conversationId);
+    else markTeam.mutate(scope.personKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, thread?.unread, scopeKey]);
 
@@ -94,11 +140,16 @@ export function ChatConversationView({ scope, active = true }: { scope: ChatScop
     if (!oldest) return;
     setLoadingOlder(true);
     try {
-      const res = await fetchOlderMessages(
-        scope.kind === "support" ? { kind: "support" } : { kind: "admin", tenantUserId: scope.tenantUserId },
-        oldest.createdAt,
-        authHeader,
-      );
+      const res =
+        scope.kind === "customer"
+          ? await fetchOlderCustomer(scope.conversationId, oldest.createdAt)
+          : scope.kind === "team"
+            ? await fetchOlderTeam(scope.personKey, oldest.createdAt)
+            : await fetchOlderMessages(
+                scope.kind === "support" ? { kind: "support" } : { kind: "admin", tenantUserId: scope.tenantUserId },
+                oldest.createdAt,
+                authHeader,
+              );
       setOlder((prev) => mergeMessages(res.messages, prev));
       setHasMore(res.hasMore);
     } finally {
@@ -121,10 +172,8 @@ export function ChatConversationView({ scope, active = true }: { scope: ChatScop
       };
       setOptimistic((prev) => [...prev, temp]);
       try {
-        const real =
-          scope.kind === "support"
-            ? await sendSupport.mutateAsync(input)
-            : await sendAdmin.mutateAsync(input);
+        const sender = { support: sendSupport, admin: sendAdmin, customer: sendCustomer, team: sendTeam }[scope.kind];
+        const real = await sender.mutateAsync(input);
         setOptimistic((prev) => prev.map((m) => (m.messageId === tempId ? { ...real } : m)));
       } catch {
         setOptimistic((prev) =>
@@ -132,7 +181,7 @@ export function ChatConversationView({ scope, active = true }: { scope: ChatScop
         );
       }
     },
-    [scope, thread, meRole, userId, sendSupport, sendAdmin],
+    [scope, thread, meRole, userId, sendSupport, sendAdmin, sendCustomer, sendTeam],
   );
 
   return (
@@ -149,9 +198,16 @@ export function ChatConversationView({ scope, active = true }: { scope: ChatScop
       />
       <Composer
         onSend={onSend}
-        placeholder={scope.kind === "support" ? "Mensagem para o suporte…" : "Responder…"}
+        placeholder={
+          scope.kind === "support" ? "Mensagem para o suporte…"
+          : scope.kind === "team" ? "Escreve uma mensagem…"
+          : "Responder…"
+        }
+        allowPdf={scope.kind === "customer" || scope.kind === "team"}
         disabled={inSupport || viewOnly}
-        disabledNote={inSupport ? SUPPORT_UNAVAILABLE_NOTE : viewOnly ? VIEW_ONLY_MESSAGE : undefined}
+        disabledNote={
+          inSupport ? SUPPORT_UNAVAILABLE_NOTE : removedReadOnly ? REMOVED_NOTE : viewOnly ? VIEW_ONLY_MESSAGE : undefined
+        }
       />
     </div>
   );

@@ -1,6 +1,7 @@
 import { useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Icon } from "../../ui/icons.jsx";
 import { uploadImage } from "../../gen/backoffice/hooks/useUploadImage.js";
+import { uploadPdf } from "../../gen/backoffice/hooks/useUploadPdf.js";
 import type { ChatAttachment, MessageInput } from "../../hooks/useChat";
 
 interface PendingAttachment {
@@ -16,13 +17,15 @@ export interface ComposerProps {
   /** Nota visível por cima da caixa quando está desactivada (ex.: sessão de suporte). */
   disabledNote?: string;
   placeholder?: string;
+  /** B43: aceita também PDF (Clientes e Equipa); o Suporte continua só com fotos. */
+  allowPdf?: boolean;
 }
 
 /**
  * Caixa de escrita do chat: textarea auto-grow, anexos de imagem com upload
  * diferido (só ao Enviar) e envio com Enter (Shift+Enter = nova linha).
  */
-export function Composer({ onSend, disabled = false, disabledNote, placeholder = "Escreve uma mensagem…" }: ComposerProps) {
+export function Composer({ onSend, disabled = false, disabledNote, placeholder = "Escreve uma mensagem…", allowPdf = false }: ComposerProps) {
   const [text, setText] = useState("");
   const [atts, setAtts] = useState<PendingAttachment[]>([]);
   const [busy, setBusy] = useState(false);
@@ -40,8 +43,10 @@ export function Composer({ onSend, disabled = false, disabledNote, placeholder =
     if (!list) return;
     const next: PendingAttachment[] = [];
     for (const file of Array.from(list).slice(0, 10)) {
-      if (!file.type.startsWith("image/")) continue;
-      next.push({ file, url: URL.createObjectURL(file), name: file.name, mime: file.type });
+      const isPdf = allowPdf && file.type === "application/pdf";
+      if (!file.type.startsWith("image/") && !isPdf) continue;
+      // PDF não tem pré-visualização (sem blob): mostra-se um chip com o nome.
+      next.push({ file, url: isPdf ? "" : URL.createObjectURL(file), name: file.name, mime: file.type });
     }
     setAtts((prev) => [...prev, ...next].slice(0, 10));
     if (fileRef.current) fileRef.current.value = "";
@@ -63,14 +68,19 @@ export function Composer({ onSend, disabled = false, disabledNote, placeholder =
     try {
       const uploaded: ChatAttachment[] = [];
       for (const a of atts) {
-        const r: any = await uploadImage({ image: a.file, module: "chat" } as any);
-        uploaded.push({
-          url: r.fileUrl,
-          name: a.name,
-          mime: a.mime,
-          size: a.file.size,
-          srcSet: r.srcSet,
-        });
+        if (a.mime === "application/pdf") {
+          const r = await uploadPdf({ file: a.file, module: "chat" });
+          uploaded.push({ url: r.fileUrl, name: a.name, mime: a.mime, size: a.file.size });
+        } else {
+          const r: any = await uploadImage({ image: a.file, module: "chat" } as any);
+          uploaded.push({
+            url: r.fileUrl,
+            name: a.name,
+            mime: a.mime,
+            size: a.file.size,
+            srcSet: r.srcSet,
+          });
+        }
         if (a.url.startsWith("blob:")) URL.revokeObjectURL(a.url);
       }
       await onSend({ body: body || null, attachments: uploaded.length ? uploaded : null });
@@ -107,7 +117,14 @@ export function Composer({ onSend, disabled = false, disabledNote, placeholder =
         <div className="flex flex-wrap gap-2 mb-2">
           {atts.map((a, i) => (
             <div key={i} className="relative group">
-              <img src={a.url} alt={a.name} className="w-16 h-16 rounded-lg object-cover border border-zinc-200 dark:border-zinc-700" />
+              {a.url ? (
+                <img src={a.url} alt={a.name} className="w-16 h-16 rounded-lg object-cover border border-zinc-200 dark:border-zinc-700" />
+              ) : (
+                <div className="h-16 max-w-[10rem] px-2.5 rounded-lg border border-zinc-200 dark:border-zinc-700 flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300">
+                  <Icon name="paperclip" className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{a.name}</span>
+                </div>
+              )}
               <button
                 onClick={() => removeAtt(i)}
                 aria-label="Remover anexo"
@@ -124,7 +141,7 @@ export function Composer({ onSend, disabled = false, disabledNote, placeholder =
         <input
           ref={fileRef}
           type="file"
-          accept="image/*"
+          accept={allowPdf ? "image/*,application/pdf" : "image/*"}
           multiple
           className="hidden"
           onChange={(e) => pickFiles(e.target.files)}
@@ -133,7 +150,7 @@ export function Composer({ onSend, disabled = false, disabledNote, placeholder =
           onPointerDown={(e) => e.preventDefault()}
           onClick={() => fileRef.current?.click()}
           disabled={busy || disabled}
-          aria-label="Anexar imagem"
+          aria-label={allowPdf ? "Anexar foto ou PDF" : "Anexar imagem"}
           className="shrink-0 w-11 h-11 sm:w-10 sm:h-10 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex items-center justify-center disabled:opacity-50"
         >
           <Icon name="paperclip" className="w-[18px] h-[18px]" />

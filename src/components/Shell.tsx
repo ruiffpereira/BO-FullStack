@@ -47,6 +47,7 @@ const MEMBER_MODULE_PATH: Record<string, string> = {
   conteudos: '/conteudos',
   paginas: '/paginas',
   estatisticas: '/estatisticas',
+  // Agrupador (B43): `can('mensagens')` = alguma das folhas clientes/equipa/suporte.
   mensagens: '/mensagens',
 }
 
@@ -57,6 +58,8 @@ const ROUTE_META: Record<string, { nome: string; icon: string }> = {
   '/despesas':          { nome: 'Despesas',   icon: 'card' },
   '/clientes':          { nome: 'Clientes',   icon: 'users' },
   '/mensagens':         { nome: 'Mensagens',  icon: 'message' },
+  // Separador Backoffice (B43): sem item próprio na sidebar — só para o título do topbar.
+  '/mensagens/backoffice': { nome: 'Mensagens · Backoffice', icon: 'message' },
   '/loja':              { nome: 'Loja',       icon: 'store' },
   '/agenda':            { nome: 'Agenda',     icon: 'calendar' },
   '/ginasio':           { nome: 'Ginásio',    icon: 'trend' },
@@ -475,7 +478,7 @@ function SidebarContent({ accessiblePaths, collapsed }: {
               <NavItem
                 key={path}
                 path={path}
-                active={location.pathname === path || (isMember && groupItems.length === 1 && location.pathname.startsWith(`${path}/`))}
+                active={location.pathname === path || (path === '/mensagens' && location.pathname.startsWith('/mensagens/')) || (isMember && groupItems.length === 1 && location.pathname.startsWith(`${path}/`))}
                 to={isMember && groupItems.length === 1 ? groupItems[0].path : undefined}
                 collapsed={collapsed}
                 badge={path === '/mensagens' ? unreadMessages : undefined}
@@ -660,7 +663,7 @@ function Topbar({ theme, onToggleTheme, onMenu, onCollapse, onLogout, showTeam }
         {/* Sessão de suporte: sem sino — as notificações são escritas (marcar/apagar)
             que a API recusa, e o push não arranca. */}
         {!supportSession && <NotificationBell />}
-        {(!isMember || can('mensagens')) && <ChatLauncher />}
+        {(!isMember || can('mensagens.clientes') || can('mensagens.equipa') || can('mensagens.suporte')) && <ChatLauncher />}
         {/* Equipa (B41): quem está ligado — "Ana · equipa de Tifas Barber". */}
         {member && (
           <p
@@ -809,7 +812,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   // Rotas "full-bleed" no mobile: o conteúdo ocupa todo o espaço abaixo do topbar,
   // sem padding e sem scroll no <main> (a própria página gere o seu scroll interno).
   // Ex.: /mensagens (chat imersivo tipo app de mensagens).
-  const fullBleed = location.pathname === "/mensagens";
+  const fullBleed = location.pathname === "/mensagens" || location.pathname.startsWith("/mensagens/");
   // /paginas (construtor): a própria página reparte a altura por flex (barra + duas colunas com
   // scroll interno) — o <main> não faz scroll e o contentor enche-o (sem alturas fixas).
   const fillPage = location.pathname === "/paginas";
@@ -870,7 +873,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
       </div>
 
       {/* Botão flutuante de mensagens (some na própria página /mensagens) */}
-      {(!isMember || can('mensagens')) && <ChatFab />}
+      {(!isMember || can('mensagens.clientes') || can('mensagens.equipa') || can('mensagens.suporte')) && <ChatFab />}
     </div>
     </div>
     </PageMetaProvider>

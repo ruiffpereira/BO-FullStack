@@ -7,6 +7,8 @@ import { getNotificationsQueryKey } from "./useNotifications";
 import { getEventsStreamQueryKey } from "../gen/backoffice/hooks/useGetEventsStream.js";
 import { getScheduleAppointmentsQueryKey } from "../gen/backoffice/hooks/useGetScheduleAppointments.js";
 import { getOrdersQueryKey } from "../gen/backoffice/hooks/useGetOrders.js";
+import { getMessagesSummaryQueryKey } from "../gen/backoffice/hooks/useGetMessagesSummary.js";
+import { messagesKeys } from "./useMessages";
 
 import { API_BASE } from "../lib/env";
 
@@ -129,6 +131,44 @@ export function useSSE() {
       // tempo real): refresca thread + lista de conversas + badges.
       if (event.type === "message" || event.type === "chat_read") {
         queryClient.invalidateQueries({ queryKey: ["chat"] });
+        // O Suporte também conta no total do menu (summary).
+        queryClient.invalidateQueries({ queryKey: getMessagesSummaryQueryKey() });
+      }
+
+      // Mensagens (B43): clientes (`customer_*`, folha mensagens.clientes) e equipa (`team_*`, dirigido à outra
+      // pessoa) — refresca lista de conversas, fio aberto e contadores (summary).
+      if (
+        event.type === "customer_message" ||
+        event.type === "customer_chat_read" ||
+        event.type === "team_message" ||
+        event.type === "team_chat_read"
+      ) {
+        queryClient.invalidateQueries({ queryKey: messagesKeys.all });
+        queryClient.invalidateQueries({ queryKey: getMessagesSummaryQueryKey() });
+      }
+
+      // Toast de mensagem de cliente / de colega — exceto se já estás nas Mensagens. Coalescido por conversa.
+      if (
+        (event.type === "customer_message" || event.type === "team_message") &&
+        !window.location.pathname.startsWith("/mensagens")
+      ) {
+        const d = (event.data ?? {}) as {
+          customerName?: string;
+          senderName?: string;
+          senderKey?: string;
+          preview?: string;
+          conversationId?: string;
+        };
+        const isCustomer = event.type === "customer_message";
+        const who = isCustomer ? d.customerName || "Cliente" : d.senderName || "Equipa";
+        const target = isCustomer
+          ? `/mensagens?conversa=${encodeURIComponent(d.conversationId ?? "")}`
+          : `/mensagens/backoffice?com=${encodeURIComponent(d.senderKey ?? "")}`;
+        toast(`💬 ${who}`, {
+          id: `msg-${d.conversationId ?? "x"}`,
+          description: d.preview || "Tens uma nova mensagem.",
+          action: { label: "Abrir", onClick: () => navigate(target) },
+        });
       }
 
       // Aviso (toast) de nova mensagem — exceto se já estiveres nas Mensagens.
@@ -144,7 +184,7 @@ export function useSSE() {
         toast(`💬 ${who}`, {
           id: `chat-${d.conversationId ?? "x"}`,
           description: d.preview || "Tens uma nova mensagem.",
-          action: { label: "Abrir", onClick: () => navigate("/mensagens") },
+          action: { label: "Abrir", onClick: () => navigate(d.senderRole === "admin" ? "/mensagens/backoffice?com=suporte" : "/mensagens") },
         });
       }
     }

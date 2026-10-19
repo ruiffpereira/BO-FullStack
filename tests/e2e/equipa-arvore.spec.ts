@@ -54,7 +54,8 @@ const ALL_LEAF_KEYS = [
   "financeiro.mensalidades", "financeiro.despesas",
   "conteudos.website", "conteudos.produtos", "conteudos.servicos", "conteudos.ginasio", "conteudos.linguas", "conteudos.emails", "conteudos.notificacoes",
   "paginas.rascunho", "paginas.publicar",
-  "estatisticas", "mensagens",
+  // Mensagens (B43): agrupador com 3 folhas; `mensagens.clientes` nasce fechada e fica fora do "Acesso total".
+  "estatisticas", "mensagens.equipa", "mensagens.suporte",
 ];
 
 // ── helpers ────────────────────────────────────────────────────────────────────

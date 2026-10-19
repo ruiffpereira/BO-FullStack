@@ -9,13 +9,24 @@ test.use({ storageState: { cookies: [], origins: [] } });
  *  - admin@e2e   → Admin → /mensagens mostra o INBOX de todos os tenants.
  *  - limited@e2e → não-admin (só VIEW_PRODUCTS) → /mensagens mostra A SUA conversa.
  */
+/**
+ * B43: o Suporte do tenant vive no separador Backoffice (`/mensagens/backoffice`), fixo em primeiro na lista.
+ * (Em `/mensagens` fica o separador Clientes.) Abre-se a conversa e espera-se pelo compositor.
+ */
+async function openSupport(page: import("@playwright/test").Page): Promise<void> {
+  await page.goto("/mensagens/backoffice");
+  const row = page.getByTestId("support-conversation");
+  await expect(row).toBeVisible({ timeout: 15_000 });
+  await row.click();
+  await expect(page.getByRole("textbox", { name: "Mensagem" })).toBeVisible();
+}
+
 test.describe("Chat de suporte", () => {
   test("tenant (não-admin) vê a sua conversa de suporte, sem controlos de admin", async ({ page, context }) => {
     await loginAs(context, "limited@e2e");
-    await page.goto("/mensagens");
+    await openSupport(page);
 
-    await expect(page.getByText("Fala com o suporte")).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole("textbox", { name: "Mensagem" })).toBeVisible();
+    await expect(page.getByTestId("conversation-title")).toHaveText("Suporte");
     // Não vê os controlos do inbox de admin.
     await expect(page.getByRole("button", { name: "Nova" })).toHaveCount(0);
     await expect(page.getByPlaceholder("Procurar tenant…")).toHaveCount(0);
@@ -39,8 +50,7 @@ test.describe("Chat de suporte", () => {
     const tenantCtx = await browser.newContext();
     await loginAs(tenantCtx, "limited@e2e");
     const tenant = await tenantCtx.newPage();
-    await tenant.goto("/mensagens");
-    await expect(tenant.getByText("Fala com o suporte")).toBeVisible({ timeout: 15_000 });
+    await openSupport(tenant);
     await tenant.getByRole("textbox", { name: "Mensagem" }).fill(ask);
     await tenant.getByRole("button", { name: "Enviar" }).click();
     // Scopar ao histórico (role="log") — o texto também fica na textarea do composer.
@@ -91,8 +101,7 @@ test.describe("Chat de suporte", () => {
     const tenantCtx = await browser.newContext();
     await loginAs(tenantCtx, "limited@e2e");
     const tenant = await tenantCtx.newPage();
-    await tenant.goto("/mensagens");
-    await expect(tenant.getByText("Fala com o suporte")).toBeVisible({ timeout: 15_000 });
+    await openSupport(tenant);
     await tenant.getByRole("textbox", { name: "Mensagem" }).fill(`abre ${mark}`);
     await tenant.getByRole("button", { name: "Enviar" }).click();
     await expect(tenant.getByRole("log").getByText(`abre ${mark}`)).toBeVisible({ timeout: 10_000 });

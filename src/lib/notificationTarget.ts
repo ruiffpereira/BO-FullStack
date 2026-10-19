@@ -16,7 +16,8 @@ import type { Notification } from "../hooks/useNotifications";
  *   - Financeiro `/financeiro/ginasio`
  *   - Ginásio    `/ginasio` (raiz, tab Exercícios — sem cliente associado)
  *   - Loja       `/loja/encomendas` · `?openProduct=<id>` (produtos = raiz `/loja`)
- *   - Mensagens  (sem parâmetro)
+ *   - Mensagens  `/mensagens?conversa=<id>` — mensagem de cliente (B43, `data.kind = "customer_message"`): abre o
+ *     separador Clientes nessa conversa. As conversas de equipa/Suporte avisam por toast/badge, não pelo sino.
  */
 export function notificationHref(
   n: Pick<Notification, "type" | "data">,
@@ -78,10 +79,15 @@ export function notificationHref(
       return "/agenda";
     }
 
+    case "message": {
+      // B43: a API cria notificação só para mensagens de CLIENTES (um aviso por rajada de não lidas).
+      const cv = str("conversationId");
+      return cv ? `/mensagens?conversa=${encodeURIComponent(cv)}` : "/mensagens";
+    }
+
     case "system":
     default:
-      // Inclui o chat (que avisa por toast/badge, não pelo sino) e qualquer
-      // tipo sem destino: a notificação é clicável só para marcar como lida.
+      // Qualquer tipo sem destino: a notificação é clicável só para marcar como lida.
       return null;
   }
 }

@@ -62,16 +62,21 @@ function Badge({ children, tone = 'neutral', dot = false, className = '' }) {
   );
 }
 
+// A dica fica FORA do <label> e liga-se por aria-describedby: dentro dele entrava no nome acessível do campo.
 function Input({ label, icon, className = '', hint, type = 'text', ...rest }) {
+  const hintId = React.useId();
+  const describedBy = [rest['aria-describedby'], hint ? hintId : null].filter(Boolean).join(' ') || undefined;
   return (
-    <label className="block">
-      {label && <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">{label}</span>}
-      <div className="relative">
-        {icon && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"><Icon name={icon} className="w-[18px] h-[18px]" /></span>}
-        <input type={type} className={`w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 px-3 py-2 ${icon ? 'pl-10' : ''} focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition ${className}`} {...rest} />
-      </div>
-      {hint && <span className="block text-xs text-zinc-400 mt-1">{hint}</span>}
-    </label>
+    <div className="block">
+      <label className="block">
+        {label && <span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">{label}</span>}
+        <div className="relative">
+          {icon && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"><Icon name={icon} className="w-[18px] h-[18px]" /></span>}
+          <input type={type} className={`w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 px-3 py-2 ${icon ? 'pl-10' : ''} focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition ${className}`} {...rest} aria-describedby={describedBy} />
+        </div>
+      </label>
+      {hint && <span id={hintId} className="block text-xs text-zinc-400 mt-1">{hint}</span>}
+    </div>
   );
 }
 

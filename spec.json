@@ -1,3 +1,4 @@
+Not all input has been taken into account at your final specification.
 {
   "openapi": "3.0.0",
   "info": {
@@ -3377,6 +3378,123 @@
           "trialDays"
         ]
       },
+      "EmailDnsRecord": {
+        "type": "object",
+        "description": "Registo DNS a pôr no fornecedor de DNS do domínio (tipo · nome · valor · estado).",
+        "properties": {
+          "record": {
+            "type": "string",
+            "example": "DKIM",
+            "description": "Função no Resend (SPF, DKIM, …)"
+          },
+          "type": {
+            "type": "string",
+            "example": "TXT"
+          },
+          "name": {
+            "type": "string",
+            "example": "resend._domainkey.tifas"
+          },
+          "value": {
+            "type": "string"
+          },
+          "ttl": {
+            "type": "string",
+            "nullable": true,
+            "example": "Auto"
+          },
+          "priority": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Só nos MX"
+          },
+          "status": {
+            "type": "string",
+            "example": "verified",
+            "description": "not_started | pending | verified | failed | temporary_failure"
+          },
+          "verified": {
+            "type": "boolean",
+            "description": "status === verified (o ✓/✗ da tabela)"
+          }
+        }
+      },
+      "TenantEmailDomain": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string",
+            "example": "tifas.rufvision.com"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "platform-subdomain",
+              "own"
+            ]
+          },
+          "verified": {
+            "type": "boolean",
+            "description": "Dois estados só: verificado ou não"
+          },
+          "lastCheckedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "sendingEnabled": {
+            "type": "boolean"
+          },
+          "useForSending": {
+            "type": "boolean",
+            "description": "false = voltou ao envio da plataforma"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "verified && sendingEnabled && useForSending — os emails do negócio saem deste domínio"
+          },
+          "fromLocalPart": {
+            "type": "string",
+            "example": "geral"
+          },
+          "senderName": {
+            "type": "string",
+            "nullable": true
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmailDnsRecord"
+            }
+          }
+        }
+      },
+      "TenantEmailDomainEnvelope": {
+        "type": "object",
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "platformDomain": {
+            "type": "string",
+            "nullable": true,
+            "description": "EMAIL_PLATFORM_DOMAIN (null se não definida)"
+          },
+          "suggestedDomain": {
+            "type": "string",
+            "nullable": true,
+            "example": "tifas.rufvision.com"
+          },
+          "domain": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TenantEmailDomain"
+              }
+            ]
+          }
+        }
+      },
       "Lead": {
         "type": "object",
         "properties": {
@@ -4966,6 +5084,367 @@
           },
           "500": {
             "description": "Erro interno"
+          }
+        }
+      }
+    },
+    "/admin/users/{userId}/email-domain": {
+      "get": {
+        "summary": "Domínio de email de um tenant — estado e registos DNS (só o dono da plataforma)",
+        "description": "Devolve o estado guardado (verificado ou não, o que o job periódico/“Verificar agora” leram do Resend) e a tabela de registos DNS (tipo · nome · valor · estado ✓/✗). Sem domínio: `configured: false` + `suggestedDomain`. `VIEW_ADMIN`; fechada em sessão de suporte.\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado do domínio de email",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantEmailDomainEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem VIEW_ADMIN",
+            "ou sessão de suporte": null
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          }
+        }
+      },
+      "put": {
+        "summary": "Definir ou alterar o domínio de email de um tenant (cria-o no Resend)",
+        "description": "Sem domínio → cria-o no Resend (devolve os registos DNS) e grava (201). Com outro domínio → cria o novo, apaga o antigo no Resend e volta a \"não verificado\" (200). Mesmo domínio → só actualiza as opções (`sendingEnabled`, `fromLocalPart`, `senderName`), sem tocar no Resend (200). Os emails do negócio só saem deste domínio depois de verificado. **409** `domain_taken` se for de outro tenant; **502** se o Resend falhar.\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "domain"
+                ],
+                "properties": {
+                  "domain": {
+                    "type": "string",
+                    "example": "tifas.rufvision.com"
+                  },
+                  "sendingEnabled": {
+                    "type": "boolean"
+                  },
+                  "fromLocalPart": {
+                    "type": "string",
+                    "example": "geral"
+                  },
+                  "senderName": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantEmailDomainEnvelope"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Criado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantEmailDomainEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Domínio inválido"
+          },
+          "403": {
+            "description": "Sem VIEW_ADMIN",
+            "ou sessão de suporte": null
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          },
+          "409": {
+            "description": "Domínio já usado por outro tenant — `{ error: domain_taken, value }`"
+          },
+          "502": {
+            "description": "O Resend recusou/falhou — `{ error: email_provider_error, message }`"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remover o domínio de email de um tenant (apaga-o também no Resend)",
+        "description": "Os emails do negócio voltam a sair do endereço da plataforma. **502** se o Resend falhar (a linha mantém-se; repetir).",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removido"
+          },
+          "403": {
+            "description": "Sem VIEW_ADMIN",
+            "ou sessão de suporte": null
+          },
+          "404": {
+            "description": "Utilizador ou domínio de email não encontrado"
+          },
+          "502": {
+            "description": "O Resend falhou"
+          }
+        }
+      }
+    },
+    "/admin/users/{userId}/email-domain/use-platform": {
+      "post": {
+        "summary": "Voltar ao envio da plataforma (os emails do negócio deixam de sair do domínio dele)",
+        "description": "Idempotente. O domínio fica configurado; não volta a ser usado até `use-own`.",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantEmailDomainEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem VIEW_ADMIN",
+            "ou sessão de suporte": null
+          },
+          "404": {
+            "description": "Utilizador ou domínio de email não encontrado"
+          }
+        }
+      }
+    },
+    "/admin/users/{userId}/email-domain/use-own": {
+      "post": {
+        "summary": "Voltar ao envio do negócio (o domínio verificado volta a assinar os emails)",
+        "description": "Idempotente. **409** `domain_not_verified` se o domínio não está verificado.",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantEmailDomainEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem VIEW_ADMIN",
+            "ou sessão de suporte": null
+          },
+          "404": {
+            "description": "Utilizador ou domínio de email não encontrado"
+          },
+          "409": {
+            "description": "Domínio não verificado"
+          }
+        }
+      }
+    },
+    "/admin/email/status": {
+      "get": {
+        "summary": "Estado do correio da plataforma (cartão Admin → Sistema)",
+        "description": "Resend (configurado? domínios verificados/não verificados, envios do mês — contagem local, o Resend não a dá barata) e Stalwart (configurado? alcançável? credencial aceite?). Sem `STALWART_URL` o estado é `not_configured` (\"Por configurar\"). Nunca devolve chaves, URLs nem credenciais. `VIEW_ADMIN`; fechada em sessão de suporte.\n",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado do correio",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "platformDomain": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "resend": {
+                      "type": "object",
+                      "properties": {
+                        "configured": {
+                          "type": "boolean"
+                        },
+                        "domains": {
+                          "type": "object",
+                          "properties": {
+                            "total": {
+                              "type": "integer"
+                            },
+                            "verified": {
+                              "type": "integer"
+                            },
+                            "unverified": {
+                              "type": "integer"
+                            }
+                          }
+                        },
+                        "sentThisMonth": {
+                          "type": "integer"
+                        },
+                        "period": {
+                          "type": "string",
+                          "example": "2026-10"
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "local"
+                          ]
+                        }
+                      }
+                    },
+                    "stalwart": {
+                      "type": "object",
+                      "properties": {
+                        "configured": {
+                          "type": "boolean"
+                        },
+                        "reachable": {
+                          "type": "boolean",
+                          "nullable": true
+                        },
+                        "authenticated": {
+                          "type": "boolean",
+                          "nullable": true
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "not_configured",
+                            "ok",
+                            "unreachable",
+                            "auth_failed"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem VIEW_ADMIN",
+            "ou sessão de suporte": null
           }
         }
       }

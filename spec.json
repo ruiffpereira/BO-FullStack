@@ -1,4 +1,3 @@
-Not all input has been taken into account at your final specification.
 {
   "openapi": "3.0.0",
   "info": {
@@ -5247,6 +5246,52 @@ Not all input has been taken into account at your final specification.
         "responses": {
           "204": {
             "description": "Removido"
+          },
+          "403": {
+            "description": "Sem VIEW_ADMIN",
+            "ou sessão de suporte": null
+          },
+          "404": {
+            "description": "Utilizador ou domínio de email não encontrado"
+          },
+          "502": {
+            "description": "O Resend falhou"
+          }
+        }
+      }
+    },
+    "/admin/users/{userId}/email-domain/verify": {
+      "post": {
+        "summary": "Verificar agora — pede ao Resend para verificar o DNS e devolve o estado",
+        "description": "Se o estado mudar (passou a verificado / deixou de estar), o tenant recebe uma notificação. Passando a verificado, os emails do negócio passam a sair do domínio dele (se `useForSending`).\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado depois de verificar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantEmailDomainEnvelope"
+                }
+              }
+            }
           },
           "403": {
             "description": "Sem VIEW_ADMIN",

@@ -3482,6 +3482,39 @@
           },
           "position": {
             "type": "integer"
+          },
+          "doesService": {
+            "type": "boolean",
+            "description": "Só com `?serviceId=`: false = este profissional não faz o serviço (excluído)"
+          },
+          "price": {
+            "type": "number",
+            "nullable": true,
+            "description": "Só com `?serviceId=` E a folha agenda.marcacoes.valores: preço efectivo (o próprio ou o normal do serviço); null se não faz o serviço"
+          }
+        }
+      },
+      "StaffLinkableMember": {
+        "type": "object",
+        "description": "Membro activo da equipa que se pode ligar a um profissional (só id e nome)",
+        "required": [
+          "memberId",
+          "name",
+          "linkedStaffId"
+        ],
+        "properties": {
+          "memberId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "linkedStaffId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Profissional a que já está ligado (null = livre)"
           }
         }
       },
@@ -6729,9 +6762,16 @@
                     },
                     "grants": {
                       "type": "array",
+                      "description": "Cada folha com âmbito traz `scope: meus` (Só os meus); ausente = Todos. O dono nunca tem âmbito.",
                       "items": {
                         "$ref": "#/components/schemas/TeamGrantInput"
                       }
+                    },
+                    "staffId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true,
+                      "description": "Profissional ligado ao membro da sessão (null = dono ou sem ligação)"
                     }
                   }
                 }
@@ -18018,6 +18058,18 @@
             "adminBearerAuth": []
           }
         ],
+        "parameters": [
+          {
+            "name": "serviceId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Dica da marcação: acrescenta a cada profissional `doesService` e (só com a folha `agenda.marcacoes.valores`) o `price` efectivo. Serviço de outro tenant ou inexistente → 404 `SERVICE_NOT_FOUND`."
+          }
+        ],
         "responses": {
           "200": {
             "description": "Lista ordenada por `position`",
@@ -18032,8 +18084,46 @@
               }
             }
           },
+          "400": {
+            "description": "`SERVICE_INVALID` — serviceId inválido"
+          },
           "403": {
             "description": "`TEAM_FORBIDDEN` — membro sem nenhuma das folhas"
+          },
+          "404": {
+            "description": "`SERVICE_NOT_FOUND`"
+          }
+        }
+      }
+    },
+    "/schedule/staff/linkable-members": {
+      "get": {
+        "summary": "Membros activos da equipa que se podem ligar a um profissional (só id e nome)",
+        "description": "Não exige a folha `equipa`. Precisa de `agenda.profissionais` (Editar) e de NÃO ter o âmbito \"Só os meus\" (403 `STAFF_LINK_FORBIDDEN`). Só membros activos do tenant; nunca devolve email nem permissões.",
+        "tags": [
+          "Staff"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Membros por nome",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StaffLinkableMember"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`TEAM_FORBIDDEN` (sem Editar) ou `STAFF_LINK_FORBIDDEN` (âmbito Só os meus)"
           }
         }
       }

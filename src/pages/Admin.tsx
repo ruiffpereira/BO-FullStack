@@ -74,6 +74,7 @@ import {
 } from "../hooks/useGoogleIntegration";
 import { AdminBillingTab } from "../components/AdminBilling";
 import { AdminTeamModal } from "../components/AdminTeamModal";
+import { AdminEmailModal, EmailStatusCard } from "../components/AdminEmailModal";
 import { FEATURES } from "../lib/features";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -311,6 +312,8 @@ function UtilizadoresTab({
   const [domainValue, setDomainValue] = useState("");
   // Equipa do tenant (B41), só leitura — para suporte.
   const [teamOf, setTeamOf] = useState<{ userId: string; name: string } | null>(null);
+  // Domínio de email do tenant (B42 · fase 4), modal ao lado do "Domínio do site".
+  const [emailOf, setEmailOf] = useState<{ userId: string; name: string } | null>(null);
 
   const domainM = usePutAdminUsersUseridSiteDomain({
     client: { headers },
@@ -528,6 +531,15 @@ function UtilizadoresTab({
                     title="Domínio do site"
                     onClick={() => openDomain(u)}
                   />
+                  {/* A conta admin não tem domínio de email por tenant: sem acção. */}
+                  {!u.isPlatformAdmin && (
+                    <IconButton
+                      icon="mail"
+                      label={`Email de ${u.name}`}
+                      title="Email"
+                      onClick={() => setEmailOf({ userId: u.userId, name: u.name })}
+                    />
+                  )}
                   <IconButton
                     icon="edit"
                     label="Editar"
@@ -565,6 +577,7 @@ function UtilizadoresTab({
       <Pagination {...pgUsers} />
 
       <AdminTeamModal tenant={teamOf} onClose={() => setTeamOf(null)} />
+      <AdminEmailModal tenant={emailOf} onClose={() => setEmailOf(null)} />
 
       <Modal
         open={createOpen}
@@ -1786,7 +1799,10 @@ function SistemaTab() {
         </Card>
       </div>
 
-      <IdorProbesCard />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        <IdorProbesCard />
+        <EmailStatusCard />
+      </div>
 
       <p className="text-sm text-zinc-500">
         Os erros do sistema (5xx) aparecem agora na aba <span className="font-medium text-zinc-700 dark:text-zinc-300">Atividade</span>, com o filtro <span className="font-medium text-red-600 dark:text-red-400">Só erros</span>.

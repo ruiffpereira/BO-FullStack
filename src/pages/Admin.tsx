@@ -53,6 +53,7 @@ import {
 } from "../gen/backoffice/hooks/useGetAdminCorsOrigins.js";
 import { usePostAdminCorsOrigins } from "../gen/backoffice/hooks/usePostAdminCorsOrigins.js";
 import { useDeleteAdminCorsOriginsCorsoriginid } from "../gen/backoffice/hooks/useDeleteAdminCorsOriginsCorsoriginid.js";
+import { useGetAdminSecurityIdor } from "../gen/backoffice/hooks/useGetAdminSecurityIdor.js";
 
 import type { User } from "../gen/backoffice/types/User.js";
 import type { GetUsers200 } from "../gen/backoffice/types/GetUsers.js";
@@ -1785,10 +1786,52 @@ function SistemaTab() {
         </Card>
       </div>
 
+      <IdorProbesCard />
+
       <p className="text-sm text-zinc-500">
         Os erros do sistema (5xx) aparecem agora na aba <span className="font-medium text-zinc-700 dark:text-zinc-300">Atividade</span>, com o filtro <span className="font-medium text-red-600 dark:text-red-400">Só erros</span>.
       </p>
     </div>
+  );
+}
+
+// ─── Tentativas de acesso por id (IDOR) ──────────────────────────────────────
+// 403/404 em rotas autenticadas com um id: o sinal de alguém a experimentar ids (não prova que o id era de outro
+// negócio). A API agrega por dia/actor/IP; "suspeito" = 50 ou mais num dia.
+const ACTOR_LABEL: Record<string, string> = { user: "Dono", member: "Equipa", customer: "Cliente do site" };
+
+function IdorProbesCard() {
+  const { data, isLoading, isError } = useGetAdminSecurityIdor({ days: 7 });
+  const suspects = data?.suspects ?? [];
+
+  return (
+    <Card className="p-4 space-y-4" data-testid="idor-card">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold">Tentativas de acesso por id · 7 dias</h3>
+          <p className="text-[13px] text-zinc-500">Pedidos recusados (403/404) a recursos por id. Suspeito: 50 ou mais num dia.</p>
+        </div>
+        <p className="text-2xl font-semibold tabular-nums" data-testid="idor-total">{isLoading ? "…" : (data?.total ?? 0)}</p>
+      </div>
+
+      {isError ? (
+        <p className="text-sm text-red-600 dark:text-red-400">Não foi possível carregar.</p>
+      ) : suspects.length === 0 ? (
+        !isLoading && <p className="text-sm text-zinc-500">Nenhum actor suspeito nos últimos 7 dias.</p>
+      ) : (
+        <ul className="divide-y divide-zinc-100 dark:divide-zinc-800" aria-label="Actores suspeitos">
+          {suspects.map((p) => (
+            <li key={`${p.day}-${p.actorType}-${p.actorId}-${p.ip}`} className="py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+              <Badge tone="red" className="whitespace-nowrap">{p.count}×</Badge>
+              <span className="font-medium min-w-0 truncate">{p.actorName ?? "—"}</span>
+              <span className="text-zinc-500">{ACTOR_LABEL[p.actorType] ?? p.actorType}{p.tenantName ? ` · ${p.tenantName}` : ""}</span>
+              <span className="text-zinc-500 tabular-nums">{formatDatePt(p.day)} · {p.ip}</span>
+              {p.lastRoute && <code className="basis-full text-xs text-zinc-400 break-all">{p.lastRoute}</code>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 

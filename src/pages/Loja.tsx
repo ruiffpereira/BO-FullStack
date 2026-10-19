@@ -10,6 +10,7 @@ import { CmsCombo } from "../components/CmsCombo";
 import { confirmDialog } from "../components/confirm";
 import { ensureCmsName } from "../lib/gymCms";
 import { toast } from "sonner";
+import { getApiError } from "../lib/apiError";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { Icon } from "../ui/icons.jsx";
@@ -494,7 +495,7 @@ export function Loja({ view }: { view: LojaView }) {
         setNewCatVisible(false);
         setNewCatName("");
       },
-      onError: () => toast.error("Erro ao guardar categoria"),
+      onError: (e) => toast.error(getApiError(e, "Erro ao guardar categoria")),
     },
   });
   const delCategory = useDeleteCategoriesId({
@@ -504,7 +505,7 @@ export function Loja({ view }: { view: LojaView }) {
         toast.success("Categoria eliminada");
         invalidateCats();
       },
-      onError: () => toast.error("Erro ao eliminar categoria"),
+      onError: (e) => toast.error(getApiError(e, "Erro ao eliminar categoria")),
     },
   });
   const putSubcategory = usePutSubcategoriesId({
@@ -517,7 +518,7 @@ export function Loja({ view }: { view: LojaView }) {
         setNewSubCatId(null);
         setNewSubName("");
       },
-      onError: () => toast.error("Erro ao guardar subcategoria"),
+      onError: (e) => toast.error(getApiError(e, "Erro ao guardar subcategoria")),
     },
   });
   const delSubcategory = useDeleteSubcategoriesId({
@@ -527,7 +528,7 @@ export function Loja({ view }: { view: LojaView }) {
         toast.success("Subcategoria eliminada");
         invalidateCats();
       },
-      onError: () => toast.error("Erro ao eliminar subcategoria"),
+      onError: (e) => toast.error(getApiError(e, "Erro ao eliminar subcategoria")),
     },
   });
 
@@ -599,7 +600,7 @@ export function Loja({ view }: { view: LojaView }) {
         qc.invalidateQueries({ queryKey: ["cms-references-counts"] });
         setModal(false);
       },
-      onError: () => toast.error("Erro ao criar produto"),
+      onError: (e) => toast.error(getApiError(e, "Erro ao criar produto")),
     },
   });
 
@@ -612,7 +613,7 @@ export function Loja({ view }: { view: LojaView }) {
         qc.invalidateQueries({ queryKey: ["cms-references-counts"] });
         setModal(false);
       },
-      onError: () => toast.error("Erro ao actualizar produto"),
+      onError: (e) => toast.error(getApiError(e, "Erro ao actualizar produto")),
     },
   });
 
@@ -623,7 +624,7 @@ export function Loja({ view }: { view: LojaView }) {
         toast.success("Produto eliminado");
         invalidateProducts();
       },
-      onError: () => toast.error("Erro ao eliminar produto"),
+      onError: (e) => toast.error(getApiError(e, "Erro ao eliminar produto")),
     },
   });
 

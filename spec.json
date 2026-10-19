@@ -4550,10 +4550,141 @@
         }
       }
     },
+    "/admin/security/idor": {
+      "get": {
+        "summary": "Tentativas de IDOR dos últimos N dias (só o dono da plataforma)",
+        "description": "Conta os 403/404 em rotas autenticadas (Backoffice e clientes dos sites) com um id UUID no path — o sinal de alguém a experimentar ids. Não conta rotas públicas, 401, sessões de suporte nem o admin da plataforma. `suspects` = actor+IP+dia com 50 ou mais tentativas (máx. 50, por contagem desc). Só nomes: nunca email nem credenciais. Exige `VIEW_ADMIN`; fechado em sessão de suporte.\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90,
+              "default": 7
+            },
+            "description": "Janela em dias (1..90)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resumo das tentativas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "days",
+                    "total",
+                    "perDay",
+                    "suspects"
+                  ],
+                  "properties": {
+                    "days": {
+                      "type": "integer",
+                      "example": 7
+                    },
+                    "total": {
+                      "type": "integer",
+                      "description": "Soma de todas as tentativas na janela"
+                    },
+                    "perDay": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "day": {
+                            "type": "string",
+                            "format": "date",
+                            "example": "2026-10-23"
+                          },
+                          "count": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "suspects": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "actorType": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "member",
+                              "customer"
+                            ]
+                          },
+                          "actorId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "tenantUserId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "tenantName": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "actorName": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "ip": {
+                            "type": "string"
+                          },
+                          "day": {
+                            "type": "string",
+                            "format": "date"
+                          },
+                          "count": {
+                            "type": "integer"
+                          },
+                          "lastRoute": {
+                            "type": "string",
+                            "nullable": true,
+                            "example": "/api/schedule/appointments/:appointmentId"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`days` fora de 1..90 ou não numérico"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem permissão VIEW_ADMIN, ou sessão de suporte (IMPERSONATION_FORBIDDEN)"
+          },
+          "500": {
+            "description": "Erro interno"
+          }
+        }
+      }
+    },
     "/users/signup": {
       "post": {
         "summary": "Signup público self-serve (cria tenant em período experimental configurável, default 14 dias, sem cartão)",
-        "description": "Endpoint PÚBLICO (sem auth, sem CSRF — como o `/setup-password`), rate-limited\n(`authRateLimit`). Cria um `User` sem password (com `setupToken` de 24h), um\n`Permission` novo por-tenant com os componentes RBAC dos módulos escolhidos\n(+ os componentes \"core\" que o backend já exige + `VIEW_SITE_BUILDER`, sempre\nconcedido — self-serve mantém poder total sobre a estrutura do site), e uma\n`PlatformSubscription` local `trialing` (período experimental configurável,\ndefault 14 dias). Tudo\nnuma única transação.\n\nANTI-ENUMERAÇÃO: a resposta é SEMPRE `{ ok: true }` (200), mesmo que o email já\nexista — nesse caso nada é criado; só o email enviado difere.\n",
+        "description": "Endpoint PÚBLICO (sem auth, sem CSRF — como o `/setup-password`), rate-limited\n(`authRateLimit`). Cria um `User` sem password (com `setupToken` de 24h), um\n`Permission` novo por-tenant com os componentes RBAC dos módulos escolhidos\n(+ os componentes \"core\" que o backend já exige), e uma\n`PlatformSubscription` local `trialing` (período experimental configurável,\ndefault 14 dias). Tudo\nnuma única transação.\n\nANTI-ENUMERAÇÃO: a resposta é SEMPRE `{ ok: true }` (200), mesmo que o email já\nexista — nesse caso nada é criado; só o email enviado difere.\n",
         "tags": [
           "Users"
         ],
@@ -4979,6 +5110,9 @@
           },
           "404": {
             "description": "Utilizador não encontrado"
+          },
+          "429": {
+            "description": "Demasiados pedidos (10 por 15 min por admin)"
           }
         }
       }
@@ -5090,7 +5224,7 @@
     "/users/me/support-access/logs": {
       "get": {
         "summary": "Registo de acessos e alterações do suporte na conta do próprio tenant",
-        "description": "Linhas do tenant feitas por um admin (sessões e alterações em sessão de suporte) e as suas próprias concessões/revogações. Campos por allowlist — nunca devolve ip, userAgent, responseBody, message, stack nem o id do ator.\n",
+        "description": "Linhas do tenant feitas por um admin (sessões, alterações e leituras `view` em sessão de suporte; uma leitura repetida no mesmo minuto conta uma vez) e as suas próprias concessões/revogações. Campos por allowlist — nunca devolve ip, userAgent, responseBody, message, stack nem o id do ator.\n",
         "tags": [
           "Users"
         ],
@@ -5146,7 +5280,8 @@
                               "session",
                               "grant",
                               "revoke",
-                              "change"
+                              "change",
+                              "view"
                             ]
                           },
                           "actorName": {
@@ -9891,6 +10026,9 @@
           "200": {
             "description": "Category created or updated successfully"
           },
+          "400": {
+            "description": "name em falta"
+          },
           "500": {
             "description": "Error upserting category"
           }
@@ -9913,7 +10051,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Category deleted successfully"
+            "description": "Category deleted. As subcategorias vão com ela; os produtos ficam sem categoria/subcategoria."
           },
           "404": {
             "description": "Category not found"
@@ -10582,6 +10720,9 @@
           },
           "400": {
             "description": "contentKey obrigatório ou campos inválidos"
+          },
+          "409": {
+            "description": "contentKey já usado por outro produto do tenant (code CONTENT_KEY_TAKEN)"
           }
         }
       }
@@ -10696,6 +10837,9 @@
           },
           "404": {
             "description": "Produto não encontrado"
+          },
+          "409": {
+            "description": "contentKey já usado por outro produto do tenant (code CONTENT_KEY_TAKEN)"
           }
         }
       },
@@ -10828,6 +10972,12 @@
         "responses": {
           "200": {
             "description": "Subcategory created or updated successfully"
+          },
+          "400": {
+            "description": "name ou categoryId em falta (CATEGORY_REQUIRED)"
+          },
+          "404": {
+            "description": "Categoria (ou subcategoria) inexistente ou de outro tenant"
           },
           "500": {
             "description": "Error upserting subcategory"
@@ -11099,6 +11249,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "month/from/to inválidos"
           }
         }
       },
@@ -11155,7 +11308,7 @@
             }
           },
           "400": {
-            "description": "Campos obrigatórios em falta ou categoria inválida"
+            "description": "Campos obrigatórios em falta, amount negativo/não numérico, data inválida ou categoria inválida"
           }
         }
       }
@@ -11294,6 +11447,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "amount negativo/não numérico, data ou categoria inválidas"
           },
           "404": {
             "description": "Despesa não encontrada"
@@ -16185,6 +16341,9 @@
           },
           "400": {
             "description": "contentKey obrigatório ou duração inválida"
+          },
+          "409": {
+            "description": "contentKey já usado por outro serviço do tenant (code CONTENT_KEY_TAKEN)"
           }
         }
       }
@@ -16277,6 +16436,9 @@
           },
           "404": {
             "description": "Serviço não encontrado"
+          },
+          "409": {
+            "description": "contentKey já usado por outro serviço do tenant (code CONTENT_KEY_TAKEN)"
           }
         }
       },

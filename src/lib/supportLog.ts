@@ -26,6 +26,15 @@ const AREA_BY_RESOURCE: Record<string, string> = {
   settings: "as definições",
   languages: "as línguas",
   users: "o perfil",
+  customers: "os clientes",
+  clientes: "os clientes",
+  orders: "as encomendas",
+  expenses: "as despesas",
+  financeiro: "o financeiro",
+  dashboard: "o resumo",
+  team: "a equipa",
+  notifications: "as notificações",
+  chat: "as mensagens",
 };
 
 const VERB_BY_METHOD: Record<string, string> = {
@@ -80,6 +89,11 @@ export function describeSupportAction(item: SupportLogItem): string {
     }
     case "revoke":
       return "Revogaste o acesso do suporte";
+    // Leituras em sessão de suporte (o que o suporte VIU); área desconhecida → genérico.
+    case "view": {
+      const area = areaForItem(item);
+      return area === "—" || area === item.resourceType ? "Viu a conta" : `Viu ${area}`;
+    }
     default:
       return `${verbForMethod(item.method)} ${areaForItem(item)}`;
   }

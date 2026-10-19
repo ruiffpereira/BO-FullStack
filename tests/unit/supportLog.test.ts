@@ -94,6 +94,12 @@ describe("Registo do suporte — texto por kind / método / recurso", () => {
     expect(describeSupportAction(item({ method: "POST", path, resourceType: path.split("/")[1] }))).toBe(text);
   });
 
+  it("view → 'Viu <área>'; área desconhecida → 'Viu a conta'", () => {
+    expect(describeSupportAction(item({ kind: "view", method: "GET", path: "/customers", resourceType: "customers" }))).toBe("Viu os clientes");
+    expect(describeSupportAction(item({ kind: "view", method: "GET", path: "/schedule/services", resourceType: "schedule" }))).toBe("Viu os serviços");
+    expect(describeSupportAction(item({ kind: "view", method: "GET", path: "/widgets/1", resourceType: "widgets" }))).toBe("Viu a conta");
+  });
+
   it("sem correspondência fica o resourceType cru", () => {
     expect(areaForResource("widgets")).toBe("widgets");
     expect(describeSupportAction(item({ method: "POST", resourceType: "widgets", path: "/widgets/1" }))).toBe("Criou widgets");

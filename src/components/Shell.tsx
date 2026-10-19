@@ -14,6 +14,7 @@ import { SupportSessionBar } from './SupportSessionBar'
 import { NavBadge } from './NavBadge'
 import { useSSE } from '../hooks/useSSE'
 import { useChatUnread } from '../hooks/useChat'
+import { useMailUnread } from '../hooks/useMail'
 import { SUBMENU, allowedSubitems, findRoot, memberSubitems, type SubmenuItem } from '../lib/navigation'
 
 // Core: todos os tenants têm (sem permissão). Módulos: por permissão.
@@ -28,11 +29,13 @@ const MODULE_PERM_TO_PATH: Record<string, string> = {
   // Construtor de páginas (B38): item de topo próprio, só com a permissão. O label "Páginas" não
   // existe em nenhum SUBMENU nem noutro item da sidebar (ver a regra dos labels em CLAUDE.md).
   VIEW_SITE_PAGES: '/paginas',
+  // Correio (B42): o módulo de email. O label "Correio" não colide com o subitem Conteúdos → Emails.
+  VIEW_EMAIL: '/correio',
 }
 
 // Ordem fixa de apresentação na sidebar (independente de core/módulos/admin).
 // Cada item só aparece se for acessível ao tenant (permissões + admin).
-const MENU_ORDER = ['/dashboard', '/admin', '/clientes', '/mensagens', '/conteudos', '/paginas', '/estatisticas', '/loja', '/agenda', '/ginasio', '/financeiro', '/faturacao']
+const MENU_ORDER = ['/dashboard', '/admin', '/clientes', '/mensagens', '/correio', '/conteudos', '/paginas', '/estatisticas', '/loja', '/agenda', '/ginasio', '/financeiro', '/faturacao']
 
 // Equipa (B41 2b/2c): o TOPO da árvore da API → item da sidebar (`can(topo)` = alguma folha debaixo). O Dashboard tem
 // folha própria (`dashboard`) e o Financeiro mostra a um membro as abas com folha (O Negócio, Agenda, Loja, Ginásio/
@@ -49,6 +52,8 @@ const MEMBER_MODULE_PATH: Record<string, string> = {
   estatisticas: '/estatisticas',
   // Agrupador (B43): `can('mensagens')` = alguma das folhas clientes/equipa/suporte.
   mensagens: '/mensagens',
+  // Correio (B42): `can('correio')` = alguma das folhas (hoje `correio.caixa`).
+  correio: '/correio',
 }
 
 const ROUTE_META: Record<string, { nome: string; icon: string }> = {
@@ -60,6 +65,7 @@ const ROUTE_META: Record<string, { nome: string; icon: string }> = {
   '/mensagens':         { nome: 'Mensagens',  icon: 'message' },
   // Separador Backoffice (B43): sem item próprio na sidebar — só para o título do topbar.
   '/mensagens/backoffice': { nome: 'Mensagens · Backoffice', icon: 'message' },
+  '/correio':           { nome: 'Correio',    icon: 'mail' },
   '/loja':              { nome: 'Loja',       icon: 'store' },
   '/agenda':            { nome: 'Agenda',     icon: 'calendar' },
   '/ginasio':           { nome: 'Ginásio',    icon: 'trend' },
@@ -403,6 +409,8 @@ function SidebarContent({ accessiblePaths, collapsed }: {
   // ChatLauncher/ChatFab, que já chamam useChatUnread() cada um por sua vez;
   // o React Query cacheia/deduplica o pedido de rede pela mesma queryKey.
   const unreadMessages = useChatUnread()
+  // Não lidas do Correio: só corre com o item na sidebar (a API recusa `/mail/*` sem a folha e em sessão de suporte).
+  const unreadMail = useMailUnread(accessiblePaths.includes('/correio'))
 
   // Acordeão: só um pai (com submenu) expandido de cada vez — por omissão o da
   // rota ativa (derivado). Pode ser manualmente COLAPSADO sem navegar
@@ -481,7 +489,7 @@ function SidebarContent({ accessiblePaths, collapsed }: {
                 active={location.pathname === path || (path === '/mensagens' && location.pathname.startsWith('/mensagens/')) || (isMember && groupItems.length === 1 && location.pathname.startsWith(`${path}/`))}
                 to={isMember && groupItems.length === 1 ? groupItems[0].path : undefined}
                 collapsed={collapsed}
-                badge={path === '/mensagens' ? unreadMessages : undefined}
+                badge={path === '/mensagens' ? unreadMessages : path === '/correio' ? unreadMail : undefined}
               />
             )
           })}
@@ -815,7 +823,8 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   const fullBleed = location.pathname === "/mensagens" || location.pathname.startsWith("/mensagens/");
   // /paginas (construtor): a própria página reparte a altura por flex (barra + duas colunas com
   // scroll interno) — o <main> não faz scroll e o contentor enche-o (sem alturas fixas).
-  const fillPage = location.pathname === "/paginas";
+  // /correio (Caixa): idem — lista e conversa com scroll próprio, sem alturas calculadas.
+  const fillPage = location.pathname === "/paginas" || location.pathname === "/correio" || location.pathname.startsWith("/correio/");
 
   return (
     <PageMetaProvider>

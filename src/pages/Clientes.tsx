@@ -9,6 +9,7 @@ import { Card, Badge, Avatar, Modal, Input, Button, IconButton, EmptyState, Tabs
 import { usePageSubtitle } from '../context/PageMetaContext'
 import { GuardButton } from '../components/GuardButton'
 import { useTeamAccess } from '../hooks/useTeamAccess'
+import { CustomerEmailsTab } from '../components/correio/CustomerEmailsTab'
 import { usePagination, Pagination } from '../components/Pagination'
 import { DatePicker } from '../components/DatePicker'
 import { useGetCustomers, getCustomersQueryKey } from '../gen/backoffice/hooks/useGetCustomers.js'
@@ -80,6 +81,8 @@ export function Clientes({ view }: { view: ClientesView }) {
   // Um membro só vê os separadores Agenda/Ginásio da ficha se tiver as folhas desses módulos (a API recusa o resto).
   const canSchedule = hasPermission('VIEW_SCHEDULE') && can('agenda', 'view')
   const canGym = hasPermission('VIEW_GYM') && can('financeiro.mensalidades', 'view')
+  // Correio (B42): separador Emails da ficha — módulo VIEW_EMAIL + Caixa (Ver) + Clientes → Lista (Ver).
+  const canMail = hasPermission('VIEW_EMAIL') && can('correio.caixa', 'view') && can('clientes.lista', 'view')
   const qc = useQueryClient()
   const navigate = useNavigate()
   const location = useLocation()
@@ -98,8 +101,9 @@ export function Clientes({ view }: { view: ClientesView }) {
   const profileTabs = [
     ...(canSchedule ? [{ id: 'agenda' as const, label: 'Agenda', icon: 'calendar' }] : []),
     ...(canGym ? [{ id: 'ginasio' as const, label: 'Ginásio', icon: 'euro' }] : []),
+    ...(canMail ? [{ id: 'emails' as const, label: 'Emails', icon: 'mail' }] : []),
   ]
-  const [profileTab, setProfileTab] = useState<'agenda' | 'ginasio'>('agenda')
+  const [profileTab, setProfileTab] = useState<'agenda' | 'ginasio' | 'emails'>('agenda')
   useEffect(() => { if (profileId) setProfileTab(profileTabs[0]?.id ?? 'agenda') }, [profileId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data, isLoading, isError } = useGetCustomers()
@@ -413,6 +417,9 @@ export function Clientes({ view }: { view: ClientesView }) {
             {profileTabs.length > 0 && (
               <Tabs tabs={profileTabs} value={profileTab} onChange={setProfileTab} fullWidth size="sm" />
             )}
+
+            {/* Tab Emails — conversas da caixa do negócio com este cliente (B42) */}
+            {profileTab === 'emails' && canMail && <CustomerEmailsTab customerId={profileCustomer.customerId} onOpen={closeProfile} />}
 
             {/* Tab Ginásio — mensalidade do cliente */}
             {profileTab === 'ginasio' && canGym && <ClienteMensalidade customerId={profileCustomer.customerId} dense />}

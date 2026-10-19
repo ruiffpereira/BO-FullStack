@@ -17,6 +17,7 @@ import { FinanceiroPage } from "./pages/FinanceiroPage";
 import { Estatisticas } from "./pages/Estatisticas";
 import { Paginas } from "./pages/paginas/Paginas";
 import { Mensagens } from "./pages/Mensagens";
+import { Correio } from "./pages/Correio";
 import { Faturacao } from "./pages/Faturacao";
 import { Perfil } from "./pages/Perfil";
 import { Equipa } from "./pages/Equipa";
@@ -205,6 +206,8 @@ function App() {
         <Route path="/clientes" element={<LegacyTabEntry root="/clientes" param="tab"><Clientes view="clientes" /></LegacyTabEntry>} />
         <Route path="/clientes/leads" element={<Clientes view="leads" />} />
         <Route path="/faturacao" element={<Faturacao />} />
+        {/* Correio (B42): o item da sidebar só existe com VIEW_EMAIL; o guard do Shell trata o resto. */}
+        <Route path="/correio" element={<Correio />} />
         <Route path="/mensagens" element={<Mensagens view="clientes" />} />
         <Route path="/mensagens/backoffice" element={<Mensagens view="backoffice" />} />
         {/* Core, fora da sidebar — acede-se pelo menu do avatar no topbar (Shell.tsx). */}

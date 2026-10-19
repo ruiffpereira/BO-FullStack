@@ -1,4 +1,5 @@
 import type { Notification } from "../hooks/useNotifications";
+import { CORREIO_PATH, mailThreadHref } from "./mail";
 
 /**
  * Deep-link de uma notificação → rota do backoffice (path + query string) ou
@@ -16,6 +17,8 @@ import type { Notification } from "../hooks/useNotifications";
  *   - Financeiro `/financeiro/ginasio`
  *   - Ginásio    `/ginasio` (raiz, tab Exercícios — sem cliente associado)
  *   - Loja       `/loja/encomendas` · `?openProduct=<id>` (produtos = raiz `/loja`)
+ *   - Correio    `/correio?caixa=<id>&conversa=<threadId>` — email novo na caixa do negócio (B42, `type: "email"`,
+ *     `data.mailboxId`/`data.threadId`); sem conversa (rajada de emails) abre a Caixa dessa caixa
  *   - Mensagens  `/mensagens?conversa=<id>` — mensagem de cliente (B43, `data.kind = "customer_message"`): abre o
  *     separador Clientes nessa conversa. As conversas de equipa/Suporte avisam por toast/badge, não pelo sino.
  */
@@ -83,6 +86,14 @@ export function notificationHref(
       // B43: a API cria notificação só para mensagens de CLIENTES (um aviso por rajada de não lidas).
       const cv = str("conversationId");
       return cv ? `/mensagens?conversa=${encodeURIComponent(cv)}` : "/mensagens";
+    }
+
+    case "email": {
+      // B42: um aviso por email (ou um resumo, sem `threadId`, numa rajada).
+      const box = str("mailboxId");
+      const th = str("threadId");
+      if (box && th) return mailThreadHref(box, th);
+      return box ? `${CORREIO_PATH}?caixa=${encodeURIComponent(box)}` : CORREIO_PATH;
     }
 
     case "system":

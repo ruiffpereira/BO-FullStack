@@ -9,6 +9,8 @@ import { getScheduleAppointmentsQueryKey } from "../gen/backoffice/hooks/useGetS
 import { getOrdersQueryKey } from "../gen/backoffice/hooks/useGetOrders.js";
 import { getMessagesSummaryQueryKey } from "../gen/backoffice/hooks/useGetMessagesSummary.js";
 import { messagesKeys } from "./useMessages";
+import { invalidateMailQueries } from "./useMail";
+import { mailThreadHref, CORREIO_PATH } from "../lib/mail";
 
 import { API_BASE } from "../lib/env";
 
@@ -115,6 +117,8 @@ export function useSSE() {
         // (useGetScheduleAppointments / useGetOrders) mesmo que o path mude no
         // spec. É prefixo: invalida também as leituras com params (from/to, etc.).
         const notifType = event.data?.type;
+        // Email novo na caixa do negócio: a notificação é o aviso; a lista da Caixa actualiza-se já.
+        if (notifType === "email") invalidateMailQueries(queryClient);
         if (notifType === "booking") {
           queryClient.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() });
         } else if (notifType === "order") {
@@ -145,6 +149,22 @@ export function useSSE() {
       ) {
         queryClient.invalidateQueries({ queryKey: messagesKeys.all });
         queryClient.invalidateQueries({ queryKey: getMessagesSummaryQueryKey() });
+      }
+
+      // Correio (B42): email novo na caixa PESSOAL (a do negócio avisa pelo sino). Refresca lista, conversa e contadores.
+      if (event.type === "mail_new") {
+        invalidateMailQueries(queryClient);
+        if (!window.location.pathname.startsWith(CORREIO_PATH)) {
+          const d = (event.data ?? {}) as { title?: string; body?: string; mailboxId?: string; threadId?: string };
+          toast(`✉️ ${d.title || "Novo email"}`, {
+            id: `mail-${d.mailboxId ?? "x"}`,
+            description: d.body,
+            action: {
+              label: "Abrir",
+              onClick: () => navigate(d.mailboxId && d.threadId ? mailThreadHref(d.mailboxId, d.threadId) : CORREIO_PATH),
+            },
+          });
+        }
       }
 
       // Toast de mensagem de cliente / de colega — exceto se já estás nas Mensagens. Coalescido por conversa.

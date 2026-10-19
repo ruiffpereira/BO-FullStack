@@ -17,6 +17,7 @@ import { usePostAdminUsersUseridEmailDomainUsePlatform } from "../gen/backoffice
 import { usePostAdminUsersUseridEmailDomainUseOwn } from "../gen/backoffice/hooks/usePostAdminUsersUseridEmailDomainUseOwn.js";
 import { useGetAdminEmailStatus } from "../gen/backoffice/hooks/useGetAdminEmailStatus.js";
 import type { EmailDnsRecord } from "../gen/backoffice/types/EmailDnsRecord.js";
+import { AdminMailboxesSection } from "./AdminMailboxesSection";
 
 // Mensagens PT dos erros da API (vêm em `error`, não em `code`).
 const EMAIL_ERROR_BY_KEY: Record<string, string> = {
@@ -362,6 +363,9 @@ export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; on
               Remover domínio
             </GuardButton>
           </div>
+
+          {/* Caixas de correio do tenant (B42 · fases 5 e 6) */}
+          {tenant && <AdminMailboxesSection userId={tenant.userId} />}
         </div>
       ) : null}
     </Modal>

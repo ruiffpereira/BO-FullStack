@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { STAFF_MESSAGE_BY_CODE } from "./apiError";
+import { mailCodeMessage } from "./mail";
 
 /**
  * Equipa do tenant (B41) — peças puras do lado do Backoffice. A decisão de quem pode o quê é SEMPRE da API
@@ -77,7 +78,15 @@ export function teamErrorMessage(error: unknown, fallback: string): string {
   if ((error as any)?.response?.status === 429) {
     return "Foram enviados demasiados convites a partir desta conta. Tenta de novo daqui a uma hora.";
   }
+  // Correio (B42): pedir uma caixa no convite pode falhar antes de criar o membro (módulo, caixa do negócio, endereço).
+  const mail = mailCodeMessage(data?.error) ?? mailCodeMessage(data?.code);
+  if (mail) return mail;
   if (typeof data?.error === "string" && data.error) return data.error;
   if (typeof data?.message === "string" && data.message) return data.message;
   return fallback;
+}
+
+/** `mailboxError` de POST/PUT /team: o membro/convite foi criado mas o endereço de email não (código da API → PT). */
+export function mailboxErrorMessage(code: unknown): string {
+  return mailCodeMessage(code) ?? "Não foi possível criar o endereço de email. Podes tentar de novo na ficha do membro.";
 }

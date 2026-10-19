@@ -33,10 +33,13 @@ import { formatDatePt, formatTimePt } from "../lib/supportLog";
 import {
   MEMBER_STATUS_LABEL,
   MEMBER_STATUS_TONE,
+  mailboxErrorMessage,
   OWNER_DISABLED_MESSAGE,
   teamErrorMessage,
   type TeamMemberStatus,
 } from "../lib/teamAccess";
+import { GiveMailboxField } from "../components/correio/GiveMailboxField";
+import { isValidLocalPart, suggestLocalPart } from "../lib/mail";
 import { useGetTeam, getTeamQueryKey } from "../gen/backoffice/hooks/useGetTeam";
 import { useGetTeamCatalog } from "../gen/backoffice/hooks/useGetTeamCatalog";
 import { usePostTeam } from "../gen/backoffice/hooks/usePostTeam";
@@ -342,6 +345,16 @@ function AccessOption({
   );
 }
 
+/**
+ * Correio (B42): o ☐ «Dar-lhe um endereço de email» só aparece se o tenant tem o módulo (o nó `correio.caixa` está
+ * disponível no catálogo) e quem convida pode dar o Responder (tecto `maxLevel`; o dono não tem). Sai do catálogo
+ * da API — o BO não decide.
+ */
+export function canGiveMailbox(tree: TreeNode[]): boolean {
+  const n = indexTree(tree).get("correio.caixa")?.node;
+  return !!n?.available && (n.maxLevel === undefined || n.maxLevel === "edit");
+}
+
 function InviteModal({
   open,
   onClose,
@@ -364,7 +377,10 @@ function InviteModal({
   const [grants, setGrants] = useState<GrantMap>({});
   // Profissionais: âmbito [Todos | Só os meus] dos nós scoped (agenda.marcacoes, folhas do financeiro).
   const [scopes, setScopes] = useState<ScopeMap>({});
+  const [giveMailbox, setGiveMailbox] = useState(false);
+  const [localPart, setLocalPart] = useState("");
   const create = usePostTeam();
+  const mailboxOffered = canGiveMailbox(tree);
 
   useEffect(() => {
     if (open) {
@@ -373,6 +389,8 @@ function InviteModal({
       setMode("tree");
       setGrants({});
       setScopes({});
+      setGiveMailbox(false);
+      setLocalPart("");
     }
   }, [open]);
 
@@ -385,8 +403,18 @@ function InviteModal({
       mode === "total" && !isMember ? {} : scopes,
     );
     if (toSend.length === 0) return toast.error("Escolhe pelo menos uma permissão.");
+    const wantsMailbox = mailboxOffered && giveMailbox;
+    if (wantsMailbox && localPart && !isValidLocalPart(localPart)) return toast.error("O endereço de email tem caracteres inválidos.");
     create.mutate(
-      { data: { name: name.trim(), email: email.trim(), grants: toSend } },
+      {
+        data: {
+          name: name.trim(),
+          email: email.trim(),
+          grants: toSend,
+          // A parte local só vai se o utilizador a escreveu — senão a API deriva-a do nome e desambigua.
+          ...(wantsMailbox ? { giveMailbox: true, ...(localPart ? { mailboxLocalPart: localPart } : {}) } : {}),
+        },
+      },
       {
         onSuccess: (res) => {
           qc.invalidateQueries({ queryKey: getTeamQueryKey() });
@@ -395,6 +423,9 @@ function InviteModal({
           } else {
             toast.success(`Convite enviado para ${email.trim()}.`);
           }
+          // O membro foi criado mas o endereço não: o convite segue; diz-se porquê, em PT.
+          if (res.mailboxError) toast.warning(mailboxErrorMessage(res.mailboxError));
+          else if (wantsMailbox && res.member?.mailbox?.address) toast.success(`Endereço criado: ${res.member.mailbox.address}`);
           onClose();
         },
         onError: (error) => toast.error(teamErrorMessage(error, "Não foi possível convidar.")),
@@ -429,6 +460,17 @@ function InviteModal({
           onChange={(e: any) => setEmail(e.target.value)}
           autoComplete="off"
         />
+        {mailboxOffered && (
+          <GiveMailboxField
+            checked={giveMailbox}
+            onChecked={setGiveMailbox}
+            localPart={localPart}
+            onLocalPart={setLocalPart}
+            suggestion={suggestLocalPart(name)}
+            grantHint={mode === "tree" && !grants["correio.caixa"]}
+            disabled={inSupport}
+          />
+        )}
         <div>
           <SectionTitle>O que pode usar</SectionTitle>
           <div role="radiogroup" aria-label="Tipo de acesso" className="space-y-2">
@@ -495,6 +537,9 @@ function MemberModal({
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [tab, setTab] = useState<"perms" | "staff" | "activity">("perms");
   const [cascade, setCascade] = useState<{ text: string; toSend: GrantEntry[] } | null>(null);
+  const [giveMailbox, setGiveMailbox] = useState(false);
+  const [localPart, setLocalPart] = useState("");
+  const mailboxOffered = canGiveMailbox(tree);
 
   // Semeia o formulário quando se abre outro membro (ou o servidor devolve dados novos e o form está limpo).
   const serverGrants = useMemo(() => grantsToMap(tree, member?.grants), [tree, member?.grants]);
@@ -510,6 +555,8 @@ function MemberModal({
     setScopes(serverScopes);
     setTab("perms");
     setCascade(null);
+    setGiveMailbox(false);
+    setLocalPart("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memberId, treeReady]);
 
@@ -529,6 +576,26 @@ function MemberModal({
     !!member &&
     (name.trim() !== (member.name ?? "") ||
       grantsSignature(tree, grants, scopes) !== grantsSignature(tree, serverGrants, serverScopes));
+
+  // Dar o endereço a um membro que ainda não o tem (nunca retira: remover o membro desactiva a caixa).
+  const giveMailboxNow = () => {
+    if (localPart && !isValidLocalPart(localPart)) return toast.error("O endereço de email tem caracteres inválidos.");
+    update.mutate(
+      { memberId, data: { giveMailbox: true, ...(localPart ? { mailboxLocalPart: localPart } : {}) } },
+      {
+        onSuccess: (res) => {
+          refresh();
+          if (res.mailboxError) toast.warning(mailboxErrorMessage(res.mailboxError));
+          else {
+            setGiveMailbox(false);
+            setLocalPart("");
+            toast.success(res.mailbox?.address ? `Endereço criado: ${res.mailbox.address}` : "Endereço criado.");
+          }
+        },
+        onError: onError("Não foi possível criar o endereço."),
+      },
+    );
+  };
 
   const guestCount = rows.filter((r) => r.createdBy?.memberId === memberId).length;
   const hasCreated = guestCount > 0;
@@ -638,6 +705,43 @@ function MemberModal({
               <SectionTitle>O que pode usar</SectionTitle>
               <PermissionTree tree={tree} value={grants} onChange={setGrants} disabled={inSupport} scopes={scopes} onScopesChange={setScopes} />
             </div>
+
+            {(member.mailbox || mailboxOffered) && (
+              <div data-testid="member-mailbox">
+                <SectionTitle>Endereço de email</SectionTitle>
+                {member.mailbox ? (
+                  <p className="flex flex-wrap items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200">
+                    <span className="font-mono break-all" data-testid="member-mailbox-address">{member.mailbox.address}</span>
+                    <Badge tone={member.mailbox.status === "active" ? "green" : "neutral"}>
+                      {member.mailbox.status === "active" ? "Activo" : "Desactivado"}
+                    </Badge>
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    <GiveMailboxField
+                      checked={giveMailbox}
+                      onChecked={setGiveMailbox}
+                      localPart={localPart}
+                      onLocalPart={setLocalPart}
+                      suggestion={suggestLocalPart(member.name ?? "")}
+                      disabled={inSupport}
+                    />
+                    {giveMailbox && (
+                      <TeamButton
+                        inSupport={inSupport}
+                        leaf="equipa"
+                        size="sm"
+                        icon="mail"
+                        isLoading={update.isPending}
+                        onClick={giveMailboxNow}
+                      >
+                        Criar endereço
+                      </TeamButton>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div>
               <SectionTitle>Conta</SectionTitle>

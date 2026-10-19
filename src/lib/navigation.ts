@@ -107,6 +107,12 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     { id: "planos", label: "Planos", path: "/ginasio/planos", leaf: "ginasio.treinos" },
     { id: "clientes", label: "Progresso de clientes", path: "/ginasio/clientes", leaf: "ginasio.clientes" },
   ],
+  // Correio (B42): módulo VIEW_EMAIL. Hoje só a Caixa (com 1 subitem a sidebar mostra um link simples); Campanhas,
+  // Contactos e Definições entram nas fases 8–9 — cada um com a sua folha (`correio.campanhas`, …) e o seu `perm`.
+  // O item chama-se "Correio" (não "Email"): "Emails" já é um subitem de Conteúdos e os nomes repetidos partem os testes.
+  "/correio": [
+    { id: "caixa", label: "Caixa", path: "/correio", perm: "VIEW_EMAIL", leaf: "correio.caixa" },
+  ],
   "/conteudos": [
     // Página com gating POR SUBITEM (T2.6): produtos/serviços/ginásio
     // continuam atrás das mesmas permissões que as tabs antigas do
@@ -230,6 +236,8 @@ export const LEAF_FOR_PATH: ReadonlyArray<readonly [string, string]> = [
   ["/conteudos/notificacoes", "conteudos.notificacoes"],
   ["/conteudos", "conteudos.website"],
   ["/paginas", "paginas.rascunho"],
+  // Correio (B42): a Caixa é a folha `correio.caixa` [Ver | Responder].
+  ["/correio", "correio.caixa"],
   // Mensagens (B43): dois separadores, duas folhas. O Backoffice mistura equipa e Suporte — o compositor guarda-se
   // pela folha da própria conversa (`ChatConversationView`), não por esta.
   ["/mensagens/backoffice", "mensagens.equipa"],

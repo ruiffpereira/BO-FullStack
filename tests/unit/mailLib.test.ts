@@ -1,0 +1,125 @@
+import { describe, it, expect } from "vitest";
+import {
+  buildMailFrameDoc,
+  inlineCidImages,
+  isMailNotConfigured,
+  mailErrorMessage,
+  MAIL_FRAME_SANDBOX,
+  mailThreadHref,
+  normCid,
+  parseRecipients,
+  suggestLocalPart,
+  isValidLocalPart,
+  formatMailDate,
+} from "../../src/lib/mail";
+import { notificationHref } from "../../src/lib/notificationTarget";
+import { getApiError } from "../../src/lib/apiError";
+import { mailboxErrorMessage, teamErrorMessage } from "../../src/lib/teamAccess";
+import { allowedSubitems, leafForPath, memberSubitems } from "../../src/lib/navigation";
+
+describe("Correio — destinatários", () => {
+  it("separa por vírgula, ponto e vírgula, espaço e linha; tira duplicados e aceita «Nome <a@b.pt>»", () => {
+    const r = parseRecipients("a@x.pt, B@x.pt; a@x.pt\nMaria <m@x.pt>  lixo");
+    expect(r.valid).toEqual(["a@x.pt", "B@x.pt", "m@x.pt"]);
+    expect(r.invalid).toEqual(["lixo"]);
+  });
+  it("vazio não tem nada", () => {
+    expect(parseRecipients("  ")).toEqual({ valid: [], invalid: [] });
+  });
+});
+
+describe("Correio — iframe do HTML recebido", () => {
+  it("o sandbox nunca tem allow-scripts", () => {
+    expect(MAIL_FRAME_SANDBOX).not.toContain("allow-scripts");
+  });
+  it("a CSP só deixa estilos inline e imagens data: — https: só depois do clique", () => {
+    const blocked = buildMailFrameDoc("<p>x</p>", false);
+    expect(blocked).toContain("default-src 'none'");
+    expect(blocked).toContain("img-src data:;");
+    expect(blocked).not.toContain("https:");
+    expect(blocked).not.toMatch(/script-src/);
+    expect(buildMailFrameDoc("<p>x</p>", true)).toContain("img-src data: https:;");
+  });
+  it("as imagens cid: são trocadas pelos anexos (data URI) e o resto fica como veio", () => {
+    const html = `<p>olá</p><img data-cid="<Logo@X>" src="placeholder"><img data-cid="outra" src="p2">`;
+    const out = inlineCidImages(html, { [normCid("cid:logo@x")]: "data:image/png;base64,AAA" });
+    expect(out).toContain('src="data:image/png;base64,AAA"');
+    expect(out).toContain('src="p2"');
+  });
+  it("normCid ignora cid:, <> e maiúsculas", () => {
+    expect(normCid("cid:<ABC@x>")).toBe("abc@x");
+  });
+});
+
+describe("Correio — erros em PT", () => {
+  const err = (status: number, error: string, message?: string) => ({ response: { status, data: { error, message } } });
+  it("códigos da API (em `error`) → texto PT", () => {
+    expect(mailErrorMessage(err(400, "MAIL_NO_RECIPIENTS"))).toBe("Falta o destinatário.");
+    expect(mailErrorMessage(err(400, "ATTACHMENT_INVALID"))).toMatch(/anexo inválido/);
+    expect(mailErrorMessage(err(502, "mail_provider_error"))).toMatch(/não respondeu/);
+    expect(mailErrorMessage(err(404, "mailbox_not_found"))).toMatch(/caixa/);
+  });
+  it("código desconhecido cai na `message` da API, depois no fallback", () => {
+    expect(mailErrorMessage(err(500, "xpto", "Texto da API"))).toBe("Texto da API");
+    expect(mailErrorMessage({}, "fallback")).toBe("fallback");
+  });
+  it("503 mail_not_configured é «Por configurar»", () => {
+    expect(isMailNotConfigured(err(503, "mail_not_configured"))).toBe(true);
+    expect(isMailNotConfigured(err(502, "mail_provider_error"))).toBe(false);
+  });
+  it("getApiError e teamErrorMessage também conhecem os códigos do correio", () => {
+    expect(getApiError(err(400, "MAIL_EMPTY"))).toMatch(/vazio/);
+    expect(teamErrorMessage(err(409, "module_not_enabled"), "x")).toMatch(/módulo Correio/);
+  });
+  it("mailboxError da Equipa → PT (desconhecido = mensagem genérica)", () => {
+    expect(mailboxErrorMessage("mailbox_address_unavailable")).toMatch(/não está disponível/);
+    expect(mailboxErrorMessage("mail_provider_error")).toMatch(/não respondeu/);
+    expect(mailboxErrorMessage("coisa_estranha")).toMatch(/Não foi possível criar o endereço/);
+  });
+});
+
+describe("Correio — endereço do membro", () => {
+  it("sugere o 1.º nome sem acentos", () => {
+    expect(suggestLocalPart("  Ana Sá Pereira ")).toBe("ana");
+    expect(suggestLocalPart("João")).toBe("joao");
+    expect(suggestLocalPart("")).toBe("");
+  });
+  it("valida a parte local", () => {
+    expect(isValidLocalPart("ana.sa")).toBe(true);
+    expect(isValidLocalPart("Ana")).toBe(false);
+    expect(isValidLocalPart("a b")).toBe(false);
+    expect(isValidLocalPart("")).toBe(false);
+  });
+});
+
+describe("Correio — datas e deep-links", () => {
+  const now = new Date("2026-10-19T15:00:00");
+  it("hoje mostra a hora; este ano o dia/mês; antes a data completa", () => {
+    expect(formatMailDate("2026-10-19T09:05:00", now)).toMatch(/09:05/);
+    expect(formatMailDate("2026-03-02T09:05:00", now)).toMatch(/2/);
+    expect(formatMailDate("2025-03-02T09:05:00", now)).toMatch(/2025/);
+    expect(formatMailDate(undefined)).toBe("");
+  });
+  it("notificação type:email leva à conversa (ou à caixa numa rajada)", () => {
+    expect(notificationHref({ type: "email", data: { mailboxId: "b 1", threadId: "t1" } })).toBe("/correio?caixa=b%201&conversa=t1");
+    expect(notificationHref({ type: "email", data: { mailboxId: "b1" } })).toBe("/correio?caixa=b1");
+    expect(notificationHref({ type: "email", data: null })).toBe("/correio");
+    expect(mailThreadHref("b1", "t1")).toBe("/correio?caixa=b1&conversa=t1");
+  });
+});
+
+describe("Correio — navegação e permissões", () => {
+  it("o submenu do Correio tem a Caixa atrás de VIEW_EMAIL e da folha correio.caixa", () => {
+    expect(allowedSubitems("/correio", () => true).map((s) => s.label)).toEqual(["Caixa"]);
+    expect(allowedSubitems("/correio", () => false)).toEqual([]);
+    expect(memberSubitems("/correio", (k) => k === "correio.caixa")).toHaveLength(1);
+    expect(memberSubitems("/correio", () => false)).toHaveLength(0);
+  });
+  it("o label do item não colide com o subitem Conteúdos → Emails", () => {
+    expect(allowedSubitems("/conteudos", () => true).some((s) => s.label === "Correio")).toBe(false);
+    expect(allowedSubitems("/correio", () => true).some((s) => s.label === "Emails")).toBe(false);
+  });
+  it("a folha da página é correio.caixa", () => {
+    expect(leafForPath("/correio")).toBe("correio.caixa");
+  });
+});

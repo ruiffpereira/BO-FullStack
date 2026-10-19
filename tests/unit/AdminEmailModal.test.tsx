@@ -39,6 +39,20 @@ vi.mock("../../src/gen/backoffice/hooks/usePostAdminUsersUseridEmailDomainUseOwn
 vi.mock("../../src/gen/backoffice/hooks/useGetAdminEmailStatus.js", () => ({
   useGetAdminEmailStatus: () => statusMock(),
 }));
+// Secção «Caixas» (B42 · fases 5 e 6): aqui só interessa que o modal a monta; o detalhe testa-se em AdminMailboxesSection.test.tsx.
+vi.mock("../../src/gen/backoffice/hooks/useGetAdminUsersUseridMailboxes.js", () => ({
+  useGetAdminUsersUseridMailboxes: () => ({ data: { configured: true, moduleEnabled: true, mailboxes: [] }, isLoading: false, isError: false }),
+  getAdminUsersUseridMailboxesQueryKey: (id: string) => [{ url: "/admin/users/:userId/mailboxes", params: { userId: id } }],
+}));
+vi.mock("../../src/gen/backoffice/hooks/usePostAdminUsersUseridMailboxesBusiness.js", () => ({
+  usePostAdminUsersUseridMailboxesBusiness: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+vi.mock("../../src/gen/backoffice/hooks/usePostAdminUsersUseridMailboxesMailboxidDisable.js", () => ({
+  usePostAdminUsersUseridMailboxesMailboxidDisable: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+vi.mock("../../src/gen/backoffice/hooks/usePostAdminUsersUseridMailboxesMailboxidEnable.js", () => ({
+  usePostAdminUsersUseridMailboxesMailboxidEnable: () => ({ mutate: vi.fn(), isPending: false }),
+}));
 vi.mock("../../src/components/GuardButton", () => ({
   GuardButton: ({ children, isLoading, ...rest }: any) => <button {...rest}>{children}</button>,
 }));

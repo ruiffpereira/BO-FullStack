@@ -3492,6 +3492,35 @@
             "items": {
               "$ref": "#/components/schemas/MailDnsRecord"
             }
+          },
+          "news": {
+            "type": "object",
+            "nullable": true,
+            "description": "Subdomínio das campanhas (news.<domínio>, fase 9) — só no domínio próprio. As campanhas só abrem com o próprio E o news. verificados.",
+            "properties": {
+              "domain": {
+                "type": "string",
+                "example": "news.tifas.pt"
+              },
+              "configured": {
+                "type": "boolean",
+                "description": "false = ainda por criar no Resend (POST …/email-domain/news)"
+              },
+              "verified": {
+                "type": "boolean"
+              },
+              "lastCheckedAt": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              },
+              "records": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/EmailDnsRecord"
+                }
+              }
+            }
           }
         }
       },
@@ -3860,6 +3889,337 @@
           },
           "settings": {
             "$ref": "#/components/schemas/MailClientSettings"
+          }
+        }
+      },
+      "CampaignSegment": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "description": "Quem recebe — sempre interseccionado com os contactos subscritos. `days` só em agenda_recent (obrigatório) e buyers (opcional); `tag` em tag; `language` em language.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "all",
+              "members_active",
+              "members_overdue",
+              "agenda_recent",
+              "buyers",
+              "tag",
+              "language"
+            ]
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650
+          },
+          "tag": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string",
+            "example": "pt"
+          }
+        }
+      },
+      "CampaignBlock": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "description": "Bloco de conteúdo (só dados; o HTML gera-se no servidor, escapado). `url`/`linkUrl`/`imageUrl` só `https:`.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "title",
+              "text",
+              "image",
+              "button",
+              "product",
+              "service"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "description": "title (≤150) · text (≤5000, parágrafos separados por linha em branco) · product/service (≤500, opcional)"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "image · button · product/service (opcional)"
+          },
+          "alt": {
+            "type": "string"
+          },
+          "linkUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "label": {
+            "type": "string",
+            "description": "button"
+          },
+          "refId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "product/service — tem de ser do negócio; o preço lê-se da BD"
+          },
+          "title": {
+            "type": "string",
+            "description": "product/service"
+          },
+          "imageUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "CampaignCounts": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "sent": {
+            "type": "integer"
+          },
+          "delivered": {
+            "type": "integer"
+          },
+          "opened": {
+            "type": "integer"
+          },
+          "clicked": {
+            "type": "integer"
+          },
+          "bounced": {
+            "type": "integer"
+          },
+          "complained": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
+          }
+        }
+      },
+      "CampaignSummary": {
+        "type": "object",
+        "properties": {
+          "campaignId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "scheduled",
+              "sending",
+              "sent",
+              "cancelled",
+              "failed"
+            ]
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "defaultLanguage": {
+            "type": "string"
+          },
+          "scheduledAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "failReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "counts": {
+            "$ref": "#/components/schemas/CampaignCounts"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Campaign": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CampaignSummary"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "segment": {
+                "$ref": "#/components/schemas/CampaignSegment"
+              },
+              "content": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CampaignBlock"
+                  }
+                },
+                "description": "Língua → blocos (um separador por língua)"
+              },
+              "subjects": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Língua → assunto"
+              },
+              "preheaders": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Língua → pré-cabeçalho"
+              },
+              "readiness": {
+                "type": "object",
+                "properties": {
+                  "ok": {
+                    "type": "boolean"
+                  },
+                  "errors": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "CampaignList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CampaignSummary"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          }
+        }
+      },
+      "CampaignStats": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "queued": {
+            "type": "integer",
+            "description": "Ainda na fila"
+          },
+          "sent": {
+            "type": "integer"
+          },
+          "delivered": {
+            "type": "integer"
+          },
+          "opened": {
+            "type": "integer"
+          },
+          "clicked": {
+            "type": "integer"
+          },
+          "unsubscribed": {
+            "type": "integer",
+            "description": "Anularam a subscrição depois de receber esta campanha"
+          },
+          "bounced": {
+            "type": "integer"
+          },
+          "complained": {
+            "type": "integer"
+          },
+          "skipped": {
+            "type": "integer",
+            "description": "Não saíram: suprimidos no momento do envio (anularam, bounce, queixa) ou cancelados"
+          },
+          "failed": {
+            "type": "integer",
+            "description": "Falharam por erro de envio"
+          }
+        }
+      },
+      "CampaignsStatus": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "Domínio próprio e news. verificados"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "no_own_domain",
+              "own_not_verified",
+              "sending_disabled",
+              "news_not_verified"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "nullable": true,
+            "example": "Disponível quando o teu domínio estiver configurado."
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "pausedReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "fromDomain": {
+            "type": "string",
+            "nullable": true,
+            "example": "news.tifas.pt"
+          },
+          "testDailyLimit": {
+            "type": "integer"
           }
         }
       },
@@ -6250,6 +6610,55 @@
           },
           "503": {
             "description": "Correio por configurar"
+          }
+        }
+      }
+    },
+    "/admin/users/{userId}/email-domain/news": {
+      "post": {
+        "summary": "Criar o subdomínio das campanhas (news.<domínio próprio>) no Resend",
+        "description": "Idempotente. Só com domínio próprio (404 `email_domain_not_found` sem ele; 409 `own_domain_required` se o único domínio é o da plataforma). Cria `news.<domínio>` no Resend e devolve os registos DNS a pôr (no envelope, `domain.news`). As campanhas só abrem quando o domínio próprio E o `news.` estão verificados (job de 15 min ou \"Verificar agora\"). `VIEW_ADMIN`; fechada em sessão de suporte.\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Envelope com o `news` criado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantEmailDomainEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem VIEW_ADMIN",
+            "ou sessão de suporte": null
+          },
+          "404": {
+            "description": "Utilizador ou domínio de email não encontrado"
+          },
+          "409": {
+            "description": "own_domain_required"
+          },
+          "502": {
+            "description": "O Resend falhou"
           }
         }
       }
@@ -18273,6 +18682,673 @@
         }
       }
     },
+    "/mail/campaigns/status": {
+      "get": {
+        "summary": "As campanhas estão disponíveis? (domínio próprio + news. verificados, pausa)",
+        "description": "`correio.campanhas` (Ver) + VIEW_EMAIL. Nunca falha por estar bloqueado: devolve `available: false` com o `reason` e a mensagem \"Disponível quando o teu domínio estiver configurado.\" para o Backoffice mostrar o estado vazio em vez de um erro.",
+        "tags": [
+          "MailCampaigns"
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignsStatus"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem correio.campanhas ou sem o módulo"
+          }
+        }
+      }
+    },
+    "/mail/campaigns": {
+      "get": {
+        "summary": "Listar campanhas (Rascunho · Agendada · A enviar · Enviada), com aberturas e cliques",
+        "description": "`correio.campanhas` (Ver) + VIEW_EMAIL. Só as campanhas do negócio. Filtro `status`; paginado (`limit` até 100).",
+        "tags": [
+          "MailCampaigns"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "scheduled",
+                "sending",
+                "sent",
+                "cancelled",
+                "failed"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de campanhas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetros inválidos"
+          },
+          "403": {
+            "description": "Sem correio.campanhas ou sem o módulo"
+          }
+        }
+      },
+      "post": {
+        "summary": "Criar um rascunho de campanha",
+        "description": "`correio.campanhas` Editar + VIEW_EMAIL. 409 `CAMPAIGNS_LOCKED` sem domínio próprio + news. verificados. Só `name` é obrigatório; `segment` por omissão são todos os subscritos. Os `refId` de produto/serviço têm de ser do negócio (400 `INVALID_REFERENCE`).",
+        "tags": [
+          "MailCampaigns"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 150
+                  },
+                  "segment": {
+                    "$ref": "#/components/schemas/CampaignSegment"
+                  },
+                  "content": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CampaignBlock"
+                      }
+                    }
+                  },
+                  "subjects": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "preheaders": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Rascunho",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Campaign"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Inválido"
+          },
+          "403": {
+            "description": "Sem Editar"
+          },
+          "409": {
+            "description": "CAMPAIGNS_LOCKED"
+          }
+        }
+      }
+    },
+    "/mail/campaigns/{campaignId}": {
+      "get": {
+        "summary": "Ver uma campanha (conteúdo por língua, segmento, prontidão)",
+        "tags": [
+          "MailCampaigns"
+        ],
+        "parameters": [
+          {
+            "name": "campaignId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Campanha",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Campaign"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem correio.campanhas"
+          },
+          "404": {
+            "description": "Campanha não encontrada (ou de outro negócio)"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Editar um rascunho",
+        "description": "`correio.campanhas` Editar. Só rascunhos (409 `CAMPAIGN_NOT_EDITABLE` nos outros: cancela o agendamento e duplica). `content`, `subjects` e `preheaders` substituem o objecto inteiro (um separador por língua). 409 `CAMPAIGNS_LOCKED` sem domínio.",
+        "tags": [
+          "MailCampaigns"
+        ],
+        "parameters": [
+          {
+            "name": "campaignId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "segment": {
+                    "$ref": "#/components/schemas/CampaignSegment"
+                  },
+                  "content": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CampaignBlock"
+                      }
+                    }
+                  },
+                  "subjects": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "preheaders": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rascunho",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Campaign"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Inválido"
+          },
+          "403": {
+            "description": "Sem Editar"
+          },
+          "404": {
+            "description": "Campanha não encontrada"
+          },
+          "409": {
+            "description": "CAMPAIGNS_LOCKED ou CAMPAIGN_NOT_EDITABLE"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Apagar um rascunho, cancelada ou falhada",
+        "description": "`correio.campanhas` Editar. Campanhas agendadas, a enviar ou enviadas não se apagam (409 `CAMPAIGN_NOT_EDITABLE`): ficam como histórico.",
+        "tags": [
+          "MailCampaigns"
+        ],
+        "parameters": [
+          {
+            "name": "campaignId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Apagada"
+          },
+          "403": {
+            "description": "Sem Editar"
+          },
+          "404": {
+            "description": "Campanha não encontrada"
+          },
+          "409": {
+            "description": "CAMPAIGN_NOT_EDITABLE"
+          }
+        }
+      }
+    },
+    "/mail/campaigns/preview-audience": {
+      "post": {
+        "summary": "Quantos subscritos apanha um segmento",
+        "description": "`correio.campanhas` Editar. Conta SÓ contactos `subscribed` do negócio (o segmento é sempre interseccionado com o consentimento). Não devolve emails nem identifica ninguém.",
+        "tags": [
+          "MailCampaigns"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "segment"
+                ],
+                "properties": {
+                  "segment": {
+                    "$ref": "#/components/schemas/CampaignSegment"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Contagem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Segmento inválido"
+          },
+          "403": {
+            "description": "Sem Editar"
+          },
+          "409": {
+            "description": "CAMPAIGNS_LOCKED"
+          }
+        }
+      }
+    },
+    "/mail/campaigns/{campaignId}/test": {
+      "post": {
+        "summary": "Enviar para mim (email de teste para quem está ligado)",
+        "description": "`correio.campanhas` Editar. O destino é SEMPRE o email de quem está ligado (nunca um endereço do corpo). Marca `[Teste]` no assunto, sem destinatário na fila nem estatísticas. Tecto de 10 por dia por negócio (429 `CAMPAIGN_TEST_LIMIT`). 409 `CAMPAIGNS_LOCKED`; 423 `MAIL_SENDING_PAUSED`; 400 `CAMPAIGN_INCOMPLETE` se a língua pedida não tem assunto e conteúdo.",
+        "tags": [
+          "MailCampaigns"
+        ],
+        "parameters": [
+          {
+            "name": "campaignId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "language": {
+                    "type": "string",
+                    "example": "pt",
+                    "description": "Língua a pré-visualizar (por omissão a da campanha)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Enviado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sent": {
+                      "type": "boolean"
+                    },
+                    "to": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "CAMPAIGN_INCOMPLETE"
+          },
+          "403": {
+            "description": "Sem Editar"
+          },
+          "404": {
+            "description": "Campanha não encontrada"
+          },
+          "409": {
+            "description": "CAMPAIGNS_LOCKED"
+          },
+          "423": {
+            "description": "MAIL_SENDING_PAUSED"
+          },
+          "429": {
+            "description": "CAMPAIGN_TEST_LIMIT"
+          }
+        }
+      }
+    },
+    "/mail/campaigns/{campaignId}/send": {
+      "post": {
+        "summary": "Enviar agora",
+        "description": "`correio.campanhas.enviar` + VIEW_EMAIL. Congela a audiência (os subscritos de agora) numa fila e passa a `sending`; o envio sai em lotes (a cada minuto, com tectos por minuto e por dia) e cada email reavalia a supressão no momento do envio. Cada email leva `List-Unsubscribe` + one-click. 409 `CAMPAIGNS_LOCKED` / `CAMPAIGN_STATE`; 423 `MAIL_SENDING_PAUSED`; 400 `CAMPAIGN_INCOMPLETE` (assunto/conteúdo em falta) ou `NO_AUDIENCE`.",
+        "tags": [
+          "MailCampaigns"
+        ],
+        "parameters": [
+          {
+            "name": "campaignId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Campanha a enviar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Campaign"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "CAMPAIGN_INCOMPLETE ou NO_AUDIENCE"
+          },
+          "403": {
+            "description": "Sem Enviar"
+          },
+          "404": {
+            "description": "Campanha não encontrada"
+          },
+          "409": {
+            "description": "CAMPAIGNS_LOCKED ou CAMPAIGN_STATE"
+          },
+          "423": {
+            "description": "MAIL_SENDING_PAUSED"
+          }
+        }
+      }
+    },
+    "/mail/campaigns/{campaignId}/schedule": {
+      "post": {
+        "summary": "Agendar o envio",
+        "description": "`correio.campanhas.enviar` + VIEW_EMAIL. `at` entre daqui a 1 minuto e 1 ano (400 `INVALID_SCHEDULE`). A audiência só se congela à hora do envio (quem anular entretanto não recebe). Mesmas recusas que `send`.",
+        "tags": [
+          "MailCampaigns"
+        ],
+        "parameters": [
+          {
+            "name": "campaignId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "at"
+                ],
+                "properties": {
+                  "at": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Campanha agendada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Campaign"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_SCHEDULE",
+            "CAMPAIGN_INCOMPLETE ou NO_AUDIENCE": null
+          },
+          "403": {
+            "description": "Sem Enviar"
+          },
+          "404": {
+            "description": "Campanha não encontrada"
+          },
+          "409": {
+            "description": "CAMPAIGNS_LOCKED ou CAMPAIGN_STATE"
+          },
+          "423": {
+            "description": "MAIL_SENDING_PAUSED"
+          }
+        }
+      }
+    },
+    "/mail/campaigns/{campaignId}/cancel": {
+      "post": {
+        "summary": "Cancelar o agendamento (ou parar uma campanha a enviar)",
+        "description": "`correio.campanhas.enviar` + VIEW_EMAIL. Agendada ou a enviar → `cancelled`; o que ainda estava na fila não sai (os já enviados ficam). 409 `CAMPAIGN_NOT_CANCELLABLE` nos outros estados. Duplica para reutilizar o conteúdo.",
+        "tags": [
+          "MailCampaigns"
+        ],
+        "parameters": [
+          {
+            "name": "campaignId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Campanha cancelada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Campaign"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem Enviar"
+          },
+          "404": {
+            "description": "Campanha não encontrada"
+          },
+          "409": {
+            "description": "CAMPAIGN_NOT_CANCELLABLE"
+          }
+        }
+      }
+    },
+    "/mail/campaigns/{campaignId}/duplicate": {
+      "post": {
+        "summary": "Duplicar uma campanha para um novo rascunho",
+        "description": "`correio.campanhas` Editar. Copia nome (+ \"(cópia)\"), segmento e conteúdo; sem estatísticas nem destinatários. 409 `CAMPAIGNS_LOCKED`.",
+        "tags": [
+          "MailCampaigns"
+        ],
+        "parameters": [
+          {
+            "name": "campaignId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Novo rascunho",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Campaign"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem Editar"
+          },
+          "404": {
+            "description": "Campanha não encontrada"
+          },
+          "409": {
+            "description": "CAMPAIGNS_LOCKED"
+          }
+        }
+      }
+    },
+    "/mail/campaigns/{campaignId}/stats": {
+      "get": {
+        "summary": "Estatísticas — entregues, aberturas, cliques, anulações, bounces, queixas",
+        "description": "`correio.campanhas` (Ver). Contagens de pessoas (cada destinatário conta uma vez). Só da campanha do negócio.",
+        "tags": [
+          "MailCampaigns"
+        ],
+        "parameters": [
+          {
+            "name": "campaignId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estatísticas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignStats"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem correio.campanhas"
+          },
+          "404": {
+            "description": "Campanha não encontrada"
+          }
+        }
+      }
+    },
     "/mail/contacts": {
       "get": {
         "summary": "Listar contactos de email (estado, origem, data, pesquisa, etiqueta)",
@@ -19235,8 +20311,8 @@
     },
     "/webhooks/resend": {
       "post": {
-        "summary": "Webhook do Resend — bounces e queixas (supressão automática e pausa por queixas)",
-        "description": "Chamado pelo Resend, não pelo Backoffice. Verifica a assinatura Svix (`svix-id`, `svix-timestamp`, `svix-signature`) com `RESEND_WEBHOOK_SECRET`. `email.bounced` (permanente) → o contacto fica `bounced`; `email.complained` → `complained` e, com queixas a mais numa janela, o negócio fica com os envios pausados. Idempotente pelo `svix-id`. Outros eventos: 200 sem efeito. Sem o segredo configurado responde 503 (nunca aceita sem verificar).",
+        "summary": "Webhook do Resend — bounces, queixas e estatísticas das campanhas",
+        "description": "Chamado pelo Resend, não pelo Backoffice. Verifica a assinatura Svix (`svix-id`, `svix-timestamp`, `svix-signature`) com `RESEND_WEBHOOK_SECRET`. `email.bounced` (permanente) → o contacto fica `bounced`; `email.complained` → `complained` e, com queixas a mais numa janela, o negócio fica com os envios pausados. Campanhas (fase 9): `email.delivered`, `email.opened`, `email.clicked`, `email.bounced` e `email.complained` actualizam o destinatário da campanha (ligado pelo id da mensagem, ou pelas tags `campaign`/`tenant` + email) e os contadores — idempotente (marcas de tempo escritas uma vez, estado só sobe). Idempotente pelo `svix-id`. Outros eventos: 200 sem efeito. Sem o segredo configurado responde 503 (nunca aceita sem verificar).",
         "tags": [
           "Mail"
         ],
@@ -23542,6 +24618,10 @@
     {
       "name": "Leads",
       "description": "Leads/orçamentos capturados no site público do tenant (backoffice)"
+    },
+    {
+      "name": "MailCampaigns",
+      "description": "Campanhas de email (Correio → Campanhas)."
     },
     {
       "name": "MailContacts",

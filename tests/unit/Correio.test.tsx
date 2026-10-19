@@ -173,6 +173,18 @@ describe("Correio → Caixa — lista, pastas e pesquisa", () => {
     expect(threadsMock).toHaveBeenLastCalledWith("b2", expect.anything(), expect.anything());
   });
 
+  it("«Configurar no telemóvel» só aparece nas caixas que posso gerir (canManageAppPassword)", async () => {
+    mailboxesMock.mockReturnValue({
+      data: { configured: true, mailboxes: [{ ...BOX, canManageAppPassword: true }, { ...OWN, canManageAppPassword: false }] },
+      isLoading: false,
+      isError: false,
+    });
+    renderAt();
+    expect(screen.getByRole("button", { name: "Configurar no telemóvel" })).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText("Caixa"), "b2");
+    expect(screen.queryByRole("button", { name: "Configurar no telemóvel" })).toBeNull();
+  });
+
   it("uma só caixa: sem selector", () => {
     renderAt();
     expect(screen.queryByLabelText("Caixa")).toBeNull();

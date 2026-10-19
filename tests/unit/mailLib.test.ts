@@ -11,6 +11,9 @@ import {
   suggestLocalPart,
   isValidLocalPart,
   formatMailDate,
+  parseTags,
+  countCsvRows,
+  CONTACT_STATUS,
 } from "../../src/lib/mail";
 import { notificationHref } from "../../src/lib/notificationTarget";
 import { getApiError } from "../../src/lib/apiError";
@@ -121,5 +124,50 @@ describe("Correio — navegação e permissões", () => {
   });
   it("a folha da página é correio.caixa", () => {
     expect(leafForPath("/correio")).toBe("correio.caixa");
+  });
+});
+
+describe("Correio — contactos (fase 8) e domínio próprio (fase 7)", () => {
+  it("as folhas: Caixa e Contactos", () => {
+    expect(leafForPath("/correio/contactos")).toBe("correio.contactos");
+    expect(leafForPath("/correio")).toBe("correio.caixa");
+  });
+
+  it("um membro só com correio.contactos vê só o subitem Contactos", () => {
+    const can = (k: string) => k === "correio.contactos";
+    expect(memberSubitems("/correio", can as any).map((i) => i.id)).toEqual(["contactos"]);
+  });
+
+  it("parseTags: separa, apara e tira vazios e repetidos", () => {
+    expect(parseTags("vip, Verão;vip |  , novo")).toEqual(["vip", "Verão", "novo"]);
+    expect(parseTags("")).toEqual([]);
+  });
+
+  it("countCsvRows: linhas de dados sem o cabeçalho nem linhas vazias", () => {
+    expect(countCsvRows("email\r\na@x.pt\r\n\r\nb@x.pt\r\n")).toBe(2);
+    expect(countCsvRows("email")).toBe(0);
+    expect(countCsvRows("")).toBe(0);
+  });
+
+  it("estado do contacto: bounced e complained são ambos «Bloqueado»", () => {
+    expect(CONTACT_STATUS.bounced.label).toBe("Bloqueado");
+    expect(CONTACT_STATUS.complained.label).toBe("Bloqueado");
+    expect(CONTACT_STATUS.unsubscribed_by_user.label).toBe("Anulou");
+  });
+
+  it.each([
+    ["mx_conflict", "corta"],
+    ["mx_not_ready", "MX"],
+    ["kind_required", "dois domínios"],
+    ["existing_email_required", "já tem email"],
+    ["mailboxes_in_domain", "caixas activas"],
+    ["APP_PASSWORD_LIMIT", "5 passwords"],
+    ["app_password_owner_only", "dono desta caixa"],
+    ["consent_confirmation_required", "consentimento"],
+    ["too_many_rows", "5 000"],
+    ["customer_no_email", "não tem email"],
+    ["contact_blocked", "bloqueado"],
+  ])("código %s tem mensagem PT", (code, part) => {
+    expect(mailErrorMessage({ response: { data: { error: code } } })).toContain(part);
   });
 });

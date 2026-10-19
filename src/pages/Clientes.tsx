@@ -10,6 +10,7 @@ import { usePageSubtitle } from '../context/PageMetaContext'
 import { GuardButton } from '../components/GuardButton'
 import { useTeamAccess } from '../hooks/useTeamAccess'
 import { CustomerEmailsTab } from '../components/correio/CustomerEmailsTab'
+import { CustomerNewsletterBox } from '../components/correio/CustomerNewsletterBox'
 import { usePagination, Pagination } from '../components/Pagination'
 import { DatePicker } from '../components/DatePicker'
 import { useGetCustomers, getCustomersQueryKey } from '../gen/backoffice/hooks/useGetCustomers.js'
@@ -401,6 +402,9 @@ export function Clientes({ view }: { view: ClientesView }) {
               {profileCustomer.contact && <div className="flex items-center gap-2.5"><Icon name="phone" className="w-4 h-4 text-zinc-400" />{profileCustomer.contact}</div>}
               {profileCustomer.nif && <div className="flex items-center gap-2.5"><Icon name="layers" className="w-4 h-4 text-zinc-400" />NIF {profileCustomer.nif}</div>}
             </div>
+
+            {/* Consentimento de email de novidades (B42 · fase 8) */}
+            <CustomerNewsletterBox customerId={profileCustomer.customerId} />
 
             {/* Atalho para a conversa do cliente (Mensagens → Clientes), se existir */}
             <OpenConversationShortcut customerId={profileCustomer.customerId} onNavigate={closeProfile} />

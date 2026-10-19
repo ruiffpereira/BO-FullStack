@@ -10,6 +10,7 @@ import { useGetMailMailboxesMailboxidThreads } from "../gen/backoffice/hooks/use
 import { MailThreadRow, MailPager } from "../components/correio/MailThreadList";
 import { MailThreadView } from "../components/correio/MailThreadView";
 import { MailComposer } from "../components/correio/MailComposer";
+import { MailAppPasswordModal } from "../components/correio/MailAppPasswordModal";
 import { isMailFolder, isMailNotConfigured, MAIL_FOLDERS, mailErrorMessage, type MailFolder } from "../lib/mail";
 
 const PAGE_LIMIT = 25;
@@ -48,6 +49,7 @@ export function Correio() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [appPwOpen, setAppPwOpen] = useState(false);
 
   // Pesquisa com atraso curto (cada tecla não pode ser um pedido ao servidor de correio).
   useEffect(() => {
@@ -150,6 +152,12 @@ export function Correio() {
             autoComplete="off"
           />
         </div>
+        {/* Password da app: só nas caixas que são minhas (a `geral@` para o dono, a própria para um membro). */}
+        {mailbox.canManageAppPassword && (
+          <Button variant="outline" icon="phone" onClick={() => setAppPwOpen(true)}>
+            Configurar no telemóvel
+          </Button>
+        )}
         <GuardButton leaf="correio.caixa" icon="edit" onClick={() => setComposeOpen(true)}>
           Novo email
         </GuardButton>
@@ -216,6 +224,12 @@ export function Correio() {
           )}
         </section>
       </div>
+
+      <MailAppPasswordModal
+        key={mailboxId}
+        mailbox={appPwOpen && mailbox.canManageAppPassword ? { mailboxId, address: mailbox.address } : null}
+        onClose={() => setAppPwOpen(false)}
+      />
 
       <MailComposer
         open={composeOpen}

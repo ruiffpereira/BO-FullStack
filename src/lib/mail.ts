@@ -110,6 +110,26 @@ export const MAIL_MESSAGE_BY_CODE: Record<string, string> = {
   own_domain_not_supported: "As caixas em domínio próprio ainda não estão disponíveis.",
   business_mailbox_protected: "A caixa do negócio não se desactiva.",
   member_removed: "O membro desta caixa já não existe.",
+  // Domínio próprio (fase 7)
+  mx_conflict:
+    "Este domínio já tem email noutro sítio: pôr a caixa na raiz cortava-lhe o email que já usa. Escolhe «contacto.<domínio>» ou «Sem caixa».",
+  mx_not_ready:
+    "O registo MX do domínio ainda não aponta para o servidor de correio. Põe o MX da tabela «Registos da caixa» no DNS, espera que propague e tenta de novo.",
+  kind_required: "Há dois domínios: diz de qual falas (subdomínio da plataforma ou domínio próprio).",
+  existing_email_required: "Diz se o negócio já tem email neste domínio antes de activar a caixa.",
+  mailboxes_in_domain: "Há caixas activas neste domínio. Passa-as para o subdomínio da plataforma antes de o mudar ou remover.",
+  mail_not_enabled: "A caixa de correio não está activada neste domínio.",
+  own_domain_missing: "O negócio ainda não tem domínio próprio.",
+  domain_not_verified: "O domínio ainda não está verificado — põe os registos no DNS e carrega em «Verificar agora».",
+  MAIL_SENDING_PAUSED: "Os envios deste negócio estão pausados.",
+  // Password da app
+  app_password_owner_only: "Só o dono desta caixa pode gerir a password da app.",
+  APP_PASSWORD_LIMIT: "Já há 5 passwords da app. Revoga-as e gera uma nova.",
+  // Contactos e consentimento (fase 8)
+  consent_confirmation_required: "Tens de confirmar que estes contactos deram consentimento.",
+  too_many_rows: "O ficheiro tem demasiadas linhas (máximo 5 000).",
+  customer_no_email: "Este cliente não tem email na ficha.",
+  contact_blocked: "Este email está bloqueado (inválido ou queixa de spam) e não pode ser subscrito.",
 };
 
 /** Texto PT de um código de erro de correio (`mailboxError` da Equipa ou `error` de uma resposta); `null` se desconhecido. */
@@ -181,4 +201,63 @@ export function suggestLocalPart(name: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9._-]/g, "");
   return first ?? "";
+}
+
+// ── Contactos e consentimento (fase 8) ───────────────────────────────────────
+
+export type ContactStatus = "subscribed" | "unsubscribed" | "unsubscribed_by_user" | "bounced" | "complained";
+
+/** Estado como o dono o vê: `bounced` e `complained` são ambos «Bloqueado» (a dica diz porquê). */
+export const CONTACT_STATUS: Record<ContactStatus, { label: string; tone: "green" | "neutral" | "amber" | "red"; hint?: string }> = {
+  subscribed: { label: "Subscrito", tone: "green" },
+  unsubscribed: { label: "Não subscrito", tone: "neutral", hint: "Ainda não disse que sim." },
+  unsubscribed_by_user: { label: "Anulou", tone: "amber", hint: "Anulou a subscrição." },
+  bounced: { label: "Bloqueado", tone: "red", hint: "Email inválido." },
+  complained: { label: "Bloqueado", tone: "red", hint: "Queixa de spam." },
+};
+
+export const CONTACT_SOURCE: Record<string, string> = {
+  site: "Site",
+  app: "App",
+  balcao: "Balcão",
+  importacao: "Importação",
+  bo: "Backoffice",
+};
+
+export const CONTACT_SKIP_REASON: Record<string, string> = {
+  invalid_email: "Email inválido",
+  duplicate_in_file: "Repetido no ficheiro",
+  already_unsubscribed: "Já anulou a subscrição",
+  blocked: "Email bloqueado",
+};
+
+/** «vip, novo» → ["vip", "novo"] (sem vazios nem repetidos). */
+export function parseTags(raw: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of raw.split(/[,;|\n]+/)) {
+    const v = t.trim();
+    if (!v || seen.has(v.toLowerCase())) continue;
+    seen.add(v.toLowerCase());
+    out.push(v);
+  }
+  return out;
+}
+
+/** Linhas de dados de um CSV (sem o cabeçalho nem linhas vazias) — só para o resumo antes de importar. */
+export function countCsvRows(csv: string): number {
+  const lines = csv.split(/\r?\n/).filter((l) => l.trim() !== "");
+  return Math.max(0, lines.length - 1);
+}
+
+/** Descarrega texto como ficheiro (BOM à frente para o Excel ler os acentos). */
+export function downloadTextFile(name: string, text: string, type = "text/csv;charset=utf-8") {
+  const url = URL.createObjectURL(new Blob(["﻿", text], { type }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

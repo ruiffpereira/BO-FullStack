@@ -170,6 +170,9 @@ for (const vp of VIEWPORTS) {
     });
 
     test("barra de publicação: em fila, a construir, a confirmar (com %), falhou, no ar — e sobrevive ao refresh", async ({ page, context }) => {
+      // 10 recarregamentos (cada um com a janela de 1,5 s do `withSessionRetry`) + a espera de até 5 s pelo repoll do editor:
+      // o percurso faz ~25 s, à beira dos 30 s por omissão — um teste longo por desenho, não uma espera às cegas.
+      test.setTimeout(90_000);
       const p = new PaginasPage(page, context, OWNER);
       await p.open();
       const forced = await forcePublish(page);

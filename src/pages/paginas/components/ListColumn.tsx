@@ -201,6 +201,7 @@ function PagesGroup({ shell, idx, onOpen }: { shell: Shell; idx: MissingIndex; o
           const isClosed = closed.has(p.id);
           const miss = idx.pages.has(p.id) || (isClosed && descendantMissing(pages, p.id, idx));
           const canAdd = canAddChild(pages, p.id, maxDepth) && !full;
+          // «Só ver» (EQ-03): o botão fica, desactivado, com o motivo — não some nem fica activo.
           return (
             <div className={`${rowBase} ${rowTone(active)}`} style={{ paddingLeft: r.depth * 14 }}>
               <DragHandle handle={ctx.handle} describedBy={titleId} />
@@ -229,7 +230,7 @@ function PagesGroup({ shell, idx, onOpen }: { shell: Shell; idx: MissingIndex; o
               </button>
               {p.status === "draft" && <Badge className="mr-1 shrink-0">Rascunho</Badge>}
               {canAdd ? (
-                <button type="button" aria-label="Criar subpágina" aria-describedby={titleId} title="Criar uma subpágina dentro desta" className={`${iconBtn} ${reveal}`} onClick={() => addPage(p.id)}>
+                <button type="button" aria-label="Criar subpágina" aria-describedby={titleId} disabled={readOnly} title={readOnly ? VIEW_ONLY_MESSAGE : "Criar uma subpágina dentro desta"} className={`${iconBtn} ${reveal} disabled:opacity-40 disabled:cursor-not-allowed`} onClick={() => addPage(p.id)}>
                   <Icon name="plus" className="h-4 w-4" />
                 </button>
               ) : (
@@ -253,7 +254,7 @@ function usageText(components: number, uses: number): string {
 }
 
 function BlocksGroup({ shell, idx, onOpen, onNewBlock }: { shell: Shell; idx: MissingIndex; onOpen: () => void; onNewBlock?: () => void }) {
-  const { state, limits, select, apply } = useBuilder();
+  const { state, limits, select, apply, readOnly } = useBuilder();
   const work = state.work;
   const maxFolders = num(limits, "folders", 100);
   const [query, setQuery] = useState("");
@@ -272,11 +273,11 @@ function BlocksGroup({ shell, idx, onOpen, onNewBlock }: { shell: Shell; idx: Mi
 
   const actions = (
     <>
-      <Button type="button" variant="ghost" size="sm" aria-label="Nova pasta" disabled={fullFolders} title={fullFolders ? `Limite de ${maxFolders} pastas atingido` : "Criar uma pasta para arrumar blocos"} className={headBtn} onClick={addFolder}>
+      <Button type="button" variant="ghost" size="sm" aria-label="Nova pasta" disabled={fullFolders || readOnly} title={readOnly ? VIEW_ONLY_MESSAGE : fullFolders ? `Limite de ${maxFolders} pastas atingido` : "Criar uma pasta para arrumar blocos"} className={headBtn} onClick={addFolder}>
         <Icon name="folder" className="h-4 w-4" />
         Pasta
       </Button>
-      <Button type="button" variant="ghost" size="sm" aria-label="Novo bloco" disabled={!onNewBlock} title={onNewBlock ? "Escolher um bloco para criar" : NOT_CONFIGURED_HINT} className={headBtn} onClick={onNewBlock}>
+      <Button type="button" variant="ghost" size="sm" aria-label="Novo bloco" disabled={!onNewBlock || readOnly} title={readOnly ? VIEW_ONLY_MESSAGE : onNewBlock ? "Escolher um bloco para criar" : NOT_CONFIGURED_HINT} className={headBtn} onClick={onNewBlock}>
         <Icon name="plus" className="h-4 w-4" />
         Novo
       </Button>

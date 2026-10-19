@@ -922,9 +922,10 @@ export function MensalidadesTab() {
   // vivem em modais, para a lista (que pode ser enorme) não enterrar nada.
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3">
+      {/* flex-wrap: a 390 px as três acções não cabem ao lado do texto — passam para a linha de baixo (sem scroll horizontal). */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-zinc-500">Cobranças das mensalidades.</p>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <InviteGymMemberButton onInviteClick={() => setConviteOpen(true)} />
           <Button variant="outline" size="sm" icon="trend" onClick={() => setAnaliseOpen(true)}>Análise</Button>
           <Button variant="outline" size="sm" icon="layers" onClick={() => setSubsOpen(true)}>Subscrições</Button>

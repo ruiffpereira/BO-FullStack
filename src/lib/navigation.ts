@@ -146,6 +146,15 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
   ],
 };
 
+/**
+ * O `pathname` pertence a algum dos `subs`? Igual ao path do subitem, ou uma página de DETALHE debaixo dele
+ * (`/correio/campanhas/nova`, `/correio/campanhas/<id>`) — nunca debaixo do subitem-âncora da própria raiz
+ * (`/agenda/xyz` não é do Calendário). Sem isto o guard do Shell mandava qualquer detalhe para o 1.º subitem.
+ */
+export function pathInSubitems(pathname: string, root: string, subs: SubmenuItem[]): boolean {
+  return subs.some((s) => s.path === pathname || (s.path !== root && pathname.startsWith(`${s.path}/`)));
+}
+
 /** Subitens de `root` que o tenant pode ver, pela mesma semântica de gating das tabs antigas. */
 export function allowedSubitems(root: string, hasPermission: (name: string) => boolean): SubmenuItem[] {
   const items = SUBMENU[root];

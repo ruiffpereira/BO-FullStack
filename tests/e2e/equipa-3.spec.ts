@@ -101,8 +101,20 @@ test.describe("Fase 3 — o dono", () => {
 
     const ep = new EquipaPage(page, context, DONO);
     const ficha = await ep.openMember(nome);
-    await expect(ep.node(ficha, "Agenda")).toBeChecked();
-    await expect(ep.node(ficha, "Clientes")).toBeChecked();
+    // Agenda fica PARCIAL: «Profissionais» (e os preços) nascem fechados e fora do Acesso total (EQ-04/EQ-15); o resto vem marcado.
+    await expect(ep.node(ficha, "Agenda")).not.toBeChecked();
+    expect(await ep.isPartial(ep.node(ficha, "Agenda")), "Agenda parcial").toBe(true);
+    await ep.expand(ficha, "Agenda");
+    await expect(ep.node(ficha, "Serviços")).toBeChecked();
+    await expect(ep.node(ficha, "Profissionais")).not.toBeChecked();
+    // Clientes fica PARCIAL: «Marcar "Aceita novidades"» nasce fechado e fora do Acesso total (EQ-04); o resto vem marcado.
+    await expect(ep.node(ficha, "Clientes")).not.toBeChecked();
+    expect(await ep.isPartial(ep.node(ficha, "Clientes")), "Clientes parcial").toBe(true);
+    await ep.expand(ficha, "Clientes");
+    await expect(ep.node(ficha, "Leads")).toBeChecked();
+    await ep.expand(ficha, "Lista e ficha");
+    await expect(ep.node(ficha, "Exportar dados (RGPD)")).toBeChecked();
+    await expect(ep.node(ficha, "Marcar \"Aceita novidades\"")).not.toBeChecked();
     await expect(ep.node(ficha, "Equipa")).not.toBeChecked();
     await expect(await ep.isPartial(ep.node(ficha, "Equipa"))).toBe(false);
   });

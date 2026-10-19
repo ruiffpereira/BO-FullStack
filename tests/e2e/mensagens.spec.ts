@@ -188,8 +188,10 @@ forEachViewport("Mensagens — separador Clientes", (vp) => {
     await composer(page).fill(resposta);
     await send(page).click();
     await expect(thread(page).getByText(resposta)).toBeVisible({ timeout: 10_000 });
-    const fio = await (await api.get(`${API}/websites/customers/messages/conversations/${cli.conversationId}/messages`, { headers: cli.headers })).json();
-    expect(JSON.stringify(fio)).toContain(resposta);
+    // O fio do BO mostra a mensagem assim que a envia; a entrega ao cliente confirma-se pela API dele (poll, não um sleep).
+    await expect
+      .poll(async () => JSON.stringify(await (await api.get(`${API}/websites/customers/messages/conversations/${cli.conversationId}/messages`, { headers: cli.headers })).json()), { timeout: 10_000 })
+      .toContain(resposta);
   });
 
   test("a ficha do cliente tem 'Abrir conversa' (com o contador) e leva ao fio no separador Clientes", async ({ page, context }) => {
@@ -251,11 +253,13 @@ forEachViewport("Mensagens — separador Backoffice", (vp) => {
       await loginAs(anaCtx, MEMBRO);
       const anaPage = await anaCtx.newPage();
       await anaPage.goto("/mensagens/backoffice");
-      const rowDono = anaPage.getByTestId("team-conversation").filter({ hasText: "Dono" }).first();
+      // Na lista a conversa com o dono chama-se pelo nome do negócio; "Dono" é o subtítulo do cabeçalho ao abrir.
+      const rowDono = anaPage.getByTestId("team-conversation").filter({ hasText: "Barbearia Navalha" }).first();
       await expect(rowDono).toBeVisible({ timeout: 15_000 });
       await expect(rowDono).toContainText(doDono);
       await expect(rowDono.getByTestId("conversation-unread")).toBeVisible();
       await rowDono.click();
+      await expect(anaPage.getByTestId("conversation-title")).toHaveText("Barbearia Navalha");
       await expect(thread(anaPage).getByText(doDono)).toBeVisible({ timeout: 10_000 });
       await composer(anaPage).fill(daAna);
       await send(anaPage).click();

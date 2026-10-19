@@ -30,6 +30,27 @@ test.describe("Login", () => {
     expect(text).not.toMatch(/utilizador.*não existe|user.*not found/i);
   });
 
+  test("conta por activar (sem password) → 401 e o mesmo texto de erro que a password errada", async ({ page }) => {
+    // A API passou a responder 401 (antes 403): o ecrã nunca dependeu do código, só mostra a mensagem — e esta não revela
+    // que a conta existe mas ainda não foi activada.
+    const tentar = async (user: string, pass: string) => {
+      const login = new LoginPage(page);
+      await login.goto();
+      await login.waitForLoginForm();
+      const resposta = page.waitForResponse((r) => r.url().endsWith("/users/login") && r.request().method() === "POST");
+      await login.login(user, pass);
+      const status = (await resposta).status();
+      await expect(login.errorMessage()).toBeVisible({ timeout: 8_000 });
+      return { status, texto: ((await login.errorMessage().textContent()) ?? "").trim() };
+    };
+    const errada = await tentar(USER, "wrong-password-xyz");
+    const porAtivar = await tentar("porativar@e2e", "qualquer-password-123");
+    expect(errada.status).toBe(401);
+    expect(porAtivar.status).toBe(401);
+    expect(porAtivar.texto).toBe(errada.texto);
+    await expect(page.getByRole("button", { name: "Entrar" })).toBeVisible();
+  });
+
   test("campos vazios → erro local sem chamar API", async ({ page }) => {
     const login = new LoginPage(page);
     await login.goto();

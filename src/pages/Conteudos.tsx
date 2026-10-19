@@ -32,6 +32,7 @@ import {
 } from "../ui/ui.jsx";
 import { usePageSubtitle } from "../context/PageMetaContext";
 import { GuardButton } from "../components/GuardButton";
+import { useWriteGuard } from "../hooks/useWriteGuard";
 import {
   useGetSettingsLanguages,
   usePutSettingsLanguages,
@@ -410,6 +411,7 @@ function LangCombobox({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const { readOnly: writeLocked, message: writeMessage } = useWriteGuard();
 
   const options = available.filter((l) => !selected.includes(l.code));
   const filtered = options.filter(
@@ -436,7 +438,8 @@ function LangCombobox({
     <div className="relative" ref={ref}>
       <button
         type="button"
-        disabled={disabled}
+        disabled={disabled || writeLocked}
+        title={writeLocked ? writeMessage : undefined}
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-dashed border-zinc-300 dark:border-zinc-600 text-sm text-zinc-500 hover:border-accent hover:text-accent transition disabled:opacity-50"
       >
@@ -1000,6 +1003,7 @@ function SiteIconCard({
  * renderizada fora desse guard (ex.: testes).
  */
 export function Conteudos({ view }: { view: ConteudosView }) {
+  const { readOnly: writeLocked, message: writeMessage } = useWriteGuard();
   const qc = useQueryClient();
   const { hasPermission, authHeader } = useAuth();
   const headers = authHeader();
@@ -1715,8 +1719,9 @@ export function Conteudos({ view }: { view: ConteudosView }) {
         {activeTab !== "linguas" && activeTab !== "emails" && activeTab !== "notificacoes" && (
           <button
             onClick={() => importFileRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-600 text-sm text-zinc-500 hover:border-accent hover:text-accent transition"
-            title="Importar CSV ou Excel"
+            disabled={writeLocked}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-600 text-sm text-zinc-500 hover:border-accent hover:text-accent transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-zinc-300 disabled:hover:text-zinc-500"
+            title={writeLocked ? writeMessage : "Importar CSV ou Excel"}
           >
             <Icon name="upload" className="w-4 h-4" />
             <span className="hidden sm:inline">Importar</span>

@@ -440,13 +440,13 @@ for (const vp of VIEWPORTS) {
         await eq.open();
         const ficha = await eq.openMember("Edna Editavel");
         const agenda = eq.node(ficha, "Agenda");
-        expect(await eq.isPartial(agenda), "Agenda começa parcial (1 de 5)").toBe(true);
-        await expect(ficha.getByText("1 de 5")).toBeVisible();
+        expect(await eq.isPartial(agenda), "Agenda começa parcial (1 de 7)").toBe(true);
+        await expect(ficha.getByText("1 de 7")).toBeVisible();
         await agenda.check();
-        await expect(ficha.getByText("5 de 5")).toBeVisible();
+        await expect(ficha.getByText("7 de 7")).toBeVisible();
         expect(await eq.isPartial(agenda)).toBe(false);
         await eq.expand(ficha, "Agenda");
-        for (const filho of ["Calendário e marcações", "Serviços", "Bloqueios e férias", "Horário e configurações"]) {
+        for (const filho of ["Calendário e marcações", "Serviços", "Profissionais", "Bloqueios e férias", "Horário e configurações"]) {
           await expect(eq.node(ficha, filho), filho).toBeChecked();
         }
         await expect(eq.level(ficha, "Serviços", "só ver")).toHaveAttribute("aria-selected", "true");
@@ -458,7 +458,7 @@ for (const vp of VIEWPORTS) {
         await expect(eq.node(ficha, "Valores e pagamentos")).not.toBeChecked();
         expect(await eq.isPartial(agenda), "Agenda parcial").toBe(true);
         await expect(agenda).not.toBeChecked();
-        await expect(ficha.getByText("3 de 5")).toBeVisible();
+        await expect(ficha.getByText("5 de 7")).toBeVisible();
 
         const guardar = ficha.getByRole("button", { name: "Guardar permissões" });
         await expect(guardar).toBeEnabled();
@@ -481,7 +481,7 @@ for (const vp of VIEWPORTS) {
         // Reabrir a ficha confirma o que ficou gravado.
         await dono.reload();
         const ficha2 = await eq.openMember("Edna Editavel");
-        await expect(ficha2.getByText("3 de 5")).toBeVisible();
+        await expect(ficha2.getByText("5 de 7")).toBeVisible();
         await eq.expand(ficha2, "Agenda");
         await expect(eq.node(ficha2, "Horário e configurações")).toBeChecked();
         await expect(eq.node(ficha2, "Calendário e marcações")).not.toBeChecked();
@@ -516,8 +516,14 @@ test.describe("Árvore — 'Acesso total'", () => {
     expect(edits, "tudo ao nível máximo (excepto as folhas só-ver)").toBe(ALL_LEAF_KEYS.length - 5);
 
     const ficha = await eq.openMember("Olga Acessototal");
-    for (const topo of ["Agenda", "Loja", "Ginásio", "Clientes", "Financeiro", "Conteúdos", "Páginas", "Estatísticas do site", "Mensagens"]) {
+    for (const topo of ["Loja", "Ginásio", "Financeiro", "Conteúdos", "Páginas", "Estatísticas do site"]) {
       await expect(eq.node(ficha, topo), topo).toBeChecked();
+    }
+    // Ficam PARCIAIS: têm um nó que nasce fechado e fora do Acesso total (EQ-04) — Agenda → Profissionais (+ preços),
+    // Clientes → «Aceita novidades», Mensagens → Clientes.
+    for (const topo of ["Agenda", "Clientes", "Mensagens"]) {
+      await expect(eq.node(ficha, topo), topo).not.toBeChecked();
+      expect(await eq.isPartial(eq.node(ficha, topo)), `${topo} parcial`).toBe(true);
     }
     // Remove o convite de teste (deixa o tenant como estava).
     await ficha.getByRole("button", { name: "Remover" }).click();

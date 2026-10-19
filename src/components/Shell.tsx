@@ -15,7 +15,7 @@ import { NavBadge } from './NavBadge'
 import { useSSE } from '../hooks/useSSE'
 import { useChatUnread } from '../hooks/useChat'
 import { useMailUnread } from '../hooks/useMail'
-import { SUBMENU, allowedSubitems, findRoot, memberSubitems, type SubmenuItem } from '../lib/navigation'
+import { SUBMENU, allowedSubitems, findRoot, memberSubitems, pathInSubitems, type SubmenuItem } from '../lib/navigation'
 
 // Core: todos os tenants têm (sem permissão). Módulos: por permissão.
 const CORE_PATHS = ['/clientes', '/mensagens', '/financeiro', '/conteudos', '/estatisticas', '/faturacao']
@@ -778,7 +778,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
       return
     }
     const subs = isMember ? memberSubitems(root, can) : allowedSubitems(root, hasPermission)
-    if (subs.length > 0 && !subs.some((s) => s.path === location.pathname)) {
+    if (subs.length > 0 && !pathInSubitems(location.pathname, root, subs)) {
       // Preserva a query string (coerente com o FinanceiroEntry, App.tsx, que
       // já faz o mesmo no seu próprio redirect de `?vista=`) — este redirect é
       // por pathname/permissão, não por um query param específico, por isso
@@ -793,7 +793,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   const memberRoot = isMember ? findRoot(location.pathname, guardRoots) : undefined
   const memberSubs = memberRoot ? memberSubitems(memberRoot, can) : []
   const blockedForMember =
-    isMember && (!memberRoot || (memberSubs.length > 0 && !memberSubs.some((s) => s.path === location.pathname)))
+    isMember && (!memberRoot || (memberSubs.length > 0 && !pathInSubitems(location.pathname, memberRoot!, memberSubs)))
 
   // Teclado virtual (mobile): ao abrir, encolhe a altura da app para o espaço
   // visível (visualViewport) — o composer fica por cima do teclado e nada faz
@@ -873,7 +873,8 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
                 ? "h-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4"
                 : fullBleed
                   ? "h-full sm:h-auto sm:max-w-[1400px] sm:mx-auto sm:px-6 lg:px-8 sm:py-8"
-                  : "max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8"
+                  // pb-24 no telemóvel: o fim da página fica livre do botão flutuante das mensagens (não tapa o último botão).
+                  : "max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-24 sm:pb-8"
             }
           >
             {blockedForMember ? null : children}

@@ -350,13 +350,16 @@ test.describe("Acesso de suporte — Perfil do tenant", () => {
 
       // Registo: a sessão de suporte e a alteração (com o nome do admin).
       await expect(tp.getByText("Registo do suporte")).toBeVisible();
-      await expect(tp.getByText("Entrou na tua conta (sessão de suporte)").first()).toBeVisible({
-        timeout: 15_000,
-      });
+      // O registo pagina a 10: as leituras da sessão (R1.9, «Viu …») empurram «Entrou…» para a 2.ª página conforme o
+      // número de ecrãs que o admin abriu — procura-se página a página, o assert não se enfraquece.
+      await showLogRow(tp, "Entrou na tua conta (sessão de suporte)");
+      await expect(tp.getByText("Entrou na tua conta (sessão de suporte)").first()).toBeVisible({ timeout: 15_000 });
       // `POST /schedule/services` → "Criou os serviços"; o nome do serviço (CMS) →
       // "Alterou os conteúdos" — ambos com o nome do admin.
+      await showLogRow(tp, "Criou os serviços");
       const created = tp.locator("tr").filter({ hasText: "Criou os serviços" }).first();
       await expect(created).toContainText(ADMIN);
+      await showLogRow(tp, "Alterou os conteúdos");
       const cms = tp.locator("tr").filter({ hasText: "Alterou os conteúdos" }).first();
       await expect(cms).toContainText(ADMIN);
 
@@ -387,6 +390,18 @@ test.describe("Acesso de suporte — Perfil do tenant", () => {
     }
   });
 });
+
+/** Volta à 1.ª página do registo e avança até a linha com `text` estar na página (ou o registo acabar). */
+async function showLogRow(tp: Page, text: string): Promise<void> {
+  const prev = tp.getByRole("button", { name: "Página anterior" });
+  const next = tp.getByRole("button", { name: "Página seguinte" });
+  while ((await prev.count()) > 0 && (await prev.isEnabled())) await prev.click();
+  for (let i = 0; i < 20; i++) {
+    if ((await tp.getByText(text).count()) > 0) return;
+    if ((await next.count()) === 0 || !(await next.isEnabled())) return;
+    await next.click();
+  }
+}
 
 test.describe("Acesso de suporte — capturas para revisão visual", () => {
   test("faixa de suporte em tema claro e escuro", async ({ context }) => {

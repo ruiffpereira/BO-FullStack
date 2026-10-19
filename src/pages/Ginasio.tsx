@@ -744,7 +744,7 @@ function CatalogoTab() {
         <div>
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-[13px] font-semibold uppercase tracking-wider text-zinc-400">Grupos</h3>
-            <IconButton icon="plus" label="Novo grupo" onClick={() => setGrupoModal({ group: null })} className="w-7 h-7" />
+            <GuardIconButton icon="plus" label="Novo grupo" onClick={() => setGrupoModal({ group: null })} className="w-7 h-7" />
           </div>
           <div className="space-y-0.5">
             <button onClick={() => setGrupoSel('todos')} className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition ${grupoSel === 'todos' ? 'bg-accent/10 text-accent' : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}>

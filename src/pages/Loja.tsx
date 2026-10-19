@@ -1213,7 +1213,9 @@ export function Loja({ view }: { view: LojaView }) {
                       setNewSubCatId(cat.categoryId);
                       setNewSubName("");
                     }}
-                    className="mt-1 text-xs text-accent hover:underline flex items-center gap-1"
+                    disabled={writeLocked}
+                    title={writeLocked ? writeMessage : undefined}
+                    className="mt-1 text-xs text-accent hover:underline flex items-center gap-1 disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
                   >
                     <Icon name="plus" className="w-3 h-3" /> Nova subcategoria
                   </button>

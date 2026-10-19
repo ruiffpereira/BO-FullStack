@@ -21,7 +21,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
-    server: { port: 5173, open: true },
+    // O watcher não vigia o que o Playwright escreve (relatório HTML, traces, capturas): apagar essas pastas a meio
+    // de uma corrida derrubava o servidor Vite (ENOENT no chokidar) e as páginas seguintes do e2e davam ERR_CONNECTION_REFUSED.
+    server: { port: 5173, open: true, watch: { ignored: ['**/playwright-report/**', '**/test-results/**', '**/.design/**'] } },
     resolve: {
       alias: { '@': path.resolve(__dirname, './src') },
     },

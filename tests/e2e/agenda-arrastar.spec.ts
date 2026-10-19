@@ -61,7 +61,8 @@ async function doDia(request: APIRequestContext, h: Record<string, string>): Pro
 
 /** Arrasta a marcação `nome` na vertical, `deltaMin` minutos (ponteiro de rato, em passos como um gesto real). */
 async function arrastar(page: Page, nome: string, deltaMin: number): Promise<void> {
-  const btn = page.getByRole("button", { name: new RegExp(nome) });
+  // O cartão da grelha começa pelo intervalo («10:00–10:30 Nome»); o da lista do dia, pelo nome — só o da grelha se arrasta.
+  const btn = page.getByRole("button", { name: new RegExp(String.raw`^\d{2}:\d{2}[–-]\d{2}:\d{2} ` + nome) });
   await expect(btn).toBeVisible({ timeout: 15_000 });
   await btn.evaluate((el) => el.scrollIntoView({ block: "center", inline: "center" }));
   const box = (await btn.boundingBox())!;
@@ -130,7 +131,9 @@ for (const vp of LARGURAS) {
       const put = page.waitForRequest((r) => r.method() === "PUT" && r.url().includes(`/schedule/appointments/${m.id}`));
       await dialog.getByRole("button", { name: "Guardar" }).click();
       const corpo = (await put).postDataJSON();
-      expect(corpo).toMatchObject({ date: DIA, time: "12:00" });
+      expect(corpo).toMatchObject({ time: "12:00" });
+      // O PUT leva só o que mudou: o dia não vai (ou, se for, é o mesmo).
+      expect(corpo.date ?? DIA).toBe(DIA);
       await expect(page.getByText("Marcação actualizada")).toBeVisible({ timeout: 10_000 });
 
       await expect.poll(async () => (await doDia(request, h)).find((a) => a.appointmentId === m.id)?.time).toMatch(/^12:00/);

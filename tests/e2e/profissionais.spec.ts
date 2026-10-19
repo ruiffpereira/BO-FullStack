@@ -369,7 +369,7 @@ forEachViewport("Financeiro, Despesas e Dashboard", (vp) => {
     await dlg.getByPlaceholder("Ex: Fatura eletricidade").fill(desc);
     await dlg.getByPlaceholder("0.00").fill("12.50");
     await dlg.getByRole("button", { name: "Profissional", exact: true }).click();
-    await page.getByRole("option", { name: ocupado.name }).click();
+    await page.getByRole("listbox").getByRole("option", { name: ocupado.name }).click();
     await dlg.getByRole("button", { name: "Registar" }).click();
     const linha = page.locator("div.group").filter({ hasText: desc }).first();
     await expect(linha).toBeVisible({ timeout: 10_000 });

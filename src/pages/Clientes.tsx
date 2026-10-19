@@ -115,7 +115,8 @@ export function Clientes({ view }: { view: ClientesView }) {
   )
   const services = svcData ?? []
   const customers = data?.rows ?? []
-  usePageSubtitle(`${data?.count ?? customers.length} clientes registados.`)
+  const totalClientes = data?.count ?? customers.length
+  usePageSubtitle(`${totalClientes} ${totalClientes === 1 ? 'cliente registado' : 'clientes registados'}.`)
 
   useEffect(() => {
     const customerId = searchParams.get('cliente')

@@ -68,9 +68,12 @@ export class ClientesPage {
     await this.page.locator('[role="dialog"] button[type="submit"]').first().click();
   }
 
-  /** Toggle "Quer contribuinte na fatura" (único role=switch nos modais). */
+  /**
+   * Toggle "Quer contribuinte na fatura". A ficha ganhou «Aceita novidades por email» (também role=switch, com
+   * aria-label) — o de contribuinte é o que não tem esse nome.
+   */
   invoiceToggle() {
-    return this.page.locator('[role="dialog"]').getByRole("switch").first();
+    return this.page.locator('[role="dialog"]').locator('[role="switch"]:not([aria-label="Aceita novidades por email"])').first();
   }
 
   /** Abre a ficha de um cliente (clica na linha da tabela com o nome). */

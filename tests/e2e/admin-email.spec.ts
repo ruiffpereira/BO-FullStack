@@ -9,7 +9,8 @@ import { AdminPage } from "./pages/AdminPage";
  * "põe o DNS", por isso o domínio nunca passa a verificado aqui — a verificação positiva fica no unit/API.
  * `EMAIL_PLATFORM_DOMAIN` não está no `.env.e2e`: não há `suggestedDomain`, escreve-se o domínio à mão.
  */
-const TENANT = "tenantA@e2e";
+// Um tenant NÃO-admin: o botão "Email" só existe nas linhas que não têm o componente Admin (tenantA/B têm-no).
+const TENANT = "agenda@e2e";
 const SIZES = [
   { w: 1440, h: 900 },
   { w: 834, h: 1112 },
@@ -24,7 +25,7 @@ for (const { w, h } of SIZES) {
       const domain = `email-e2e-${w}.example.pt`;
       const admin = new AdminPage(page);
       await admin.goto();
-      const row = await admin.findUserRow(TENANT);
+      const row = await admin.userRowFromStart(TENANT);
       await expect(row).toBeVisible({ timeout: 10_000 });
       await row.getByRole("button", { name: `Email de ${TENANT}` }).click();
 
@@ -44,6 +45,9 @@ for (const { w, h } of SIZES) {
       await expect(dialog.getByLabel("Parte local do endereço")).toHaveValue("geral");
       await dialog.getByLabel("Domínio de email").fill(domain);
       await dialog.getByLabel("Nome do remetente").fill("Tenant A");
+      // Domínio próprio: a UI pergunta se já há email nele (sem resposta o botão fica desactivado).
+      await expect(dialog.getByRole("button", { name: "Configurar" })).toBeDisabled();
+      await dialog.getByLabel("Não, o domínio ainda não tem email").check();
       await dialog.getByRole("button", { name: "Configurar" }).click();
       await expect(page.getByText("Domínio de email guardado")).toBeVisible({ timeout: 10_000 });
 

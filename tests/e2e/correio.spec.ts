@@ -21,6 +21,7 @@ test.use({ storageState: { cookies: [], origins: [] } });
 test.describe.configure({ mode: "serial" });
 
 const DONO = "correio@e2e.local";
+const RUN = Date.now().toString(36);
 const MEMBRO_VER = "correio.ver@e2e.local";
 const SEM_MODULO = "limited@e2e";
 const ADMIN = "admin@e2e.local";
@@ -65,7 +66,8 @@ const noHorizontalScroll = (page: Page) =>
 for (const { w, h } of SIZES) {
   test.describe(`Correio — Caixa (${w}px)`, () => {
     test.use({ viewport: { width: w, height: h } });
-    const assunto = `Horários de verão ${w}`;
+    // Único por corrida: a caixa (Stalwart) não é reposta pelo seed, e um assunto repetido deixaria duas linhas («Re: …» da corrida anterior).
+    const assunto = `Horários de verão ${w} ${RUN}`;
 
     test("sem o módulo não há «Correio» na sidebar e o URL directo redirecciona", async ({ page, context }) => {
       await loginAs(context, SEM_MODULO);

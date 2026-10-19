@@ -65,7 +65,7 @@ test.describe("Equipa — o dono do tenant", () => {
     await invite.getByLabel("Nome").fill("Marta Recepção");
     await invite.getByLabel("Email").fill("marta.recepcao@e2e.local");
     await invite.getByRole("checkbox", { name: "Agenda", exact: true }).check(); // marca o ramo inteiro (ao máximo)
-    await expect(invite.getByText("5 de 5")).toBeVisible();
+    await expect(invite.getByText("7 de 7")).toBeVisible();
     await invite.getByRole("checkbox", { name: "Estatísticas do site" }).check();
     await expect(invite.getByText("Só ver")).toBeVisible(); // nó só-leitura: sem [Ver | Editar]
     await invite.getByRole("button", { name: "Enviar convite" }).click();
@@ -155,7 +155,8 @@ test.describe("Equipa — Admin → Utilizadores", () => {
         await expect(page.getByRole("columnheader", { name: "Equipa" })).toBeVisible({ timeout: 10_000 });
         // A lista pagina client-side (10/página): procura a linha do tenant desde a 1.ª página.
         const row = await new AdminPage(page).userRowFromStart("equipa@e2e.local");
-        await expect(row.getByTestId("team-count")).toHaveText("2");
+        // 3 membros no seed: Ana (activa), Rui (convidado) e Mário (`meus@e2e.local`, «Só os meus» — R6.0).
+        await expect(row.getByTestId("team-count")).toHaveText("3");
         await row.getByRole("button", { name: `Equipa de ${TENANT}` }).click();
       },
     );
@@ -163,6 +164,7 @@ test.describe("Equipa — Admin → Utilizadores", () => {
     await expect(dialog).toContainText(MEMBRO_NOME);
     await expect(dialog).toContainText("membro@e2e.local");
     await expect(dialog).toContainText("Rui Convidado");
+    await expect(dialog).toContainText("Mário Pessoal");
     await expect(dialog).toContainText("Convidado");
     // só leitura: nada para guardar/remover
     await expect(dialog.getByRole("button", { name: /Guardar|Remover|Desactivar/ })).toHaveCount(0);

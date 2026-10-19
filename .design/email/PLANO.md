@@ -2,6 +2,19 @@
 
 > Estado: **planeado (2026-10-16)**, por fases (fim do ficheiro); decisões fechadas. Fila: `TASKS.md` → B42.
 
+> **Ronda grande (2026-10-19, `DECISOES.md`):** as fases 4–9 escrevem-se **todas de uma vez**, testes no fim, um só
+> push. O que precisa do dono em produção fica atrás de flag/env opcional:
+> - Fase 4 (Resend) não precisa de nada novo: liga-se por tenant quando o subdomínio verificar.
+> - Fases 5–7 (Stalwart): `STALWART_*` opcionais; sem elas o Correio → Caixa mostra "Por configurar". Testes contra
+>   um **Stalwart em Docker local** (`docker-compose.test.yml` da API ganha o serviço; o CI também).
+> - Fases 8–9: sem dependência externa nova (campanhas só com domínio verificado, como decidido).
+> - Caixa "Quero receber novidades": **só no tifas-barber** nesta ronda.
+> - **Árvore de permissões** (regra de 2026-10-19): `correio.caixa` [Ver | Responder] · `correio.campanhas`
+>   [Ver | Editar | Enviar] · `correio.contactos` [Ver | Editar] · `clientes.lista.novidades` (marcar "Aceita
+>   novidades" na ficha) — nascem fechados; aparecem no convite. O ☐ "Dar-lhe um endereço de email" entra no convite.
+> - O módulo para o tenant continua a ser o componente `VIEW_EMAIL` (Admin → Permissões).
+> - Preço do módulo: com o resto do billing (monetização, última fase).
+
 ## O que o dono pediu
 
 1. **Caixa de correio no BO** — receber, ler e responder emails dentro do Backoffice.

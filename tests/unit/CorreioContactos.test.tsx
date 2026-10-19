@@ -157,7 +157,7 @@ describe("Correio → Contactos — lista", () => {
   it("editar etiquetas: separa por vírgula e faz PATCH", async () => {
     renderPage();
     await userEvent.click(screen.getByRole("button", { name: "Etiquetas de maria@x.pt" }));
-    const tags = screen.getByLabelText("Etiquetas");
+    const tags = within(screen.getByRole("dialog")).getByLabelText(/^Etiquetas/);
     expect(tags).toHaveValue("vip");
     fireEvent.change(tags, { target: { value: "vip, verão, vip" } });
     await userEvent.click(screen.getByRole("button", { name: "Guardar" }));

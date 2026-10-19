@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // uploadImage (Kubb) — mockado; os testes de texto não tocam nele.
-const uploadImageMock = vi.fn(() => Promise.resolve({ fileUrl: "https://cdn/x.webp", key: "k", srcSet: "" }));
+const uploadImageMock = vi.fn((..._a: unknown[]) => Promise.resolve({ fileUrl: "https://cdn/x.webp", key: "k", srcSet: "" }));
 vi.mock("../../src/gen/backoffice/hooks/useUploadImage.js", () => ({
   uploadImage: (...args: unknown[]) => uploadImageMock(...args),
 }));

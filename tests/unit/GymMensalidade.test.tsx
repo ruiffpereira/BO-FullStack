@@ -173,6 +173,7 @@ describe("ClienteMensalidade — badge de sócio pendente", () => {
     customerId: "cust-1",
     name: "Ana Sócia",
     blocked: false,
+    status: "active",
     payOnly: false,
     subscription: null,
     payments: [],

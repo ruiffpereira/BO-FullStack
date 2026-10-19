@@ -30,7 +30,9 @@ const confirmMock = vi.fn();
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
 
-const mut = (fn: unknown) => () => ({ mutateAsync: fn, mutate: fn, isPending: false });
+function mut(fn: unknown) {
+  return () => ({ mutateAsync: fn, mutate: fn, isPending: false });
+}
 vi.mock("../../src/gen/backoffice/hooks/useGetMailCampaignsStatus.js", () => ({ useGetMailCampaignsStatus: () => statusMock() }));
 vi.mock("../../src/gen/backoffice/hooks/useGetMailCampaigns.js", () => ({ useGetMailCampaigns: (p: unknown, o: unknown) => listMock(p, o) }));
 vi.mock("../../src/gen/backoffice/hooks/useGetMailCampaignsCampaignid.js", () => ({ useGetMailCampaignsCampaignid: (id: string, o: unknown) => getMock(id, o) }));

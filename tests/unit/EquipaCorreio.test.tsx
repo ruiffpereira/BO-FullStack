@@ -138,7 +138,7 @@ describe("Convite — ☐ Dar-lhe um endereço de email", () => {
     expect(within(dialog).queryByLabelText("Parte local do endereço")).toBeNull();
     fireEvent.change(within(dialog).getByLabelText("Nome"), { target: { value: "Marta Sá" } });
     fireEvent.click(box);
-    expect(within(dialog).getByLabelText("Parte local do endereço")).toHaveAttribute("placeholder", "marta");
+    expect(within(dialog).getByLabelText(/^Parte local do endereço/)).toHaveAttribute("placeholder", "marta");
     expect(within(dialog).getByText(/marta@tifas\.rufvision\.com/)).toBeInTheDocument();
   });
 
@@ -159,12 +159,12 @@ describe("Convite — ☐ Dar-lhe um endereço de email", () => {
     const dialog = openInvite();
     fill(dialog);
     fireEvent.click(within(dialog).getByRole("checkbox", { name: /Dar-lhe um endereço de email/ }));
-    fireEvent.change(within(dialog).getByLabelText("Parte local do endereço"), { target: { value: "marta.sa" } });
+    fireEvent.change(within(dialog).getByLabelText(/^Parte local do endereço/), { target: { value: "marta.sa" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Enviar convite" }));
     expect(mutations.create.mock.calls[0][0].data).toMatchObject({ giveMailbox: true, mailboxLocalPart: "marta.sa" });
 
     mutations.create.mockClear();
-    fireEvent.change(within(dialog).getByLabelText("Parte local do endereço"), { target: { value: "má!" } });
+    fireEvent.change(within(dialog).getByLabelText(/^Parte local do endereço/), { target: { value: "má!" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Enviar convite" }));
     expect(mutations.create).not.toHaveBeenCalled();
     expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/caracteres inválidos/));

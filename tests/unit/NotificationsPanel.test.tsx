@@ -22,7 +22,7 @@ vi.mock("../../src/context/AuthContext", () => ({
 }));
 
 // Mutação de gravação no CMS.
-const putCmsEntriesMock = vi.fn(() => Promise.resolve());
+const putCmsEntriesMock = vi.fn((..._a: unknown[]) => Promise.resolve());
 vi.mock("../../src/gen/backoffice/hooks/usePutCmsEntries.js", () => ({
   putCmsEntries: (...args: unknown[]) => putCmsEntriesMock(...args),
 }));

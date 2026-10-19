@@ -130,9 +130,9 @@ describe("AdminEmailModal", () => {
   it("sem domínio: formulário com a sugestão, nome e parte local; Configurar envia o PUT", () => {
     getMock.mockReturnValue({ data: SEM_DOMINIO, isLoading: false, isError: false });
     renderModal();
-    expect(screen.getByLabelText("Domínio de email")).toHaveValue("barbearia-central.rufvision.com");
+    expect(screen.getByLabelText(/^Domínio de email/)).toHaveValue("barbearia-central.rufvision.com");
     expect(screen.getByLabelText("Nome do remetente")).toHaveValue("Barbearia Central");
-    expect(screen.getByLabelText("Parte local do endereço")).toHaveValue("geral");
+    expect(screen.getByLabelText(/^Parte local do endereço/)).toHaveValue("geral");
     fireEvent.click(screen.getByRole("button", { name: "Configurar" }));
     expect(mutates.put).toHaveBeenCalledWith({
       userId: "u1",
@@ -221,7 +221,7 @@ describe("AdminEmailModal", () => {
   it("Alterar domínio abre o formulário com os valores actuais", () => {
     renderModal();
     fireEvent.click(screen.getByRole("button", { name: "Alterar domínio" }));
-    expect(screen.getByLabelText("Domínio de email")).toHaveValue("tifas.rufvision.com");
+    expect(screen.getByLabelText(/^Domínio de email/)).toHaveValue("tifas.rufvision.com");
     expect(screen.getByLabelText("Nome do remetente")).toHaveValue("Tifas");
     expect(screen.getByRole("button", { name: "Guardar" })).toBeInTheDocument();
   });
@@ -329,12 +329,12 @@ describe("AdminEmailModal — domínio próprio (fase 7)", () => {
     getMock.mockReturnValue({ data: onlySub(), isLoading: false, isError: false });
     renderModal();
     fireEvent.click(screen.getByRole("button", { name: "Adicionar domínio próprio" }));
-    expect(screen.getByLabelText("Domínio de email")).toHaveValue("");
+    expect(screen.getByLabelText(/^Domínio de email/)).toHaveValue("");
     // Domínio próprio → aparece «Já tem email neste domínio?»; um subdomínio da plataforma não.
-    fireEvent.change(screen.getByLabelText("Domínio de email"), { target: { value: "tifas.pt" } });
+    fireEvent.change(screen.getByLabelText(/^Domínio de email/), { target: { value: "tifas.pt" } });
     expect(screen.getByTestId("own-domain-mail")).toBeInTheDocument();
     expect(screen.getByTestId("mx-warning")).toHaveTextContent("corta o email");
-    fireEvent.change(screen.getByLabelText("Domínio de email"), { target: { value: "x.rufvision.com" } });
+    fireEvent.change(screen.getByLabelText(/^Domínio de email/), { target: { value: "x.rufvision.com" } });
     expect(screen.queryByTestId("own-domain-mail")).toBeNull();
   });
 
@@ -342,7 +342,7 @@ describe("AdminEmailModal — domínio próprio (fase 7)", () => {
     getMock.mockReturnValue({ data: onlySub(), isLoading: false, isError: false });
     renderModal();
     fireEvent.click(screen.getByRole("button", { name: "Adicionar domínio próprio" }));
-    fireEvent.change(screen.getByLabelText("Domínio de email"), { target: { value: "tifas.pt" } });
+    fireEvent.change(screen.getByLabelText(/^Domínio de email/), { target: { value: "tifas.pt" } });
     // Sem responder à pergunta não se configura.
     expect(screen.getByRole("button", { name: "Configurar" })).toBeDisabled();
     fireEvent.click(screen.getByLabelText(/Não, o domínio ainda não tem email/));
@@ -358,7 +358,7 @@ describe("AdminEmailModal — domínio próprio (fase 7)", () => {
     getMock.mockReturnValue({ data: onlySub(), isLoading: false, isError: false });
     renderModal();
     fireEvent.click(screen.getByRole("button", { name: "Adicionar domínio próprio" }));
-    fireEvent.change(screen.getByLabelText("Domínio de email"), { target: { value: "tifas.pt" } });
+    fireEvent.change(screen.getByLabelText(/^Domínio de email/), { target: { value: "tifas.pt" } });
     fireEvent.click(screen.getByLabelText(/Sim, já usa email neste domínio/));
     expect(screen.getByLabelText(/Na raiz do domínio/)).toBeDisabled();
     expect(screen.getByLabelText(/Num subdomínio/)).toBeChecked();
@@ -374,7 +374,7 @@ describe("AdminEmailModal — domínio próprio (fase 7)", () => {
     getMock.mockReturnValue({ data: onlySub(), isLoading: false, isError: false });
     renderModal();
     fireEvent.click(screen.getByRole("button", { name: "Adicionar domínio próprio" }));
-    fireEvent.change(screen.getByLabelText("Domínio de email"), { target: { value: "tifas.pt" } });
+    fireEvent.change(screen.getByLabelText(/^Domínio de email/), { target: { value: "tifas.pt" } });
     fireEvent.click(screen.getByLabelText(/Sim, já usa email neste domínio/));
     fireEvent.click(screen.getByLabelText(/Sem caixa neste domínio/));
     fireEvent.click(screen.getByRole("button", { name: "Configurar" }));

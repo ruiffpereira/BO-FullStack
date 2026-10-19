@@ -5,11 +5,11 @@ import type { GymWorkout } from "../../src/gen/backoffice/types/GymWorkout";
 import type { GymWorkoutExercise } from "../../src/gen/backoffice/types/GymWorkoutExercise";
 
 function ex(partial: Partial<GymWorkoutExercise> & Pick<GymWorkoutExercise, "id" | "name" | "group" | "sets" | "reps">): GymWorkoutExercise {
-  return { rest: 60, ...partial };
+  return { rest: 60, ...partial } as GymWorkoutExercise;
 }
 
 function workout(partial: Partial<GymWorkout> & Pick<GymWorkout, "id" | "name" | "exercises">): GymWorkout {
-  return { ...partial };
+  return { ...partial } as GymWorkout;
 }
 
 /** Gera N exercícios triviais (só para testar contagem/paginação, não conteúdo). */
@@ -18,7 +18,7 @@ function nExercises(n: number, prefix: string): GymWorkoutExercise[] {
 }
 
 function program(partial: Partial<GymProgram> & Pick<GymProgram, "id" | "name" | "customerId" | "workouts">): GymProgram {
-  return { owner: "coach", ...partial };
+  return { owner: "coach", ...partial } as GymProgram;
 }
 
 describe("pickDensity", () => {

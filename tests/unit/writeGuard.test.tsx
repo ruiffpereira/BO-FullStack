@@ -13,6 +13,10 @@ vi.mock("../../src/gen/backoffice/hooks/useGetBillingSubscription", () => ({
   useGetBillingSubscription: () => useBillingMock(),
 }));
 
+vi.mock("../../src/hooks/useStaff", () => ({
+  useStaffOptions: () => ({ staff: [], active: [], hasStaff: false, isLoading: false }),
+}));
+
 // A ApptModal (teste de página) usa o Combobox ancorado — substituímo-lo por um
 // <select> nativo, igual ao ApptModal.test.tsx.
 vi.mock("../../src/components/Combobox", () => ({

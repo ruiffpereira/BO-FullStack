@@ -190,7 +190,7 @@ describe("Definições do site — sessão de suporte", () => {
   it("sem token na API: aviso; por configurar: sem Desligar e Testar desligado", () => {
     s.supportData.publish = { mode: "runtime", coolifyApp: null, force: false, hasToken: false, status: "idle" };
     renderModal();
-    expect(screen.getByTestId("publish-no-token")).toHaveTextContent("COOLIFY_DEPLOY_TOKEN");
+    expect(screen.getByTestId("publish-no-token")).toHaveTextContent("COOLIFY_TOKEN");
     expect(screen.queryByRole("button", { name: "Desligar" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Testar" })).toBeDisabled();
   });

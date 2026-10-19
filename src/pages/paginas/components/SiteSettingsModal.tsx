@@ -657,7 +657,7 @@ function PublishSection({ publish, onDone }: { publish: PublishCfg; onDone: () =
       </p>
       {publish && !publish.hasToken && (
         <p role="alert" data-testid="publish-no-token" className={`${AMBER_BOX} mb-3`}>
-          A API não tem o token do Coolify (falta <code>COOLIFY_DEPLOY_TOKEN</code> no servidor) — sem ele nada é publicado.
+          A API não tem o token do Coolify (falta <code>COOLIFY_TOKEN</code> no servidor) — sem ele nada é publicado.
         </p>
       )}
       <div className="space-y-3">

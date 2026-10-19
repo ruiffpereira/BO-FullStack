@@ -183,7 +183,7 @@ jobs:
       - name: Disparar deploy no Coolify
         id: trigger
         env:
-          HOOK: ${{ secrets.COOLIFY_DEPLOY_HOOK_BO }}
+          HOOK: ${{ secrets.COOLIFY_DEPLOY_HOOK || secrets.COOLIFY_DEPLOY_HOOK_BO }}
           TOKEN: ${{ secrets.COOLIFY_TOKEN }}
         run: |
           # Coolify: normalmente GET ao endpoint de deploy com Bearer (API v1).

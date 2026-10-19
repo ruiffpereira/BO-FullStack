@@ -10,7 +10,7 @@ import { randomUUID } from "node:crypto";
  *
  * 1. «Publicação (Coolify)» nas Definições do site, numa sessão de suporte (API REAL): webhook inválido → mensagem da
  *    API; webhook válido → «App configurada: <uuid>» (+ «build sem cache» com force=true); «Testar» sem o token
- *    COOLIFY_DEPLOY_TOKEN na API de e2e dá a verificação «Token» a falhar (nunca chega ao Coolify); «Desligar» volta a
+ *    COOLIFY_TOKEN na API de e2e dá a verificação «Token» a falhar (nunca chega ao Coolify); «Desligar» volta a
  *    «Por configurar». A API de e2e não tem o token → o aviso `publish-no-token` aparece.
  * 2. A barra `publish-bar` (Em fila… / A construir o site… / A confirmar… com percentagem, «Falhou: …», «Site
  *    actualizado · hh:mm»). O Coolify não existe em e2e e o job de 10 s não corre com ENVIRONMENT=TEST, por isso o estado
@@ -95,8 +95,8 @@ for (const vp of VIEWPORTS) {
         await expect(save).toBeDisabled();
         await expect(test_).toBeDisabled(); // sem app configurada
         await expect(dialog.getByTestId("publish-current")).toHaveCount(0);
-        // A API de e2e não tem COOLIFY_DEPLOY_TOKEN.
-        await expect(dialog.getByTestId("publish-no-token")).toContainText("COOLIFY_DEPLOY_TOKEN");
+        // A API de e2e não tem COOLIFY_TOKEN.
+        await expect(dialog.getByTestId("publish-no-token")).toContainText("COOLIFY_TOKEN");
 
         // Inválido: a mensagem da API (não uma genérica) e nada fica configurado.
         await webhook.fill("https://example.com/isto-nao-e-um-webhook");

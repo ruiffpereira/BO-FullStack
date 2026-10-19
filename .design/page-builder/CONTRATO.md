@@ -331,7 +331,7 @@ internos (fora âncoras), token, manifest, pastas, nomes de blocos.
 
 > **Revogado em parte (2026-10-18, B38 · P2 — [DECISOES](../../../DECISOES.md)):** o modo `github` deu lugar ao
 > `coolify`. A API pede o deploy ao Coolify **logo a seguir ao commit** de cada gravação (sem os 60 s de espera), pelo
-> endereço interno `COOLIFY_INTERNAL_URL` e com o token da env `COOLIFY_DEPLOY_TOKEN`; do webhook colado guarda só o
+> endereço interno `COOLIFY_INTERNAL_URL` e com o token da env `COOLIFY_TOKEN`; do webhook colado guarda só o
 > `uuid` da app e o `force`. O job corre a cada 10 s, persiste a fase (`publishPhase`: queued | building | confirming)
 > e a duração média (`publishAvgMs`, base da percentagem da barra), e um `save` a meio faz mais um deploy no fim. O
 > `cms-build.json` continua a ser a única prova. Sai o `deploy.yml` do site. O que se segue sobre `github` é histórico.

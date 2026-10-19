@@ -2533,6 +2533,446 @@
           "unread"
         ]
       },
+      "MessagesOk": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MessagesCustomerMessage": {
+        "type": "object",
+        "description": "Mensagem numa conversa cliente ↔ negócio (B43). senderRole: customer = o cliente; business = o negócio.",
+        "properties": {
+          "messageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "senderRole": {
+            "type": "string",
+            "enum": [
+              "customer",
+              "business"
+            ]
+          },
+          "senderName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Nome do membro que respondeu (só no Backoffice); null = o dono ou o cliente"
+          },
+          "body": {
+            "type": "string",
+            "nullable": true
+          },
+          "attachments": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/ChatAttachment"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "messageId",
+          "conversationId",
+          "senderRole",
+          "createdAt"
+        ]
+      },
+      "MessagesCustomerConversation": {
+        "type": "object",
+        "description": "Item da lista de conversas com clientes (separador Clientes).",
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "customerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "customerName": {
+            "type": "string"
+          },
+          "customerEmail": {
+            "type": "string",
+            "nullable": true
+          },
+          "customerPhoto": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastMessageAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "unread": {
+            "type": "integer",
+            "description": "Mensagens do cliente por ler pelo negócio"
+          },
+          "lastMessage": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "senderRole": {
+                "type": "string",
+                "enum": [
+                  "customer",
+                  "business"
+                ]
+              },
+              "preview": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "required": [
+          "conversationId",
+          "customerId",
+          "customerName",
+          "unread"
+        ]
+      },
+      "MessagesCustomerList": {
+        "type": "object",
+        "properties": {
+          "conversations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessagesCustomerConversation"
+            }
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "unreadTotal": {
+            "type": "integer",
+            "description": "Mensagens por ler em TODAS as conversas com clientes (ignora filtro e pesquisa)"
+          }
+        },
+        "required": [
+          "conversations",
+          "hasMore",
+          "unreadTotal"
+        ]
+      },
+      "MessagesCustomerThread": {
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "customerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "customerName": {
+            "type": "string"
+          },
+          "customerEmail": {
+            "type": "string",
+            "nullable": true
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessagesCustomerMessage"
+            }
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "unread": {
+            "type": "integer"
+          },
+          "otherLastReadAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Até onde o CLIENTE leu"
+          }
+        },
+        "required": [
+          "conversationId",
+          "customerId",
+          "customerName",
+          "messages",
+          "hasMore",
+          "unread"
+        ]
+      },
+      "MessagesTeamMessage": {
+        "type": "object",
+        "description": "Mensagem numa conversa de equipa 1-para-1 (B43).",
+        "properties": {
+          "messageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "senderKey": {
+            "type": "string",
+            "description": "owner ou memberId de quem escreveu"
+          },
+          "senderName": {
+            "type": "string",
+            "description": "Nome guardado no momento do envio"
+          },
+          "mine": {
+            "type": "boolean",
+            "description": "Escrita por quem pede"
+          },
+          "body": {
+            "type": "string",
+            "nullable": true
+          },
+          "attachments": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/ChatAttachment"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "messageId",
+          "conversationId",
+          "senderKey",
+          "senderName",
+          "mine",
+          "createdAt"
+        ]
+      },
+      "MessagesTeamPerson": {
+        "type": "object",
+        "description": "Pessoa da equipa na lista do separador Backoffice. Membro removido: name = Nome (removida), removed = true.",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "owner ou memberId — usa-se no path /messages/team/people/{personKey}"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "member"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "removed": {
+            "type": "boolean"
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "unread": {
+            "type": "integer"
+          },
+          "lastMessageAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastMessage": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "senderKey": {
+                "type": "string"
+              },
+              "preview": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "name",
+          "removed",
+          "unread"
+        ]
+      },
+      "MessagesTeamPeople": {
+        "type": "object",
+        "properties": {
+          "people": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessagesTeamPerson"
+            }
+          },
+          "support": {
+            "type": "object",
+            "nullable": true,
+            "description": "Marcador do Suporte (fixo em primeiro). null = sem a folha mensagens.suporte. O fio vive em /chat/support.",
+            "properties": {
+              "conversationId": {
+                "type": "string",
+                "format": "uuid",
+                "nullable": true
+              },
+              "unread": {
+                "type": "integer"
+              },
+              "lastMessageAt": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              },
+              "lastMessage": {
+                "type": "object",
+                "nullable": true,
+                "properties": {
+                  "senderRole": {
+                    "type": "string"
+                  },
+                  "preview": {
+                    "type": "string"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              }
+            },
+            "required": [
+              "unread"
+            ]
+          },
+          "unreadTotal": {
+            "type": "integer",
+            "description": "Não lidas das conversas de equipa (sem o Suporte)"
+          }
+        },
+        "required": [
+          "people",
+          "support",
+          "unreadTotal"
+        ]
+      },
+      "MessagesTeamThread": {
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "null = ainda não há conversa (fio vazio)"
+          },
+          "person": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "removed": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "key",
+              "name",
+              "removed"
+            ]
+          },
+          "readOnly": {
+            "type": "boolean",
+            "description": "true = a outra pessoa foi removida"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessagesTeamMessage"
+            }
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "unread": {
+            "type": "integer"
+          },
+          "otherLastReadAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "conversationId",
+          "person",
+          "readOnly",
+          "messages",
+          "hasMore",
+          "unread"
+        ]
+      },
+      "MessagesSummary": {
+        "type": "object",
+        "description": "Não lidas por separador. null = a sessão não tem a folha (não é 0).",
+        "properties": {
+          "customers": {
+            "type": "integer",
+            "nullable": true
+          },
+          "team": {
+            "type": "integer",
+            "nullable": true
+          },
+          "support": {
+            "type": "integer",
+            "nullable": true
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "customers",
+          "team",
+          "support",
+          "total"
+        ]
+      },
       "BillingSubscription": {
         "type": "object",
         "description": "Estado da subscrição da plataforma do tenant + derivados da política de acesso (platform billing, T3).",
@@ -15779,6 +16219,549 @@
         }
       }
     },
+    "/messages/customers/conversations": {
+      "get": {
+        "operationId": "listCustomerConversations",
+        "summary": "Conversas com clientes do site (separador Clientes)",
+        "description": "Só do tenant autenticado, mais recente em cima. `filter=unread` = só as por ler; `search` = nome ou email do cliente. Folha `mensagens.clientes` (Ver).",
+        "tags": [
+          "Mensagens"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "filter",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "unread"
+              ],
+              "default": "all"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 30
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagesCustomerList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetros inválidos"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem a folha `mensagens.clientes` (TEAM_FORBIDDEN) ou sessão de suporte"
+          }
+        }
+      }
+    },
+    "/messages/customers/conversations/{conversationId}/messages": {
+      "get": {
+        "operationId": "getCustomerConversationMessages",
+        "summary": "Fio de uma conversa com um cliente",
+        "description": "Folha `mensagens.clientes` (Ver). Conversa de outro tenant → 404. `before` pagina para trás.",
+        "tags": [
+          "Mensagens"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversa + mensagens",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagesCustomerThread"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem a folha `mensagens.clientes` (TEAM_FORBIDDEN) ou sessão de suporte"
+          },
+          "404": {
+            "description": "Conversa não encontrada (ou de outro tenant)"
+          }
+        }
+      },
+      "post": {
+        "operationId": "replyCustomerConversation",
+        "summary": "Responder a um cliente",
+        "description": "Folha `mensagens.clientes` (Responder). Texto (≤ 4000) e/ou até 5 anexos (foto JPEG/PNG/WebP ou PDF carregados em `/uploads` com `module=chat`). Avisa o cliente por Web Push (se tiver a app instalada); sem email.",
+        "tags": [
+          "Mensagens"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatMessageInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Mensagem criada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagesCustomerMessage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Mensagem vazia/inválida ou anexo inválido (MESSAGE_EMPTY",
+            "MESSAGE_INVALID": null,
+            "ATTACHMENT_INVALID)": null
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem Responder em `mensagens.clientes` (TEAM_FORBIDDEN) ou sessão de suporte"
+          },
+          "404": {
+            "description": "Conversa não encontrada (ou de outro tenant)"
+          }
+        }
+      }
+    },
+    "/messages/customers/conversations/{conversationId}/read": {
+      "post": {
+        "operationId": "readCustomerConversation",
+        "summary": "Marcar a conversa com um cliente como lida (lado do negócio)",
+        "description": "Folha `mensagens.clientes` (Ver basta — é estado de leitura, não uma resposta).",
+        "tags": [
+          "Mensagens"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagesOk"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem a folha `mensagens.clientes` (TEAM_FORBIDDEN) ou sessão de suporte"
+          },
+          "404": {
+            "description": "Conversa não encontrada (ou de outro tenant)"
+          }
+        }
+      }
+    },
+    "/messages/customers/by-customer/{customerId}": {
+      "get": {
+        "operationId": "getCustomerConversationByCustomer",
+        "summary": "Conversa de um cliente (atalho \"Abrir conversa\" na ficha)",
+        "description": "`conversationId` é `null` se ainda não há conversa com esse cliente. Cliente de outro tenant → 404. Folha `mensagens.clientes` (Ver).",
+        "tags": [
+          "Mensagens"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "customerId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversa (ou null)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "conversationId",
+                    "unread"
+                  ],
+                  "properties": {
+                    "conversationId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true
+                    },
+                    "unread": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem a folha `mensagens.clientes` (TEAM_FORBIDDEN) ou sessão de suporte"
+          },
+          "404": {
+            "description": "Cliente não encontrado (ou de outro tenant)"
+          }
+        }
+      }
+    },
+    "/messages/team/people": {
+      "get": {
+        "operationId": "listTeamPeople",
+        "summary": "Pessoas da equipa para conversar (separador Backoffice)",
+        "description": "Dono e membros activos do tenant com a folha `mensagens.equipa` (menos quem pede), mais quem já tem conversa comigo (um membro removido aparece como \"Nome (removida)\", `removed: true`, só leitura). Ordem: a última mensagem primeiro. `support` é o marcador do Suporte (fixo em primeiro no BO; `null` se não tens `mensagens.suporte`) — o fio do Suporte continua em `/chat/support`. Folha `mensagens.equipa` (Ver).",
+        "tags": [
+          "Mensagens"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pessoas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagesTeamPeople"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem a folha `mensagens.equipa` (TEAM_FORBIDDEN) ou sessão de suporte"
+          }
+        }
+      }
+    },
+    "/messages/team/people/{personKey}/messages": {
+      "get": {
+        "operationId": "getTeamThread",
+        "summary": "Fio 1-para-1 com uma pessoa da equipa",
+        "description": "`personKey` = `owner` (o dono) ou o `memberId` de um membro DO MESMO tenant (outro tenant → 404). Sem conversa ainda devolve o fio vazio (`conversationId: null`). `readOnly: true` se a outra pessoa foi removida. `before` pagina para trás; `after` devolve só o mais novo. Folha `mensagens.equipa` (Ver).",
+        "tags": [
+          "Mensagens"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "personKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`owner` ou memberId (uuid)"
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fio",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagesTeamThread"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Conversa contigo próprio (TEAM_SELF_CHAT)"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem a folha `mensagens.equipa` (TEAM_FORBIDDEN) ou sessão de suporte"
+          },
+          "404": {
+            "description": "Pessoa não encontrada neste tenant"
+          }
+        }
+      },
+      "post": {
+        "operationId": "sendTeamMessage",
+        "summary": "Enviar mensagem a uma pessoa da equipa (abre a conversa se ainda não existe)",
+        "description": "Folha `mensagens.equipa` (Escrever). Texto (≤ 4000) e/ou até 5 anexos (foto ou PDF, `/uploads` com `module=chat`). Aviso em tempo real e push SÓ à outra pessoa (se tiver a folha). Pessoa removida → 409 `TEAM_PERSON_REMOVED`.",
+        "tags": [
+          "Mensagens"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "personKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`owner` ou memberId (uuid)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatMessageInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Mensagem criada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagesTeamMessage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Mensagem vazia/inválida",
+            "anexo inválido ou conversa contigo próprio": null
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem Escrever em `mensagens.equipa` (TEAM_FORBIDDEN) ou sessão de suporte"
+          },
+          "404": {
+            "description": "Pessoa não encontrada neste tenant"
+          },
+          "409": {
+            "description": "A outra pessoa foi removida (conversa só leitura)"
+          }
+        }
+      }
+    },
+    "/messages/team/people/{personKey}/read": {
+      "post": {
+        "operationId": "readTeamThread",
+        "summary": "Marcar a conversa 1-para-1 como lida (o meu lado)",
+        "description": "Folha `mensagens.equipa` (Ver basta). Sem conversa ainda → 200 sem efeito.",
+        "tags": [
+          "Mensagens"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "personKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagesOk"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Conversa contigo próprio"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem a folha `mensagens.equipa` (TEAM_FORBIDDEN) ou sessão de suporte"
+          },
+          "404": {
+            "description": "Pessoa não encontrada neste tenant"
+          }
+        }
+      }
+    },
+    "/messages/summary": {
+      "get": {
+        "operationId": "getMessagesSummary",
+        "summary": "Contadores de não lidas por separador (badge do menu Mensagens)",
+        "description": "Cada contador só vem se a sessão tem a folha respectiva em `view` (`mensagens.clientes` / `mensagens.equipa` / `mensagens.suporte`); sem ela é `null` (nunca 0 a fingir). `total` soma os que a sessão pode ver. Nunca traz conversas de outro tenant nem de outras pessoas da equipa.",
+        "tags": [
+          "Mensagens"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contadores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagesSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sessão de suporte (IMPERSONATION_FORBIDDEN)"
+          }
+        }
+      }
+    },
     "/notifications": {
       "get": {
         "summary": "Listar notificações",
@@ -18678,7 +19661,7 @@
       "post": {
         "operationId": "uploadImage",
         "summary": "Upload de imagem optimizada para SeaweedFS",
-        "description": "Membro da equipa: o `module` (contexto, fica na key) tem de ser de uma folha onde tem `edit` — `chat`→mensagens, `branding`→conteudos.website, `cms`→conteudos.website|paginas.rascunho, `products`→loja.produtos|conteudos.produtos, `gym`→ginasio.exercicios|treinos|clientes|conteudos.ginasio; `general`, `profile` ou desconhecido só o dono (403 `TEAM_FORBIDDEN`).",
+        "description": "Membro da equipa: o `module` (contexto, fica na key) tem de ser de uma folha onde tem `edit` — `chat`→mensagens.clientes|equipa|suporte, `branding`→conteudos.website, `cms`→conteudos.website|paginas.rascunho, `products`→loja.produtos|conteudos.produtos, `gym`→ginasio.exercicios|treinos|clientes|conteudos.ginasio; `general`, `profile` ou desconhecido só o dono (403 `TEAM_FORBIDDEN`).",
         "tags": [
           "Uploads"
         ],
@@ -18968,7 +19951,7 @@
       "post": {
         "operationId": "uploadPdf",
         "summary": "Upload de PDF (sem processar) para SeaweedFS",
-        "description": "Aceita só `application/pdf` até 20MB cujo conteúdo comece por `%PDF-` (os bytes são verificados, não só o mimetype/extensão). Guardado tal-qual em `<userId>/site/<uuid>-<nome-limpo>.pdf`. Membro da equipa: o contexto `site` exige `paginas.rascunho` (edit).\n",
+        "description": "Aceita só `application/pdf` até 20MB cujo conteúdo comece por `%PDF-` (os bytes são verificados, não só o mimetype/extensão). Guardado tal-qual em `<userId>/site/<uuid>-<nome-limpo>.pdf`. Membro da equipa: o contexto `site` exige `paginas.rascunho` (edit); o `chat` exige `edit` numa folha de `mensagens.*`.\n",
         "tags": [
           "Uploads"
         ],
@@ -18986,6 +19969,14 @@
                     "type": "string",
                     "format": "binary",
                     "description": "PDF (máx 20MB)"
+                  },
+                  "module": {
+                    "type": "string",
+                    "enum": [
+                      "site",
+                      "chat"
+                    ],
+                    "description": "Contexto do ficheiro (por omissão `site`; `chat` = anexos das Mensagens, B43). Qualquer outro valor conta como `site`."
                   }
                 }
               }
@@ -19176,6 +20167,10 @@
     {
       "name": "Leads",
       "description": "Leads/orçamentos capturados no site público do tenant (backoffice)"
+    },
+    {
+      "name": "Mensagens",
+      "description": "Mensagens do Backoffice (B43). Separador **Clientes** (conversas com os clientes do site; folha `mensagens.clientes`: Ver | Responder) e separador **Backoffice** (equipa 1-para-1, folha `mensagens.equipa`; o Suporte continua em `/chat/support`, folha `mensagens.suporte`). Sempre por `req.user` (tenant): nunca há `userId` no path/body. O admin da plataforma não lê conversas de clientes nem de equipa. Bloqueado em sessão de suporte."
     },
     {
       "name": "Notifications",

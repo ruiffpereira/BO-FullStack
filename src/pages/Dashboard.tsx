@@ -636,7 +636,7 @@ export function Dashboard() {
           </h1>
         </div>
         <div className="sm:ml-auto flex flex-wrap items-center gap-3">
-          <StaffFilterSelect value={staffSel} onChange={setStaffSel} />
+          <StaffFilterSelect value={staffSel} onChange={setStaffSel} leaves={["financeiro.negocio", "financeiro.agenda", "financeiro.loja"]} />
           <p className="text-sm text-zinc-400">Olá, {(isMember ? member?.name?.split(' ')[0] : username) ?? '—'}</p>
         </div>
       </div>

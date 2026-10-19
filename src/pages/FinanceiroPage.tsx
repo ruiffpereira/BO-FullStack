@@ -19,6 +19,14 @@ import { MensalidadesTab } from './GymMensalidade'
 
 export type FinanceiroView = 'negocio' | 'agenda' | 'loja' | 'ginasio' | 'despesas'
 const VERTICALS: FinanceiroView[] = ['negocio', 'agenda', 'loja']
+/** Folha da árvore de cada vista (para o âmbito «Só os meus» do selector de profissional). */
+const FINANCE_LEAVES: Record<FinanceiroView, string[]> = {
+  negocio: ['financeiro.negocio'],
+  agenda: ['financeiro.agenda'],
+  loja: ['financeiro.loja'],
+  ginasio: [],
+  despesas: ['financeiro.despesas'],
+}
 
 const PRESETS: { key: DashboardPeriod; label: string }[] = [
   { key: 'today', label: 'Hoje' },
@@ -73,7 +81,7 @@ export function FinanceiroPage({ view }: { view: FinanceiroView }) {
       {isVertical && (
         <PageHeader>
           <div className="flex flex-wrap items-center gap-2">
-            <StaffFilterSelect value={staffSel} onChange={setStaffSel} />
+            <StaffFilterSelect value={staffSel} onChange={setStaffSel} leaves={FINANCE_LEAVES[tab]} />
             {/* IVA só afeta Agenda/Loja (decompõem por item); O Negócio agrega recebido. */}
             {(tab === 'agenda' || tab === 'loja') && <VatToggle value={iva} onChange={setIva} />}
             <div className="relative">

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { format, parseISO } from "date-fns";
 import { pt } from "date-fns/locale";
 import { toast } from "sonner";
@@ -39,7 +39,7 @@ import { usePutScheduleStaffIdWorkingHours } from "../gen/backoffice/hooks/usePu
 import { usePostScheduleStaffIdTimeOff } from "../gen/backoffice/hooks/usePostScheduleStaffIdTimeOff.js";
 import { useDeleteScheduleStaffIdTimeOffTimeoffid } from "../gen/backoffice/hooks/useDeleteScheduleStaffIdTimeOffTimeoffid.js";
 import { useGetScheduleServices } from "../gen/backoffice/hooks/useGetScheduleServices.js";
-import { useGetTeam } from "../gen/backoffice/hooks/useGetTeam.js";
+import { StaffMemberLink } from "../components/StaffMemberLink";
 import { uploadImage } from "../gen/backoffice/hooks/useUploadImage.js";
 import type { Staff } from "../gen/backoffice/types/Staff.js";
 import type { StaffDetail } from "../gen/backoffice/types/StaffDetail.js";
@@ -252,7 +252,6 @@ function StaffModal({ staffId, onClose }: { staffId: string | null; onClose: () 
 
 function DadosTab({ detail, onCreated }: { detail?: StaffDetail; onCreated: (s: Staff) => void }) {
   const invalidate = useInvalidateStaff();
-  const { isMember, can } = useTeamAccess();
   const [name, setName] = useState(detail?.name ?? "");
   const [color, setColor] = useState(detail?.color ?? STAFF_COLORS[0]);
   const [showOnSite, setShowOnSite] = useState(detail?.showOnSite ?? true);
@@ -261,20 +260,6 @@ function DadosTab({ detail, onCreated }: { detail?: StaffDetail; onCreated: (s: 
   const [photo, setPhoto] = useState<string | null>(detail?.photo ?? null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
-
-  // Ligar a um membro: a lista vem de `/team` (dono, ou membro com a folha `equipa`).
-  const canListTeam = !isMember || can("equipa");
-  const { data: team } = useGetTeam({ query: { enabled: canListTeam, retry: false } });
-  const memberOptions = useMemo(() => {
-    const opts = [{ value: "", label: "Sem ligação" }];
-    for (const m of (team ?? []) as { memberId?: string; name?: string; email?: string }[]) {
-      if (m.memberId) opts.push({ value: m.memberId, label: m.name || m.email || "Membro" });
-    }
-    if (detail?.memberId && !opts.some((o) => o.value === detail.memberId)) {
-      opts.push({ value: detail.memberId, label: detail.memberName || "Membro" });
-    }
-    return opts;
-  }, [team, detail?.memberId, detail?.memberName]);
 
   const create = usePostScheduleStaff();
   const update = usePutScheduleStaffId();
@@ -362,20 +347,13 @@ function DadosTab({ detail, onCreated }: { detail?: StaffDetail; onCreated: (s: 
         <Toggle label="Activo" checked={active} onChange={setActive} />
       </div>
       <div>
-        {canListTeam ? (
-          <Combobox
-            label="Ligar a um membro da equipa (opcional)"
-            value={memberId}
-            onChange={setMemberId}
-            options={memberOptions}
-            placeholder="Sem ligação"
-            searchPlaceholder="Pesquisar membro…"
-          />
-        ) : (
-          <p className="text-xs text-zinc-500">
-            Ligado a: {detail?.memberName ?? "ninguém"}. Só quem gere a equipa pode alterar a ligação.
-          </p>
-        )}
+        <StaffMemberLink
+          staffId={detail?.staffId}
+          value={memberId}
+          onChange={setMemberId}
+          currentMemberId={detail?.memberId}
+          currentMemberName={detail?.memberName}
+        />
         <p className="text-xs text-zinc-400 mt-1">
           Com a ligação, o membro pode ver só o que é dele (âmbito «Só os meus»). Um profissional também pode existir sem conta.
         </p>

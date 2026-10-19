@@ -26,14 +26,41 @@ export function staffFilterOptions(staff: readonly Pick<StaffOption, "staffId" |
 
 /** Opções de um campo «Profissional» / «Vendido por»: só os activos (+ o já escolhido, mesmo inactivo). */
 export function staffPickOptions(
-  staff: readonly Pick<StaffOption, "staffId" | "name" | "active">[],
+  staff: readonly Pick<StaffOption, "staffId" | "name" | "active" | "doesService">[],
   current?: string | null,
   emptyLabel = "Sem profissional",
-): { value: string; label: string }[] {
+): { value: string; label: string; disabled?: boolean }[] {
   return [
     { value: "", label: emptyLabel },
     ...staff
       .filter((s) => s.active || s.staffId === current)
-      .map((s) => ({ value: s.staffId, label: s.active ? s.name : `${s.name} (inactivo)` })),
+      .map((s) => {
+        const base = s.active ? s.name : `${s.name} (inactivo)`;
+        // Com `?serviceId=`: quem não faz o serviço fica indicado e desactivado (o já escolhido não se tira à força).
+        if (s.doesService === false) return { value: s.staffId, label: `${base} — não faz este serviço`, disabled: s.staffId !== current };
+        return { value: s.staffId, label: base };
+      }),
   ];
+}
+
+/** Âmbito «Só os meus»: o selector fica fixo no profissional ligado (ou avisa que não há ligação). */
+export type FixedStaff = { linked: true; staffId: string; name: string } | { linked: false };
+
+export const UNLINKED_STAFF_MESSAGE = "Sem profissional ligado — fala com o dono";
+
+export function fixedStaff(staff: readonly Pick<StaffOption, "staffId" | "name">[], staffId: string | null | undefined): FixedStaff {
+  if (!staffId) return { linked: false };
+  const s = staff.find((x) => x.staffId === staffId);
+  return { linked: true, staffId, name: s?.name ?? "O meu profissional" };
+}
+
+/** Dica de preço de um profissional no serviço escolhido (`null` = nada a mostrar). */
+export function staffPriceHint(
+  staff: readonly Pick<StaffOption, "staffId" | "doesService" | "price">[],
+  staffId: string | null | undefined,
+): string | null {
+  const s = staffId ? staff.find((x) => x.staffId === staffId) : undefined;
+  if (!s) return null;
+  if (s.doesService === false) return "Este profissional não faz este serviço";
+  return s.price != null ? `Preço com este profissional: ${Number(s.price).toFixed(2)}€` : null;
 }

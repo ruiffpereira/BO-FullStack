@@ -1,4 +1,5 @@
 import { useAuth, type AccessMember, type TeamLevel } from '../context/AuthContext'
+import type { TeamScope } from '../lib/teamTree'
 
 /**
  * Acesso da equipa (B41) que NÃO exige o provider: sem ele (componentes renderizados isolados, testes) comporta-se
@@ -11,6 +12,12 @@ export function useTeamAccess(): {
   can: (key: string, level?: TeamLevel) => boolean
   /** Alguma das chaves (OU). */
   canAny: (keys: readonly string[], level?: TeamLevel) => boolean
+  /** Âmbito da folha: `meus` = «Só os meus» (o dono, e sem provider, é sempre `todos`). */
+  scopeOf: (leaf: string) => TeamScope
+  /** `meus` só quando todas as folhas que a sessão tem entre estas são «Só os meus». */
+  scopeOfAll: (leaves: readonly string[]) => TeamScope
+  /** Profissional ligado ao membro da sessão (`null` = dono ou sem ligação). */
+  staffId: string | null
 } {
   let ctx: ReturnType<typeof useAuth> | null = null
   try {
@@ -24,5 +31,8 @@ export function useTeamAccess(): {
     isMember: !!ctx?.isMember,
     can,
     canAny: (keys, level = 'view') => keys.some((k) => can(k, level)),
+    scopeOf: ctx?.scopeOf ?? (() => 'todos'),
+    scopeOfAll: ctx?.scopeOfAll ?? (() => 'todos'),
+    staffId: ctx?.staffId ?? null,
   }
 }

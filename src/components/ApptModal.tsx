@@ -19,7 +19,6 @@ import { useWriteGuard } from "../hooks/useWriteGuard";
 import { useTeamAccess } from "../hooks/useTeamAccess";
 import { Combobox } from "./Combobox";
 import { StaffField } from "./StaffSelect";
-import { useStaffServicePrice } from "../hooks/useStaff";
 import { PriceFillChip } from "./PriceFillChip";
 import { confirmDialog } from "./confirm";
 import { TimeField } from "./TimeField";
@@ -161,7 +160,6 @@ export function ApptModal({
   const [editServiceId, setEditServiceId] = useState(appt.serviceId);
   // Profissional (opcional; '' = sem). O preço próprio dele só se mostra a quem lê a ficha dele e vê os valores.
   const [editStaffId, setEditStaffId] = useState(appt.staffId ?? "");
-  const { price: staffPrice } = useStaffServicePrice(editStaffId, editServiceId);
   const svc = services.find((s) => s.serviceId === editServiceId);
   const status = appt.status ?? "pending";
   // Modo de edição de uma vaga já paga: "details" (serviço/hora) ou "payment"
@@ -738,11 +736,8 @@ export function ApptModal({
                 <StaffField
                   value={editStaffId}
                   onChange={setEditStaffId}
-                  hint={
-                    showMoney && editStaffId && staffPrice != null
-                      ? `Preço com este profissional: ${Number(staffPrice).toFixed(2)}€`
-                      : undefined
-                  }
+                  serviceId={editServiceId}
+                  leaves={["agenda.marcacoes"]}
                 />
               ) : (
                 appt.staff?.name && (

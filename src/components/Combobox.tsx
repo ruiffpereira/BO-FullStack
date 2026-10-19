@@ -6,6 +6,8 @@ import { useAnchoredMenu } from './useAnchoredMenu'
 export interface ComboboxOption {
   value: string
   label: string
+  /** Opção visível mas não escolhível (ex.: profissional que não faz o serviço). */
+  disabled?: boolean
 }
 
 export interface ComboboxProps {
@@ -92,7 +94,7 @@ export const Combobox = forwardRef<HTMLButtonElement, ComboboxProps>(function Co
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setHighlight((h) => Math.min(h + 1, filtered.length - 1)) }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlight((h) => Math.max(h - 1, 0)) }
-    else if (e.key === 'Enter') { e.preventDefault(); const o = filtered[highlight]; if (o) pick(o.value) }
+    else if (e.key === 'Enter') { e.preventDefault(); const o = filtered[highlight]; if (o && !o.disabled) pick(o.value) }
     else if (e.key === 'Escape') { setOpen(false) }
   }
 
@@ -142,9 +144,10 @@ export const Combobox = forwardRef<HTMLButtonElement, ComboboxProps>(function Co
                   <button
                     type="button"
                     onMouseEnter={() => setHighlight(i)}
-                    onClick={() => pick(o.value)}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition ${
-                      i === highlight ? 'bg-accent/10 text-accent' : 'text-zinc-700 dark:text-zinc-300'
+                    disabled={o.disabled}
+                    onClick={() => !o.disabled && pick(o.value)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                      i === highlight && !o.disabled ? 'bg-accent/10 text-accent' : 'text-zinc-700 dark:text-zinc-300'
                     }`}
                   >
                     <span className="flex-1 truncate">{o.label}</span>

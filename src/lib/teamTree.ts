@@ -377,3 +377,19 @@ export function cascadeWarning(affected: number | undefined | null): string | nu
 export function hasAnyGrant(tree: readonly TreeNode[], grants: GrantMap): boolean {
   return serializeGrants(tree, grants).length > 0;
 }
+
+/* ───────────────────────── Âmbito da sessão (Profissionais) ───────────────────────── */
+
+/** Âmbito efectivo de uma folha da SESSÃO: `meus` só se a API o deu; sem grant (ou dono) = todos. */
+export function grantScope(grants: readonly GrantEntry[], leaf: string): TeamScope {
+  return grants.find((g) => g.key === leaf)?.scope === "meus" ? "meus" : "todos";
+}
+
+/**
+ * Âmbito de um selector que serve várias folhas: `meus` só quando TODAS as que a sessão tem são «Só os meus»
+ * (se alguma é «Todos», o selector completo continua a fazer sentido — a API filtra na mesma).
+ */
+export function grantScopeAll(grants: readonly GrantEntry[], leaves: readonly string[]): TeamScope {
+  const held = grants.filter((g) => leaves.includes(g.key));
+  return held.length > 0 && held.every((g) => g.scope === "meus") ? "meus" : "todos";
+}

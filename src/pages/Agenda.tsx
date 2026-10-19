@@ -95,8 +95,8 @@ import { Combobox } from "../components/Combobox";
 import { CalendarSubscribeCard } from "../components/CalendarSubscribeCard";
 import { useNow } from "../hooks/useNow";
 import { StaffField, StaffFilterSelect } from "../components/StaffSelect";
-import { useStaffOptions, useStaffServicePrice } from "../hooks/useStaff";
-import { STAFF_ALL, STAFF_NONE, staffParam } from "../lib/staffFilter";
+import { useStaffOptions } from "../hooks/useStaff";
+import { STAFF_ALL, STAFF_NONE, UNLINKED_STAFF_MESSAGE, staffParam } from "../lib/staffFilter";
 import { toastStaffWarnings } from "../lib/staffWarnings";
 import { AgendaProfissionais } from "./AgendaProfissionais";
 import { FEATURES } from "../lib/features";
@@ -646,8 +646,6 @@ function NovaApptModal({
     staffId: "",
     notes: "",
   });
-  // Preço próprio do profissional escolhido (só a quem lê a ficha dele e vê os valores).
-  const { price: staffPrice } = useStaffServicePrice(form.staffId, form.serviceId);
   const [q, setQ] = useState("");
   const [showDrop, setShowDrop] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -958,11 +956,8 @@ function NovaApptModal({
         <StaffField
           value={form.staffId}
           onChange={(v) => setForm((f) => ({ ...f, staffId: v }))}
-          hint={
-            novaShowMoney && form.staffId && staffPrice != null
-              ? `Preço com este profissional: ${Number(staffPrice).toFixed(2)}€`
-              : undefined
-          }
+          serviceId={form.serviceId}
+          leaves={["agenda.marcacoes"]}
         />
         <Input
           label="Notas (opcional)"
@@ -1128,7 +1123,9 @@ function CalendarioView() {
     ...(staffParam(staffSel) ? { staff: staffParam(staffSel) } : {}),
   });
   const { data: services = [] } = useGetScheduleServices();
-  const { canAny: canTeamAny } = useTeamAccess();
+  const { canAny: canTeamAny, scopeOf, staffId: myStaffId } = useTeamAccess();
+  // «Só os meus»: sem Todos/Sem profissional/outros, só o profissional ligado (a API filtra de facto).
+  const onlyMine = scopeOf("agenda.marcacoes") === "meus";
   const { data: customersData } = useGetCustomers({ query: { enabled: canTeamAny(CUSTOMER_READ_KEYS) } });
   const { data: blockedSlots = [] } = useGetScheduleBlockedSlots({ from, to });
   const { data: workingHours = [] } = useGetScheduleWorkingHours();
@@ -1555,12 +1552,18 @@ function CalendarioView() {
             data-testid="staff-chips"
             className="flex items-center gap-1.5 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800 shrink-0 overflow-x-auto"
           >
-            {[
-              { id: STAFF_ALL, label: "Todos", color: null as string | null },
-              { id: STAFF_NONE, label: "Sem profissional", color: null as string | null },
-              ...staffList.filter((x) => x.active).map((x) => ({ id: x.staffId, label: x.name, color: x.color ?? null })),
-            ].map((c) => {
-              const on = staffSel === c.id;
+            {onlyMine && !myStaffId && (
+              <span className="text-xs text-zinc-500">{UNLINKED_STAFF_MESSAGE}</span>
+            )}
+            {(onlyMine
+              ? staffList.filter((x) => x.staffId === myStaffId).map((x) => ({ id: x.staffId, label: x.name, color: x.color ?? null }))
+              : [
+                  { id: STAFF_ALL, label: "Todos", color: null as string | null },
+                  { id: STAFF_NONE, label: "Sem profissional", color: null as string | null },
+                  ...staffList.filter((x) => x.active).map((x) => ({ id: x.staffId, label: x.name, color: x.color ?? null })),
+                ]
+            ).map((c) => {
+              const on = onlyMine || staffSel === c.id;
               return (
                 <button
                   key={c.id}
@@ -2989,7 +2992,7 @@ function MarcacoesPanel() {
           {hasStaff && (
             <div>
               <p className="text-xs text-zinc-500 mb-1">Profissional</p>
-              <StaffFilterSelect value={staffSel} onChange={setStaffSel} />
+              <StaffFilterSelect value={staffSel} onChange={setStaffSel} leaves={["agenda.marcacoes"]} />
             </div>
           )}
           {hasFilters && (

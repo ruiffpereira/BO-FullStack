@@ -28,7 +28,7 @@ import type { GetUserpermissions200 } from "../gen/backoffice/types/GetUserpermi
 import { getUserpermissionsAccess } from "../gen/backoffice/hooks/useGetUserpermissionsAccess.js";
 import type { GetUserpermissionsAccess200 } from "../gen/backoffice/types/GetUserpermissionsAccess.js";
 import { notifyTeamForbidden } from "../lib/teamAccess";
-import { canFromGrants, type GrantEntry } from "../lib/teamTree";
+import { canFromGrants, grantScope, grantScopeAll, type GrantEntry, type TeamScope } from "../lib/teamTree";
 
 type Permission = GetUserpermissions200[number];
 
@@ -42,8 +42,10 @@ interface AccessState {
   modules: AccessModule[];
   /** Folhas efectivas da árvore (B41 2b), dadas pela API; o dono tem todas as disponíveis. */
   grants: GrantEntry[];
+  /** Profissional ligado ao membro da sessão (`null` = dono ou sem ligação). */
+  staffId: string | null;
 }
-const ownerAccess: AccessState = { member: null, modules: [], grants: [] };
+const ownerAccess: AccessState = { member: null, modules: [], grants: [], staffId: null };
 
 /**
  * B12 — resultado de `doRefresh`, explícito sobre QUAL ramo ocorreu (antes
@@ -87,6 +89,12 @@ interface AuthCtx extends AuthState {
    * debaixo). O dono do tenant pode sempre; um membro só o que a API lhe deu (`edit` implica `view`). A decisão final é sempre da API.
    */
   can: (key: string, level?: TeamLevel) => boolean;
+  /** Âmbito da folha na sessão: `meus` = «Só os meus» (dado pela API); o dono é sempre `todos`. */
+  scopeOf: (leaf: string) => TeamScope;
+  /** `meus` só quando todas as folhas que a sessão tem entre estas são «Só os meus». */
+  scopeOfAll: (leaves: readonly string[]) => TeamScope;
+  /** Profissional ligado ao membro da sessão (`null` = dono ou sem ligação). */
+  staffId: string | null;
   /**
    * Volta a pedir `GET /userpermissions/access` (folhas do membro) sem tocar no resto da sessão. Usado pelo SSE
    * quando o servidor fecha a ligação de um membro (mudou de folhas, foi desactivado, mudou de password): um 401
@@ -346,7 +354,12 @@ async function fetchAccess(accessToken: string): Promise<AccessState> {
       })),
     grants: (res?.grants ?? [])
       .filter((g) => !!g.key)
-      .map((g) => ({ key: g.key as string, level: g.level === "edit" ? ("edit" as const) : ("view" as const) })),
+      .map((g) => ({
+        key: g.key as string,
+        level: g.level === "edit" ? ("edit" as const) : ("view" as const),
+        ...(g.scope === "meus" ? { scope: "meus" as const } : {}),
+      })),
+    staffId: res?.staffId ?? null,
   };
 }
 
@@ -916,6 +929,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [auth.access],
   );
 
+  const scopeOf = useCallback(
+    (leaf: string): TeamScope => (auth.access.member ? grantScope(auth.access.grants, leaf) : "todos"),
+    [auth.access],
+  );
+  const scopeOfAll = useCallback(
+    (leaves: readonly string[]): TeamScope => (auth.access.member ? grantScopeAll(auth.access.grants, leaves) : "todos"),
+    [auth.access],
+  );
+
   const refreshAccess = useCallback(async () => {
     const token = authRef.current.accessToken;
     if (!token || supportActiveRef.current) return;
@@ -972,6 +994,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         member: auth.access.member,
         isMember: !!auth.access.member,
         can,
+        scopeOf,
+        scopeOfAll,
+        staffId: auth.access.staffId,
         refreshAccess,
         loading,
         loggingOut,

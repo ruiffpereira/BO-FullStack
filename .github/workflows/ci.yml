@@ -36,6 +36,9 @@ jobs:
         run: pnpm kubb
         env:
           KUBB_OFFLINE: '1'
+      # O tsconfig.json só inclui src: os testes nunca eram verificados em tipos (R6.4 achou 16 erros).
+      - name: Tipos (src + testes unitários)
+        run: pnpm lint:tests
       - name: Correr unit tests
         run: pnpm test:unit
 

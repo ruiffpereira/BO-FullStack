@@ -11,6 +11,7 @@
     "kubb": "kubb generate",
     "kubb:refresh": "node scripts/kubb-refresh.mjs",
     "lint": "tsc --noEmit",
+    "lint:tests": "tsc --noEmit -p tsconfig.tests.json",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:e2e": "playwright test",

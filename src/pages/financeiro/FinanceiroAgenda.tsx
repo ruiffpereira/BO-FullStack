@@ -8,10 +8,10 @@ import { INFO } from '../../components/financeiro/info'
 
 const STATUS_PT: Record<string, string> = { pending: 'Pendentes', confirmed: 'Confirmadas', completed: 'Concluídas', cancelled: 'Canceladas', no_show: 'Faltas' }
 
-export function FinanceiroAgenda({ period, iva, customStart, customEnd }: {
-  period: DashboardPeriod; iva: VatMode; customStart?: string; customEnd?: string
+export function FinanceiroAgenda({ period, iva, customStart, customEnd, staff }: {
+  period: DashboardPeriod; iva: VatMode; customStart?: string; customEnd?: string; staff?: string
 }) {
-  const { data, isLoading, isError } = useAgendaFinance(period, iva, customStart, customEnd)
+  const { data, isLoading, isError } = useAgendaFinance(period, iva, customStart, customEnd, staff)
   // `access.lostCustomers=false` (membro sem `clientes.lista`): a lista vem vazia e não se mostra.
   const showLost = data?.access?.lostCustomers !== false
 

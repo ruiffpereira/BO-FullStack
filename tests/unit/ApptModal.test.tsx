@@ -11,6 +11,12 @@ vi.mock("../../src/gen/backoffice/hooks/useGetBillingSubscription", () => ({
   useGetBillingSubscription: () => ({ data: { readOnly: false, reason: "active" } }),
 }));
 
+// Profissionais (R2): sem QueryClientProvider, o tenant "não tem profissionais" (nenhum selector aparece).
+vi.mock("../../src/hooks/useStaff", () => ({
+  useStaffOptions: () => ({ staff: [], active: [], hasStaff: false, isLoading: false }),
+  useStaffServicePrice: () => ({ price: undefined, excluded: false }),
+}));
+
 // O Combobox real abre um menu ancorado (useAnchoredMenu) — para tornar a
 // escolha de serviço determinística nos testes, substituímo-lo por um <select>
 // nativo que invoca o mesmo onChange(value).

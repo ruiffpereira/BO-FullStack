@@ -30,6 +30,10 @@ import { GuardButton } from "../components/GuardButton";
 import { useWriteGuard } from "../hooks/useWriteGuard";
 import { useTeamAccess } from "../hooks/useTeamAccess";
 import { Combobox } from "../components/Combobox";
+import { StaffFilterSelect } from "../components/StaffSelect";
+import { useStaffOptions } from "../hooks/useStaff";
+import { STAFF_ALL, staffParam, staffPickOptions } from "../lib/staffFilter";
+import { usePutOrdersId } from "../gen/backoffice/hooks/usePutOrdersId.js";
 import {
   useGetProducts,
   getProductsQueryKey,
@@ -448,10 +452,24 @@ export function Loja({ view }: { view: LojaView }) {
     client: { headers },
   });
   const { data: categoriesData } = useGetCategories({ client: { headers } });
+  // Profissionais: filtro da lista de encomendas (`?staff=`) e «Vendido por» por encomenda.
+  const [staffSel, setStaffSel] = useState<string>(STAFF_ALL);
+  const staffFilter = staffParam(staffSel);
+  const { staff: staffList, hasStaff } = useStaffOptions();
   const { data: ordersData, isLoading: loadingOrders } = useGetOrders(
-    undefined,
+    staffFilter ? { staff: staffFilter } : undefined,
     { client: { headers } },
   );
+  const setSoldBy = usePutOrdersId({
+    mutation: {
+      onSuccess: () => {
+        toast.success("Vendedor actualizado");
+        qc.invalidateQueries({ queryKey: getOrdersQueryKey() });
+        qc.invalidateQueries({ queryKey: ["financeiro"] });
+      },
+      onError: (error) => toast.error(getApiError(error)),
+    },
+  });
 
   const products = productsData?.rows ?? [];
   const categories = (categoriesData?.rows ?? []) as Category[];
@@ -832,7 +850,8 @@ export function Loja({ view }: { view: LojaView }) {
 
       {tab === "encomendas" && (
         <div>
-          <Card className="p-4 mb-4 flex items-center gap-3 w-fit">
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+          <Card className="p-4 flex items-center gap-3 w-fit">
             <span
               className={`w-10 h-10 rounded-lg flex items-center justify-center ${BADGE_TONES.green}`}
             >
@@ -845,6 +864,8 @@ export function Loja({ view }: { view: LojaView }) {
               <p className="text-[13px] text-zinc-500">Total faturado</p>
             </div>
           </Card>
+          <StaffFilterSelect value={staffSel} onChange={setStaffSel} />
+          </div>
           <Card className="overflow-hidden">
             {loadingOrders ? (
               <div className="p-4 space-y-3">
@@ -862,6 +883,7 @@ export function Loja({ view }: { view: LojaView }) {
                     <tr className="border-b border-zinc-100 dark:border-zinc-800 text-left text-zinc-500">
                       <th className="font-medium px-4 sm:px-5 py-3">ID</th>
                       <th className="font-medium px-4 py-3">Total</th>
+                      {hasStaff && <th className="font-medium px-4 py-3">Vendido por</th>}
                       <th className="font-medium px-4 py-3 hidden md:table-cell">
                         Data
                       </th>
@@ -871,7 +893,7 @@ export function Loja({ view }: { view: LojaView }) {
                     {orders.length === 0 && (
                       <tr>
                         <td
-                          colSpan={3}
+                          colSpan={hasStaff ? 4 : 3}
                           className="px-4 py-8 text-center text-zinc-400"
                         >
                           Nenhuma encomenda encontrada.
@@ -889,6 +911,26 @@ export function Loja({ view }: { view: LojaView }) {
                         <td className="px-4 py-3.5 font-semibold text-zinc-900 dark:text-white tabular-nums">
                           {fmtEur(Number(o.price))}
                         </td>
+                        {hasStaff && (
+                          <td className="px-4 py-3.5">
+                            <select
+                              aria-label={`Vendido por (encomenda ${o.orderId.slice(0, 8)})`}
+                              value={o.soldByStaffId ?? ""}
+                              disabled={writeLocked || setSoldBy.isPending}
+                              title={writeLocked ? writeMessage : undefined}
+                              onChange={(e) =>
+                                setSoldBy.mutate({ id: o.orderId, data: { soldByStaffId: e.target.value || null } })
+                              }
+                              className="max-w-[10rem] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm px-2 py-1 disabled:opacity-50"
+                            >
+                              {staffPickOptions(staffList, o.soldByStaffId, "—").map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                        )}
                         <td className="px-4 py-3.5 text-zinc-400 hidden md:table-cell">
                           {o.createdAt
                             ? new Date(o.createdAt).toLocaleDateString("pt-PT")

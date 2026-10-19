@@ -12,6 +12,13 @@ describe("getApiError — códigos da API com texto técnico", () => {
     expect(getApiError(err({ error: "Produto esgotado", code: "OUT_OF_STOCK" }))).toBe("Produto esgotado.");
   });
 
+  it("códigos dos Profissionais → texto PT", () => {
+    expect(getApiError(err({ error: "x", code: "STAFF_HAS_HISTORY" }))).toBe("Tem histórico — desactiva-o em vez de apagar.");
+    expect(getApiError(err({ error: "x", code: "STAFF_LINK_FORBIDDEN" }))).toMatch(/Só os meus/);
+    expect(getApiError(err({ error: "x", code: "STAFF_NOT_FOUND" }))).toBe("Esse profissional já não existe.");
+    expect(getApiError(err({ error: "x", code: "STAFF_INVALID" }))).toBe("Profissional inválido.");
+  });
+
   it("código desconhecido → a mensagem da API; sem resposta → o fallback", () => {
     expect(getApiError(err({ error: "Outra coisa", code: "X" }))).toBe("Outra coisa");
     expect(getApiError(new Error("rede"), "Erro ao guardar")).toBe("Erro ao guardar");

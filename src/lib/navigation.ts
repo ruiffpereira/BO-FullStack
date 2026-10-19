@@ -72,6 +72,8 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     { id: "cal", label: "Calendário", path: "/agenda", leaf: "agenda.marcacoes" },
     { id: "marcacoes", label: "Marcações", path: "/agenda/marcacoes", leaf: "agenda.marcacoes" },
     { id: "servicos", label: "Serviços", path: "/agenda/servicos", leaf: "agenda.servicos" },
+    // Profissionais (R2): nasce fechado — só quem tem a folha `agenda.profissionais` vê o separador.
+    { id: "profissionais", label: "Profissionais", path: "/agenda/profissionais", leaf: "agenda.profissionais" },
     { id: "config", label: "Configurações", path: "/agenda/config", leaf: ["agenda.config", "agenda.bloqueios"] },
   ],
   "/admin": [
@@ -201,6 +203,7 @@ export function memberSubitems(root: string, can: (key: string, level?: "view" |
  */
 export const LEAF_FOR_PATH: ReadonlyArray<readonly [string, string]> = [
   ["/agenda/servicos", "agenda.servicos"],
+  ["/agenda/profissionais", "agenda.profissionais"],
   ["/agenda/config", "agenda.config"],
   ["/agenda/marcacoes", "agenda.marcacoes"],
   ["/agenda", "agenda.marcacoes"],

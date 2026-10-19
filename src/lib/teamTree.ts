@@ -25,13 +25,24 @@ export interface TreeNode {
   levelLabels?: Partial<Record<TeamLevel, string>>;
   /** Fase 3: o máximo que QUEM PEDE pode dar neste nó (`null` = nada). Omitido = sem tecto (dono). */
   maxLevel?: TeamLevel | null;
+  /** Profissionais: o nó aceita o âmbito [Todos | Só os meus]. */
+  scoped?: boolean;
+  /** Profissionais: `"meus"` = quem edita só tem «Só os meus» neste nó, por isso só pode dar esse âmbito. */
+  maxScope?: "meus" | null;
   children: TreeNode[];
 }
 
 export interface GrantEntry {
   key: string;
   level: TeamLevel;
+  /** Só vai quando é `"meus"`; ausente = Todos. */
+  scope?: "meus";
 }
+
+/** Âmbito de um nó `scoped`: só `"meus"` se guarda — ausente = Todos (o que os membros antigos já têm). */
+export type ScopeMap = Record<string, "meus">;
+export type TeamScope = "todos" | "meus";
+export const SCOPE_LABEL: Record<TeamScope, string> = { todos: "Todos", meus: "Só os meus" };
 
 /** Mapa chave → nível das folhas escolhidas (só nós `storable`). */
 export type GrantMap = Record<string, TeamLevel>;
@@ -104,8 +115,59 @@ export function giveLevelOf(n: TreeNode): TeamLevel | null {
 /** Há nós que quem edita não pode dar (ou só ao nível "ver")? — para mostrar o motivo como texto (o tooltip não existe em ecrãs táteis). */
 export function hasLimitedNodes(tree: TreeNode[]): boolean {
   return tree.some(
-    (n) => (n.storable && n.available && giveLevelOf(n) !== maxLevelOf(n)) || hasLimitedNodes(n.children ?? []),
+    (n) =>
+      (n.storable && n.available && giveLevelOf(n) !== maxLevelOf(n)) ||
+      (n.storable && n.available && !!n.scoped && n.maxScope === "meus") ||
+      hasLimitedNodes(n.children ?? []),
   );
+}
+
+/** Âmbito efectivo de um nó: o escolhido, ou `meus` à força quando quem edita não pode dar «Todos». */
+export function scopeOf(n: Pick<TreeNode, "maxScope">, scopes: ScopeMap, key: string): TeamScope {
+  return n.maxScope === "meus" || scopes[key] === "meus" ? "meus" : "todos";
+}
+
+/** Quem edita pode dar «Todos» neste nó? (`maxScope: "meus"` = não.) */
+export const canGiveAllScope = (n: Pick<TreeNode, "maxScope">) => n.maxScope !== "meus";
+
+/** Muda o âmbito de um nó (recusa «Todos» onde quem edita só tem «Só os meus»). */
+export function setNodeScope(tree: readonly TreeNode[], key: string, scope: TeamScope, scopes: ScopeMap): ScopeMap {
+  const n = indexTree(tree).get(key)?.node;
+  if (!n || !n.scoped) return scopes;
+  if (scope === "todos" && !canGiveAllScope(n)) return scopes;
+  const next = { ...scopes };
+  if (scope === "meus") next[key] = "meus";
+  else delete next[key];
+  return next;
+}
+
+/**
+ * Alinha os âmbitos com as folhas marcadas: só nós `scoped` marcados têm âmbito, e onde quem edita só tem
+ * «Só os meus» ele fica forçado a `meus`.
+ */
+export function normalizeScopes(tree: readonly TreeNode[], grants: GrantMap, scopes: ScopeMap): ScopeMap {
+  const out: ScopeMap = {};
+  for (const top of tree) {
+    for (const n of subtreeOf(top)) {
+      if (!n.scoped || !n.storable || grants[n.key] === undefined) continue;
+      if (scopeOf(n, scopes, n.key) === "meus") out[n.key] = "meus";
+    }
+  }
+  return out;
+}
+
+/** Âmbitos devolvidos pela API (`grants[].scope`) → mapa (só nós `scoped`). */
+export function scopesToMap(
+  tree: readonly TreeNode[],
+  list: ReadonlyArray<{ key?: string; scope?: string }> | undefined | null,
+): ScopeMap {
+  const idx = indexTree(tree);
+  const out: ScopeMap = {};
+  for (const e of list ?? []) {
+    const n = e.key ? idx.get(e.key)?.node : undefined;
+    if (n?.scoped && e.scope === "meus") out[n.key] = "meus";
+  }
+  return out;
 }
 
 /** Rótulo de um nível num nó (`levelLabels` da API, ou "Ver" / "Editar"). */
@@ -268,7 +330,7 @@ export function grantsToMap(
  * Mapa → lista a enviar à API: só nós `storable` e disponíveis, pela ordem da árvore. Higieniza o que a API
  * recusaria: descarta órfãos (sem o pai guardável) e baixa para `view` um filho não-acção acima do pai.
  */
-export function serializeGrants(tree: readonly TreeNode[], grants: GrantMap): GrantEntry[] {
+export function serializeGrants(tree: readonly TreeNode[], grants: GrantMap, scopes: ScopeMap = {}): GrantEntry[] {
   const idx = indexTree(tree);
   const out: GrantEntry[] = [];
   const kept: GrantMap = {};
@@ -281,7 +343,8 @@ export function serializeGrants(tree: readonly TreeNode[], grants: GrantMap): Gr
         if (!p || parentLvl) {
           const final: TeamLevel = !n.action && lvl === "edit" && parentLvl === "view" ? "view" : lvl;
           kept[n.key] = final;
-          out.push({ key: n.key, level: final });
+          // Âmbito: só «Só os meus» viaja (ausente = Todos); onde quem edita não pode dar «Todos» fica forçado.
+          out.push(n.scoped && scopeOf(n, scopes, n.key) === "meus" ? { key: n.key, level: final, scope: "meus" } : { key: n.key, level: final });
         }
       }
       walk(n.children ?? []);

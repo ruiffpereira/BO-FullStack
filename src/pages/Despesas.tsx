@@ -25,6 +25,10 @@ import {
 } from '../hooks/useExpenseCategories'
 import { CATEGORY_COLORS, DEFAULT_CATEGORY_COLOR } from '../utils/expenseCategories'
 import { GuardButton, GuardIconButton } from '../components/GuardButton'
+import { StaffField, StaffFilterSelect } from '../components/StaffSelect'
+import { useStaffOptions } from '../hooks/useStaff'
+import { STAFF_ALL, staffParam } from '../lib/staffFilter'
+import { getApiError } from '../lib/apiError'
 
 const fmtEur = (n: number) =>
   '€' + (n || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -37,6 +41,8 @@ interface FormState {
   categoryId: string
   amount: string
   notes: string
+  /** Profissional (opcional; '' = sem profissional). */
+  staffId: string
 }
 
 const emptyForm = (): FormState => ({
@@ -45,6 +51,7 @@ const emptyForm = (): FormState => ({
   categoryId: '',
   amount: '',
   notes: '',
+  staffId: '',
 })
 
 function SummaryCard({ label, value, icon, tone, delta, sub, loading }: {
@@ -173,6 +180,12 @@ export function Despesas() {
   const qc = useQueryClient()
   const headers = authHeader()
   const [month, setMonth] = useState(currentMonth())
+  // Profissionais: filtro da lista/resumo (`?staff=`) — só aparece se o tenant tem profissionais.
+  const [staffSel, setStaffSel] = useState<string>(STAFF_ALL)
+  const staff = staffParam(staffSel)
+  const queryParams = { month, ...(staff ? { staff } : {}) }
+  const { staff: staffList } = useStaffOptions()
+  const staffName = (id?: string | null) => (id ? staffList.find((x) => x.staffId === id)?.name : undefined)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [catsOpen, setCatsOpen] = useState(false)
@@ -188,20 +201,20 @@ export function Despesas() {
     categories.find((c) => c.expenseCategoryId === id)?.name ?? 'Sem categoria'
 
   const { data: listData, isLoading: loadingList } = useGetExpenses(
-    { month },
+    queryParams,
     { client: { headers }, query: { staleTime: 0 } },
   )
   const { data: summary, isLoading: loadingSummary } = useGetExpensesSummary(
-    { month },
+    queryParams,
     { client: { headers }, query: { staleTime: 0 } },
   )
 
   const rows = useMemo(() => listData?.rows ?? [], [listData])
-  const pg = usePagination(rows, { resetKey: month })
+  const pg = usePagination(rows, { resetKey: month + (staff ?? '') })
 
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: getExpensesQueryKey({ month }) })
-    qc.invalidateQueries({ queryKey: getExpensesSummaryQueryKey({ month }) })
+    qc.invalidateQueries({ queryKey: getExpensesQueryKey(queryParams) })
+    qc.invalidateQueries({ queryKey: getExpensesSummaryQueryKey(queryParams) })
     qc.invalidateQueries({ queryKey: ['dashboard'] })
   }
 
@@ -218,6 +231,7 @@ export function Despesas() {
       categoryId: e.categoryId ?? '',
       amount: e.amount !== undefined ? String(e.amount) : '',
       notes: e.notes ?? '',
+      staffId: e.staffId ?? '',
     })
     setModalOpen(true)
   }
@@ -234,6 +248,7 @@ export function Despesas() {
       categoryId: form.categoryId || null,
       amount: amountNum,
       notes: form.notes.trim() || null,
+      staffId: form.staffId || null,
     }
     try {
       if (editing?.expenseId) {
@@ -246,7 +261,7 @@ export function Despesas() {
       setModalOpen(false)
       invalidate()
     } catch (err: any) {
-      toast.error(err?.response?.data?.error ?? 'Não foi possível guardar a despesa.')
+      toast.error(getApiError(err, 'Não foi possível guardar a despesa.'))
     }
   }
 
@@ -276,6 +291,7 @@ export function Despesas() {
           onChange={(e) => setMonth(e.target.value || currentMonth())}
           className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 px-3 py-2 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
         />
+        <StaffFilterSelect value={staffSel} onChange={setStaffSel} />
         <Button variant="outline" icon="settings" onClick={() => setCatsOpen(true)}>Categorias</Button>
         <GuardButton icon="plus" onClick={openCreate}>Nova despesa</GuardButton>
       </PageHeader>
@@ -346,6 +362,7 @@ export function Despesas() {
                     <p className="text-sm font-medium text-zinc-900 dark:text-white truncate">{e.description}</p>
                     <p className="text-xs text-zinc-400">
                       {e.date ? format(new Date(e.date + 'T00:00:00'), 'd MMM', { locale: pt }) : '—'} · {e.category?.name ?? catName(e.categoryId)}
+                      {staffName(e.staffId) && <> · {staffName(e.staffId)}</>}
                     </p>
                   </div>
                   <span className="text-sm font-semibold text-zinc-900 dark:text-white tabular-nums">{fmtEur(Number(e.amount) || 0)}</span>
@@ -399,6 +416,7 @@ export function Despesas() {
               + Gerir categorias
             </button>
           </div>
+          <StaffField value={form.staffId} onChange={(v) => setForm({ ...form, staffId: v })} />
           <Input label="Notas (opcional)" value={form.notes} onChange={(e: any) => setForm({ ...form, notes: e.target.value })} placeholder="Detalhes adicionais" />
         </div>
       </Modal>

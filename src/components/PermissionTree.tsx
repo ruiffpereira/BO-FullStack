@@ -3,18 +3,24 @@ import { Tabs } from "../ui/ui.jsx";
 import { Icon } from "../ui/icons.jsx";
 import {
   CANNOT_GIVE_MESSAGE,
+  canGiveAllScope,
   checkState,
   giveLevelOf,
   hasLimitedNodes,
   indexTree,
   levelLabel,
+  normalizeScopes,
+  scopeOf,
   setNodeLevel,
+  setNodeScope,
   subtreeOf,
   visibleTree,
   toggleNode,
   type CheckState,
   type GrantMap,
+  type ScopeMap,
   type TeamLevel,
+  type TeamScope,
   type TreeNode,
 } from "../lib/teamTree";
 
@@ -60,16 +66,27 @@ export function PermissionTree({
   value,
   onChange,
   disabled,
+  scopes,
+  onScopesChange,
 }: {
   tree: TreeNode[];
   value: GrantMap;
   onChange: (next: GrantMap) => void;
   disabled?: boolean;
+  /** Profissionais: âmbito [Todos | Só os meus] dos nós `scoped`. Sem `onScopesChange` o seletor não aparece. */
+  scopes?: ScopeMap;
+  onScopesChange?: (next: ScopeMap) => void;
 }) {
   // Módulos que o plano não inclui não aparecem (decisão do dono, 2026-10-17).
   const tree = visibleTree(fullTree);
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const idx = indexTree(tree);
+  const scopeMap = scopes ?? {};
+  // Marcar/desmarcar alinha os âmbitos (só nós marcados têm âmbito; «Só os meus» forçado onde não se pode dar «Todos»).
+  const emit = (next: GrantMap) => {
+    onChange(next);
+    onScopesChange?.(normalizeScopes(tree, next, scopeMap));
+  };
 
   if (tree.length === 0) {
     return <p className="text-sm text-zinc-500">Não há permissões disponíveis para dar.</p>;
@@ -118,7 +135,7 @@ export function PermissionTree({
               },
             ]}
             value={own}
-            onChange={(id: string) => !disabled && onChange(setNodeLevel(tree, key, id as TeamLevel, value))}
+            onChange={(id: string) => !disabled && emit(setNodeLevel(tree, key, id as TeamLevel, value))}
             className={`!w-auto ${disabled ? "opacity-60 pointer-events-none" : ""}`}
           />
         );
@@ -132,6 +149,31 @@ export function PermissionTree({
           </span>
         );
       }
+    }
+
+    // Âmbito [Todos | Só os meus] (Profissionais): só nos nós `scoped` marcados.
+    let scopeControl: JSX.Element | null = null;
+    if (onScopesChange && node.scoped && node.storable && own) {
+      const sc = scopeOf(node, scopeMap, key);
+      const noAll = !canGiveAllScope(node);
+      scopeControl = (
+        <Tabs
+          size="sm"
+          tabs={[
+            {
+              id: "todos",
+              label: "Todos",
+              ariaLabel: `${node.label}: âmbito todos`,
+              disabled: noAll,
+              title: noAll ? CANNOT_GIVE_MESSAGE : undefined,
+            },
+            { id: "meus", label: "Só os meus", ariaLabel: `${node.label}: âmbito só os meus` },
+          ]}
+          value={sc}
+          onChange={(id: string) => !disabled && onScopesChange(setNodeScope(tree, key, id as TeamScope, scopeMap))}
+          className={`!w-auto ${disabled ? "opacity-60 pointer-events-none" : ""}`}
+        />
+      );
     }
 
     return (
@@ -164,7 +206,7 @@ export function PermissionTree({
                 state={state}
                 label={node.label}
                 disabled={disabledRow}
-                onChange={() => onChange(toggleNode(tree, key, value))}
+                onChange={() => emit(toggleNode(tree, key, value))}
               />
               <span className="truncate">{node.label}</span>
             </label>
@@ -174,7 +216,12 @@ export function PermissionTree({
               </span>
             )}
           </div>
-          {levelControl && <div className="pl-[30px] sm:pl-0 shrink-0">{levelControl}</div>}
+          {(levelControl || scopeControl) && (
+            <div className="pl-[30px] sm:pl-0 shrink-0 flex flex-wrap items-center gap-2" data-testid={scopeControl ? `scope-${key}` : undefined}>
+              {levelControl}
+              {scopeControl}
+            </div>
+          )}
         </div>
         {hasChildren && expanded && (
           <ul className="border-l border-zinc-100 dark:border-zinc-800 ml-5">

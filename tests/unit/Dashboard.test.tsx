@@ -25,6 +25,12 @@ vi.mock("../../src/hooks/useNow", () => ({ useNow: () => NOW }));
 const dashMock = vi.fn();
 vi.mock("../../src/hooks/useDashboard", () => ({ useDashboard: () => dashMock() }));
 
+// Profissionais (R2): sem QueryClientProvider, o tenant "não tem profissionais" (nenhum selector aparece).
+vi.mock("../../src/hooks/useStaff", () => ({
+  useStaffOptions: () => ({ staff: [], active: [], hasStaff: false, isLoading: false }),
+  useStaffServicePrice: () => ({ price: undefined, excluded: false }),
+}));
+
 vi.mock("../../src/components/FirstValueChecklist", () => ({ FirstValueChecklist: () => null }));
 
 const apptsMock = vi.fn();

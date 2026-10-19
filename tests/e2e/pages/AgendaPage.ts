@@ -15,11 +15,12 @@ export class AgendaPage {
     return this.page.getByRole("heading", { name: "Agenda", level: 2 });
   }
 
-  /** Subitens da sidebar (T2.7): Calendário (âncora, `/agenda`) · Marcações · Serviços · Configurações — botões do submenu, não mais role="tab". */
+  /** Subitens da sidebar (T2.7): Calendário (âncora, `/agenda`) · Marcações · Serviços · Profissionais · Configurações — botões do submenu, não mais role="tab". */
   private static PATH_BY_LABEL: Record<string, string> = {
     Calendário: "/agenda",
     Marcações: "/agenda/marcacoes",
     Serviços: "/agenda/servicos",
+    Profissionais: "/agenda/profissionais",
     Configurações: "/agenda/config",
   };
 

@@ -10,14 +10,14 @@ import { INFO } from '../../components/financeiro/info'
 
 const SOURCE = { agenda: { nome: 'Agenda', cor: '#2A6FDB' }, loja: { nome: 'Loja', cor: '#1F8A5B' }, gym: { nome: 'Ginásio', cor: '#7C5CDB' } }
 
-export function ONegocio({ period, iva, customStart, customEnd }: {
-  period: DashboardPeriod; iva: VatMode; customStart?: string; customEnd?: string
+export function ONegocio({ period, iva, customStart, customEnd, staff }: {
+  period: DashboardPeriod; iva: VatMode; customStart?: string; customEnd?: string; staff?: string
 }) {
   const { isMember, can } = useAuth()
-  const { data, isLoading } = useNegocioFinance(period, iva, customStart, customEnd)
+  const { data, isLoading } = useNegocioFinance(period, iva, customStart, customEnd, staff)
   // A série diária vem do /dashboard, que um membro só pode pedir com a folha `dashboard`.
   const dashAllowed = !isMember || can('dashboard')
-  const { data: dash } = useDashboard(period, customStart, customEnd, dashAllowed)
+  const { data: dash } = useDashboard(period, customStart, customEnd, dashAllowed, staff)
 
   // Blocos que entraram (B41 2c): falso = "sem acesso", nunca 0 €. Sem `included` (resposta antiga) assume-se tudo.
   const inc = data?.included

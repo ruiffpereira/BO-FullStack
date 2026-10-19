@@ -15,11 +15,19 @@ import {
   cascadeWarning,
   fullAccess,
   grantsToMap,
+  indexTree,
+  scopesToMap,
   type GrantEntry,
   serializeGrants,
   type GrantMap,
+  type ScopeMap,
   type TreeNode,
 } from "../lib/teamTree";
+import { useStaffOptions } from "../hooks/useStaff";
+import { Combobox } from "../components/Combobox";
+import { getScheduleStaffOptionsQueryKey } from "../gen/backoffice/hooks/useGetScheduleStaffOptions.js";
+import { getScheduleStaffQueryKey } from "../gen/backoffice/hooks/useGetScheduleStaff.js";
+import { usePutScheduleStaffId } from "../gen/backoffice/hooks/usePutScheduleStaffId.js";
 import { SUPPORT_UNAVAILABLE_NOTE } from "../lib/supportSession";
 import { formatDatePt, formatTimePt } from "../lib/supportLog";
 import {
@@ -66,8 +74,8 @@ export function memberStatus(m: Pick<TeamMember, "status">): TeamMemberStatus {
 }
 
 /** Assinatura estável das folhas (só nós guardáveis) — para saber se o formulário mudou. */
-function grantsSignature(tree: TreeNode[], map: GrantMap): string {
-  return JSON.stringify(serializeGrants(tree, map));
+function grantsSignature(tree: TreeNode[], map: GrantMap, scopes: ScopeMap = {}): string {
+  return JSON.stringify(serializeGrants(tree, map, scopes));
 }
 
 /**
@@ -354,6 +362,8 @@ function InviteModal({
   // Só dois modelos: "Acesso total" (tudo o que existe hoje) ou "Escolher na árvore" (parte da árvore vazia).
   const [mode, setMode] = useState<"total" | "tree">("tree");
   const [grants, setGrants] = useState<GrantMap>({});
+  // Profissionais: âmbito [Todos | Só os meus] dos nós scoped (agenda.marcacoes, folhas do financeiro).
+  const [scopes, setScopes] = useState<ScopeMap>({});
   const create = usePostTeam();
 
   useEffect(() => {
@@ -362,13 +372,18 @@ function InviteModal({
       setEmail("");
       setMode("tree");
       setGrants({});
+      setScopes({});
     }
   }, [open]);
 
   const submit = () => {
     if (!name.trim()) return toast.error("Indica o nome.");
     if (!EMAIL_RE.test(email.trim())) return toast.error("Indica um email válido.");
-    const toSend = serializeGrants(tree, mode === "total" && !isMember ? fullAccess(tree) : grants);
+    const toSend = serializeGrants(
+      tree,
+      mode === "total" && !isMember ? fullAccess(tree) : grants,
+      mode === "total" && !isMember ? {} : scopes,
+    );
     if (toSend.length === 0) return toast.error("Escolhe pelo menos uma permissão.");
     create.mutate(
       { data: { name: name.trim(), email: email.trim(), grants: toSend } },
@@ -434,7 +449,7 @@ function InviteModal({
           </div>
           {(mode === "tree" || isMember) && (
             <div className="mt-3">
-              <PermissionTree tree={tree} value={grants} onChange={setGrants} />
+              <PermissionTree tree={tree} value={grants} onChange={setGrants} scopes={scopes} onScopesChange={setScopes} />
             </div>
           )}
         </div>
@@ -476,18 +491,23 @@ function MemberModal({
   const status = member ? memberStatus(member) : "invited";
   const [name, setName] = useState("");
   const [grants, setGrants] = useState<GrantMap>({});
+  const [scopes, setScopes] = useState<ScopeMap>({});
   const [confirmRemove, setConfirmRemove] = useState(false);
-  const [tab, setTab] = useState<"perms" | "activity">("perms");
+  const [tab, setTab] = useState<"perms" | "staff" | "activity">("perms");
   const [cascade, setCascade] = useState<{ text: string; toSend: GrantEntry[] } | null>(null);
 
   // Semeia o formulário quando se abre outro membro (ou o servidor devolve dados novos e o form está limpo).
   const serverGrants = useMemo(() => grantsToMap(tree, member?.grants), [tree, member?.grants]);
+  const serverScopes = useMemo(() => scopesToMap(tree, member?.grants), [tree, member?.grants]);
+  // O separador Profissional só existe se o tenant tem a Agenda (o nó agenda.profissionais está disponível).
+  const hasStaffNode = useMemo(() => !!indexTree(tree).get("agenda.profissionais")?.node.available, [tree]);
   // O catálogo pode chegar depois do membro: só semeia quando há árvore (senão as folhas seriam descartadas).
   const treeReady = tree.length > 0;
   useEffect(() => {
     if (!member) return;
     setName(member.name ?? "");
     setGrants(serverGrants);
+    setScopes(serverScopes);
     setTab("perms");
     setCascade(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -506,7 +526,9 @@ function MemberModal({
   const preview = usePostTeamMemberidGrantsPreview();
 
   const dirty =
-    !!member && (name.trim() !== (member.name ?? "") || grantsSignature(tree, grants) !== grantsSignature(tree, serverGrants));
+    !!member &&
+    (name.trim() !== (member.name ?? "") ||
+      grantsSignature(tree, grants, scopes) !== grantsSignature(tree, serverGrants, serverScopes));
 
   const guestCount = rows.filter((r) => r.createdBy?.memberId === memberId).length;
   const hasCreated = guestCount > 0;
@@ -532,9 +554,9 @@ function MemberModal({
   const save = () => {
     if (!member) return;
     if (!name.trim()) return toast.error("O nome não pode ficar vazio.");
-    const toSend = serializeGrants(tree, grants);
+    const toSend = serializeGrants(tree, grants, scopes);
     if (toSend.length === 0) return toast.error("Escolhe pelo menos uma permissão.");
-    const grantsChanged = grantsSignature(tree, grants) !== grantsSignature(tree, serverGrants);
+    const grantsChanged = grantsSignature(tree, grants, scopes) !== grantsSignature(tree, serverGrants, serverScopes);
     // Fase 3: retirar permissões a quem convidou outros tira-as também a eles — avisar ANTES de escrever.
     if (hasCreated && grantsChanged) {
       preview.mutate(
@@ -597,21 +619,24 @@ function MemberModal({
             <Tabs
               tabs={[
                 { id: "perms", label: "Permissões" },
+                ...(hasStaffNode ? [{ id: "staff", label: "Profissional" }] : []),
                 { id: "activity", label: "Actividade" },
               ]}
               value={tab}
-              onChange={(id: string) => setTab(id as "perms" | "activity")}
+              onChange={(id: string) => setTab(id as "perms" | "staff" | "activity")}
             />
 
             {tab === "activity" ? (
               <ActivityTab key={memberId} memberId={memberId} />
+            ) : tab === "staff" ? (
+              <StaffLinkTab key={memberId} member={member} inSupport={inSupport} />
             ) : (
               <>
             <Input label="Nome" value={name} onChange={(e: any) => setName(e.target.value)} disabled={inSupport} />
 
             <div>
               <SectionTitle>O que pode usar</SectionTitle>
-              <PermissionTree tree={tree} value={grants} onChange={setGrants} disabled={inSupport} />
+              <PermissionTree tree={tree} value={grants} onChange={setGrants} disabled={inSupport} scopes={scopes} onScopesChange={setScopes} />
             </div>
 
             <div>
@@ -783,6 +808,98 @@ function MemberModal({
         }
       />
     </>
+  );
+}
+
+// ── Profissional do membro (ligar / desligar) ───────────────────────────────
+
+/**
+ * Separador Profissional da ficha: liga o membro a um profissional (opcional) ou desliga-o. Com a ligação e o
+ * âmbito «Só os meus», o membro vê só o que é desse profissional (a API é que filtra). A ligação grava-se no
+ * profissional (PUT /schedule/staff/:id com memberId), por isso exige a folha agenda.profissionais (Editar).
+ */
+function StaffLinkTab({ member, inSupport }: { member: TeamMember; inSupport: boolean }) {
+  const qc = useQueryClient();
+  const { staff, isLoading } = useStaffOptions();
+  const linked = member.staff ?? null;
+  const [pick, setPick] = useState("");
+  const link = usePutScheduleStaffId();
+
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: getTeamQueryKey() });
+    qc.invalidateQueries({ queryKey: getScheduleStaffQueryKey() });
+    qc.invalidateQueries({ queryKey: getScheduleStaffOptionsQueryKey() });
+  };
+  const run = (staffId: string, memberId: string | null, okMsg: string) =>
+    link.mutate(
+      { id: staffId, data: { memberId } },
+      {
+        onSuccess: () => {
+          refresh();
+          setPick("");
+          toast.success(okMsg);
+        },
+        onError: (error) => toast.error(teamErrorMessage(error, "Não foi possível alterar a ligação.")),
+      },
+    );
+
+  const options = [
+    { value: "", label: "Escolher profissional" },
+    ...staff.filter((s) => s.active && s.staffId !== linked?.staffId).map((s) => ({ value: s.staffId, label: s.name })),
+  ];
+
+  return (
+    <div className="space-y-4" data-testid="staff-link-tab">
+      <p className="text-sm text-zinc-500">
+        Ligar o membro a um profissional permite-lhe ver só o que é dele (âmbito «Só os meus» na agenda e no financeiro).
+        A ligação é opcional.
+      </p>
+      {linked ? (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 dark:border-zinc-800 px-3.5 py-3">
+          <div className="min-w-0">
+            <p className="text-xs text-zinc-400">Ligado a</p>
+            <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{linked.name}</p>
+          </div>
+          <TeamButton
+            inSupport={inSupport}
+            variant="outline"
+            size="sm"
+            leaf="agenda.profissionais"
+            isLoading={link.isPending}
+            onClick={() => linked.staffId && run(linked.staffId, null, "Ligação removida.")}
+          >
+            Desligar
+          </TeamButton>
+        </div>
+      ) : isLoading ? (
+        <div className="h-10 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+      ) : staff.length === 0 ? (
+        <p className="text-sm text-zinc-500">Ainda não há profissionais. Cria-os em Agenda → Profissionais.</p>
+      ) : (
+        <div className="space-y-3">
+          <Combobox
+            label="Profissional"
+            value={pick}
+            onChange={setPick}
+            options={options}
+            placeholder="Escolher profissional"
+            searchPlaceholder="Pesquisar profissional…"
+            disabled={inSupport}
+          />
+          <div className="flex justify-end">
+            <TeamButton
+              inSupport={inSupport}
+              leaf="agenda.profissionais"
+              disabled={!pick}
+              isLoading={link.isPending}
+              onClick={() => pick && member.memberId && run(pick, member.memberId, "Membro ligado ao profissional.")}
+            >
+              Ligar
+            </TeamButton>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

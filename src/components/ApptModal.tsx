@@ -18,6 +18,8 @@ import { GuardButton } from "./GuardButton";
 import { useWriteGuard } from "../hooks/useWriteGuard";
 import { useTeamAccess } from "../hooks/useTeamAccess";
 import { Combobox } from "./Combobox";
+import { StaffField } from "./StaffSelect";
+import { useStaffServicePrice } from "../hooks/useStaff";
 import { PriceFillChip } from "./PriceFillChip";
 import { confirmDialog } from "./confirm";
 import { TimeField } from "./TimeField";
@@ -157,6 +159,9 @@ export function ApptModal({
   const showMoney = can("agenda.marcacoes.valores", "view");
   const editMoney = can("agenda.marcacoes.valores", "edit");
   const [editServiceId, setEditServiceId] = useState(appt.serviceId);
+  // Profissional (opcional; '' = sem). O preço próprio dele só se mostra a quem lê a ficha dele e vê os valores.
+  const [editStaffId, setEditStaffId] = useState(appt.staffId ?? "");
+  const { price: staffPrice } = useStaffServicePrice(editStaffId, editServiceId);
   const svc = services.find((s) => s.serviceId === editServiceId);
   const status = appt.status ?? "pending";
   // Modo de edição de uma vaga já paga: "details" (serviço/hora) ou "payment"
@@ -254,6 +259,7 @@ export function ApptModal({
     editTime !== appt.time ||
     editDate !== appt.date ||
     editServiceId !== appt.serviceId ||
+    editStaffId !== (appt.staffId ?? "") ||
     editDuration !== originalDuration;
   const hasChanges = detailsChanged || paymentChanged;
 
@@ -273,6 +279,7 @@ export function ApptModal({
     if (editTime !== appt.time) data.time = editTime;
     if (editDate !== appt.date) data.date = editDate;
     if (editServiceId !== appt.serviceId) data.serviceId = editServiceId;
+    if (editStaffId !== (appt.staffId ?? "")) data.staffId = editStaffId || null;
     if (editDuration !== originalDuration) data.duration = editDuration;
     if (cancelPayment) {
       data.cancelPayment = true;
@@ -307,6 +314,7 @@ export function ApptModal({
   const handleEditPayment = () => { resetPaymentInputs(); setTab("payment"); setEditMode("payment"); };
   const handleCancelEdit = () => {
     setEditServiceId(appt.serviceId);
+    setEditStaffId(appt.staffId ?? "");
     setEditTime(appt.time);
     setEditDate(appt.date);
     setEditDuration(originalDuration);
@@ -360,6 +368,7 @@ export function ApptModal({
     setEditTime(appt.time);
     setEditDate(appt.date);
     setEditServiceId(appt.serviceId);
+    setEditStaffId(appt.staffId ?? "");
     setEditDuration(originalDuration);
     setCash(appt.paymentCash != null ? String(appt.paymentCash) : "");
     setMbway(appt.paymentMbway != null ? String(appt.paymentMbway) : "");
@@ -722,6 +731,26 @@ export function ApptModal({
                     {svc?.name || appt.serviceName || "—"}
                   </p>
                 </div>
+              )}
+
+              {/* Profissional (só se o tenant tem profissionais) */}
+              {canEdit ? (
+                <StaffField
+                  value={editStaffId}
+                  onChange={setEditStaffId}
+                  hint={
+                    showMoney && editStaffId && staffPrice != null
+                      ? `Preço com este profissional: ${Number(staffPrice).toFixed(2)}€`
+                      : undefined
+                  }
+                />
+              ) : (
+                appt.staff?.name && (
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-2.5">
+                    <p className="text-[11px] text-zinc-400">Profissional</p>
+                    <p className="font-medium text-zinc-800 dark:text-zinc-100 mt-0.5 text-sm">{appt.staff.name}</p>
+                  </div>
+                )
               )}
 
               {/* Duration */}

@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { STAFF_MESSAGE_BY_CODE } from "./apiError";
 
 /**
  * Equipa do tenant (B41) — peças puras do lado do Backoffice. A decisão de quem pode o quê é SEMPRE da API
@@ -53,13 +54,15 @@ export const MEMBER_STATUS_TONE: Record<TeamMemberStatus, "blue" | "green" | "ne
 /** Mensagem PT para os erros de `/team*` (códigos da API). */
 export function teamErrorMessage(error: unknown, fallback: string): string {
   const data = (error as any)?.response?.data;
+  // Profissionais (R2): ligar/desligar um membro, âmbito «Só os meus».
+  if (typeof data?.code === "string" && STAFF_MESSAGE_BY_CODE[data.code]) return STAFF_MESSAGE_BY_CODE[data.code];
   switch (data?.code) {
     case "EMAIL_IN_USE":
       return "Este email já está a ser usado por outra conta ou membro.";
     case "TEAM_LIMIT":
       return "Atingiste o número máximo de membros da equipa.";
     case "TEAM_GRANT_NOT_ALLOWED":
-      return "Há permissões que o teu negócio não pode dar.";
+      return "Há permissões (ou um âmbito «Todos») que não podes dar.";
     case "TEAM_DELEGATE_LIMIT":
       return "Este membro já tem 20 utilizadores convidados — é o máximo por membro.";
     case "TEAM_OWNER_DISABLED":

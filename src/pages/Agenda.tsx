@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   format,
   addDays,
@@ -50,6 +50,7 @@ import {
   useGetScheduleServices,
   getScheduleServicesQueryKey,
 } from "../gen/backoffice/hooks/useGetScheduleServices.js";
+import { useGetScheduleServicesId } from "../gen/backoffice/hooks/useGetScheduleServicesId.js";
 import { usePostScheduleServices } from "../gen/backoffice/hooks/usePostScheduleServices.js";
 import { usePutScheduleServicesId } from "../gen/backoffice/hooks/usePutScheduleServicesId.js";
 import { useDeleteScheduleServicesId } from "../gen/backoffice/hooks/useDeleteScheduleServicesId.js";
@@ -93,6 +94,11 @@ import {
 import { Combobox } from "../components/Combobox";
 import { CalendarSubscribeCard } from "../components/CalendarSubscribeCard";
 import { useNow } from "../hooks/useNow";
+import { StaffField, StaffFilterSelect } from "../components/StaffSelect";
+import { useStaffOptions, useStaffServicePrice } from "../hooks/useStaff";
+import { STAFF_ALL, STAFF_NONE, staffParam } from "../lib/staffFilter";
+import { toastStaffWarnings } from "../lib/staffWarnings";
+import { AgendaProfissionais } from "./AgendaProfissionais";
 import { FEATURES } from "../lib/features";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -637,8 +643,11 @@ function NovaApptModal({
   const [form, setForm] = useState({
     time: initialTime ?? "09:00",
     serviceId: "",
+    staffId: "",
     notes: "",
   });
+  // Preço próprio do profissional escolhido (só a quem lê a ficha dele e vê os valores).
+  const { price: staffPrice } = useStaffServicePrice(form.staffId, form.serviceId);
   const [q, setQ] = useState("");
   const [showDrop, setShowDrop] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -723,6 +732,7 @@ function NovaApptModal({
     onCreate({
       time: form.time,
       serviceId: form.serviceId,
+      staffId: form.staffId || undefined,
       notes: form.notes || undefined,
       date: editDate,
       customerId: selCustomer.customerId,
@@ -945,6 +955,15 @@ function NovaApptModal({
           placeholder="Escolher serviço"
           searchPlaceholder="Pesquisar serviço…"
         />
+        <StaffField
+          value={form.staffId}
+          onChange={(v) => setForm((f) => ({ ...f, staffId: v }))}
+          hint={
+            novaShowMoney && form.staffId && staffPrice != null
+              ? `Preço com este profissional: ${Number(staffPrice).toFixed(2)}€`
+              : undefined
+          }
+        />
         <Input
           label="Notas (opcional)"
           value={form.notes}
@@ -1100,7 +1119,14 @@ function CalendarioView() {
     (_, i) => AG_H_START + i,
   );
 
-  const { data: appointments = [], isLoading } = useGetScheduleAppointments({ from, to });
+  // Profissionais: filtro por chips (Todos · Sem profissional · cada um, com a sua cor) → `?staff=`.
+  const [staffSel, setStaffSel] = useState<string>(STAFF_ALL);
+  const { staff: staffList, hasStaff } = useStaffOptions();
+  const { data: appointments = [], isLoading } = useGetScheduleAppointments({
+    from,
+    to,
+    ...(staffParam(staffSel) ? { staff: staffParam(staffSel) } : {}),
+  });
   const { data: services = [] } = useGetScheduleServices();
   const { canAny: canTeamAny } = useTeamAccess();
   const { data: customersData } = useGetCustomers({ query: { enabled: canTeamAny(CUSTOMER_READ_KEYS) } });
@@ -1153,8 +1179,9 @@ function CalendarioView() {
 
   const createAppt = usePostScheduleAppointments({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (data) => {
         toast.success("Marcação criada");
+        toastStaffWarnings(data?.warnings);
         invalidateAppts();
         setNovaDate(null);
         setNovaTime(null);
@@ -1166,9 +1193,10 @@ function CalendarioView() {
   // criar/editar/cancelar. O frontend só guarda.
   const updateAppt = usePutScheduleAppointmentsId({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (data) => {
         invalidateAppts();
         toast.success("Marcação actualizada");
+        toastStaffWarnings(data?.warnings);
         setPendingReschedule(null);
         setRescheduledFrom(null);
         setSelAppt(null);
@@ -1518,6 +1546,40 @@ function CalendarioView() {
             </button>
           </div>
         </div>
+
+        {/* ── Filtro por profissional (só se o tenant tem profissionais) ── */}
+        {hasStaff && (
+          <div
+            role="group"
+            aria-label="Filtrar por profissional"
+            data-testid="staff-chips"
+            className="flex items-center gap-1.5 px-4 py-2 border-b border-zinc-100 dark:border-zinc-800 shrink-0 overflow-x-auto"
+          >
+            {[
+              { id: STAFF_ALL, label: "Todos", color: null as string | null },
+              { id: STAFF_NONE, label: "Sem profissional", color: null as string | null },
+              ...staffList.filter((x) => x.active).map((x) => ({ id: x.staffId, label: x.name, color: x.color ?? null })),
+            ].map((c) => {
+              const on = staffSel === c.id;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => setStaffSel(c.id)}
+                  className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                    on
+                      ? "border-accent bg-accent/10 text-accent"
+                      : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                  }`}
+                >
+                  {c.color && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: c.color }} />}
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* ── Mini calendar popup ── */}
         {showMiniCal && (
@@ -2039,6 +2101,8 @@ function CalendarioView() {
                               left: `calc(${leftPct}% + 2px)`,
                               width: `calc(${widthPct}% - 4px)`,
                               background: color,
+                              // Profissional: faixa à esquerda na cor dele.
+                              boxShadow: appt.staff?.color ? `inset 4px 0 0 ${appt.staff.color}` : undefined,
                               touchAction: "pan-x pan-y",
                             }}
                           >
@@ -2058,6 +2122,7 @@ function CalendarioView() {
                             {(appt.serviceName || svcItem) && (
                               <p className="text-[9px] truncate" style={{ color: readableOn(color), opacity: 0.85 }}>
                                 {svcItem?.name || appt.serviceName}
+                                {appt.staff?.name ? ` · ${appt.staff.name}` : ""}
                               </p>
                             )}
                             {!writeLocked && <span
@@ -2362,6 +2427,8 @@ type SvcForm = {
   color: string;
   contentKey: string | null;
   descriptionKey: string | null;
+  /** «Disponível no site» (false = só se marca no Backoffice). */
+  availableOnSite: boolean;
 };
 const emptySvcForm: SvcForm = {
   name: "",
@@ -2372,6 +2439,7 @@ const emptySvcForm: SvcForm = {
   color: "#2A6FDB",
   contentKey: null,
   descriptionKey: null,
+  availableOnSite: true,
 };
 
 function ServicosPanel() {
@@ -2400,6 +2468,12 @@ function ServicosPanel() {
   const [touched, setTouched] = useState(false);
 
   const { data: services = [], isLoading } = useGetScheduleServices();
+  // Profissionais: quem faz o serviço (só no GET por id) — a ficha mostra a lista; editar é em Profissionais.
+  const { can: canTeamSvc } = useTeamAccess();
+  const { data: svcDetail } = useGetScheduleServicesId(editing?.serviceId ?? "", {
+    query: { enabled: modal && !!editing?.serviceId, retry: false },
+  });
+  const svcStaff = svcDetail?.staff ?? [];
   const invalidate = () =>
     qc.invalidateQueries({ queryKey: getScheduleServicesQueryKey() });
 
@@ -2468,6 +2542,7 @@ function ServicosPanel() {
       color: s.color ?? "#2A6FDB",
       contentKey: s.contentKey ?? null,
       descriptionKey: s.descriptionKey ?? null,
+      availableOnSite: s.availableOnSite ?? true,
     });
     setModal(true);
   }, []);
@@ -2511,6 +2586,7 @@ function ServicosPanel() {
       color: form.color,
       contentKey,
       descriptionKey,
+      availableOnSite: form.availableOnSite,
     };
     if (editing) update.mutate({ id: editing.serviceId, data: data as any });
     else create.mutate({ data: data as any });
@@ -2697,6 +2773,38 @@ function ServicosPanel() {
             name={form.description}
             onChange={(key, nm) => setForm((f) => ({ ...f, descriptionKey: key, description: nm }))}
           />
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Disponível no site</p>
+              <p className="text-xs text-zinc-400">Desligado = só se marca no Backoffice.</p>
+            </div>
+            <Toggle
+              label="Disponível no site"
+              checked={form.availableOnSite}
+              onChange={(v: boolean) => setForm((f) => ({ ...f, availableOnSite: v }))}
+              disabled={writeLocked}
+            />
+          </div>
+          {editing && svcStaff.length > 0 && (
+            <div data-testid="service-staff">
+              <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Quem faz este serviço</p>
+              <ul className="flex flex-wrap gap-1.5" aria-label="Profissionais deste serviço">
+                {svcStaff.map((st) => (
+                  <li key={st.staffId}>
+                    <Badge tone={st.doesIt ? "green" : "neutral"} className={st.doesIt ? "" : "line-through"}>
+                      {st.name}
+                      {st.active === false ? " (inactivo)" : ""}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+              {canTeamSvc("agenda.profissionais", "view") && (
+                <Link to="/agenda/profissionais" className="mt-1.5 inline-block text-xs text-accent hover:underline">
+                  Gerir em Profissionais
+                </Link>
+              )}
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
               Cor do serviço
@@ -2744,8 +2852,11 @@ function MarcacoesPanel() {
   const [profileCustomerId, setProfileCustomerId] = useState<string | null>(
     null,
   );
+  // Profissionais: filtro `?staff=` (Global · Sem profissional · cada um) e coluna «Profissional».
+  const [staffSel, setStaffSel] = useState<string>(STAFF_ALL);
+  const { hasStaff } = useStaffOptions();
   const { data: allAppts = [], isLoading } =
-    useGetScheduleAppointments(undefined);
+    useGetScheduleAppointments(staffParam(staffSel) ? { staff: staffParam(staffSel) } : undefined);
   const { data: services = [] } = useGetScheduleServices();
   const { canAny: canTeamAny, can: canTeam } = useTeamAccess();
   // Sem `agenda.marcacoes.valores` a API não envia pagamentos: a coluna "Pago" desaparece (nunca "—" nem "0 €").
@@ -2756,8 +2867,9 @@ function MarcacoesPanel() {
   // Guardar = notificar: o backend avisa o cliente automaticamente ao guardar.
   const updateAppt = usePutScheduleAppointmentsId({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (data) => {
         toast.success("Marcação actualizada");
+        toastStaffWarnings(data?.warnings);
         qc.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() });
       },
       onError: (error) => {
@@ -2814,13 +2926,14 @@ function MarcacoesPanel() {
   ]);
 
   const hasFilters =
-    q || filterStatus || filterDateFrom || filterDateTo || filterServiceId;
+    q || filterStatus || filterDateFrom || filterDateTo || filterServiceId || staffSel !== STAFF_ALL;
   const clearFilters = () => {
     setQ("");
     setFilterStatus("");
     setFilterDateFrom("");
     setFilterDateTo("");
     setFilterServiceId("");
+    setStaffSel(STAFF_ALL);
   };
 
   const STATUS_PILLS = [
@@ -2873,6 +2986,12 @@ function MarcacoesPanel() {
               searchPlaceholder="Pesquisar serviço…"
             />
           </div>
+          {hasStaff && (
+            <div>
+              <p className="text-xs text-zinc-500 mb-1">Profissional</p>
+              <StaffFilterSelect value={staffSel} onChange={setStaffSel} />
+            </div>
+          )}
           {hasFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>
               Limpar filtros
@@ -2928,6 +3047,11 @@ function MarcacoesPanel() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide hidden sm:table-cell">
                   Serviço
                 </th>
+                {hasStaff && (
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide hidden md:table-cell">
+                    Profissional
+                  </th>
+                )}
                 <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide">
                   Estado
                 </th>
@@ -2975,6 +3099,11 @@ function MarcacoesPanel() {
                     <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300 hidden sm:table-cell">
                       {svc?.name ?? "—"}
                     </td>
+                    {hasStaff && (
+                      <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300 hidden md:table-cell">
+                        {a.staff?.name ?? "—"}
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       <Badge tone={view.tone}>{view.statusLabel}</Badge>
                     </td>
@@ -3056,7 +3185,7 @@ function MarcacoesPanel() {
 
 // ─── Agenda root ──────────────────────────────────────────────────────────────
 
-export type AgendaView = "cal" | "marcacoes" | "servicos" | "config";
+export type AgendaView = "cal" | "marcacoes" | "servicos" | "profissionais" | "config";
 
 /**
  * Página "Agenda" (`VIEW_SCHEDULE`). Cada separador vive na sua própria rota
@@ -3079,6 +3208,7 @@ export function Agenda({ view }: { view: AgendaView }) {
       {view === "cal" && <CalendarioView />}
       {view === "marcacoes" && <MarcacoesPanel />}
       {view === "servicos" && <ServicosPanel />}
+      {view === "profissionais" && <AgendaProfissionais />}
       {view === "config" && <ConfigPanel />}
     </div>
   );

@@ -216,6 +216,7 @@ function App() {
         <Route path="/agenda" element={<AgendaEntry />} />
         <Route path="/agenda/marcacoes" element={<Agenda view="marcacoes" />} />
         <Route path="/agenda/servicos" element={<Agenda view="servicos" />} />
+        <Route path="/agenda/profissionais" element={<Agenda view="profissionais" />} />
         <Route path="/agenda/config" element={<Agenda view="config" />} />
         <Route path="/ginasio" element={<Ginasio view="catalogo" />} />
         <Route path="/ginasio/treinos" element={<Ginasio view="treinos" />} />

@@ -7,10 +7,10 @@ import { AreaChart } from '../../ui/charts.jsx'
 import { KpiCard, MoneyTriad, fmtEur, InfoDot } from '../../components/financeiro/kit'
 import { INFO } from '../../components/financeiro/info'
 
-export function FinanceiroLoja({ period, iva, customStart, customEnd }: {
-  period: DashboardPeriod; iva: VatMode; customStart?: string; customEnd?: string
+export function FinanceiroLoja({ period, iva, customStart, customEnd, staff }: {
+  period: DashboardPeriod; iva: VatMode; customStart?: string; customEnd?: string; staff?: string
 }) {
-  const { data, isLoading, isError } = useLojaFinance(period, iva, customStart, customEnd)
+  const { data, isLoading, isError } = useLojaFinance(period, iva, customStart, customEnd, staff)
   // Equipa (B41 2c): `null` = sem acesso ao stock; enquanto carrega, mostra-se o cartão (skeleton do dono).
   const showDeadStock = isLoading || data?.inventory.deadStock.value != null
   // Membro sem `loja.produtos.custo`: a API não envia margem nem custos (`access.cost=false`) — somem, não viram 0.

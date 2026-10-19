@@ -96,14 +96,17 @@ function useFinanceQuery<T>(
   iva: VatMode,
   customStart?: string,
   customEnd?: string,
+  staff?: string,
 ) {
   const { isAuthenticated } = useAuth()
   const isCustomValid = period !== 'custom' || (!!customStart && !!customEnd)
   return useQuery<T>({
-    queryKey: ['financeiro', path, period, iva, customStart, customEnd],
+    queryKey: ['financeiro', path, period, iva, customStart, customEnd, staff ?? 'all'],
     enabled: isAuthenticated && isCustomValid,
     queryFn: async () => {
       const params: Record<string, string> = { period, iva }
+      // Profissionais: `none` ou o id de um profissional (omitido = Global).
+      if (staff) params.staff = staff
       if (period === 'custom' && customStart && customEnd) {
         params.startDate = customStart
         params.endDate = customEnd
@@ -119,12 +122,12 @@ function useFinanceQuery<T>(
   })
 }
 
-export const useNegocioFinance = (period: DashboardPeriod = 'month', iva: VatMode = 'com', s?: string, e?: string) =>
-  useFinanceQuery<NegocioFinance>('negocio', period, iva, s, e)
-export const useAgendaFinance = (period: DashboardPeriod = 'month', iva: VatMode = 'com', s?: string, e?: string) =>
-  useFinanceQuery<AgendaFinance>('agenda', period, iva, s, e)
-export const useLojaFinance = (period: DashboardPeriod = 'month', iva: VatMode = 'com', s?: string, e?: string) =>
-  useFinanceQuery<LojaFinance>('loja', period, iva, s, e)
+export const useNegocioFinance = (period: DashboardPeriod = 'month', iva: VatMode = 'com', s?: string, e?: string, staff?: string) =>
+  useFinanceQuery<NegocioFinance>('negocio', period, iva, s, e, staff)
+export const useAgendaFinance = (period: DashboardPeriod = 'month', iva: VatMode = 'com', s?: string, e?: string, staff?: string) =>
+  useFinanceQuery<AgendaFinance>('agenda', period, iva, s, e, staff)
+export const useLojaFinance = (period: DashboardPeriod = 'month', iva: VatMode = 'com', s?: string, e?: string, staff?: string) =>
+  useFinanceQuery<LojaFinance>('loja', period, iva, s, e, staff)
 
 // ── Mutations do ginásio (cobrança em massa / lembretes) ──
 // `authHeader` mantém-se nos parâmetros por compatibilidade com GymMensalidade.tsx

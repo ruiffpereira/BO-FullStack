@@ -7,6 +7,8 @@ import { PageHeader } from '../ui/ui.jsx'
 import { usePageSubtitle } from '../context/PageMetaContext'
 import { DateRangePicker, type DateRange } from '../components/DateRangePicker'
 import { VatToggle } from '../components/financeiro/kit'
+import { StaffFilterSelect } from '../components/StaffSelect'
+import { STAFF_ALL, staffParam } from '../lib/staffFilter'
 import type { DashboardPeriod } from '../hooks/useDashboard'
 import type { VatMode } from '../hooks/useFinanceiro'
 import { ONegocio } from './financeiro/ONegocio'
@@ -53,6 +55,9 @@ export function FinanceiroPage({ view }: { view: FinanceiroView }) {
   const [iva, setIva] = useState<VatMode>('com')
   const [range, setRange] = useState<DateRange | undefined>()
   const [customOpen, setCustomOpen] = useState(false)
+  // Profissionais: Global · Sem profissional · cada um (`?staff=`); o selector só existe se o tenant tem profissionais.
+  const [staffSel, setStaffSel] = useState<string>(STAFF_ALL)
+  const staff = staffParam(staffSel)
   const customStart = range?.from ? format(range.from, 'yyyy-MM-dd') : ''
   const customEnd = range?.to ? format(range.to, 'yyyy-MM-dd') : ''
 
@@ -68,6 +73,7 @@ export function FinanceiroPage({ view }: { view: FinanceiroView }) {
       {isVertical && (
         <PageHeader>
           <div className="flex flex-wrap items-center gap-2">
+            <StaffFilterSelect value={staffSel} onChange={setStaffSel} />
             {/* IVA só afeta Agenda/Loja (decompõem por item); O Negócio agrega recebido. */}
             {(tab === 'agenda' || tab === 'loja') && <VatToggle value={iva} onChange={setIva} />}
             <div className="relative">
@@ -98,9 +104,9 @@ export function FinanceiroPage({ view }: { view: FinanceiroView }) {
         </PageHeader>
       )}
 
-      {tab === 'negocio' && <ONegocio period={period} iva={iva} customStart={customStart} customEnd={customEnd} />}
-      {tab === 'agenda' && <FinanceiroAgenda period={period} iva={iva} customStart={customStart} customEnd={customEnd} />}
-      {tab === 'loja' && <FinanceiroLoja period={period} iva={iva} customStart={customStart} customEnd={customEnd} />}
+      {tab === 'negocio' && <ONegocio period={period} iva={iva} customStart={customStart} customEnd={customEnd} staff={staff} />}
+      {tab === 'agenda' && <FinanceiroAgenda period={period} iva={iva} customStart={customStart} customEnd={customEnd} staff={staff} />}
+      {tab === 'loja' && <FinanceiroLoja period={period} iva={iva} customStart={customStart} customEnd={customEnd} staff={staff} />}
       {tab === 'ginasio' && <MensalidadesTab />}
       {tab === 'despesas' && <Despesas />}
     </div>

@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { format, subDays, eachDayOfInterval } from 'date-fns'
 import { pt } from 'date-fns/locale'
 import { useNavigate } from 'react-router-dom'
@@ -13,6 +13,8 @@ import { useGetScheduleAppointments } from '../gen/backoffice/hooks/useGetSchedu
 import { useGetScheduleServices } from '../gen/backoffice/hooks/useGetScheduleServices.js'
 import { useGetGymMensalidadeFinance } from '../gen/backoffice/hooks/useGetGymMensalidadeFinance.js'
 import { useDashboard } from '../hooks/useDashboard'
+import { StaffFilterSelect } from '../components/StaffSelect'
+import { STAFF_ALL, staffParam } from '../lib/staffFilter'
 import { useNow } from '../hooks/useNow'
 import { dashboardBlocks, dashboardSpine, hasRevenue, revenueSourcesLabel } from '../lib/dashboardBlocks'
 
@@ -447,7 +449,10 @@ export function Dashboard() {
   const monthLabel = format(now, 'MMMM', { locale: pt })
 
   // Agregados cross-vertical (receita de hoje por módulo, sócios, alertas, etc.)
-  const { data: dash, isLoading: loadingDash } = useDashboard('today')
+  // Profissionais: Global · Sem profissional · cada um (`?staff=`) — filtra o resumo, as marcações e as encomendas.
+  const [staffSel, setStaffSel] = useState<string>(STAFF_ALL)
+  const staff = staffParam(staffSel)
+  const { data: dash, isLoading: loadingDash } = useDashboard('today', undefined, undefined, true, staff)
 
   // O que se mostra (B41 2c): o dono vê os módulos do tenant (Clientes é core); um membro vê só os blocos que a API
   // pôs em `included` — e enquanto o `/dashboard` não responde não pede nada que a API possa recusar com 403.
@@ -470,11 +475,11 @@ export function Dashboard() {
   const { data: customersData, isLoading: loadingCustomers } = useGetCustomers({
     query: { enabled: blocks.customers }, client: { headers },
   })
-  const { data: ordersData, isLoading: loadingOrders } = useGetOrders(undefined, {
+  const { data: ordersData, isLoading: loadingOrders } = useGetOrders(staff ? { staff } : undefined, {
     query: { enabled: canOrders }, client: { headers },
   })
   const { data: appointmentsData, isLoading: loadingAppts } = useGetScheduleAppointments(
-    { month: thisMonth },
+    { month: thisMonth, ...(staff ? { staff } : {}) },
     { query: { enabled: canSchedule }, client: { headers } },
   )
   const { data: servicesData } = useGetScheduleServices({
@@ -630,7 +635,10 @@ export function Dashboard() {
             <span className="font-mono tabular-nums text-zinc-400 text-lg">{format(now, 'HH:mm')}</span>
           </h1>
         </div>
-        <p className="sm:ml-auto text-sm text-zinc-400">Olá, {(isMember ? member?.name?.split(' ')[0] : username) ?? '—'}</p>
+        <div className="sm:ml-auto flex flex-wrap items-center gap-3">
+          <StaffFilterSelect value={staffSel} onChange={setStaffSel} />
+          <p className="text-sm text-zinc-400">Olá, {(isMember ? member?.name?.split(' ')[0] : username) ?? '—'}</p>
+        </div>
       </div>
 
       {/* KPI band */}

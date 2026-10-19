@@ -360,6 +360,31 @@
           "email"
         ]
       },
+      "MessageError": {
+        "type": "object",
+        "description": "Erro das Mensagens: `error` é texto para mostrar; `code` (quando existe) é estável para a lógica do cliente.",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "MESSAGE_EMPTY",
+              "MESSAGE_INVALID",
+              "ATTACHMENT_INVALID",
+              "TEAM_FORBIDDEN",
+              "TEAM_SELF_CHAT",
+              "TEAM_PERSON_REMOVED",
+              "IMPERSONATION_FORBIDDEN",
+              "SUPPORT_SESSION_ENDED"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
       "AdminProtectedError": {
         "type": "object",
         "properties": {
@@ -2810,6 +2835,10 @@
               "senderKey": {
                 "type": "string"
               },
+              "mine": {
+                "type": "boolean",
+                "description": "Quem está a ver foi quem escreveu a última mensagem"
+              },
               "preview": {
                 "type": "string"
               },
@@ -2817,7 +2846,13 @@
                 "type": "string",
                 "format": "date-time"
               }
-            }
+            },
+            "required": [
+              "senderKey",
+              "mine",
+              "preview",
+              "createdAt"
+            ]
           }
         },
         "required": [
@@ -16325,13 +16360,34 @@
             }
           },
           "400": {
-            "description": "Parâmetros inválidos"
+            "description": "Parâmetros inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Não autenticado"
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sem a folha `mensagens.clientes` (TEAM_FORBIDDEN) ou sessão de suporte"
+            "description": "Sem a folha `mensagens.clientes` (TEAM_FORBIDDEN) ou sessão de suporte",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           }
         }
       }
@@ -16380,13 +16436,34 @@
             }
           },
           "401": {
-            "description": "Não autenticado"
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sem a folha `mensagens.clientes` (TEAM_FORBIDDEN) ou sessão de suporte"
+            "description": "Sem a folha `mensagens.clientes` (TEAM_FORBIDDEN) ou sessão de suporte",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Conversa não encontrada (ou de outro tenant)"
+            "description": "Conversa não encontrada (ou de outro tenant)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           }
         }
       },
@@ -16437,16 +16514,44 @@
           "400": {
             "description": "Mensagem vazia/inválida ou anexo inválido (MESSAGE_EMPTY",
             "MESSAGE_INVALID": null,
-            "ATTACHMENT_INVALID)": null
+            "ATTACHMENT_INVALID)": null,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Não autenticado"
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sem Responder em `mensagens.clientes` (TEAM_FORBIDDEN) ou sessão de suporte"
+            "description": "Sem Responder em `mensagens.clientes` (TEAM_FORBIDDEN) ou sessão de suporte",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Conversa não encontrada (ou de outro tenant)"
+            "description": "Conversa não encontrada (ou de outro tenant)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           }
         }
       }
@@ -16487,13 +16592,34 @@
             }
           },
           "401": {
-            "description": "Não autenticado"
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sem a folha `mensagens.clientes` (TEAM_FORBIDDEN) ou sessão de suporte"
+            "description": "Sem a folha `mensagens.clientes` (TEAM_FORBIDDEN) ou sessão de suporte",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Conversa não encontrada (ou de outro tenant)"
+            "description": "Conversa não encontrada (ou de outro tenant)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           }
         }
       }
@@ -16548,13 +16674,34 @@
             }
           },
           "401": {
-            "description": "Não autenticado"
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sem a folha `mensagens.clientes` (TEAM_FORBIDDEN) ou sessão de suporte"
+            "description": "Sem a folha `mensagens.clientes` (TEAM_FORBIDDEN) ou sessão de suporte",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Cliente não encontrado (ou de outro tenant)"
+            "description": "Cliente não encontrado (ou de outro tenant)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           }
         }
       }
@@ -16563,7 +16710,7 @@
       "get": {
         "operationId": "listTeamPeople",
         "summary": "Pessoas da equipa para conversar (separador Backoffice)",
-        "description": "Dono e membros activos do tenant com a folha `mensagens.equipa` (menos quem pede), mais quem já tem conversa comigo (um membro removido aparece como \"Nome (removida)\", `removed: true`, só leitura). Ordem: a última mensagem primeiro. `support` é o marcador do Suporte (fixo em primeiro no BO; `null` se não tens `mensagens.suporte`) — o fio do Suporte continua em `/chat/support`. Folha `mensagens.equipa` (Ver).",
+        "description": "Dono e membros activos do tenant com a folha `mensagens.equipa` (menos quem pede), mais quem já tem conversa comigo (um membro removido aparece como \"Nome (removida)\", `removed: true`, só leitura). Ordem: a última mensagem primeiro. Cada `lastMessage` traz `mine` (quem pede foi quem escreveu). `support` é o marcador do Suporte (fixo em primeiro no BO; `null` se não tens `mensagens.suporte`) — o fio do Suporte continua em `/chat/support`. Folha `mensagens.equipa` OU `mensagens.suporte` (Ver): quem só tem o Suporte recebe `people: []` e o marcador.",
         "tags": [
           "Mensagens"
         ],
@@ -16584,10 +16731,24 @@
             }
           },
           "401": {
-            "description": "Não autenticado"
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sem a folha `mensagens.equipa` (TEAM_FORBIDDEN) ou sessão de suporte"
+            "description": "Sem `mensagens.equipa` nem `mensagens.suporte` (TEAM_FORBIDDEN) ou sessão de suporte",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           }
         }
       }
@@ -16644,16 +16805,44 @@
             }
           },
           "400": {
-            "description": "Conversa contigo próprio (TEAM_SELF_CHAT)"
+            "description": "Conversa contigo próprio (TEAM_SELF_CHAT)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Não autenticado"
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sem a folha `mensagens.equipa` (TEAM_FORBIDDEN) ou sessão de suporte"
+            "description": "Sem a folha `mensagens.equipa` (TEAM_FORBIDDEN) ou sessão de suporte",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Pessoa não encontrada neste tenant"
+            "description": "Pessoa não encontrada neste tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           }
         }
       },
@@ -16703,19 +16892,54 @@
           },
           "400": {
             "description": "Mensagem vazia/inválida",
-            "anexo inválido ou conversa contigo próprio": null
+            "anexo inválido ou conversa contigo próprio": null,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Não autenticado"
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sem Escrever em `mensagens.equipa` (TEAM_FORBIDDEN) ou sessão de suporte"
+            "description": "Sem Escrever em `mensagens.equipa` (TEAM_FORBIDDEN) ou sessão de suporte",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Pessoa não encontrada neste tenant"
+            "description": "Pessoa não encontrada neste tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "409": {
-            "description": "A outra pessoa foi removida (conversa só leitura)"
+            "description": "A outra pessoa foi removida (conversa só leitura)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           }
         }
       }
@@ -16755,16 +16979,44 @@
             }
           },
           "400": {
-            "description": "Conversa contigo próprio"
+            "description": "Conversa contigo próprio",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Não autenticado"
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sem a folha `mensagens.equipa` (TEAM_FORBIDDEN) ou sessão de suporte"
+            "description": "Sem a folha `mensagens.equipa` (TEAM_FORBIDDEN) ou sessão de suporte",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Pessoa não encontrada neste tenant"
+            "description": "Pessoa não encontrada neste tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           }
         }
       }
@@ -16794,10 +17046,24 @@
             }
           },
           "401": {
-            "description": "Não autenticado"
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sessão de suporte (IMPERSONATION_FORBIDDEN)"
+            "description": "Sessão de suporte (IMPERSONATION_FORBIDDEN)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageError"
+                }
+              }
+            }
           }
         }
       }

@@ -3460,10 +3460,95 @@
             "type": "string",
             "nullable": true
           },
+          "existingEmail": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Domínio próprio: \"Já tem email neste domínio?\" (null = por responder)"
+          },
+          "mailMode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "root",
+              "subdomain"
+            ],
+            "description": "Onde fica a caixa: no próprio domínio, em contacto.<domínio>, ou não se activa"
+          },
+          "mailDomain": {
+            "type": "string",
+            "nullable": true,
+            "description": "O domínio da caixa (null com mailMode none)"
+          },
           "records": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/EmailDnsRecord"
+            }
+          },
+          "mailRecords": {
+            "type": "array",
+            "nullable": true,
+            "description": "Registos MX e DKIM do servidor de correio para a caixa deste domínio (null = sem caixa neste domínio, ou servidor por configurar).",
+            "items": {
+              "$ref": "#/components/schemas/MailDnsRecord"
+            }
+          }
+        }
+      },
+      "MailDnsRecord": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "MX"
+          },
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "TenantSendingState": {
+        "type": "object",
+        "description": "Pausa por queixas e tectos de envio (CR-05).",
+        "properties": {
+          "paused": {
+            "type": "boolean"
+          },
+          "pausedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "pausedBy": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "auto",
+              "admin"
+            ]
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "mailboxPerDay": {
+                "type": "integer"
+              },
+              "tenantPerDay": {
+                "type": "integer"
+              },
+              "complaintThreshold": {
+                "type": "integer"
+              },
+              "complaintWindowDays": {
+                "type": "integer"
+              }
             }
           }
         }
@@ -3486,11 +3571,43 @@
           },
           "domain": {
             "nullable": true,
+            "description": "O domínio principal (o próprio, se houver; senão o subdomínio da plataforma). Compatibilidade — preferir `domains`.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/TenantEmailDomain"
               }
             ]
+          },
+          "domains": {
+            "type": "array",
+            "description": "Todos os domínios do negócio (no máximo um subdomínio da plataforma e um domínio próprio).",
+            "items": {
+              "$ref": "#/components/schemas/TenantEmailDomain"
+            }
+          },
+          "sendingFrom": {
+            "type": "string",
+            "nullable": true,
+            "example": "geral@tifas.pt",
+            "description": "De onde sai MESMO o email automático do negócio (null = endereço da plataforma)"
+          },
+          "mail": {
+            "type": "object",
+            "properties": {
+              "configured": {
+                "type": "boolean",
+                "description": "Servidor de correio configurado"
+              },
+              "mxHost": {
+                "type": "string",
+                "nullable": true,
+                "example": "mail.rufvision.com",
+                "description": "Para onde os MX dos domínios têm de apontar"
+              }
+            }
+          },
+          "sending": {
+            "$ref": "#/components/schemas/TenantSendingState"
           }
         }
       },
@@ -3560,6 +3677,50 @@
           }
         }
       },
+      "CustomerNewsletter": {
+        "type": "object",
+        "properties": {
+          "subscribed": {
+            "type": "boolean",
+            "description": "Aceita novidades por email (Subscrito)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "none",
+              "subscribed",
+              "unsubscribed",
+              "unsubscribed_by_user",
+              "bounced",
+              "complained"
+            ]
+          },
+          "blocked": {
+            "type": "boolean",
+            "description": "bounced/complained: não se pode subscrever"
+          },
+          "source": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "site",
+              "app",
+              "balcao",
+              "importacao",
+              "bo"
+            ]
+          },
+          "subscribedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "hasEmail": {
+            "type": "boolean",
+            "description": "O cliente tem email (sem email não há como subscrever)"
+          }
+        }
+      },
       "Lead": {
         "type": "object",
         "properties": {
@@ -3617,6 +3778,248 @@
           "updatedAt"
         ]
       },
+      "MailClientSettings": {
+        "type": "object",
+        "description": "Dados para configurar a caixa num cliente de email (IMAP/SMTP).",
+        "properties": {
+          "username": {
+            "type": "string",
+            "example": "geral@tifas.rufvision.com",
+            "description": "O endereço completo"
+          },
+          "imap": {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string",
+                "nullable": true
+              },
+              "port": {
+                "type": "integer",
+                "example": 993
+              },
+              "security": {
+                "type": "string",
+                "example": "SSL/TLS"
+              }
+            }
+          },
+          "smtp": {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string",
+                "nullable": true
+              },
+              "port": {
+                "type": "integer",
+                "example": 587
+              },
+              "security": {
+                "type": "string",
+                "example": "STARTTLS"
+              }
+            }
+          }
+        }
+      },
+      "MailAppPasswordStatus": {
+        "type": "object",
+        "properties": {
+          "exists": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Quando foi criada a última"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Quantas passwords da app estão em vigor (máx. 5)"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/MailClientSettings"
+          }
+        }
+      },
+      "MailAppPasswordCreated": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
+            "description": "Mostrada UMA ÚNICA VEZ — não fica guardada em lado nenhum"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/MailClientSettings"
+          }
+        }
+      },
+      "MailContact": {
+        "type": "object",
+        "properties": {
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "customerId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "subscribed",
+              "unsubscribed",
+              "unsubscribed_by_user",
+              "bounced",
+              "complained"
+            ],
+            "description": "Subscrito · Não subscrito · Anulou (pelo link) · Bloqueado (email inválido / queixa)"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "site",
+              "app",
+              "balcao",
+              "importacao",
+              "bo"
+            ]
+          },
+          "subscribedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "unsubscribedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "consentText": {
+            "type": "string",
+            "nullable": true,
+            "description": "O texto que a pessoa viu ao subscrever"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "language": {
+            "type": "string",
+            "example": "pt"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "MailContactList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MailContact"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "counts": {
+            "type": "object",
+            "description": "Contactos do negócio por estado (sem filtros).",
+            "properties": {
+              "subscribed": {
+                "type": "integer"
+              },
+              "unsubscribed": {
+                "type": "integer"
+              },
+              "unsubscribed_by_user": {
+                "type": "integer"
+              },
+              "bounced": {
+                "type": "integer"
+              },
+              "complained": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "MailContactImportResult": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "description": "Linhas de dados lidas"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "updated": {
+            "type": "integer",
+            "description": "Já subscritos: só se juntaram etiquetas"
+          },
+          "rejected": {
+            "type": "integer"
+          },
+          "skipped": {
+            "type": "array",
+            "description": "Linhas recusadas (máx. 200 no relatório)",
+            "items": {
+              "type": "object",
+              "properties": {
+                "line": {
+                  "type": "integer"
+                },
+                "email": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "invalid_email",
+                    "duplicate_in_file",
+                    "already_unsubscribed",
+                    "blocked"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
       "MailAddress": {
         "type": "object",
         "properties": {
@@ -3659,6 +4062,16 @@
             "type": "integer",
             "nullable": true,
             "description": "null se o servidor não respondeu"
+          },
+          "canManageAppPassword": {
+            "type": "boolean",
+            "description": "true = esta sessão pode criar/revogar a password da app (o dono para geral@; o próprio membro para a sua)"
+          },
+          "appPasswordCreatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Quando foi criada a última password da app (a password nunca se guarda)"
           }
         }
       },
@@ -5338,8 +5751,8 @@
     },
     "/admin/users/{userId}/email-domain": {
       "get": {
-        "summary": "Domínio de email de um tenant — estado e registos DNS (só o dono da plataforma)",
-        "description": "Devolve o estado guardado (verificado ou não, o que o job periódico/“Verificar agora” leram do Resend) e a tabela de registos DNS (tipo · nome · valor · estado ✓/✗). Sem domínio: `configured: false` + `suggestedDomain`. `VIEW_ADMIN`; fechada em sessão de suporte.\n",
+        "summary": "Domínios de email de um tenant — estado e registos DNS (só o dono da plataforma)",
+        "description": "Devolve o estado guardado (verificado ou não, o que o job periódico/“Verificar agora” leram do Resend) e a tabela de registos DNS (tipo · nome · valor · estado ✓/✗) de cada domínio (`domains`: o subdomínio da plataforma e/ou o domínio próprio; `domain` = o principal), os registos MX/DKIM do servidor de correio quando há caixa (`mailRecords`), de onde sai agora o email do negócio (`sendingFrom`) e o estado de envio (pausa/tectos). Sem domínio: `configured: false` + `suggestedDomain`. `VIEW_ADMIN`; fechada em sessão de suporte.\n",
         "tags": [
           "Users"
         ],
@@ -5360,7 +5773,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Estado do domínio de email",
+            "description": "Estado dos domínios de email",
             "content": {
               "application/json": {
                 "schema": {
@@ -5382,8 +5795,8 @@
         }
       },
       "put": {
-        "summary": "Definir ou alterar o domínio de email de um tenant (cria-o no Resend)",
-        "description": "Sem domínio → cria-o no Resend (devolve os registos DNS) e grava (201). Com outro domínio → cria o novo, apaga o antigo no Resend e volta a \"não verificado\" (200). Mesmo domínio → só actualiza as opções (`sendingEnabled`, `fromLocalPart`, `senderName`), sem tocar no Resend (200). Os emails do negócio só saem deste domínio depois de verificado. **409** `domain_taken` se for de outro tenant; **502** se o Resend falhar.\n",
+        "summary": "Definir ou alterar o domínio de email de um tenant (cria-o no Resend) — subdomínio da plataforma ou domínio próprio",
+        "description": "O tipo vem do domínio (`EMAIL_PLATFORM_DOMAIN`): `<slug>.<plataforma>` é o subdomínio da plataforma; qualquer outro é **domínio próprio**. Um negócio tem no máximo um de cada e os dois coexistem (o próprio assina o envio quando verificado, senão o subdomínio). Sem domínio desse tipo → cria-o no Resend (devolve os registos DNS) e grava (201). Com outro domínio do mesmo tipo → cria o novo, apaga o antigo no Resend e volta a \"não verificado\" (200). Mesmo domínio → só actualiza as opções, sem tocar no Resend (200). **Domínio próprio — \"Já tem email neste domínio?\"**: `existingEmail` + `mail`. (a) `existingEmail: false` → `mail: root` põe a caixa no próprio domínio; (c) `existingEmail: true` → `mail: subdomain` põe-na em `contacto.<domínio>` (`mailSubdomain` muda o nome) ou `mail: none` não a activa; `root` com email existente → 409 `mx_conflict` (cortava o email actual). Activar a caixa sem responder à pergunta → 400 `existing_email_required`. (b) migrar o email existente NÃO se automatiza (faz-se à mão). Os registos MX/DKIM aparecem em `mailRecords`. Não se muda a caixa de um domínio onde já há caixas activas (409 `mailboxes_in_domain`). **409** `domain_taken` se for de outro tenant; **502** se o Resend falhar.\n",
         "tags": [
           "Users"
         ],
@@ -5414,7 +5827,7 @@
                 "properties": {
                   "domain": {
                     "type": "string",
-                    "example": "tifas.rufvision.com"
+                    "example": "tifas.pt"
                   },
                   "sendingEnabled": {
                     "type": "boolean"
@@ -5426,6 +5839,24 @@
                   "senderName": {
                     "type": "string",
                     "nullable": true
+                  },
+                  "existingEmail": {
+                    "type": "boolean",
+                    "description": "Só domínio próprio: já tem email neste domínio?"
+                  },
+                  "mail": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "root",
+                      "subdomain"
+                    ],
+                    "description": "Só domínio próprio: onde fica a caixa"
+                  },
+                  "mailSubdomain": {
+                    "type": "string",
+                    "example": "contacto",
+                    "description": "Nome do subdomínio da caixa (mail=subdomain)"
                   }
                 }
               }
@@ -5454,7 +5885,7 @@
             }
           },
           "400": {
-            "description": "Domínio inválido"
+            "description": "Domínio inválido, ou existing_email_required"
           },
           "403": {
             "description": "Sem VIEW_ADMIN",
@@ -5464,7 +5895,7 @@
             "description": "Utilizador não encontrado"
           },
           "409": {
-            "description": "Domínio já usado por outro tenant — `{ error: domain_taken, value }`"
+            "description": "domain_taken (de outro tenant), mx_conflict, mailboxes_in_domain"
           },
           "502": {
             "description": "O Resend recusou/falhou — `{ error: email_provider_error, message }`"
@@ -5472,8 +5903,8 @@
         }
       },
       "delete": {
-        "summary": "Remover o domínio de email de um tenant (apaga-o também no Resend)",
-        "description": "Os emails do negócio voltam a sair do endereço da plataforma. **502** se o Resend falhar (a linha mantém-se; repetir).",
+        "summary": "Remover um domínio de email de um tenant (apaga-o também no Resend)",
+        "description": "Os emails do negócio voltam a sair do outro domínio (se houver) ou do endereço da plataforma. Com os dois domínios é preciso `?kind=` (400 `kind_required`). Um domínio próprio com caixas activas não se remove (409 `mailboxes_in_domain`: passá-las antes para a plataforma). **502** se o Resend falhar (a linha mantém-se; repetir).\n",
         "tags": [
           "Users"
         ],
@@ -5490,11 +5921,25 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "platform-subdomain",
+                "own"
+              ]
+            }
           }
         ],
         "responses": {
           "204": {
             "description": "Removido"
+          },
+          "400": {
+            "description": "kind inválido ou em falta (kind_required)"
           },
           "403": {
             "description": "Sem VIEW_ADMIN",
@@ -5502,6 +5947,9 @@
           },
           "404": {
             "description": "Utilizador ou domínio de email não encontrado"
+          },
+          "409": {
+            "description": "Há caixas activas no domínio (mailboxes_in_domain)"
           },
           "502": {
             "description": "O Resend falhou"
@@ -5512,7 +5960,7 @@
     "/admin/users/{userId}/email-domain/verify": {
       "post": {
         "summary": "Verificar agora — pede ao Resend para verificar o DNS e devolve o estado",
-        "description": "Se o estado mudar (passou a verificado / deixou de estar), o tenant recebe uma notificação. Passando a verificado, os emails do negócio passam a sair do domínio dele (se `useForSending`).\n",
+        "description": "Sem `kind` verifica todos os domínios do negócio; com `kind` só esse. Se o estado mudar (passou a verificado / deixou de estar), o tenant recebe uma notificação. Passando a verificado, os emails do negócio passam a sair do domínio dele (se `useForSending`; o domínio próprio ganha ao subdomínio) — **troca automática do remetente**. Se for o domínio próprio, a caixa lá está activada e o MX já aponta para o servidor de correio, as caixas passam para lá (o endereço antigo fica como alias).\n",
         "tags": [
           "Users"
         ],
@@ -5528,6 +5976,17 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "platform-subdomain",
+                "own"
+              ]
             }
           }
         ],
@@ -5541,6 +6000,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "kind inválido"
           },
           "403": {
             "description": "Sem VIEW_ADMIN",
@@ -5557,8 +6019,8 @@
     },
     "/admin/users/{userId}/email-domain/use-platform": {
       "post": {
-        "summary": "Voltar ao envio da plataforma (os emails do negócio deixam de sair do domínio dele)",
-        "description": "Idempotente. O domínio fica configurado; não volta a ser usado até `use-own`.",
+        "summary": "Voltar atrás — os emails do negócio deixam de sair do domínio próprio",
+        "description": "Idempotente. Actua sobre o domínio próprio (ou o único que houver; `?kind=` escolhe). O domínio fica configurado; não volta a ser usado até `use-own`. Com o domínio próprio posto de lado, o envio cai no subdomínio da plataforma (se verificado) e senão no endereço da plataforma. Não mexe nas caixas (para essas, `mailboxes/move`).\n",
         "tags": [
           "Users"
         ],
@@ -5575,6 +6037,17 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "platform-subdomain",
+                "own"
+              ]
+            }
           }
         ],
         "responses": {
@@ -5587,6 +6060,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "kind inválido"
           },
           "403": {
             "description": "Sem VIEW_ADMIN",
@@ -5601,7 +6077,249 @@
     "/admin/users/{userId}/email-domain/use-own": {
       "post": {
         "summary": "Voltar ao envio do negócio (o domínio verificado volta a assinar os emails)",
-        "description": "Idempotente. **409** `domain_not_verified` se o domínio não está verificado.",
+        "description": "Idempotente. Actua sobre o domínio próprio (ou o único que houver; `?kind=` escolhe). **409** `domain_not_verified` se o domínio não está verificado.",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "platform-subdomain",
+                "own"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantEmailDomainEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "kind inválido"
+          },
+          "403": {
+            "description": "Sem VIEW_ADMIN",
+            "ou sessão de suporte": null
+          },
+          "404": {
+            "description": "Utilizador ou domínio de email não encontrado"
+          },
+          "409": {
+            "description": "Domínio não verificado"
+          }
+        }
+      }
+    },
+    "/admin/users/{userId}/email-domain/mailboxes/move": {
+      "post": {
+        "summary": "Passar as caixas do negócio para o domínio próprio — ou voltar atrás para o subdomínio da plataforma",
+        "description": "`to: own` move as caixas activas (a do negócio e as dos membros) para o domínio da caixa do domínio próprio: o login passa a `geral@tifas.pt`, as mensagens ficam onde estão e o endereço antigo (`geral@tifas.rufvision.com`) continua a entregar na mesma caixa (alias; idem os endereços que reencaminhavam para ela). Exige o domínio próprio verificado, a caixa activada nele e o MX já a apontar para o servidor de correio (409 `domain_not_verified`, `mail_not_enabled`, `mx_not_ready`). `to: platform` faz o inverso (sem verificar MX) e trava a mudança automática. Idempotente. As caixas cujo endereço novo já existe ficam em `skipped`. O caminho (b) — migrar o email que o cliente já tem noutro sítio — não é automático.\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "to"
+                ],
+                "properties": {
+                  "to": {
+                    "type": "string",
+                    "enum": [
+                      "own",
+                      "platform"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "target": {
+                      "type": "string",
+                      "example": "tifas.pt"
+                    },
+                    "moved": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "mailboxId": {
+                            "type": "string"
+                          },
+                          "from": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "skipped": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "mailboxId": {
+                            "type": "string"
+                          },
+                          "address": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string",
+                            "enum": [
+                              "address_taken"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido"
+          },
+          "403": {
+            "description": "Sem VIEW_ADMIN",
+            "ou sessão de suporte": null
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          },
+          "409": {
+            "description": "Domínio ainda não pronto"
+          },
+          "502": {
+            "description": "O servidor de correio falhou"
+          },
+          "503": {
+            "description": "Correio por configurar"
+          }
+        }
+      }
+    },
+    "/admin/users/{userId}/email-domain/pause": {
+      "post": {
+        "summary": "Pausar os envios do negócio pela caixa (e campanhas)",
+        "description": "Pausa manual (a automática vem das queixas de spam do Resend). Com a pausa, enviar pela caixa dá 423 `MAIL_SENDING_PAUSED`. Os emails automáticos (marcações, reset…) continuam. Idempotente. `VIEW_ADMIN`; fechada em sessão de suporte.\n",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Estado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantEmailDomainEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido"
+          },
+          "403": {
+            "description": "Sem VIEW_ADMIN",
+            "ou sessão de suporte": null
+          },
+          "404": {
+            "description": "Utilizador não encontrado"
+          }
+        }
+      }
+    },
+    "/admin/users/{userId}/email-domain/resume": {
+      "post": {
+        "summary": "Retomar os envios do negócio (depois de pausa por queixas ou manual)",
+        "description": "Idempotente. `VIEW_ADMIN`; fechada em sessão de suporte. O negócio volta a poder enviar pela caixa (os tectos diários mantêm-se).",
         "tags": [
           "Users"
         ],
@@ -5636,10 +6354,7 @@
             "ou sessão de suporte": null
           },
           "404": {
-            "description": "Utilizador ou domínio de email não encontrado"
-          },
-          "409": {
-            "description": "Domínio não verificado"
+            "description": "Utilizador não encontrado"
           }
         }
       }
@@ -5700,6 +6415,39 @@
                           "enum": [
                             "local"
                           ]
+                        }
+                      }
+                    },
+                    "pausedTenants": {
+                      "type": "array",
+                      "description": "Negócios com os envios pausados (queixas de spam ou pelo suporte). Retomar = POST /admin/users/{userId}/email-domain/resume.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "pausedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "reason": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "pausedBy": {
+                            "type": "string",
+                            "enum": [
+                              "auto",
+                              "admin"
+                            ],
+                            "nullable": true
+                          }
                         }
                       }
                     },
@@ -5789,7 +6537,7 @@
     "/admin/users/{userId}/mailboxes/business": {
       "post": {
         "summary": "Activar a caixa do negócio (cria o domínio e geral@ no servidor de correio)",
-        "description": "Exige o módulo Correio (VIEW_EMAIL) no tenant, o domínio de email já criado (subdomínio da plataforma) e o servidor de correio configurado. Idempotente (201 ao criar, 200 se já existia/reactivada). 409 `module_not_enabled`, `email_domain_not_found`, `own_domain_not_supported`; 503 `mail_not_configured`; 502 se o servidor falhar.",
+        "description": "Exige o módulo Correio (VIEW_EMAIL) no tenant, o domínio de email já criado (a caixa nasce no domínio próprio, se verificado e com a caixa activada, senão no subdomínio da plataforma) e o servidor de correio configurado. Idempotente (201 ao criar, 200 se já existia/reactivada). 409 `module_not_enabled`, `email_domain_not_found`, `mail_domain_unavailable`; 503 `mail_not_configured`; 502 se o servidor falhar.",
         "tags": [
           "Users"
         ],
@@ -11178,6 +11926,101 @@
           },
           "404": {
             "description": "Cliente não encontrado"
+          }
+        }
+      }
+    },
+    "/customers/{customerId}/newsletter": {
+      "get": {
+        "summary": "Estado de \"Aceita novidades por email\" de um cliente",
+        "description": "Quem lê a lista de clientes. Cliente de outro negócio = 404.",
+        "tags": [
+          "BackofficeCustomers"
+        ],
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerNewsletter"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Cliente não encontrado"
+          }
+        }
+      },
+      "put": {
+        "summary": "Marcar ou desmarcar \"Aceita novidades por email\" (consentimento ao balcão)",
+        "description": "Folha-acção `clientes.lista.novidades` (edit; nasce fechada — um membro com só `clientes.lista` recebe 403 `TEAM_FORBIDDEN`). `subscribed: true` regista o consentimento com origem `balcao`, a data e o texto; `false` retira-o (idempotente). 409 `customer_no_email` se o cliente não tem email; 409 `contact_blocked` se o email é bounced/complained. Cliente de outro negócio = 404. Os clientes que já existem NÃO ficam subscritos por omissão.",
+        "tags": [
+          "BackofficeCustomers"
+        ],
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "subscribed"
+                ],
+                "properties": {
+                  "subscribed": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Estado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerNewsletter"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido"
+          },
+          "403": {
+            "description": "Sem a acção clientes.lista.novidades (TEAM_FORBIDDEN)"
+          },
+          "404": {
+            "description": "Cliente não encontrado"
+          },
+          "409": {
+            "description": "Sem email (customer_no_email) ou email bloqueado (contact_blocked)"
           }
         }
       }
@@ -17307,6 +18150,441 @@
         }
       }
     },
+    "/mail/mailboxes/{mailboxId}/app-password": {
+      "get": {
+        "summary": "Estado da password da app de uma caixa e dados de configuração (IMAP/SMTP)",
+        "description": "Nunca devolve a password (não é guardada). Só o dono da caixa (o dono do negócio para `geral@`, o próprio membro para a sua): outro membro com `correio.caixa` recebe 403 e uma caixa que não é sua é 404.",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "mailboxId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailAppPasswordStatus"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Não é o dono da caixa (`app_password_owner_only`)"
+          },
+          "404": {
+            "description": "Caixa não encontrada"
+          }
+        }
+      },
+      "post": {
+        "summary": "Criar uma password da app (para abrir a caixa no telemóvel ou no Outlook)",
+        "description": "Exige `correio.caixa` Responder e ser o dono da caixa. Gera uma password aleatória forte, junta-a às credenciais da conta (a que a API usa mantém-se) e devolve-a **uma única vez**, com os dados de configuração (IMAP 993 SSL/TLS, SMTP 587 STARTTLS, utilizador = o endereço). A API não a guarda. Máx. 5 por caixa (409 `APP_PASSWORD_LIMIT`; revogar zera). 10 pedidos/hora.",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "mailboxId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Criada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailAppPasswordCreated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem Responder",
+            "ou não é o dono da caixa": null
+          },
+          "404": {
+            "description": "Caixa não encontrada"
+          },
+          "409": {
+            "description": "Limite de passwords da app"
+          },
+          "429": {
+            "description": "Demasiados pedidos"
+          },
+          "502": {
+            "description": "O servidor de correio falhou"
+          },
+          "503": {
+            "description": "Correio por configurar"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Revogar as passwords da app da caixa",
+        "description": "Corta o acesso externo (IMAP/SMTP) de TODOS os dispositivos ligados com passwords da app; o Backoffice continua a funcionar. Idempotente. Exige `correio.caixa` Responder e ser o dono da caixa.",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "mailboxId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revogadas"
+          },
+          "403": {
+            "description": "Sem Responder",
+            "ou não é o dono da caixa": null
+          },
+          "404": {
+            "description": "Caixa não encontrada"
+          },
+          "502": {
+            "description": "O servidor de correio falhou"
+          },
+          "503": {
+            "description": "Correio por configurar"
+          }
+        }
+      }
+    },
+    "/mail/contacts": {
+      "get": {
+        "summary": "Listar contactos de email (estado, origem, data, pesquisa, etiqueta)",
+        "description": "`correio.contactos` (Ver) + VIEW_EMAIL. Filtros `status`, `source`, `q` (email/nome), `tag`; paginado (`limit` até 100). `counts` conta TODOS os contactos do negócio por estado. Só os contactos do negócio autenticado.",
+        "tags": [
+          "MailContacts"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "subscribed",
+                "unsubscribed",
+                "unsubscribed_by_user",
+                "bounced",
+                "complained"
+              ]
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "site",
+                "app",
+                "balcao",
+                "importacao",
+                "bo"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de contactos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailContactList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetros inválidos"
+          },
+          "403": {
+            "description": "Sem correio.contactos ou sem o módulo"
+          }
+        }
+      }
+    },
+    "/mail/contacts/export": {
+      "get": {
+        "summary": "Exportar os contactos em CSV",
+        "description": "`correio.contactos` (Ver). Aceita os mesmos filtros da lista (`status`, `source`, `q`, `tag`). Máx. 20 000 linhas. Células que começam por `= + - @` saem com `'` à frente (sem injecção de fórmulas no Excel). Só os contactos do negócio autenticado.",
+        "tags": [
+          "MailContacts"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ficheiro CSV",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetros inválidos"
+          },
+          "403": {
+            "description": "Sem correio.contactos"
+          }
+        }
+      }
+    },
+    "/mail/contacts/{contactId}": {
+      "patch": {
+        "summary": "Editar etiquetas, nome e língua de um contacto",
+        "description": "`correio.contactos` Editar. SÓ `name`, `tags` e `language` — o estado de subscrição nunca se muda por aqui (o consentimento é da pessoa). Contacto de outro negócio = 404.",
+        "tags": [
+          "MailContacts"
+        ],
+        "parameters": [
+          {
+            "name": "contactId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 20
+                  },
+                  "language": {
+                    "type": "string",
+                    "example": "pt"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Contacto",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailContact"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Inválido"
+          },
+          "403": {
+            "description": "Sem Editar"
+          },
+          "404": {
+            "description": "Contacto não encontrado"
+          }
+        }
+      }
+    },
+    "/mail/contacts/{contactId}/unsubscribe": {
+      "post": {
+        "summary": "Anular a subscrição de um contacto (a pedido da pessoa)",
+        "description": "`correio.contactos` Editar. Passa a `unsubscribed` (\"Não subscrito\"). Idempotente; não mexe em `bounced`/`complained`/\"Anulou\". Voltar a subscrever só acontece por um novo consentimento da própria pessoa (site, perfil ou ficha ao balcão).",
+        "tags": [
+          "MailContacts"
+        ],
+        "parameters": [
+          {
+            "name": "contactId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contacto",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailContact"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem Editar"
+          },
+          "404": {
+            "description": "Contacto não encontrado"
+          }
+        }
+      }
+    },
+    "/mail/contacts/import": {
+      "post": {
+        "summary": "Importar contactos de um CSV (com confirmação de consentimento)",
+        "description": "`correio.contactos` Editar. **`consentConfirmed` tem de ser `true`** (\"confirmo que estes contactos deram consentimento\") — sem isso, 400 e nada se grava. O CSV vem como texto em `csv` (cabeçalho com `email`; opcionais `nome`, `etiquetas` separadas por `|`, `lingua`; separador `,` ou `;`). Máx. 5 000 linhas (400 `too_many_rows`). Valida cada email; linhas recusadas vêm no relatório. Os novos ficam `subscribed` com origem `importacao`. **Nunca reactiva** quem já anulou, não está subscrito, ou é bounced/complained (recusados com o motivo); quem já está subscrito só ganha as etiquetas. Liga ao cliente com o mesmo email, se existir.",
+        "tags": [
+          "MailContacts"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "consentConfirmed",
+                  "csv"
+                ],
+                "properties": {
+                  "consentConfirmed": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  },
+                  "csv": {
+                    "type": "string"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "language": {
+                    "type": "string",
+                    "example": "pt"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Relatório",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailContactImportResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sem consentConfirmed, CSV sem coluna email, ou demasiadas linhas"
+          },
+          "403": {
+            "description": "Sem Editar"
+          }
+        }
+      }
+    },
     "/mail/mailboxes": {
       "get": {
         "summary": "Caixas a que tenho acesso (a do negócio e a minha, se tiver)",
@@ -17809,8 +19087,11 @@
           "404": {
             "description": "Caixa ou email original não encontrado"
           },
+          "423": {
+            "description": "Envios do negócio pausados por queixas (`MAIL_SENDING_PAUSED`) — o admin retoma"
+          },
           "429": {
-            "description": "Limite de envios"
+            "description": "Limite de envios: por hora (`MAIL_SEND_RATE_LIMIT`) ou diário da caixa/negócio (`MAIL_DAILY_LIMIT`)"
           },
           "502": {
             "description": "O servidor de correio falhou"
@@ -17948,6 +19229,61 @@
           },
           "502": {
             "description": "O servidor de correio falhou"
+          }
+        }
+      }
+    },
+    "/webhooks/resend": {
+      "post": {
+        "summary": "Webhook do Resend — bounces e queixas (supressão automática e pausa por queixas)",
+        "description": "Chamado pelo Resend, não pelo Backoffice. Verifica a assinatura Svix (`svix-id`, `svix-timestamp`, `svix-signature`) com `RESEND_WEBHOOK_SECRET`. `email.bounced` (permanente) → o contacto fica `bounced`; `email.complained` → `complained` e, com queixas a mais numa janela, o negócio fica com os envios pausados. Idempotente pelo `svix-id`. Outros eventos: 200 sem efeito. Sem o segredo configurado responde 503 (nunca aceita sem verificar).",
+        "tags": [
+          "Mail"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Evento do Resend (type + data)"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recebido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "received": {
+                      "type": "boolean"
+                    },
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "ignored",
+                        "duplicate",
+                        "processed"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo inválido"
+          },
+          "401": {
+            "description": "Assinatura inválida ou fora do prazo"
+          },
+          "503": {
+            "description": "Webhook por configurar (RESEND_WEBHOOK_SECRET)"
           }
         }
       }
@@ -22206,6 +23542,10 @@
     {
       "name": "Leads",
       "description": "Leads/orçamentos capturados no site público do tenant (backoffice)"
+    },
+    {
+      "name": "MailContacts",
+      "description": "Contactos de email e consentimento (Correio → Contactos)."
     },
     {
       "name": "Mail",

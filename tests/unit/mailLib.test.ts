@@ -113,7 +113,7 @@ describe("Correio — datas e deep-links", () => {
 
 describe("Correio — navegação e permissões", () => {
   it("o submenu do Correio tem a Caixa atrás de VIEW_EMAIL e da folha correio.caixa", () => {
-    expect(allowedSubitems("/correio", () => true).map((s) => s.label)).toEqual(["Caixa"]);
+    expect(allowedSubitems("/correio", () => true).map((s) => s.label)).toEqual(["Caixa", "Campanhas", "Contactos"]);
     expect(allowedSubitems("/correio", () => false)).toEqual([]);
     expect(memberSubitems("/correio", (k) => k === "correio.caixa")).toHaveLength(1);
     expect(memberSubitems("/correio", () => false)).toHaveLength(0);
@@ -121,6 +121,11 @@ describe("Correio — navegação e permissões", () => {
   it("o label do item não colide com o subitem Conteúdos → Emails", () => {
     expect(allowedSubitems("/conteudos", () => true).some((s) => s.label === "Correio")).toBe(false);
     expect(allowedSubitems("/correio", () => true).some((s) => s.label === "Emails")).toBe(false);
+  });
+  it("Campanhas: folha correio.campanhas na lista e na ficha; um membro só com ela vê só esse subitem", () => {
+    expect(leafForPath("/correio/campanhas")).toBe("correio.campanhas");
+    expect(leafForPath("/correio/campanhas/abc")).toBe("correio.campanhas");
+    expect(memberSubitems("/correio", ((k: string) => k === "correio.campanhas") as any).map((i) => i.id)).toEqual(["campanhas"]);
   });
   it("a folha da página é correio.caixa", () => {
     expect(leafForPath("/correio")).toBe("correio.caixa");

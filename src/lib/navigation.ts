@@ -107,11 +107,12 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
     { id: "planos", label: "Planos", path: "/ginasio/planos", leaf: "ginasio.treinos" },
     { id: "clientes", label: "Progresso de clientes", path: "/ginasio/clientes", leaf: "ginasio.clientes" },
   ],
-  // Correio (B42): módulo VIEW_EMAIL. Caixa e Contactos (fase 8); Campanhas e Definições entram na fase 9 — cada um
+  // Correio (B42): módulo VIEW_EMAIL. Caixa, Campanhas (fase 9) e Contactos (fase 8); Definições ainda não — cada um
   // com a sua folha (`correio.campanhas`, …) e o seu `perm`.
   // O item chama-se "Correio" (não "Email"): "Emails" já é um subitem de Conteúdos e os nomes repetidos partem os testes.
   "/correio": [
     { id: "caixa", label: "Caixa", path: "/correio", perm: "VIEW_EMAIL", leaf: "correio.caixa" },
+    { id: "campanhas", label: "Campanhas", path: "/correio/campanhas", perm: "VIEW_EMAIL", leaf: "correio.campanhas" },
     { id: "contactos", label: "Contactos", path: "/correio/contactos", perm: "VIEW_EMAIL", leaf: "correio.contactos" },
   ],
   "/conteudos": [
@@ -238,6 +239,7 @@ export const LEAF_FOR_PATH: ReadonlyArray<readonly [string, string]> = [
   ["/conteudos", "conteudos.website"],
   ["/paginas", "paginas.rascunho"],
   // Correio (B42): a Caixa é a folha `correio.caixa` [Ver | Responder]; os Contactos `correio.contactos` [Ver | Editar].
+  ["/correio/campanhas", "correio.campanhas"],
   ["/correio/contactos", "correio.contactos"],
   ["/correio", "correio.caixa"],
   // Mensagens (B43): dois separadores, duas folhas. O Backoffice mistura equipa e Suporte — o compositor guarda-se

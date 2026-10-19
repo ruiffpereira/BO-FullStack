@@ -130,6 +130,17 @@ export const MAIL_MESSAGE_BY_CODE: Record<string, string> = {
   too_many_rows: "O ficheiro tem demasiadas linhas (máximo 5 000).",
   customer_no_email: "Este cliente não tem email na ficha.",
   contact_blocked: "Este email está bloqueado (inválido ou queixa de spam) e não pode ser subscrito.",
+  // Campanhas (fase 9)
+  CAMPAIGNS_LOCKED: "As campanhas só abrem com o domínio do negócio e o subdomínio «news.» verificados.",
+  CAMPAIGN_INCOMPLETE: "A campanha ainda está incompleta — falta assunto ou conteúdo.",
+  NO_AUDIENCE: "Este segmento não apanha nenhum subscrito. Escolhe outro ou junta contactos.",
+  INVALID_SCHEDULE: "Escolhe uma data entre daqui a 1 minuto e 1 ano.",
+  INVALID_REFERENCE: "Há um produto ou serviço que já não existe no negócio. Tira-o ou escolhe outro.",
+  CAMPAIGN_STATE: "Esta campanha já não está num estado em que isso se possa fazer. Atualiza a página.",
+  CAMPAIGN_NOT_EDITABLE: "Só os rascunhos se editam. Duplica a campanha para mudar o conteúdo.",
+  CAMPAIGN_NOT_CANCELLABLE: "Esta campanha já não se pode cancelar.",
+  CAMPAIGN_TEST_LIMIT: "Atingiste o limite de testes de hoje. Tenta amanhã.",
+  own_domain_required: "As campanhas precisam de um domínio próprio do negócio, não só do subdomínio da plataforma.",
 };
 
 /** Texto PT de um código de erro de correio (`mailboxError` da Equipa ou `error` de uma resposta); `null` se desconhecido. */

@@ -19,6 +19,7 @@ import { usePostAdminUsersUseridEmailDomainUseOwn } from "../gen/backoffice/hook
 import { usePostAdminUsersUseridEmailDomainMailboxesMove } from "../gen/backoffice/hooks/usePostAdminUsersUseridEmailDomainMailboxesMove.js";
 import { usePostAdminUsersUseridEmailDomainPause } from "../gen/backoffice/hooks/usePostAdminUsersUseridEmailDomainPause.js";
 import { usePostAdminUsersUseridEmailDomainResume } from "../gen/backoffice/hooks/usePostAdminUsersUseridEmailDomainResume.js";
+import { usePostAdminUsersUseridEmailDomainNews } from "../gen/backoffice/hooks/usePostAdminUsersUseridEmailDomainNews.js";
 import {
   useGetAdminUsersUseridMailboxes,
   getAdminUsersUseridMailboxesQueryKey,
@@ -308,7 +309,20 @@ export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; on
     },
   });
 
+  // Campanhas (fase 9): cria `news.<domínio próprio>` no Resend; os registos aparecem em `domain.news`.
+  const newsM = usePostAdminUsersUseridEmailDomainNews({
+    client,
+    mutation: {
+      onSuccess: () => {
+        toast.success("Subdomínio das campanhas criado. Põe os registos no DNS e verifica.");
+        refresh();
+      },
+      onError,
+    },
+  });
+
   const busy =
+    newsM.isPending ||
     putM.isPending ||
     verifyM.isPending ||
     platformM.isPending ||
@@ -592,6 +606,8 @@ export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; on
               onVerify={() => tenant && verifyM.mutate({ userId: tenant.userId, ...kindParams(d.kind) })}
               onUsePlatform={() => tenant && platformM.mutate({ userId: tenant.userId, ...kindParams(d.kind) })}
               onUseOwn={() => tenant && ownM.mutate({ userId: tenant.userId, ...kindParams(d.kind) })}
+              newsPending={newsM.isPending}
+              onPrepareNews={() => tenant && newsM.mutate({ userId: tenant.userId })}
               onEdit={() => setEditing(d.kind ?? "own")}
               onRemove={() => remove(d)}
               activeBoxes={activeBoxes.map((b) => b.address ?? "")}
@@ -632,6 +648,8 @@ function DomainBlock({
   onVerify,
   onUsePlatform,
   onUseOwn,
+  newsPending,
+  onPrepareNews,
   onEdit,
   onRemove,
   activeBoxes,
@@ -647,6 +665,8 @@ function DomainBlock({
   onVerify: () => void;
   onUsePlatform: () => void;
   onUseOwn: () => void;
+  newsPending: boolean;
+  onPrepareNews: () => void;
   onEdit: () => void;
   onRemove: () => void;
   activeBoxes: string[];
@@ -715,6 +735,9 @@ function DomainBlock({
         </div>
       )}
 
+      {/* Campanhas (fase 9): só no domínio próprio verificado. Abrem quando o domínio E o news. estão verificados. */}
+      {isOwn && verified && <NewsSection d={d} busy={busy} pending={newsPending} onPrepare={onPrepareNews} />}
+
       {mailOn && activeBoxes.length > 0 && (
         <div className="rounded-xl border border-zinc-200/80 dark:border-zinc-800 p-3 space-y-2" data-testid="mailboxes-move">
           {boxesOnOwn ? (
@@ -774,6 +797,43 @@ function DomainBlock({
         </GuardButton>
       </div>
     </section>
+  );
+}
+
+/** `news.<domínio>` das campanhas: acção «Preparar campanhas (news.)» e, depois de criado, os registos com o estado ✓/✗. */
+function NewsSection({ d, busy, pending, onPrepare }: { d: TenantEmailDomain; busy: boolean; pending: boolean; onPrepare: () => void }) {
+  const news = d.news;
+  const configured = !!news?.configured;
+  return (
+    <div className="space-y-2" data-testid="news-section">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h4 className="text-sm font-semibold">Campanhas</h4>
+        {configured && <span className="font-mono text-sm break-all" data-testid="news-domain-name">{news?.domain}</span>}
+        {configured && (
+          <span data-testid="news-state">
+            {news?.verified ? <Badge tone="green">Verificado ✓</Badge> : <Badge tone="amber">Não verificado</Badge>}
+          </span>
+        )}
+      </div>
+      {!configured ? (
+        <>
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">
+            As campanhas saem de um subdomínio próprio (<span className="font-mono">news.{d.domain}</span>) para não pôr em
+            risco a reputação do email normal do negócio.
+          </p>
+          <GuardButton size="sm" icon="mail" isLoading={pending} disabled={busy} onClick={onPrepare}>
+            Preparar campanhas (news.)
+          </GuardButton>
+        </>
+      ) : (
+        <>
+          <DnsRecordsTable records={news?.records ?? []} testId="news-records" rowTestId="news-record-row" />
+          <p className="text-xs text-zinc-400">
+            As campanhas só abrem quando o domínio e o {news?.domain ?? "news."} estão verificados. «Verificar agora» confere os dois.
+          </p>
+        </>
+      )}
+    </div>
   );
 }
 

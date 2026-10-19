@@ -19,6 +19,7 @@ const mutates = {
   move: vi.fn(),
   pause: vi.fn(),
   resume: vi.fn(),
+  news: vi.fn(),
 };
 const opts: Record<string, any> = {};
 
@@ -49,6 +50,9 @@ vi.mock("../../src/gen/backoffice/hooks/usePostAdminUsersUseridEmailDomainPause.
 }));
 vi.mock("../../src/gen/backoffice/hooks/usePostAdminUsersUseridEmailDomainResume.js", () => ({
   usePostAdminUsersUseridEmailDomainResume: (o: any) => ((opts.resume = o), { mutate: mutates.resume, isPending: false }),
+}));
+vi.mock("../../src/gen/backoffice/hooks/usePostAdminUsersUseridEmailDomainNews.js", () => ({
+  usePostAdminUsersUseridEmailDomainNews: (o: any) => ((opts.news = o), { mutate: mutates.news, isPending: false }),
 }));
 vi.mock("../../src/gen/backoffice/hooks/useGetAdminEmailStatus.js", () => ({
   useGetAdminEmailStatus: () => statusMock(),
@@ -476,6 +480,48 @@ describe("AdminEmailModal — domínio próprio (fase 7)", () => {
     expect(screen.queryByRole("button", { name: "Pausar envios" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Retomar envios" }));
     expect(mutates.resume).toHaveBeenCalledWith({ userId: "u1" });
+  });
+});
+
+// ── Fase 9: news. das campanhas ─────────────────────────────────────────────────────────────────────────────────
+describe("AdminEmailModal — Preparar campanhas (news.)", () => {
+  it("domínio próprio verificado sem news.: mostra «Preparar campanhas (news.)» e chama POST …/news", () => {
+    getMock.mockReturnValue({ data: twoDomains({ domain: { ...OWN, news: null } , domains: [SUB, { ...OWN, news: null }] }), isLoading: false, isError: false });
+    renderModal();
+    expect(screen.getByTestId("news-section")).toHaveTextContent("news.tifas.pt");
+    fireEvent.click(screen.getByRole("button", { name: "Preparar campanhas (news.)" }));
+    expect(mutates.news).toHaveBeenCalledWith({ userId: "u1" });
+  });
+
+  it("com news. criado: mostra o nome, o estado e os registos com ✓/✗", () => {
+    const news = {
+      domain: "news.tifas.pt",
+      configured: true,
+      verified: false,
+      lastCheckedAt: null,
+      records: [REC({ name: "news-a", verified: true, status: "verified" }), REC({ name: "news-b" })],
+    };
+    getMock.mockReturnValue({ data: twoDomains({ domains: [SUB, { ...OWN, news }] }), isLoading: false, isError: false });
+    renderModal();
+    expect(screen.getByTestId("news-domain-name")).toHaveTextContent("news.tifas.pt");
+    expect(screen.getByTestId("news-state")).toHaveTextContent("Não verificado");
+    const rows = within(screen.getByTestId("news-records")).getAllByTestId("news-record-row");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("✓ Verificado");
+    expect(rows[1]).toHaveTextContent("✗");
+    expect(screen.queryByRole("button", { name: "Preparar campanhas (news.)" })).toBeNull();
+  });
+
+  it("domínio próprio por verificar ou só o da plataforma: não aparece a secção", () => {
+    getMock.mockReturnValue({ data: twoDomains({ domains: [SUB, { ...OWN, verified: false }] }), isLoading: false, isError: false });
+    renderModal();
+    expect(screen.queryByTestId("news-section")).toBeNull();
+  });
+
+  it("409 own_domain_required tem texto PT", () => {
+    renderModal();
+    opts.news.mutation.onError({ response: { status: 409, data: { error: "own_domain_required" } } });
+    expect(toastError).toHaveBeenCalledWith(expect.stringContaining("domínio próprio"));
   });
 });
 

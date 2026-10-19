@@ -116,7 +116,7 @@ Detalhe de cada página em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
 |---|---|---|
 | `Dashboard.tsx` | `/` | qualquer |
 | `Clientes.tsx` | `/clientes` · `/clientes/leads` | **core**, mas os dois subitens exigem `VIEW_CUSTOMERS` → sem ela sai da sidebar |
-| `Correio.tsx` | `/correio` (Caixa) | `VIEW_EMAIL` + folha `correio.caixa` | Item **"Correio"** (nunca "Email": colide com Conteúdos → Emails). Subitens Caixa e Contactos (`/correio/contactos`, folha `correio.contactos`). Detalhe em `REFERENCIA-PAGINAS.md` → *Correio (B42)* |
+| `Correio.tsx` | `/correio` (Caixa) | `VIEW_EMAIL` + folha `correio.caixa` | Item **"Correio"** (nunca "Email": colide com Conteúdos → Emails). Subitens Caixa, Campanhas (`/correio/campanhas`, folha `correio.campanhas`; enviar = `correio.campanhas.enviar`) e Contactos (`/correio/contactos`, folha `correio.contactos`). Detalhe em `REFERENCIA-PAGINAS.md` → *Correio (B42)* |
 | `Mensagens.tsx` | `/mensagens` | **core** (chat de suporte) |
 | `Conteudos.tsx` | `/conteudos` · `/produtos` · `/servicos` · `/ginasio` · `/linguas` · `/emails` · `/notificacoes` | **core**, com gating **por subitem** |
 | `Faturacao.tsx` | `/faturacao` | **core** |

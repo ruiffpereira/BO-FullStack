@@ -247,6 +247,12 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "soldByStaffId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Profissional que vendeu (a venda conta para ele no financeiro); null = sem profissional"
           }
         },
         "required": [
@@ -464,6 +470,32 @@
             "type": "string",
             "description": "Cor hex do serviço (ex: #2A6FDB)",
             "nullable": true
+          },
+          "availableOnSite": {
+            "type": "boolean",
+            "description": "Disponível no site de marcações (false = só se marca no Backoffice). Omitido na criação = true."
+          },
+          "staff": {
+            "type": "array",
+            "description": "Só no GET por id: quem faz o serviço (todos os profissionais, menos os excluídos)",
+            "items": {
+              "type": "object",
+              "properties": {
+                "staffId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "active": {
+                  "type": "boolean"
+                },
+                "doesIt": {
+                  "type": "boolean"
+                }
+              }
+            }
           }
         },
         "required": [
@@ -574,6 +606,34 @@
             "type": "integer",
             "nullable": true,
             "description": "Duração personalizada em minutos (null = usa duração do serviço)"
+          },
+          "staffId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Profissional que atende (null = sem profissional)"
+          },
+          "staff": {
+            "type": "object",
+            "nullable": true,
+            "description": "Só nas listas/detalhe do Backoffice: o profissional (para a cor/nome no calendário)",
+            "properties": {
+              "staffId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "color": {
+                "type": "string",
+                "nullable": true
+              },
+              "photo": {
+                "type": "string",
+                "nullable": true
+              }
+            }
           }
         },
         "required": [
@@ -756,6 +816,12 @@
           "trackingCode": {
             "type": "string",
             "nullable": true
+          },
+          "soldByStaffId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Vendido por (profissional do tenant, opcional). De outro tenant -> 400 STAFF_INVALID."
           }
         }
       },
@@ -946,6 +1012,12 @@
           "notes": {
             "type": "string",
             "nullable": true
+          },
+          "staffId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Profissional a quem a despesa se atribui (opcional)"
           },
           "userId": {
             "type": "string",
@@ -2887,6 +2959,230 @@
           "updatedAt"
         ]
       },
+      "Staff": {
+        "type": "object",
+        "description": "Profissional (multi-staff). Não é um login; `memberId` liga-o (opcional) a um membro da equipa do mesmo tenant.",
+        "required": [
+          "staffId",
+          "name",
+          "showOnSite",
+          "active",
+          "position"
+        ],
+        "properties": {
+          "staffId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "photo": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "example": "#2A6FDB"
+          },
+          "showOnSite": {
+            "type": "boolean",
+            "description": "Aparece no site de marcações (desmarcado = só marcações feitas no Backoffice)"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "position": {
+            "type": "integer"
+          },
+          "memberId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Membro da equipa ligado (no máximo um profissional por membro)"
+          },
+          "memberName": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "StaffOption": {
+        "type": "object",
+        "description": "Entrada reduzida para selectores (marcação, venda, despesa, filtros): sem membro, horário nem preços",
+        "required": [
+          "staffId",
+          "name",
+          "active",
+          "showOnSite",
+          "position"
+        ],
+        "properties": {
+          "staffId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "photo": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "showOnSite": {
+            "type": "boolean"
+          },
+          "position": {
+            "type": "integer"
+          }
+        }
+      },
+      "StaffServiceRule": {
+        "type": "object",
+        "description": "Excepção ao 'todos fazem tudo'. Ausência de linha = faz ao preço normal.",
+        "required": [
+          "serviceId",
+          "excluded"
+        ],
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "excluded": {
+            "type": "boolean",
+            "description": "true = este profissional não faz o serviço"
+          },
+          "price": {
+            "type": "number",
+            "nullable": true,
+            "description": "Preço próprio (null = o preço normal do serviço). Só se grava com a folha agenda.profissionais.precos."
+          }
+        }
+      },
+      "StaffWorkingHoursDay": {
+        "type": "object",
+        "required": [
+          "dayOfWeek",
+          "startTime",
+          "endTime",
+          "isActive"
+        ],
+        "properties": {
+          "dayOfWeek": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 6,
+            "description": "0=Dom … 6=Sáb"
+          },
+          "startTime": {
+            "type": "string",
+            "example": "09:00"
+          },
+          "endTime": {
+            "type": "string",
+            "example": "18:00"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "lunchStart": {
+            "type": "string",
+            "nullable": true
+          },
+          "lunchEnd": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "StaffTimeOff": {
+        "type": "object",
+        "required": [
+          "timeOffId",
+          "startDate",
+          "endDate"
+        ],
+        "properties": {
+          "timeOffId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "startTime": {
+            "type": "string",
+            "nullable": true,
+            "description": "Janela de horas (só quando startDate = endDate)"
+          },
+          "endTime": {
+            "type": "string",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "StaffDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Staff"
+          },
+          {
+            "type": "object",
+            "required": [
+              "services",
+              "workingHours",
+              "inheritsWorkingHours",
+              "timeOff"
+            ],
+            "properties": {
+              "services": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StaffServiceRule"
+                }
+              },
+              "workingHours": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StaffWorkingHoursDay"
+                }
+              },
+              "inheritsWorkingHours": {
+                "type": "boolean",
+                "description": "true = sem horário próprio (herda o do negócio)"
+              },
+              "timeOff": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StaffTimeOff"
+                }
+              },
+              "canEditPrices": {
+                "type": "boolean",
+                "description": "false = o campo de preço é só-leitura (falta a folha agenda.profissionais.precos)"
+              }
+            }
+          }
+        ]
+      },
       "TeamMember": {
         "type": "object",
         "properties": {
@@ -2943,6 +3239,20 @@
             "type": "boolean",
             "description": "true = pode ver o detalhe e gerir (dono, ou o criador directo com Gerir)"
           },
+          "staff": {
+            "type": "object",
+            "nullable": true,
+            "description": "Profissional ligado a este membro (Profissionais); null = nenhum. Liga-se/desliga-se em PUT /schedule/staff/{id} (memberId).",
+            "properties": {
+              "staffId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
           "grants": {
             "type": "array",
             "items": {
@@ -2958,6 +3268,13 @@
                     "view",
                     "edit"
                   ]
+                },
+                "scope": {
+                  "type": "string",
+                  "enum": [
+                    "meus"
+                  ],
+                  "description": "Só aparece quando o âmbito é 'Só os meus'; ausente = Todos"
                 }
               }
             }
@@ -3027,6 +3344,15 @@
               "view",
               "edit"
             ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "todos",
+              "meus"
+            ],
+            "nullable": true,
+            "description": "Âmbito (só em nós com scoped=true): todos (omissão) ou meus = Só os meus. Quem só tem 'meus' num nó não pode dar 'todos' nele (422 TEAM_GRANT_NOT_ALLOWED)."
           }
         }
       },
@@ -3043,6 +3369,8 @@
           "excludeFromFullAccess",
           "levelLabels",
           "maxLevel",
+          "scoped",
+          "maxScope",
           "children"
         ],
         "properties": {
@@ -3100,6 +3428,18 @@
             ],
             "nullable": true,
             "description": "Nível máximo que QUEM PEDE pode dar neste nó (dono: o do nó; membro: o seu; null = nenhum)"
+          },
+          "scoped": {
+            "type": "boolean",
+            "description": "true = o nó aceita o âmbito [Todos | Só os meus] (Profissionais)"
+          },
+          "maxScope": {
+            "type": "string",
+            "enum": [
+              "meus"
+            ],
+            "nullable": true,
+            "description": "'meus' = quem pede só tem 'Só os meus' neste nó e só pode dar esse âmbito; null = pode dar Todos"
           },
           "children": {
             "type": "array",
@@ -9365,6 +9705,14 @@
               "format": "date"
             },
             "description": "Só lido quando period=custom (ignorado com qualquer outro period)"
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Profissionais: all = global (omissão) | none = sem profissional | id de um profissional do tenant (404 STAFF_NOT_FOUND; lixo 400 STAFF_INVALID). Filtra marcações (agenda), vendas (`Order.soldByStaffId`) e despesas; as mensalidades do ginásio só entram em all/none. Membro com âmbito 'Só os meus' em agenda.marcacoes / financeiro.despesas: sempre só o profissional ligado a ele (sem ligado: zeros).\n"
           }
         ],
         "responses": {
@@ -10303,6 +10651,14 @@
               ],
               "default": "newest"
             }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "description": "Profissionais: all (omissão) | none (sem profissional) | id de um profissional do tenant — filtra por quem vendeu. 404 STAFF_NOT_FOUND se não for do tenant.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -10439,6 +10795,12 @@
                   },
                   "price": {
                     "type": "number"
+                  },
+                  "soldByStaffId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true,
+                    "description": "Vendido por (profissional do tenant); null tira-o. De outro tenant -> 400 STAFF_INVALID."
                   }
                 }
               }
@@ -11226,6 +11588,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Profissionais: all (omissão) | none | id de um profissional do tenant (404 STAFF_NOT_FOUND). Membro com âmbito 'Só os meus' em financeiro.despesas: sempre só as do profissional ligado a ele."
           }
         ],
         "responses": {
@@ -11251,7 +11621,7 @@
             }
           },
           "400": {
-            "description": "month/from/to inválidos"
+            "description": "month/from/to/staff inválidos"
           }
         }
       },
@@ -11290,6 +11660,12 @@
                   "notes": {
                     "type": "string",
                     "nullable": true
+                  },
+                  "staffId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true,
+                    "description": "Profissional a quem se atribui (opcional; do tenant, senão 400 STAFF_INVALID). Membro com âmbito 'Só os meus': forçado ao dele (403 STAFF_SCOPE_NO_STAFF sem profissional ligado)."
                   }
                 }
               }
@@ -11327,6 +11703,14 @@
               "type": "string",
               "example": "2026-06"
             }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Profissionais: all (omissão) | none | id (404 STAFF_NOT_FOUND). 'Só os meus' força o profissional ligado."
           }
         ],
         "responses": {
@@ -11431,6 +11815,12 @@
                   "notes": {
                     "type": "string",
                     "nullable": true
+                  },
+                  "staffId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true,
+                    "description": "Muda o profissional (null tira-o). Ignorado para 'Só os meus'."
                   }
                 }
               }
@@ -11540,6 +11930,14 @@
               ]
             },
             "description": "com = preço final (default); sem = base sem IVA"
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Profissionais: all = global (omissão) | none = sem profissional | id de um profissional do tenant (404 STAFF_NOT_FOUND; lixo 400 STAFF_INVALID). Membro com âmbito 'Só os meus' na folha: sempre só o profissional ligado a ele (sem ligado: tudo a zero). A resposta devolve `staff` com o filtro aplicado."
           }
         ],
         "responses": {
@@ -11551,6 +11949,10 @@
                   "type": "object",
                   "additionalProperties": true,
                   "properties": {
+                    "staff": {
+                      "type": "string",
+                      "description": "Filtro aplicado: all | none | <staffId> | nothing (membro 'Só os meus' sem profissional ligado)"
+                    },
                     "access": {
                       "type": "object",
                       "properties": {
@@ -11565,8 +11967,14 @@
               }
             }
           },
+          "400": {
+            "description": "staff inválido (STAFF_INVALID)"
+          },
           "403": {
             "description": "Membro da equipa sem a folha financeiro.agenda ou sem Valores e pagamentos (TEAM_FORBIDDEN)"
+          },
+          "404": {
+            "description": "Profissional não encontrado (STAFF_NOT_FOUND)"
           },
           "500": {
             "description": "Erro ao obter o financeiro da agenda"
@@ -11619,6 +12027,14 @@
                 "sem"
               ]
             }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Profissionais: all = global (omissão) | none = sem profissional | id de um profissional do tenant (404 STAFF_NOT_FOUND; lixo 400 STAFF_INVALID). Membro com âmbito 'Só os meus' na folha: sempre só o profissional ligado a ele (sem ligado: tudo a zero). A resposta devolve `staff` com o filtro aplicado."
           }
         ],
         "responses": {
@@ -11643,8 +12059,14 @@
               }
             }
           },
+          "400": {
+            "description": "staff inválido (STAFF_INVALID)"
+          },
           "403": {
             "description": "Membro da equipa sem a folha financeiro.loja (TEAM_FORBIDDEN)"
+          },
+          "404": {
+            "description": "Profissional não encontrado (STAFF_NOT_FOUND)"
           },
           "500": {
             "description": "Erro ao obter o financeiro da loja"
@@ -11686,6 +12108,14 @@
               "type": "string",
               "format": "date"
             }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Profissionais: all = global (omissão) | none = sem profissional | id de um profissional do tenant (404 STAFF_NOT_FOUND; lixo 400 STAFF_INVALID). Membro com âmbito 'Só os meus' em financeiro.negocio ou na folha do bloco: sempre só o profissional ligado a ele (sem ligado: tudo a zero). A resposta devolve `staff` com o filtro aplicado."
           }
         ],
         "responses": {
@@ -11750,8 +12180,14 @@
               }
             }
           },
+          "400": {
+            "description": "staff inválido (STAFF_INVALID)"
+          },
           "403": {
             "description": "Membro da equipa sem a folha financeiro.negocio (TEAM_FORBIDDEN)"
+          },
+          "404": {
+            "description": "Profissional não encontrado (STAFF_NOT_FOUND)"
           },
           "500": {
             "description": "Erro ao obter o consolidado do negócio"
@@ -15718,6 +16154,14 @@
                 "no_show"
               ]
             }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "description": "Profissionais: all (omissão) | none (sem profissional) | id de um profissional do tenant (404 STAFF_NOT_FOUND se não for; 400 STAFF_INVALID se lixo). Membro com âmbito 'Só os meus' em agenda.marcacoes: sempre só o profissional ligado a ele (sem ligado → lista vazia).",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -15781,6 +16225,12 @@
                   },
                   "notes": {
                     "type": "string"
+                  },
+                  "staffId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true,
+                    "description": "Profissional (opcional): do tenant, activo e que faz o serviço. O preço da marcação é o preço próprio dele nesse serviço, se houver, senão o do serviço (calculado na API; um `price` no corpo é ignorado). Membro com âmbito 'Só os meus': forçado ao profissional ligado a ele."
                   }
                 }
               }
@@ -15789,10 +16239,39 @@
         },
         "responses": {
           "201": {
-            "description": "Marcação criada"
+            "description": "Marcação criada. `warnings` (não bloqueante — sobrepor é permitido no Backoffice): STAFF_BUSY (o profissional já tem outra marcação a sobrepor-se) e STAFF_TIME_OFF (cai numa folga/férias dele).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Appointment"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "warnings": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "STAFF_BUSY",
+                              "STAFF_TIME_OFF"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
           "400": {
-            "description": "Corpo inválido (zod): falta `clientEmail`/`clientPhone`/`clientName`/`serviceId`, `date` fora de AAAA-MM-DD ou `time` fora de HH:MM"
+            "description": "Corpo inválido (zod): falta `clientEmail`/`clientPhone`/`clientName`/`serviceId`, `date` fora de AAAA-MM-DD ou `time` fora de HH:MM; `STAFF_INVALID` (profissional inexistente ou de outro tenant), `STAFF_INACTIVE`, `STAFF_SERVICE_UNAVAILABLE` (o profissional não faz o serviço)"
+          },
+          "403": {
+            "description": "`STAFF_SCOPE_NO_STAFF` — membro com âmbito 'Só os meus' sem profissional ligado"
           }
         }
       }
@@ -15857,6 +16336,12 @@
                   "cancelPayment": {
                     "type": "boolean",
                     "description": "true = anula todo o pagamento registado"
+                  },
+                  "staffId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true,
+                    "description": "Muda o profissional (null = sem profissional). Só em marcações abertas; recalcula o preço (preço próprio do profissional ou o do serviço) — numa marcação com pagamentos exige agenda.marcacoes.valores (403 TEAM_FORBIDDEN). Ignorado para membros com âmbito 'Só os meus'."
                   }
                 }
               }
@@ -15865,7 +16350,29 @@
         },
         "responses": {
           "200": {
-            "description": "Marcação atualizada"
+            "description": "Marcação atualizada. `warnings`: STAFF_BUSY / STAFF_TIME_OFF (não bloqueantes; só calculados se data, hora, serviço ou profissional mudaram).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "STAFF_BUSY",
+                          "STAFF_TIME_OFF"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Campo inválido ou operação não permitida no estado actual"
@@ -16326,6 +16833,10 @@
                   "active": {
                     "type": "boolean"
                   },
+                  "availableOnSite": {
+                    "type": "boolean",
+                    "description": "Disponível no site de marcações (omissão true). false = não aparece nem se marca pelo site."
+                  },
                   "color": {
                     "type": "string",
                     "description": "Cor hex (ex: #2A6FDB)"
@@ -16422,6 +16933,9 @@
                   "active": {
                     "type": "boolean"
                   },
+                  "availableOnSite": {
+                    "type": "boolean"
+                  },
                   "color": {
                     "type": "string"
                   }
@@ -16505,6 +17019,596 @@
           },
           "400": {
             "description": "Array inválido ou serviceIds não pertencem ao utilizador"
+          }
+        }
+      }
+    },
+    "/schedule/staff/options": {
+      "get": {
+        "summary": "Profissionais para selectores (marcação, venda, despesa, filtros do financeiro/dashboard)",
+        "description": "Só nome, foto, cor e estado — sem horário, preços nem membro ligado. Acessível a quem tem `view` em qualquer folha que use o selector (agenda.marcacoes, agenda.profissionais, loja.encomendas, financeiro.*, dashboard, equipa). Tenant sem profissionais → lista vazia (o Backoffice não mostra o selector).",
+        "tags": [
+          "Staff"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista ordenada por `position`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StaffOption"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`TEAM_FORBIDDEN` — membro sem nenhuma das folhas"
+          }
+        }
+      }
+    },
+    "/schedule/staff": {
+      "get": {
+        "summary": "Listar profissionais",
+        "tags": [
+          "Staff"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profissionais do tenant, por `position`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Staff"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`TEAM_FORBIDDEN` — sem `agenda.profissionais` (Ver)"
+          }
+        }
+      },
+      "post": {
+        "summary": "Criar profissional",
+        "description": "Por omissão faz TODOS os serviços ao preço normal, herda o horário do negócio e aparece no site. `memberId` (opcional) liga-o a um membro da equipa do mesmo tenant — um membro por profissional; um membro com âmbito \"Só os meus\" não pode ligar membros (403 `STAFF_LINK_FORBIDDEN`). Máximo 50 por tenant.",
+        "tags": [
+          "Staff"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "photo": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "URL de um ficheiro do storage deste tenant (/uploads)"
+                  },
+                  "color": {
+                    "type": "string",
+                    "nullable": true,
+                    "example": "#2A6FDB"
+                  },
+                  "showOnSite": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "active": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "position": {
+                    "type": "integer"
+                  },
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Profissional criado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Staff"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos (zod), `STAFF_MEMBER_INVALID` (membro inexistente ou de outro tenant) ou `STAFF_PHOTO_INVALID`"
+          },
+          "403": {
+            "description": "`TEAM_FORBIDDEN` ou `STAFF_LINK_FORBIDDEN`"
+          },
+          "409": {
+            "description": "`STAFF_LIMIT` ou `STAFF_MEMBER_TAKEN`"
+          }
+        }
+      }
+    },
+    "/schedule/staff/{id}": {
+      "get": {
+        "summary": "Detalhe de um profissional (serviços que faz, preços próprios, horário, férias e folgas)",
+        "tags": [
+          "Staff"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profissional",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`TEAM_FORBIDDEN`"
+          },
+          "404": {
+            "description": "`STAFF_NOT_FOUND` — não existe ou é de outro tenant"
+          }
+        }
+      },
+      "put": {
+        "summary": "Editar profissional (nome, foto, cor, \"Aparece no site\", activo, ordem, membro ligado)",
+        "description": "Todos os campos opcionais. `memberId: null` desliga o membro. Mudar a ligação a um membro muda o que esse membro vê se tiver o âmbito \"Só os meus\" — por isso um membro com esse âmbito não pode mexer nas ligações (403 `STAFF_LINK_FORBIDDEN`).",
+        "tags": [
+          "Staff"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "photo": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "color": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "showOnSite": {
+                    "type": "boolean"
+                  },
+                  "active": {
+                    "type": "boolean"
+                  },
+                  "position": {
+                    "type": "integer"
+                  },
+                  "memberId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profissional actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Staff"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos, `STAFF_MEMBER_INVALID` ou `STAFF_PHOTO_INVALID`"
+          },
+          "403": {
+            "description": "`TEAM_FORBIDDEN` ou `STAFF_LINK_FORBIDDEN`"
+          },
+          "404": {
+            "description": "`STAFF_NOT_FOUND`"
+          },
+          "409": {
+            "description": "`STAFF_MEMBER_TAKEN`"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Apagar profissional",
+        "description": "Só se nunca atendeu, vendeu nem teve despesas (senão perdia-se o histórico do financeiro): nesse caso 409 `STAFF_HAS_HISTORY` e a saída é desactivar (`active: false`). Apaga também as regras de serviço, o horário e as folgas.",
+        "tags": [
+          "Staff"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profissional apagado"
+          },
+          "403": {
+            "description": "`TEAM_FORBIDDEN`"
+          },
+          "404": {
+            "description": "`STAFF_NOT_FOUND`"
+          },
+          "409": {
+            "description": "`STAFF_HAS_HISTORY` — desactivar em vez de apagar"
+          }
+        }
+      }
+    },
+    "/schedule/staff/{id}/services": {
+      "put": {
+        "summary": "Definir as excepções de serviços do profissional (quem não faz, preço próprio)",
+        "description": "Por omissão o profissional faz TODOS os serviços ao preço normal. O corpo é a lista COMPLETA das excepções: serviços não listados voltam a \"faz, preço normal\". `price` (número) é o preço próprio; `null` apaga-o. **Sem a folha `agenda.profissionais.precos` (Editar) o `price` do corpo é IGNORADO** — os preços próprios que já existiam mantêm-se (o resto aplica-se). Todos os `serviceId` têm de ser do tenant (400 `SERVICE_INVALID`).",
+        "tags": [
+          "Staff"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "services"
+                ],
+                "properties": {
+                  "services": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/StaffServiceRule"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Excepções gravadas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "services": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/StaffServiceRule"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos ou `SERVICE_INVALID`"
+          },
+          "403": {
+            "description": "`TEAM_FORBIDDEN`"
+          },
+          "404": {
+            "description": "`STAFF_NOT_FOUND`"
+          }
+        }
+      }
+    },
+    "/schedule/staff/{id}/working-hours": {
+      "put": {
+        "summary": "Horário próprio do profissional (herdar o do negócio, copiá-lo para editar, ou gravar dias)",
+        "description": "`{ inherit: true }` apaga o horário próprio (herda o do negócio). `{ inherit: false }` sem `hours` COPIA o horário do negócio para o profissional (a editar depois). `{ inherit: false, hours: [...] }` grava esses dias — com horário próprio, um dia sem linha (ou inactivo) é um dia em que o profissional não trabalha.",
+        "tags": [
+          "Staff"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "inherit"
+                ],
+                "properties": {
+                  "inherit": {
+                    "type": "boolean"
+                  },
+                  "hours": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/StaffWorkingHoursDay"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Horário resultante",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "inheritsWorkingHours": {
+                      "type": "boolean"
+                    },
+                    "workingHours": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/StaffWorkingHoursDay"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos (zod)"
+          },
+          "403": {
+            "description": "`TEAM_FORBIDDEN`"
+          },
+          "404": {
+            "description": "`STAFF_NOT_FOUND`"
+          }
+        }
+      }
+    },
+    "/schedule/staff/{id}/time-off": {
+      "post": {
+        "summary": "Registar férias ou folga do profissional",
+        "description": "Dias inteiros `[startDate, endDate]` ou, num só dia, uma janela `[startTime, endTime]`. O site deixa de oferecer horas nesse período para este profissional; no Backoffice continua a poder marcar (aviso `STAFF_TIME_OFF`). Máximo 200 por profissional.",
+        "tags": [
+          "Staff"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "startDate",
+                  "endDate"
+                ],
+                "properties": {
+                  "startDate": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "endDate": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "startTime": {
+                    "type": "string",
+                    "nullable": true,
+                    "example": "14:00"
+                  },
+                  "endTime": {
+                    "type": "string",
+                    "nullable": true,
+                    "example": "16:00"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Folga registada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffTimeOff"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos (zod)"
+          },
+          "403": {
+            "description": "`TEAM_FORBIDDEN`"
+          },
+          "404": {
+            "description": "`STAFF_NOT_FOUND`"
+          },
+          "409": {
+            "description": "`STAFF_TIME_OFF_LIMIT`"
+          }
+        }
+      }
+    },
+    "/schedule/staff/{id}/time-off/{timeOffId}": {
+      "delete": {
+        "summary": "Apagar uma folga do profissional",
+        "tags": [
+          "Staff"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "timeOffId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Folga apagada"
+          },
+          "403": {
+            "description": "`TEAM_FORBIDDEN`"
+          },
+          "404": {
+            "description": "`STAFF_NOT_FOUND` ou folga inexistente (ou de outro profissional/tenant)"
           }
         }
       }
@@ -18096,6 +19200,10 @@
     {
       "name": "Services",
       "description": "Gestão de serviços"
+    },
+    {
+      "name": "Staff",
+      "description": "Profissionais (multi-staff) — quem atende. Folha `agenda.profissionais` (Ver | Editar) e `agenda.profissionais.precos`."
     },
     {
       "name": "WorkingHours",

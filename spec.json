@@ -3536,6 +3536,11 @@
           },
           "value": {
             "type": "string"
+          },
+          "priority": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Prioridade do MX (null nos outros tipos)"
           }
         }
       },
@@ -3632,6 +3637,15 @@
                 "nullable": true,
                 "example": "mail.rufvision.com",
                 "description": "Para onde os MX dos domínios têm de apontar"
+              },
+              "boxesOn": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  "own",
+                  "platform"
+                ],
+                "description": "Onde estão hoje as caixas activas: own = todas no domínio próprio; platform = alguma no subdomínio da plataforma; null = sem caixas"
               }
             }
           },
@@ -4198,7 +4212,8 @@
               "no_own_domain",
               "own_not_verified",
               "sending_disabled",
-              "news_not_verified"
+              "news_not_verified",
+              "api_url_missing"
             ]
           },
           "message": {
@@ -6666,7 +6681,7 @@
     "/admin/users/{userId}/email-domain/pause": {
       "post": {
         "summary": "Pausar os envios do negócio pela caixa (e campanhas)",
-        "description": "Pausa manual (a automática vem das queixas de spam do Resend). Com a pausa, enviar pela caixa dá 423 `MAIL_SENDING_PAUSED`. Os emails automáticos (marcações, reset…) continuam. Idempotente. `VIEW_ADMIN`; fechada em sessão de suporte.\n",
+        "description": "Pausa manual (a automática vem das queixas de spam do Resend). Funciona mesmo sem domínio de email configurado (o estado vive em `EmailTenantStates`); o envelope traz `sending.paused` nesse caso também. Com a pausa, enviar pela caixa dá 423 `MAIL_SENDING_PAUSED`. Os emails automáticos (marcações, reset…) continuam. Idempotente. `VIEW_ADMIN`; fechada em sessão de suporte.\n",
         "tags": [
           "Users"
         ],
@@ -18685,7 +18700,7 @@
     "/mail/campaigns/status": {
       "get": {
         "summary": "As campanhas estão disponíveis? (domínio próprio + news. verificados, pausa)",
-        "description": "`correio.campanhas` (Ver) + VIEW_EMAIL. Nunca falha por estar bloqueado: devolve `available: false` com o `reason` e a mensagem \"Disponível quando o teu domínio estiver configurado.\" para o Backoffice mostrar o estado vazio em vez de um erro.",
+        "description": "`correio.campanhas` (Ver) + VIEW_EMAIL. Nunca falha por estar bloqueado: devolve `available: false` com o `reason` e a mensagem \"Disponível quando o teu domínio estiver configurado.\" (ou, com `reason: \"api_url_missing\"`, \"Campanhas por configurar na plataforma\": falta a env `API_PUBLIC_URL`) para o Backoffice mostrar o estado vazio em vez de um erro.",
         "tags": [
           "MailCampaigns"
         ],
@@ -19475,7 +19490,15 @@
         ],
         "responses": {
           "200": {
-            "description": "Ficheiro CSV",
+            "description": "Ficheiro CSV (UTF-8 com BOM, `contactos.csv`)",
+            "headers": {
+              "Content-Disposition": {
+                "description": "attachment; filename=\"contactos.csv\"",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "text/csv": {
                 "schema": {

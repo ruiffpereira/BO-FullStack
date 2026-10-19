@@ -8627,10 +8627,7 @@
             }
           },
           "401": {
-            "description": "Invalid credentials"
-          },
-          "404": {
-            "description": "User not found"
+            "description": "Credenciais incorrectas — o mesmo corpo e o mesmo tempo para email inexistente, password errada/em falta e conta ainda por activar (sem password)"
           },
           "500": {
             "description": "Server error"

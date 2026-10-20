@@ -92,6 +92,14 @@ volumes:
 - **Deploy.** Sem `config.json` o Stalwart arranca em *modo de instalação* (só a porta 8080, nada de email) e aceita a
   credencial `admin:<a password que pusseste em STALWART_RECOVERY_ADMIN>`.
 
+> **Como foi feito em produção a 2026-10-20 (o caminho que resultou):** o assistente (5a) e a configuração (5b) correram
+> **de dentro do contentor** (Coolify → serviço do Stalwart → Terminal), com `curl` contra `http://127.0.0.1:8080/jmap`
+> e `-u "$STALWART_RECOVERY_ADMIN"` — pelo PowerShell/Traefik a mesma credencial dava 401. Uma linha por comando, o
+> segredo colado no Bloco de Notas sobre o marcador (o terminal do Coolify não guarda variáveis entre linhas). As linhas
+> provadas ficaram em `D:\Projetos\stalwart-subida\` (`passo-D-linha.txt`, `nova-password-api.txt`). Mudar a password
+> da conta da API (id `c`): `x:Account/set` com `update.c.credentials` (prova com `GET /api/account` = 200), e a mesma
+> em `STALWART_PASSWORD` no Coolify da API → Restart. Ver também ARMADILHAS → «Coolify e o dono a correr comandos».
+
 ### 4b · Falar com o Stalwart (JMAP) — feito a 2026-10-20 para a 0.11, refeito para a 0.16
 - **Endereço:** `https://mailadmin.rufvision.com` — registo `A mailadmin` **DNS only** na Cloudflare + no Coolify o
   domínio `https://mailadmin.rufvision.com:8080` no serviço `stalwart` → Restart. Só abre **pela VPN** (regra 3 do

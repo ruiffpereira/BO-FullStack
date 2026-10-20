@@ -373,6 +373,7 @@
               "MESSAGE_EMPTY",
               "MESSAGE_INVALID",
               "ATTACHMENT_INVALID",
+              "ATTACHMENT_EXPIRED",
               "TEAM_FORBIDDEN",
               "TEAM_SELF_CHAT",
               "TEAM_PERSON_REMOVED",
@@ -9395,7 +9396,7 @@
             "description": "Mensagem criada"
           },
           "400": {
-            "description": "Mensagem vazia"
+            "description": "Mensagem vazia ou anexo expirado (ATTACHMENT_EXPIRED)"
           }
         }
       }
@@ -9545,7 +9546,7 @@
             "description": "Mensagem criada"
           },
           "400": {
-            "description": "Mensagem vazia"
+            "description": "Mensagem vazia ou anexo expirado (ATTACHMENT_EXPIRED)"
           },
           "404": {
             "description": "Tenant não encontrado"
@@ -20602,9 +20603,7 @@
             }
           },
           "400": {
-            "description": "Mensagem vazia/inválida ou anexo inválido (MESSAGE_EMPTY",
-            "MESSAGE_INVALID": null,
-            "ATTACHMENT_INVALID)": null,
+            "description": "Mensagem vazia/inválida ou anexo inválido ou expirado (MESSAGE_EMPTY, MESSAGE_INVALID, ATTACHMENT_INVALID, ATTACHMENT_EXPIRED)",
             "content": {
               "application/json": {
                 "schema": {
@@ -20981,8 +20980,7 @@
             }
           },
           "400": {
-            "description": "Mensagem vazia/inválida",
-            "anexo inválido ou conversa contigo próprio": null,
+            "description": "Mensagem vazia/inválida, anexo inválido ou expirado (ATTACHMENT_EXPIRED) ou conversa contigo próprio",
             "content": {
               "application/json": {
                 "schema": {

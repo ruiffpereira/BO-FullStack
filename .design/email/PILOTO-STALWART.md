@@ -50,13 +50,15 @@ Cloudflare → My Profile → API Tokens → *Create Token* → modelo **Edit zo
 Guarda-o (vai para o passo 4).
 
 ### 4 · Instalar no Coolify
-Projecto da plataforma → **+ New → Docker Compose (Empty)**, com isto (confirma o nome da imagem e a pasta de dados
-na documentação actual do Stalwart — mudaram entre versões):
+Projecto da plataforma → **+ New → Docker Compose (Empty)**, com isto. **A imagem é a mesma que a API provou contra
+o Docker local** (R5.7, `docker-compose.test.yml`): `stalwartlabs/mail-server:v0.11.8`, dados em `/opt/stalwart-mail`.
+Nunca `latest` nem outra versão sem a provar primeiro no `docker:test` — a API de gestão e o formato da config mudam
+entre versões, e a API da plataforma deixava de conseguir criar domínios e caixas.
 
 ```yaml
 services:
   stalwart:
-    image: stalwartlabs/stalwart:latest   # fixar uma versão (ex. v0.16.x) depois do piloto
+    image: stalwartlabs/mail-server:v0.11.8   # a versão provada; subir só depois de a provar no docker:test
     restart: unless-stopped
     ports:
       - "25:25"
@@ -65,7 +67,7 @@ services:
       - "993:993"
     # 8080 (admin + JMAP) NÃO se publica: a API chega-lhe pela rede do Docker.
     volumes:
-      - stalwart-data:/opt/stalwart
+      - stalwart-data:/opt/stalwart-mail
 volumes:
   stalwart-data:
 ```

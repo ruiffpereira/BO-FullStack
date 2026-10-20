@@ -81,6 +81,27 @@ volumes:
 - Para abrires a administração: pela WireGuard, `ssh -L 8080:<ip-do-contentor>:8080` ao servidor e
   `http://localhost:8080` no PC (ou publicar a 8080 só no IP da WireGuard, nunca em `0.0.0.0`).
 
+### 4b · Abrir a administração (feito a 2026-10-20 — o que custou)
+- **Endereço:** `https://mailadmin.rufvision.com` — registo `A mailadmin` **DNS only** na Cloudflare + no Coolify o
+  domínio `https://mailadmin.rufvision.com:8080` no serviço `stalwart` → Restart. Só abre **pela VPN** (regra 3 do
+  INFRA).
+- **Certificado:** sai o de origem da Cloudflare (o Let's Encrypt por HTTP-01 não passa a firewall — A12). Até o A12
+  estar feito: no browser "Avançadas → Continuar"; no PowerShell
+  `[System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }` antes dos comandos.
+- **"Unsupported server version… requires 0.13.0":** a 0.11.8 baixa sempre a interface **mais recente**, que já não
+  serve. Fixa-se a interface `v0.1.25` (a última para a 0.11). ⚠ Pôr `webadmin.resource` no `config.toml` **não
+  chega** — na 0.11 essa definição vive na base de dados do Stalwart. Faz-se pela API de gestão (provado no
+  `docker:test` e em produção), do PC com a VPN, no PowerShell:
+  ```powershell
+  $u = "https://mailadmin.rufvision.com"
+  $pw = Read-Host "Password do admin do Stalwart"
+  $h = @{ Authorization = "Basic " + [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("admin:" + $pw)) }
+  $body = '[{"type":"insert","prefix":null,"values":[["webadmin.resource","https://github.com/stalwartlabs/webadmin/releases/download/v0.1.25/webadmin.zip"]],"assert_empty":false}]'
+  Invoke-RestMethod -Uri "$u/api/settings" -Method Post -Headers $h -Body $body -ContentType "application/json"
+  Invoke-RestMethod -Uri "$u/api/update/webadmin" -Headers $h
+  ```
+  Depois Ctrl+F5 no browser. Ao subir de versão (B52) esta definição sai.
+
 ### 5 · Configurar na administração do Stalwart
 - **Server → hostname:** `mail.rufvision.com`.
 - **TLS → ACME:** fornecedor Let's Encrypt, desafio **DNS-01**, provider Cloudflare, o token do passo 3, domínio

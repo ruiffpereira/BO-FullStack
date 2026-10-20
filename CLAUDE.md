@@ -116,17 +116,17 @@ Detalhe de cada página em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
 |---|---|---|
 | `Dashboard.tsx` | `/` | qualquer |
 | `Clientes.tsx` | `/clientes` · `/clientes/leads` | **core**, mas os dois subitens exigem `VIEW_CUSTOMERS` → sem ela sai da sidebar |
-| `Correio.tsx` | `/correio` (Caixa) | `VIEW_EMAIL` + folha `correio.caixa` | Item **"Correio"** (nunca "Email": colide com Conteúdos → Emails). Subitens Caixa, Campanhas (`/correio/campanhas`, folha `correio.campanhas`; enviar = `correio.campanhas.enviar`) e Contactos (`/correio/contactos`, folha `correio.contactos`). Detalhe em `REFERENCIA-PAGINAS.md` → *Correio (B42)* |
-| `Mensagens.tsx` | `/mensagens` | **core** (chat de suporte) |
+| `Correio.tsx` · `CorreioCampanhas.tsx` · `CorreioCampanha.tsx` · `CorreioContactos.tsx` | `/correio` (Caixa) · `/correio/campanhas` · `/correio/contactos` | `VIEW_EMAIL` + folha por subitem: `correio.caixa` · `correio.campanhas` (enviar = `correio.campanhas.enviar`) · `correio.contactos`. Item **"Correio"** (nunca "Email": colide com Conteúdos → Emails). Detalhe em `REFERENCIA-PAGINAS.md` → *Correio (B42)* |
+| `Mensagens.tsx` | `/mensagens` (Clientes) · `/mensagens/backoffice` (equipa 1-para-1 + Suporte) | **core**, por folha: `mensagens.clientes` · `mensagens.equipa` · `mensagens.suporte`; só aparece o separador a que se tem folha (um só = sem tabs). Em sessão de suporte mostra apenas o Suporte do tenant |
 | `Conteudos.tsx` | `/conteudos` · `/produtos` · `/servicos` · `/ginasio` · `/linguas` · `/emails` · `/notificacoes` | **core**, com gating **por subitem** |
 | `Faturacao.tsx` | `/faturacao` | **core** |
 | `FinanceiroPage.tsx` | `/financeiro` · `/agenda` · `/loja` · `/ginasio` · `/despesas` | **core**, subitens gated (Despesas → `VIEW_EXPENSES`) |
-| `Equipa.tsx` | `/equipa` | **só o dono do tenant** (menu do avatar; escondida na conta admin e a membros) — a equipa por módulo (B41), ver abaixo |
+| `Equipa.tsx` | `/equipa` | **o dono do tenant, ou um membro com a folha `equipa`** (menu do avatar; escondida na conta admin) — a equipa por módulo (B41), ver abaixo |
 | `Perfil.tsx` | `/perfil` | **core, fora da sidebar** (menu do avatar) |
-| `Agenda.tsx` | `/agenda` · `/marcacoes` · `/servicos` · `/config` | `VIEW_SCHEDULE` |
+| `Agenda.tsx` · `AgendaProfissionais.tsx` · `AgendaConfig.tsx` | `/agenda` · `/agenda/marcacoes` · `/agenda/servicos` · `/agenda/profissionais` · `/agenda/config` | `VIEW_SCHEDULE` + folha por subitem (`agenda.profissionais` nasce fechada) |
 | `Loja.tsx` | `/loja` · `/encomendas` · `/categorias` | `VIEW_PRODUCTS` |
 | `Ginasio.tsx` | `/ginasio` · `/treinos` · `/planos` · `/clientes` | `VIEW_GYM` |
-| `Admin.tsx` | `/admin` + 8 subrotas | `VIEW_ADMIN` |
+| `Admin.tsx` | `/admin` + 8 subrotas (permissões, componentes, tokens, domínios, faturação, integrações, atividade, sistema) | `VIEW_ADMIN` — o dono da plataforma; o email do tenant (domínio, caixas, envios) vive na ficha do utilizador e o estado Resend/Stalwart + sondas IDOR em **Sistema** |
 | `paginas/Paginas.tsx` | `/paginas` | `VIEW_SITE_PAGES` — construtor de páginas (B38). Item de topo próprio; sem construtor ligado ao tenant mostra o estado vazio. Estado e regras em `pages/paginas/state/` (reducer, histórico, changeset, traduções em falta); hooks em `hooks/useSiteBuilder.ts`. Estado da publicação na barra e na `PublishBar` (`components/PublishStatus.tsx`, fase + percentagem estimada): refetch de 5 s só em `pending`/`running`; "Publicar agora" só em modo `coolify`. Migrar site, manifest e webhook do Coolify só numa sessão de suporte (`SiteSettingsModal.tsx`) |
 | `Estatisticas.tsx` | `/estatisticas` | **core** (Umami, tenant-open na API). Item de topo próprio desde B35 — a página `Website.tsx` (site-engine) saiu; `/website` e `/website/estatisticas` ficam como redirects de compatibilidade |
 | `Login` · `SetupPassword` · `Signup` | `/login` · `/setup-password` · `/signup` | **público** (standalone, sem Shell). **`/signup` escondido** (`FEATURES.signup = false`, `src/lib/features.ts`): redirecciona para o login e o link "Criar conta" sai |

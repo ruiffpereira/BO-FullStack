@@ -33,8 +33,11 @@ internet. Tu ficas com os backups, os alertas e as actualizações.
 
 ### 1 · Firewall (portas de email)
 Abrir **TCP de entrada** 25 (receber), 465 e 587 (as caixas enviam), 993 (IMAP, telemóvel/Outlook).
-- No painel do fornecedor (Hetzner: Firewalls) **e** no `ufw` do servidor, se estiver activo:
-  `sudo ufw allow 25,465,587,993/tcp`.
+- É na **firewall da Hetzner** (Console → Firewalls → `firewall-1` → Add rule), que é a que manda: uma regra por porta,
+  Protocol **TCP**, origem **Any IPv4 + Any IPv6** (o email chega de qualquer servidor do mundo, não da Cloudflare). O
+  `ufw` do servidor está desligado e o Docker passa-lhe por cima — não é por aí.
+- O 80 e o 443 dessa firewall só aceitam a Cloudflare: o `mail.rufvision.com` (sem nuvem laranja) **não** responde por
+  HTTPS de fora — por isso o certificado é por **DNS-01** (passo 5), nunca HTTP-01.
 - **Não abrir** a 8080 (administração do Stalwart): essa fica só na rede interna/WireGuard.
 
 ### 2 · DNS na Cloudflare (`rufvision.com`)

@@ -101,8 +101,8 @@ export class AdminPage {
 
   /** Linha do tenant, procurada desde a 1.ª página (a lista pagina client-side, 10/página). */
   async userRowFromStart(tenantName: string) {
-    // Espera a lista carregar (skeleton → linhas reais) antes de paginar à procura da linha.
-    await expect(this.page.getByRole("button", { name: "Eliminar" }).first()).toBeVisible({
+    // Espera a lista carregar (skeleton → linhas reais). «Editar» existe em TODAS as linhas (a do admin não tem «Eliminar»), por isso não depende da página nem da ordem do seed.
+    await expect(this.page.getByRole("button", { name: "Editar", exact: true }).first()).toBeVisible({
       timeout: 15_000,
     });
     // `findUserRow` só avança — recomeça sempre na 1.ª página.

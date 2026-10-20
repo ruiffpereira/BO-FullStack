@@ -11,7 +11,7 @@ import { MailThreadRow, MailPager } from "../components/correio/MailThreadList";
 import { MailThreadView } from "../components/correio/MailThreadView";
 import { MailComposer } from "../components/correio/MailComposer";
 import { MailAppPasswordModal } from "../components/correio/MailAppPasswordModal";
-import { isMailFolder, isMailNotConfigured, MAIL_FOLDERS, mailErrorMessage, type MailFolder } from "../lib/mail";
+import { isMailFolder, isMailNotConfigured, MAIL_FOLDERS, mailErrorMessage, mailLeaf, mailboxLabel, type MailFolder } from "../lib/mail";
 
 const PAGE_LIMIT = 25;
 
@@ -29,8 +29,8 @@ function NotConfigured() {
 }
 
 /**
- * Correio → Caixa (B42, fases 5 e 6). Lista de conversas por pasta (Por ler · Todas · Arquivo · Enviados) com
- * pesquisa, selector de caixa quando há mais do que uma (a do negócio e a minha) e a conversa ao lado. Abaixo de
+ * Correio → Caixa (B42, fases 5 e 6, B55). Lista de conversas por pasta (Por ler · Todas · Arquivo · Enviados) com
+ * pesquisa, selector de caixa quando há mais do que uma («Pessoal · …» primeiro e «Suporte · …» depois) e a conversa ao lado. Abaixo de
  * `lg` é um ecrã de cada vez (lista → conversa, com «Voltar»). A página enche o que o Shell dá (`fillPage`) por flex.
  * Selecção no URL (`?caixa=&pasta=&conversa=`): é o deep-link do sino e da ficha do cliente.
  */
@@ -42,6 +42,8 @@ export function Correio() {
   const caixaParam = params.get("caixa");
   const mailbox = mailboxes.find((m) => m.mailboxId === caixaParam) ?? mailboxes[0];
   const mailboxId = mailbox?.mailboxId ?? "";
+  // A caixa pessoal (membro, dono, admin) é sempre de quem a abre; `suporte@` depende de `correio.caixa`.
+  const personal = !!mailbox && mailbox.kind !== "business";
   const folder: MailFolder = isMailFolder(params.get("pasta")) ? (params.get("pasta") as MailFolder) : "unread";
   const threadId = params.get("conversa") ?? "";
 
@@ -102,7 +104,7 @@ export function Correio() {
         <EmptyState
           icon="mail"
           title="Ainda não tens nenhuma caixa"
-          desc="A caixa do negócio é activada pela RufVision. Um membro da equipa recebe a dele no convite."
+          desc="As caixas criam-se sozinhas: a tua aparece aqui daqui a pouco. Se continuar sem aparecer, fala com a RufVision."
         />
       </div>
     );
@@ -126,7 +128,7 @@ export function Correio() {
       {/* No telemóvel a conversa aberta ocupa o ecrã todo: a barra sai. */}
       <div className={`${open ? "hidden lg:flex" : "flex"} shrink-0 flex-wrap items-center gap-2`}>
         {mailboxes.length > 1 && (
-          <div className="w-full sm:w-64">
+          <div className="w-full sm:w-80">
             <Select
               aria-label="Caixa"
               value={mailboxId}
@@ -134,7 +136,7 @@ export function Correio() {
             >
               {mailboxes.map((m) => (
                 <option key={m.mailboxId} value={m.mailboxId}>
-                  {m.address}
+                  {mailboxLabel(m.kind, m.address)}
                   {m.unread ? ` (${m.unread})` : ""}
                 </option>
               ))}
@@ -152,13 +154,13 @@ export function Correio() {
             autoComplete="off"
           />
         </div>
-        {/* Password da app: só nas caixas que são minhas (a `geral@` para o dono, a própria para um membro). */}
+        {/* Password da app: só nas caixas que são minhas (a pessoal e, para o dono, também a `suporte@`; a própria para um membro). */}
         {mailbox.canManageAppPassword && (
           <Button variant="outline" icon="phone" onClick={() => setAppPwOpen(true)}>
             Configurar no telemóvel
           </Button>
         )}
-        <GuardButton leaf="correio.caixa" icon="edit" onClick={() => setComposeOpen(true)}>
+        <GuardButton leaf={mailLeaf(personal)} icon="edit" onClick={() => setComposeOpen(true)}>
           Novo email
         </GuardButton>
       </div>
@@ -214,6 +216,7 @@ export function Correio() {
               mailboxId={mailboxId}
               mailboxAddress={mailbox.address ?? ""}
               threadId={threadId}
+              personal={personal}
               archived={folder === "archive"}
               onBack={() => patch({ conversa: null })}
             />
@@ -227,7 +230,7 @@ export function Correio() {
 
       <MailAppPasswordModal
         key={mailboxId}
-        mailbox={appPwOpen && mailbox.canManageAppPassword ? { mailboxId, address: mailbox.address } : null}
+        mailbox={appPwOpen && mailbox.canManageAppPassword ? { mailboxId, address: mailbox.address, personal } : null}
         onClose={() => setAppPwOpen(false)}
       />
 
@@ -236,6 +239,7 @@ export function Correio() {
         onClose={() => setComposeOpen(false)}
         mailboxId={mailboxId}
         mailboxAddress={mailbox.address ?? ""}
+        personal={personal}
         mode="new"
       />
     </div>

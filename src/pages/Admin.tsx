@@ -137,6 +137,7 @@ function CopyBtn({ value }: { value: string }) {
 // ─── Utilizadores tab ─────────────────────────────────────────────────────────
 type UserForm = {
   name: string;
+  ownerName: string;
   email: string;
   phone: string;
   permissionId: string;
@@ -144,6 +145,7 @@ type UserForm = {
 };
 const emptyUserForm: UserForm = {
   name: "",
+  ownerName: "",
   email: "",
   phone: "",
   permissionId: "",
@@ -173,6 +175,14 @@ function UserFormFields({
         value={form.name}
         onChange={(e: any) => setForm({ ...form, name: e.target.value })}
         placeholder="Nome"
+      />
+      <Input
+        label="Nome do dono"
+        value={form.ownerName}
+        onChange={(e: any) => setForm({ ...form, ownerName: e.target.value })}
+        placeholder="Nome da pessoa"
+        hint="A pessoa dona do negócio. Dá-lhe uma caixa de correio pessoal (nome.código@…); sem isto a caixa não se cria."
+        maxLength={100}
       />
       <Input
         label="Email"
@@ -410,6 +420,7 @@ function UtilizadoresTab({
     setSelected(u);
     setForm({
       name: u.name,
+      ownerName: (u as any).ownerName ?? "",
       email: u.email,
       phone: (u as any).phone ?? "",
       permissionId: u.permissions?.[0]?.permissionId ?? "",
@@ -598,6 +609,7 @@ function UtilizadoresTab({
                 createM.mutate({
                   data: {
                     name: form.name,
+                    ownerName: form.ownerName.trim() || undefined,
                     email: form.email,
                     phone: form.phone || undefined,
                     permissionId: form.permissionId,
@@ -635,6 +647,7 @@ function UtilizadoresTab({
                 if (form.name) p.name = form.name;
                 if (form.email) p.email = form.email;
                 p.phone = form.phone || null;
+                p.ownerName = form.ownerName.trim() || null;
                 // Na conta admin a role é fixa: não se envia `permissionId`.
                 if (form.permissionId && !selected.isPlatformAdmin)
                   p.permissionId = form.permissionId;

@@ -185,6 +185,37 @@ describe("Correio → Caixa — lista, pastas e pesquisa", () => {
     expect(screen.queryByRole("button", { name: "Configurar no telemóvel" })).toBeNull();
   });
 
+  it("o selector diz o tipo antes do endereço («Pessoal · …», «Suporte · …») e mantém os não lidos; a pessoal vem primeiro por omissão", () => {
+    const PERSONAL = { ...OWN, mailboxId: "p1", address: "tiago.tifas@rufvision.com", kind: "owner", unread: 3 };
+    const SUPORTE = { ...BOX, address: "suporte.tifas@rufvision.com", unread: 5 };
+    // A API devolve a pessoal primeiro: é a que abre por omissão.
+    mailboxesMock.mockReturnValue({ data: { configured: true, mailboxes: [PERSONAL, SUPORTE] }, isLoading: false, isError: false });
+    renderAt();
+    const sel = screen.getByLabelText("Caixa");
+    const opts = within(sel).getAllByRole("option").map((o) => o.textContent);
+    expect(opts).toEqual(["Pessoal · tiago.tifas@rufvision.com (3)", "Suporte · suporte.tifas@rufvision.com (5)"]);
+    expect(sel).toHaveValue("p1");
+    expect(threadsMock).toHaveBeenLastCalledWith("p1", expect.anything(), expect.anything());
+  });
+
+  it("a caixa pessoal escreve mesmo sem correio.caixa Responder; suporte@ fica «só ver»", async () => {
+    setAuth(false); // membro sem Responder
+    const PERSONAL = { ...OWN, mailboxId: "p1", kind: "member" };
+    mailboxesMock.mockReturnValue({ data: { configured: true, mailboxes: [PERSONAL, BOX] }, isLoading: false, isError: false });
+    renderAt();
+    expect(screen.getByRole("button", { name: "Novo email" })).toBeEnabled();
+    await userEvent.selectOptions(screen.getByLabelText("Caixa"), "b1");
+    expect(screen.getByRole("button", { name: "Novo email" })).toBeDisabled();
+  });
+
+  it("sem caixa: o estado vazio já não diz que é a RufVision que activa (criam-se sozinhas)", () => {
+    mailboxesMock.mockReturnValue({ data: { configured: true, mailboxes: [] }, isLoading: false, isError: false });
+    renderAt();
+    const empty = screen.getByTestId("mail-no-mailbox");
+    expect(empty).toHaveTextContent("criam-se sozinhas");
+    expect(empty).not.toHaveTextContent("activada pela RufVision");
+  });
+
   it("uma só caixa: sem selector", () => {
     renderAt();
     expect(screen.queryByLabelText("Caixa")).toBeNull();

@@ -88,5 +88,5 @@ export function teamErrorMessage(error: unknown, fallback: string): string {
 
 /** `mailboxError` de POST/PUT /team: o membro/convite foi criado mas o endereço de email não (código da API → PT). */
 export function mailboxErrorMessage(code: unknown): string {
-  return mailCodeMessage(code) ?? "Não foi possível criar o endereço de email. Podes tentar de novo na ficha do membro.";
+  return mailCodeMessage(code) ?? "Não foi possível criar o endereço de email agora. A caixa cria-se sozinha daqui a pouco.";
 }

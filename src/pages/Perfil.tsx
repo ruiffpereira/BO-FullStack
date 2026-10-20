@@ -92,6 +92,8 @@ function ContaCard({ data }: { data?: GetUsersMe200 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  // Nome da PESSOA (o «Nome do negócio» é outro): dá a caixa de correio pessoal, nome.código@…
+  const [ownerName, setOwnerName] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   // Verdadeiro assim que o utilizador mexe num campo semeado pelo servidor;
   // volta a falso só no `onSuccess` do guardar (o momento em que o que está
@@ -122,7 +124,8 @@ function ContaCard({ data }: { data?: GetUsersMe200 }) {
     setName(data.name ?? "");
     setEmail(data.email ?? "");
     setPhone(data.phone ?? "");
-  }, [data?.name, data?.email, data?.phone, touched]);
+    setOwnerName(data.ownerName ?? "");
+  }, [data?.name, data?.email, data?.phone, data?.ownerName, touched]);
 
   const originalEmail = data?.email ?? "";
   const emailChanged = email.trim().toLowerCase() !== originalEmail.trim().toLowerCase();
@@ -130,7 +133,7 @@ function ContaCard({ data }: { data?: GetUsersMe200 }) {
   const emailValid = email.trim().length > 0;
   const dirty =
     !!data &&
-    (name.trim() !== (data.name ?? "") || phone.trim() !== (data.phone ?? "") || emailChanged);
+    (name.trim() !== (data.name ?? "") || phone.trim() !== (data.phone ?? "") || ownerName.trim() !== (data.ownerName ?? "") || emailChanged);
 
   const onSave = () => {
     if (!nameValid || !emailValid) {
@@ -145,6 +148,7 @@ function ContaCard({ data }: { data?: GetUsersMe200 }) {
       {
         data: {
           name: name.trim(),
+          ownerName: ownerName.trim() || null,
           phone: phone.trim() || null,
           email: email.trim(),
           ...(emailChanged ? { currentPassword } : {}),
@@ -189,6 +193,18 @@ function ContaCard({ data }: { data?: GetUsersMe200 }) {
           setName(e.target.value);
           setTouched(true);
         }}
+      />
+      <Input
+        label="O teu nome"
+        value={ownerName}
+        onChange={(e: any) => {
+          setOwnerName(e.target.value);
+          setTouched(true);
+        }}
+        placeholder="Nome da pessoa"
+        hint="Dá-te uma caixa de correio pessoal (nome.código@…). Só tu a lês."
+        maxLength={100}
+        autoComplete="name"
       />
       <Input
         label="Email"

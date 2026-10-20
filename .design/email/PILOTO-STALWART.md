@@ -184,8 +184,8 @@ De um PC **fora** da WireGuard: `Test-NetConnection mail.rufvision.com -Port 25`
 True`. Ou um verificador online de SMTP (ex. mxtoolbox → "SMTP Diagnostics" a `mail.rufvision.com`).
 
 ### 7 · Vários domínios e caixas (ponto 2)
-Pela plataforma (Admin → utilizador → Domínio de email → Activar a caixa do negócio): `piloto.rufvision.com` e a caixa
-`geral@piloto.rufvision.com`; depois um segundo domínio qualquer teu. A API cria o domínio no Stalwart (com DKIM
+Pela plataforma (B55: a caixa do negócio cria-se sozinha; Admin → utilizador → Email dá o código, ex. `piloto`): o domínio
+`rufvision.com` (partilhado) e a caixa `suporte.piloto@rufvision.com`; depois um segundo domínio qualquer teu (domínio próprio). A API cria o domínio no Stalwart (com DKIM
 automático) e a conta por JMAP. Se a Community deixar os dois, o ponto 2 está verde. (Por API já está provado contra o
 Docker local — é o mesmo produto.)
 
@@ -198,10 +198,11 @@ Docker local — é o mesmo produto.)
   mensagens. Sem isto, o ponto 4 não está verde.
 
 ### 9 · Ponta a ponta (ponto 5)
-Regista no DNS os MX de `piloto.rufvision.com` → `mail.rufvision.com` (prioridade 10) e o DKIM que o Stalwart
-mostra para o domínio (Backoffice → Admin → Domínio de email: MX, SPF, DKIM e DMARC). Do teu Gmail envia para
-`geral@piloto.rufvision.com`; abre a caixa no telemóvel por IMAP (servidor `mail.rufvision.com`, 993 SSL/TLS; envio 465
-SSL/TLS; a «password da app» sai do Backoffice); responde do telemóvel. Tem de chegar ao Gmail **fora do spam**.
+Com o MX do apex `rufvision.com` → `mail.rufvision.com` (prioridade 10) já posto **uma vez** (é o único registo de entrada da plataforma; sem DNS
+por negócio — Admin → Sistema mostra-o ✅) e o DKIM do domínio `rufvision.com` que o Stalwart mostra (MX, SPF, DKIM e DMARC): do teu Gmail envia para
+`suporte.<código>@rufvision.com` (o código do negócio de teste, ex. `piloto` → `suporte.piloto@rufvision.com`); abre a caixa no telemóvel por IMAP
+(servidor `mail.rufvision.com`, 993 SSL/TLS; envio 465 SSL/TLS; a «password da app» sai do Backoffice, Correio → Caixa); responde do telemóvel. Tem de
+chegar ao Gmail **fora do spam**. Repete com a caixa pessoal (`<nome>.<código>@rufvision.com`).
 
 ### 10 · Alertas
 - Disco acima de 80%.

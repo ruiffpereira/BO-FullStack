@@ -201,10 +201,16 @@ export function resolveLegacyTabTarget(root: string, id: string | null, restSear
  * tecto do tenant já vem nas folhas que a API devolve). Sem `leaf` ou `ownerOnly` → escondido (default-deny).
  * Uma raiz sem SUBMENU (Mensagens, Estatísticas, Páginas) não passa por aqui: vê-se pela folha do topo.
  */
-export function memberSubitems(root: string, can: (key: string, level?: "view" | "edit") => boolean): SubmenuItem[] {
+export function memberSubitems(
+  root: string,
+  can: (key: string, level?: "view" | "edit") => boolean,
+  /** `personalMailbox`: o negócio tem o módulo Correio — a «Caixa» vê-se sempre (a caixa pessoal de um membro não depende de `correio.caixa`, CR-09). */
+  opts: { personalMailbox?: boolean } = {},
+): SubmenuItem[] {
   const items = SUBMENU[root];
   if (!items) return [];
   return items.filter((it) => {
+    if (opts.personalMailbox && root === "/correio" && it.id === "caixa") return true;
     if (it.ownerOnly || !it.leaf) return false;
     const leaves = Array.isArray(it.leaf) ? it.leaf : [it.leaf];
     return leaves.some((l) => can(l, "view"));

@@ -99,7 +99,7 @@ export function AdminMailboxesSection({ userId }: { userId: string }) {
                     {b.displayName ? <span className="block text-xs text-zinc-400">{b.displayName}</span> : null}
                   </td>
                   <td className="px-3 py-2.5 whitespace-nowrap">
-                    <span className="mr-1.5">{b.kind === "business" ? "Negócio" : "Membro"}</span>
+                    <span className="mr-1.5">{b.kind === "business" ? "Suporte" : b.kind === "owner" ? "Dono" : b.kind === "admin" ? "Admin" : "Membro"}</span>
                     {b.status === "active" ? <Badge tone="green">Activa</Badge> : <Badge tone="neutral">Desactivada</Badge>}
                     {b.pendingSync && (
                       <Badge tone="amber" className="ml-1">
@@ -111,7 +111,7 @@ export function AdminMailboxesSection({ userId }: { userId: string }) {
                   <td className="px-3 py-2.5 whitespace-nowrap tabular-nums">{b.usedMb != null ? `${b.usedMb} MB` : "—"}</td>
                   <td className="px-3 py-2.5 font-mono text-xs break-all">{b.forwardTo || "—"}</td>
                   <td className="px-3 py-2.5 whitespace-nowrap text-right">
-                    {b.kind === "member" &&
+                    {(b.kind === "member" || b.kind === "owner") &&
                       (b.status === "active" ? (
                         <GuardButton
                           size="sm"

@@ -4,7 +4,7 @@ import { loginAs, nextClientIp, API, E2E_PASSWORD } from "./fixtures/login";
 /**
  * Correio → Campanhas (B42 · fase 9), nas 3 larguras (1440 / 834 / 390).
  *
- * O tenant `correio@e2e.local` do seed só tem o subdomínio da plataforma verificado (ou, no máximo, um domínio próprio
+ * O tenant `correio@e2e.local` do seed só tem o endereço da plataforma (código `selo`) verificado (ou, no máximo, um domínio próprio
  * sem `news.` verificado — o `correio-contactos.spec.ts` regista um). Em qualquer dos casos as campanhas estão BLOQUEADAS
  * e é isso que se prova: a mensagem do `GET /mail/campaigns/status`, nenhum botão «Nova campanha», e a API a recusar a
  * criação de um rascunho com 409 `CAMPAIGNS_LOCKED`. Criar/enviar uma campanha precisa de domínio próprio + `news.`

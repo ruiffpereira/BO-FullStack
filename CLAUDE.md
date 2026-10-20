@@ -116,7 +116,7 @@ Detalhe de cada página em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
 |---|---|---|
 | `Dashboard.tsx` | `/` | qualquer |
 | `Clientes.tsx` | `/clientes` · `/clientes/leads` | **core**, mas os dois subitens exigem `VIEW_CUSTOMERS` → sem ela sai da sidebar |
-| `Correio.tsx` · `CorreioCampanhas.tsx` · `CorreioCampanha.tsx` · `CorreioContactos.tsx` | `/correio` (Caixa) · `/correio/campanhas` · `/correio/contactos` | `VIEW_EMAIL` + folha por subitem: `correio.caixa` · `correio.campanhas` (enviar = `correio.campanhas.enviar`) · `correio.contactos`. Item **"Correio"** (nunca "Email": colide com Conteúdos → Emails). Detalhe em `REFERENCIA-PAGINAS.md` → *Correio (B42)* |
+| `Correio.tsx` · `CorreioCampanhas.tsx` · `CorreioCampanha.tsx` · `CorreioContactos.tsx` | `/correio` (Caixa) · `/correio/campanhas` · `/correio/contactos` | `VIEW_EMAIL` (ligado por omissão a todos os negócios — B55) + folha por subitem: `correio.caixa` (só para a caixa do negócio `suporte@`; a caixa PESSOAL de cada um abre-se sempre — `mailLeaf`) · `correio.campanhas` (enviar = `correio.campanhas.enviar`) · `correio.contactos`. Item **"Correio"** (nunca "Email": colide com Conteúdos → Emails). Detalhe em `REFERENCIA-PAGINAS.md` → *Correio (B42)* |
 | `Mensagens.tsx` | `/mensagens` (Clientes) · `/mensagens/backoffice` (equipa 1-para-1 + Suporte) | **core**, por folha: `mensagens.clientes` · `mensagens.equipa` · `mensagens.suporte`; só aparece o separador a que se tem folha (um só = sem tabs). Em sessão de suporte mostra apenas o Suporte do tenant |
 | `Conteudos.tsx` | `/conteudos` · `/produtos` · `/servicos` · `/ginasio` · `/linguas` · `/emails` · `/notificacoes` | **core**, com gating **por subitem** |
 | `Faturacao.tsx` | `/faturacao` | **core** |

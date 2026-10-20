@@ -139,6 +139,7 @@ describe("Perfil — Conta", () => {
     expect(vars).toEqual({
       data: {
         name: "Barbearia Nova",
+        ownerName: null,
         phone: "912345678",
         email: "dono@example.com",
       },

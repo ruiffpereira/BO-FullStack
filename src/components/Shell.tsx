@@ -464,7 +464,7 @@ function SidebarContent({ accessiblePaths, collapsed }: {
         {!collapsed && <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Menu</p>}
         <nav ref={navRef} className="space-y-1" onKeyDown={handleNavKeyDown}>
           {accessiblePaths.map((path) => {
-            const groupItems = isMember ? memberSubitems(path, can) : allowedSubitems(path, hasPermission)
+            const groupItems = isMember ? memberSubitems(path, can, { personalMailbox: hasPermission('VIEW_EMAIL') }) : allowedSubitems(path, hasPermission)
             // Um grupo só é menu EXPANSÍVEL com ≥2 subitens permitidos. Com 1 só
             // (ou 0), o expander abriria para um único filho — redundante: cai
             // para um NavItem simples (link ao root).
@@ -723,9 +723,15 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   const isAdmin = permissions.some((p) => p.name === 'VIEW_ADMIN')
   // Conjunto de rotas acessíveis (dashboard + módulos por permissão + core + admin). Um MEMBRO da equipa vê só os
   // módulos que a API lhe deu (Dashboard e Financeiro incluídos, por folha); Faturação nunca.
+  // CR-09/CR-07: a caixa PESSOAL de um membro é sempre dele, mesmo sem `correio.caixa`: com o módulo Correio no negócio (`VIEW_EMAIL`) o item
+  // «Correio» e a «Caixa» vêem-se sempre; `suporte@` e o resto continuam atrás das folhas (a API decide).
+  const mailOpts = { personalMailbox: hasPermission('VIEW_EMAIL') }
   const accessible = new Set<string>(
     isMember
-      ? Object.entries(MEMBER_MODULE_PATH).filter(([key]) => can(key)).map(([, path]) => path)
+      ? [
+          ...Object.entries(MEMBER_MODULE_PATH).filter(([key]) => can(key)).map(([, path]) => path),
+          ...(mailOpts.personalMailbox ? ['/correio'] : []),
+        ]
       : [
           '/dashboard',
           ...permissions.map((p) => MODULE_PERM_TO_PATH[p.name ?? '']).filter(Boolean),
@@ -745,7 +751,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
     ...[...accessible].filter((p) => !MENU_ORDER.includes(p)),
   ].filter((p) => {
     if (!SUBMENU[p]?.length) return true
-    return (isMember ? memberSubitems(p, can) : allowedSubitems(p, hasPermission)).length > 0
+    return (isMember ? memberSubitems(p, can, mailOpts) : allowedSubitems(p, hasPermission)).length > 0
   })
 
   // Fecha o drawer ao navegar
@@ -777,7 +783,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
       navigate(accessiblePaths[0], { replace: true })
       return
     }
-    const subs = isMember ? memberSubitems(root, can) : allowedSubitems(root, hasPermission)
+    const subs = isMember ? memberSubitems(root, can, mailOpts) : allowedSubitems(root, hasPermission)
     if (subs.length > 0 && !pathInSubitems(location.pathname, root, subs)) {
       // Preserva a query string (coerente com o FinanceiroEntry, App.tsx, que
       // já faz o mesmo no seu próprio redirect de `?vista=`) — este redirect é
@@ -791,7 +797,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   // renderiza o conteúdo (montar a Faturação ou o Dashboard dispararia pedidos que a API recusa com 403).
   // Também uma ABA sem folha (ex.: /agenda com só `agenda.servicos`): o guard redirige, mas não se monta enquanto isso.
   const memberRoot = isMember ? findRoot(location.pathname, guardRoots) : undefined
-  const memberSubs = memberRoot ? memberSubitems(memberRoot, can) : []
+  const memberSubs = memberRoot ? memberSubitems(memberRoot, can, mailOpts) : []
   const blockedForMember =
     isMember && (!memberRoot || (memberSubs.length > 0 && !pathInSubitems(location.pathname, memberRoot!, memberSubs)))
 

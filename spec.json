@@ -3424,18 +3424,32 @@
         "properties": {
           "domain": {
             "type": "string",
-            "example": "tifas.rufvision.com"
+            "example": "rufvision.com",
+            "description": "platform: o domínio da plataforma (partilhado); own: o domínio do negócio"
           },
           "kind": {
             "type": "string",
             "enum": [
-              "platform-subdomain",
+              "platform",
               "own"
-            ]
+            ],
+            "description": "platform = endereço no domínio da plataforma (suporte.<código>@…), sem DNS nem Resend por negócio; own = domínio próprio"
+          },
+          "platformCode": {
+            "type": "string",
+            "nullable": true,
+            "example": "tifas",
+            "description": "Só platform: código do negócio (CR-24)"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "example": "suporte.tifas@rufvision.com",
+            "description": "Só platform: o endereço do negócio"
           },
           "verified": {
             "type": "boolean",
-            "description": "Dois estados só: verificado ou não"
+            "description": "Dois estados só: verificado ou não (platform nasce verificado)"
           },
           "lastCheckedAt": {
             "type": "string",
@@ -3455,7 +3469,7 @@
           },
           "fromLocalPart": {
             "type": "string",
-            "example": "geral"
+            "example": "suporte"
           },
           "senderName": {
             "type": "string",
@@ -3599,14 +3613,15 @@
             "nullable": true,
             "description": "EMAIL_PLATFORM_DOMAIN (null se não definida)"
           },
-          "suggestedDomain": {
+          "suggestedCode": {
             "type": "string",
             "nullable": true,
-            "example": "tifas.rufvision.com"
+            "example": "tifas",
+            "description": "Código sugerido a partir do nome do negócio, livre e não reservado (null sem EMAIL_PLATFORM_DOMAIN)"
           },
           "domain": {
             "nullable": true,
-            "description": "O domínio principal (o próprio, se houver; senão o subdomínio da plataforma). Compatibilidade — preferir `domains`.",
+            "description": "O domínio principal (o próprio, se houver; senão o da plataforma). Compatibilidade — preferir `domains`.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/TenantEmailDomain"
@@ -3615,7 +3630,7 @@
           },
           "domains": {
             "type": "array",
-            "description": "Todos os domínios do negócio (no máximo um subdomínio da plataforma e um domínio próprio).",
+            "description": "Todos os domínios do negócio (no máximo um endereço da plataforma e um domínio próprio).",
             "items": {
               "$ref": "#/components/schemas/TenantEmailDomain"
             }
@@ -3646,7 +3661,7 @@
                   "own",
                   "platform"
                 ],
-                "description": "Onde estão hoje as caixas activas: own = todas no domínio próprio; platform = alguma no subdomínio da plataforma; null = sem caixas"
+                "description": "Onde estão hoje as caixas activas: own = todas no domínio próprio; platform = alguma no domínio da plataforma; null = sem caixas"
               }
             }
           },
@@ -3669,8 +3684,11 @@
             "type": "string",
             "enum": [
               "business",
-              "member"
-            ]
+              "member",
+              "owner",
+              "admin"
+            ],
+            "description": "owner = pessoal do dono do negócio; admin = pessoal do admin da plataforma"
           },
           "displayName": {
             "type": "string",
@@ -3828,7 +3846,7 @@
         "properties": {
           "username": {
             "type": "string",
-            "example": "geral@tifas.rufvision.com",
+            "example": "suporte.tifas@rufvision.com",
             "description": "O endereço completo"
           },
           "imap": {
@@ -4417,14 +4435,17 @@
           },
           "address": {
             "type": "string",
-            "example": "geral@tifas.rufvision.com"
+            "example": "suporte.tifas@rufvision.com"
           },
           "kind": {
             "type": "string",
             "enum": [
               "business",
-              "member"
-            ]
+              "member",
+              "owner",
+              "admin"
+            ],
+            "description": "business = suporte@ do negócio; member/owner = pessoal de um membro/do dono; admin = pessoal do admin da plataforma"
           },
           "displayName": {
             "type": "string",
@@ -4432,7 +4453,7 @@
           },
           "own": {
             "type": "boolean",
-            "description": "true = a caixa pessoal do utilizador autenticado"
+            "description": "true = a caixa pessoal do utilizador autenticado (kind ≠ business)"
           },
           "unread": {
             "type": "integer",
@@ -4441,7 +4462,7 @@
           },
           "canManageAppPassword": {
             "type": "boolean",
-            "description": "true = esta sessão pode criar/revogar a password da app (o dono para geral@; o próprio membro para a sua)"
+            "description": "true = esta sessão pode criar/revogar a password da app (o dono para suporte@ e para a sua pessoal; o próprio membro para a sua)"
           },
           "appPasswordCreatedAt": {
             "type": "string",
@@ -6128,7 +6149,7 @@
     "/admin/users/{userId}/email-domain": {
       "get": {
         "summary": "Domínios de email de um tenant — estado e registos DNS (só o dono da plataforma)",
-        "description": "Devolve o estado guardado (verificado ou não, o que o job periódico/“Verificar agora” leram do Resend) e a tabela de registos DNS (tipo · nome · valor · estado ✓/✗) de cada domínio (`domains`: o subdomínio da plataforma e/ou o domínio próprio; `domain` = o principal), os registos MX/DKIM do servidor de correio quando há caixa (`mailRecords`), de onde sai agora o email do negócio (`sendingFrom`) e o estado de envio (pausa/tectos). Sem domínio: `configured: false` + `suggestedDomain`. `VIEW_ADMIN`; fechada em sessão de suporte.\n",
+        "description": "Devolve o estado guardado (verificado ou não, o que o job periódico/“Verificar agora” leram do Resend) e a tabela de registos DNS do domínio próprio (`domains`: o endereço da plataforma e/ou o domínio próprio; `domain` = o principal; o da plataforma não tem DNS por negócio), os registos MX/DKIM do servidor de correio quando há caixa no domínio próprio (`mailRecords`), de onde sai agora o email do negócio (`sendingFrom`) e o estado de envio (pausa/tectos). Sem domínio: `configured: false` + `suggestedCode`. `VIEW_ADMIN`; fechada em sessão de suporte.\n",
         "tags": [
           "Users"
         ],
@@ -6171,8 +6192,8 @@
         }
       },
       "put": {
-        "summary": "Definir ou alterar o domínio de email de um tenant (cria-o no Resend) — subdomínio da plataforma ou domínio próprio",
-        "description": "O tipo vem do domínio (`EMAIL_PLATFORM_DOMAIN`): `<slug>.<plataforma>` é o subdomínio da plataforma; qualquer outro é **domínio próprio**. Um negócio tem no máximo um de cada e os dois coexistem (o próprio assina o envio quando verificado, senão o subdomínio). Sem domínio desse tipo → cria-o no Resend (devolve os registos DNS) e grava (201). Com outro domínio do mesmo tipo → cria o novo, apaga o antigo no Resend e volta a \"não verificado\" (200). Mesmo domínio → só actualiza as opções, sem tocar no Resend (200). **Domínio próprio — \"Já tem email neste domínio?\"**: `existingEmail` + `mail`. (a) `existingEmail: false` → `mail: root` põe a caixa no próprio domínio; (c) `existingEmail: true` → `mail: subdomain` põe-na em `contacto.<domínio>` (`mailSubdomain` muda o nome) ou `mail: none` não a activa; `root` com email existente → 409 `mx_conflict` (cortava o email actual). Activar a caixa sem responder à pergunta → 400 `existing_email_required`. (b) migrar o email existente NÃO se automatiza (faz-se à mão). Os registos MX/DKIM aparecem em `mailRecords`. Não se muda a caixa de um domínio onde já há caixas activas (409 `mailboxes_in_domain`). **409** `domain_taken` se for de outro tenant; **502** se o Resend falhar.\n",
+        "summary": "Definir ou alterar o email de um tenant — endereço no domínio da plataforma (código) ou domínio próprio (cria-o no Resend)",
+        "description": "O corpo traz **um** de `platformCode` (endereço da plataforma: `suporte.<código>@<EMAIL_PLATFORM_DOMAIN>`) ou `domain` (domínio próprio). Um negócio tem no máximo um de cada e os dois coexistem (o próprio assina o envio quando verificado, senão o da plataforma). **Plataforma (CR-24):** sem Resend nem DNS por negócio, nasce `verified`. O código (`^[a-z0-9](?:[a-z0-9-]{0,28}[a-z0-9])?$`, sem pontos) é único em toda a plataforma (409 `EMAIL_CODE_TAKEN`; inclui os códigos retirados por outros negócios, reservados para sempre) e há códigos reservados — nenhum pode conter `rufvision` (409 `EMAIL_CODE_RESERVED`). **Pode mudar a qualquer momento, mesmo com caixas:** todas as caixas do negócio (também as desactivadas) passam ao código novo, os endereços antigos ficam como alias da mesma caixa e o código antigo fica reservado para sempre a este negócio; se algum endereço novo estiver ocupado → 409 `EMAIL_CODE_ADDRESS_TAKEN` e nada muda (BD atómica; no servidor de correio, se falhar a meio fica por acabar e a reconciliação conclui). Sem `EMAIL_PLATFORM_DOMAIN` → 409 `platform_domain_missing`. 201 se criou, 200 se actualizou. **Domínio próprio:** o domínio da plataforma (ou um subdomínio dele) não é aceite (400). Sem domínio próprio → cria-o no Resend (devolve os registos DNS) e grava (201). Com outro domínio → cria o novo, apaga o antigo no Resend e volta a \"não verificado\" (200). Mesmo domínio → só actualiza as opções, sem tocar no Resend (200). **Domínio próprio — \"Já tem email neste domínio?\"**: `existingEmail` + `mail`. (a) `existingEmail: false` → `mail: root` põe a caixa no próprio domínio; (c) `existingEmail: true` → `mail: subdomain` põe-na em `contacto.<domínio>` (`mailSubdomain` muda o nome) ou `mail: none` não a activa; `root` com email existente → 409 `mx_conflict` (cortava o email actual). Activar a caixa sem responder à pergunta → 400 `existing_email_required`. (b) migrar o email existente NÃO se automatiza (faz-se à mão). Os registos MX/DKIM aparecem em `mailRecords`. Não se muda a caixa de um domínio onde já há caixas activas (409 `mailboxes_in_domain`). **409** `domain_taken` se for de outro tenant; **502** se o Resend falhar.\n",
         "tags": [
           "Users"
         ],
@@ -6197,20 +6218,24 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "domain"
-                ],
+                "description": "Exactamente um de platformCode ou domain.",
                 "properties": {
+                  "platformCode": {
+                    "type": "string",
+                    "example": "tifas",
+                    "description": "Endereço da plataforma: código do negócio (CR-24)"
+                  },
                   "domain": {
                     "type": "string",
-                    "example": "tifas.pt"
+                    "example": "tifas.pt",
+                    "description": "Domínio próprio"
                   },
                   "sendingEnabled": {
                     "type": "boolean"
                   },
                   "fromLocalPart": {
                     "type": "string",
-                    "example": "geral"
+                    "example": "suporte"
                   },
                   "senderName": {
                     "type": "string",
@@ -6271,7 +6296,7 @@
             "description": "Utilizador não encontrado"
           },
           "409": {
-            "description": "domain_taken (de outro tenant), mx_conflict, mailboxes_in_domain"
+            "description": "domain_taken (de outro tenant), EMAIL_CODE_TAKEN, EMAIL_CODE_RESERVED, EMAIL_CODE_ADDRESS_TAKEN, platform_domain_missing, mx_conflict, mailboxes_in_domain"
           },
           "502": {
             "description": "O Resend recusou/falhou — `{ error: email_provider_error, message }`"
@@ -6304,7 +6329,7 @@
             "schema": {
               "type": "string",
               "enum": [
-                "platform-subdomain",
+                "platform",
                 "own"
               ]
             }
@@ -6325,7 +6350,7 @@
             "description": "Utilizador ou domínio de email não encontrado"
           },
           "409": {
-            "description": "Há caixas activas no domínio (mailboxes_in_domain)"
+            "description": "Há caixas activas no domínio próprio, ou o negócio já teve caixas e o endereço da plataforma não se remove (mailboxes_in_domain)"
           },
           "502": {
             "description": "O Resend falhou"
@@ -6360,7 +6385,7 @@
             "schema": {
               "type": "string",
               "enum": [
-                "platform-subdomain",
+                "platform",
                 "own"
               ]
             }
@@ -6420,7 +6445,7 @@
             "schema": {
               "type": "string",
               "enum": [
-                "platform-subdomain",
+                "platform",
                 "own"
               ]
             }
@@ -6477,7 +6502,7 @@
             "schema": {
               "type": "string",
               "enum": [
-                "platform-subdomain",
+                "platform",
                 "own"
               ]
             }
@@ -6513,7 +6538,7 @@
     "/admin/users/{userId}/email-domain/mailboxes/move": {
       "post": {
         "summary": "Passar as caixas do negócio para o domínio próprio — ou voltar atrás para o subdomínio da plataforma",
-        "description": "`to: own` move as caixas activas (a do negócio e as dos membros) para o domínio da caixa do domínio próprio: o login passa a `geral@tifas.pt`, as mensagens ficam onde estão e o endereço antigo (`geral@tifas.rufvision.com`) continua a entregar na mesma caixa (alias; idem os endereços que reencaminhavam para ela). Exige o domínio próprio verificado, a caixa activada nele e o MX já a apontar para o servidor de correio (409 `domain_not_verified`, `mail_not_enabled`, `mx_not_ready`). `to: platform` faz o inverso (sem verificar MX) e trava a mudança automática. Idempotente. As caixas cujo endereço novo já existe ficam em `skipped`. O caminho (b) — migrar o email que o cliente já tem noutro sítio — não é automático.\n",
+        "description": "`to: own` move as caixas activas (a do negócio e as dos membros) para o domínio da caixa do domínio próprio: o login passa a `suporte@tifas.pt`, as mensagens ficam onde estão e o endereço antigo (`suporte.tifas@rufvision.com`) continua a entregar na mesma caixa (alias; idem os endereços que reencaminhavam para ela). Exige o domínio próprio verificado, a caixa activada nele e o MX já a apontar para o servidor de correio (409 `domain_not_verified`, `mail_not_enabled`, `mx_not_ready`). `to: platform` faz o inverso (sem verificar MX) e trava a mudança automática. Idempotente. As caixas cujo endereço novo já existe ficam em `skipped`. O caminho (b) — migrar o email que o cliente já tem noutro sítio — não é automático.\n",
         "tags": [
           "Users"
         ],
@@ -6808,6 +6833,41 @@
                       "type": "string",
                       "nullable": true
                     },
+                    "platformDns": {
+                      "type": "object",
+                      "nullable": true,
+                      "description": "O DNS de email da plataforma (UM só, para todos os negócios; só leitura). null sem EMAIL_PLATFORM_DOMAIN ou MAIL_SERVER_HOST.",
+                      "properties": {
+                        "records": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "example": "MX"
+                              },
+                              "name": {
+                                "type": "string",
+                                "example": "rufvision.com"
+                              },
+                              "value": {
+                                "type": "string",
+                                "example": "mail.rufvision.com"
+                              },
+                              "priority": {
+                                "type": "integer",
+                                "example": 10
+                              },
+                              "ok": {
+                                "type": "boolean",
+                                "description": "A resolução de MX já aponta para o nosso servidor de correio"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
                     "resend": {
                       "type": "object",
                       "properties": {
@@ -6961,8 +7021,8 @@
     },
     "/admin/users/{userId}/mailboxes/business": {
       "post": {
-        "summary": "Activar a caixa do negócio (cria o domínio e geral@ no servidor de correio)",
-        "description": "Exige o módulo Correio (VIEW_EMAIL) no tenant, o domínio de email já criado (a caixa nasce no domínio próprio, se verificado e com a caixa activada, senão no subdomínio da plataforma) e o servidor de correio configurado. Idempotente (201 ao criar, 200 se já existia/reactivada). 409 `module_not_enabled`, `email_domain_not_found`, `mail_domain_unavailable`; 503 `mail_not_configured`; 502 se o servidor falhar.",
+        "summary": "Activar a caixa do negócio (cria `suporte.<código>@` no servidor de correio)",
+        "description": "Exige o módulo Correio (VIEW_EMAIL) no tenant, o domínio de email já criado (a caixa nasce no domínio próprio, se verificado e com a caixa activada, senão no domínio da plataforma com o código do negócio) e o servidor de correio configurado. Idempotente (201 ao criar, 200 se já existia/reactivada). 409 `module_not_enabled`, `email_domain_not_found`, `mail_domain_unavailable`, `mailbox_address_unavailable` (o endereço já é de outra caixa, é alias de outra ou é o de um admin: nunca se chama o servidor de correio, que repunha a credencial da conta alheia); 503 `mail_not_configured`; 502 se o servidor falhar.",
         "tags": [
           "Users"
         ],
@@ -7031,8 +7091,7 @@
             "description": "Utilizador não encontrado"
           },
           "409": {
-            "description": "Módulo desligado",
-            "sem domínio de email ou domínio próprio": null
+            "description": "Módulo desligado, sem domínio de email, domínio próprio por verificar ou `mailbox_address_unavailable`"
           },
           "502": {
             "description": "O servidor de correio falhou"
@@ -7045,7 +7104,7 @@
     },
     "/admin/users/{userId}/mailboxes/{mailboxId}/disable": {
       "post": {
-        "summary": "Desactivar uma caixa de membro (o endereço passa a reencaminhar para geral@)",
+        "summary": "Desactivar uma caixa de membro (o endereço passa a reencaminhar para suporte@)",
         "description": "Idempotente. A caixa do negócio não se desactiva (409 `business_mailbox_protected`). Caixa de outro tenant = 404.",
         "tags": [
           "Users"
@@ -7182,6 +7241,11 @@
                       "type": "string",
                       "format": "email"
                     },
+                    "ownerName": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Nome da pessoa dona do negócio (dá a caixa pessoal de correio)"
+                    },
                     "phone": {
                       "type": "string",
                       "nullable": true
@@ -7235,6 +7299,11 @@
                   "name": {
                     "type": "string"
                   },
+                  "ownerName": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Nome da pessoa dona do negócio (máx. 100); dá a caixa pessoal de correio"
+                  },
                   "phone": {
                     "type": "string",
                     "nullable": true
@@ -7275,6 +7344,10 @@
                   "properties": {
                     "name": {
                       "type": "string"
+                    },
+                    "ownerName": {
+                      "type": "string",
+                      "nullable": true
                     },
                     "email": {
                       "type": "string",
@@ -8395,6 +8468,11 @@
                       "name": {
                         "type": "string"
                       },
+                      "ownerName": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "Nome da pessoa dona do negócio (dá a caixa de correio pessoal)"
+                      },
                       "email": {
                         "type": "string"
                       },
@@ -8460,6 +8538,11 @@
                   },
                   "name": {
                     "type": "string"
+                  },
+                  "ownerName": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Nome da pessoa dona do negócio (máx. 100; vazio limpa); dá a caixa pessoal de correio"
                   },
                   "email": {
                     "type": "string"
@@ -8530,7 +8613,13 @@
                 ],
                 "properties": {
                   "name": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Nome do NEGÓCIO"
+                  },
+                  "ownerName": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Nome da PESSOA dona do negócio (dá a caixa pessoal de correio)"
                   },
                   "email": {
                     "type": "string"
@@ -18575,7 +18664,7 @@
     "/mail/mailboxes/{mailboxId}/app-password": {
       "get": {
         "summary": "Estado da password da app de uma caixa e dados de configuração (IMAP/SMTP)",
-        "description": "Nunca devolve a password (não é guardada). Só o dono da caixa (o dono do negócio para `geral@`, o próprio membro para a sua): outro membro com `correio.caixa` recebe 403 e uma caixa que não é sua é 404.",
+        "description": "Nunca devolve a password (não é guardada). Só o dono da caixa (o dono do negócio para `suporte@` e para a sua pessoal, o próprio membro para a sua): outro membro com `correio.caixa` recebe 403 e uma caixa que não é sua é 404.",
         "tags": [
           "Mail"
         ],
@@ -18638,8 +18727,7 @@
             }
           },
           "403": {
-            "description": "Sem Responder",
-            "ou não é o dono da caixa": null
+            "description": "`suporte@` sem `correio.caixa` (`TEAM_FORBIDDEN`), ou não é quem gere a password desta caixa (`app_password_owner_only`)"
           },
           "404": {
             "description": "Caixa não encontrada"
@@ -18680,8 +18768,7 @@
             "description": "Revogadas"
           },
           "403": {
-            "description": "Sem Responder",
-            "ou não é o dono da caixa": null
+            "description": "`suporte@` sem `correio.caixa` (`TEAM_FORBIDDEN`), ou não é quem gere a password desta caixa (`app_password_owner_only`)"
           },
           "404": {
             "description": "Caixa não encontrada"
@@ -19684,8 +19771,8 @@
     },
     "/mail/mailboxes": {
       "get": {
-        "summary": "Caixas a que tenho acesso (a do negócio e a minha, se tiver)",
-        "description": "`correio.caixa` (Ver) + VIEW_EMAIL. O dono vê a do negócio; um membro vê a do negócio e a sua própria (a de um colega nunca aparece, nem ao dono). `configured` false = o servidor de correio não está configurado (Por configurar).",
+        "summary": "Caixas a que tenho acesso (a minha pessoal primeiro, depois a do negócio)",
+        "description": "VIEW_EMAIL. O dono do negócio vê a pessoal dele e `suporte@`; um membro vê a sua e, se tiver `correio.caixa` (Ver), `suporte@`; o admin da plataforma vê a dele (`rui.pereira@…`). A de um colega nunca aparece, nem ao dono; a de outro negócio nunca. `configured` false = o servidor de correio não está configurado (Por configurar).",
         "tags": [
           "Mail"
         ],
@@ -19715,7 +19802,7 @@
             "description": "Não autenticado"
           },
           "403": {
-            "description": "Sem correio.caixa ou sem o módulo"
+            "description": "Sem o módulo Correio"
           }
         }
       }
@@ -19807,7 +19894,7 @@
             "description": "Parâmetros inválidos"
           },
           "403": {
-            "description": "Sem correio.caixa"
+            "description": "`suporte@` sem `correio.caixa` (`TEAM_FORBIDDEN`); a caixa pessoal nunca depende dessa folha"
           },
           "404": {
             "description": "Caixa não encontrada"
@@ -19881,7 +19968,7 @@
             }
           },
           "403": {
-            "description": "Sem correio.caixa"
+            "description": "`suporte@` sem `correio.caixa` (`TEAM_FORBIDDEN`); a caixa pessoal nunca depende dessa folha"
           },
           "404": {
             "description": "Caixa ou conversa não encontrada"
@@ -19923,7 +20010,7 @@
             "description": "Feito"
           },
           "403": {
-            "description": "Sem Responder"
+            "description": "`suporte@` sem `correio.caixa` Responder (`TEAM_FORBIDDEN`); a caixa pessoal nunca depende dessa folha"
           },
           "404": {
             "description": "Caixa ou conversa não encontrada"
@@ -19965,7 +20052,7 @@
             "description": "Feito"
           },
           "403": {
-            "description": "Sem Responder"
+            "description": "`suporte@` sem `correio.caixa` Responder (`TEAM_FORBIDDEN`); a caixa pessoal nunca depende dessa folha"
           },
           "404": {
             "description": "Caixa ou conversa não encontrada"
@@ -20007,7 +20094,7 @@
             "description": "Feito"
           },
           "403": {
-            "description": "Sem Responder"
+            "description": "`suporte@` sem `correio.caixa` Responder (`TEAM_FORBIDDEN`); a caixa pessoal nunca depende dessa folha"
           },
           "404": {
             "description": "Caixa ou conversa não encontrada"
@@ -20049,7 +20136,7 @@
             "description": "Feito"
           },
           "403": {
-            "description": "Sem Responder"
+            "description": "`suporte@` sem `correio.caixa` Responder (`TEAM_FORBIDDEN`); a caixa pessoal nunca depende dessa folha"
           },
           "404": {
             "description": "Caixa ou conversa não encontrada"
@@ -20179,7 +20266,7 @@
             "description": "Inválido (MAIL_NO_RECIPIENTS, MAIL_EMPTY, ATTACHMENT_INVALID, MAIL_ORIGINAL_REQUIRED)"
           },
           "403": {
-            "description": "Sem Responder"
+            "description": "`suporte@` sem `correio.caixa` Responder (`TEAM_FORBIDDEN`); a caixa pessoal nunca depende dessa folha"
           },
           "404": {
             "description": "Caixa ou email original não encontrado"
@@ -20243,7 +20330,7 @@
             }
           },
           "403": {
-            "description": "Sem correio.caixa"
+            "description": "`suporte@` sem `correio.caixa` (`TEAM_FORBIDDEN`); a caixa pessoal nunca depende dessa folha"
           },
           "404": {
             "description": "Caixa",
@@ -23358,14 +23445,6 @@
                     "items": {
                       "$ref": "#/components/schemas/TeamGrantInput"
                     }
-                  },
-                  "giveMailbox": {
-                    "type": "boolean",
-                    "description": "Dar-lhe um endereço de email (cria nome@subdomínio como caixa SÓ dele). Exige o módulo Correio, a caixa do negócio activa e o Correio (Responder) em quem convida; senão 409/422 antes de criar o membro."
-                  },
-                  "mailboxLocalPart": {
-                    "type": "string",
-                    "description": "Parte local escolhida (omissão: derivada do nome). Reservados (geral, postmaster…) recusados."
                   }
                 }
               }
@@ -23389,7 +23468,7 @@
                     "mailboxError": {
                       "type": "string",
                       "nullable": true,
-                      "description": "Se pediste a caixa e falhou depois de criar o membro: o código (mailbox_address_unavailable, mail_provider_error…). O convite segue."
+                      "description": "A caixa do membro (nome.<código>@…) cria-se sozinha ao convidá-lo; se falhar depois de criar o membro, o código do erro. O convite segue e a reconciliação repete."
                     }
                   }
                 }
@@ -23447,13 +23526,6 @@
                     "items": {
                       "$ref": "#/components/schemas/TeamGrantInput"
                     }
-                  },
-                  "giveMailbox": {
-                    "type": "boolean",
-                    "description": "Dar-lhe um endereço de email (como no convite). Nunca retira: remover o membro desactiva a caixa."
-                  },
-                  "mailboxLocalPart": {
-                    "type": "string"
                   }
                 }
               }
@@ -23476,10 +23548,6 @@
                         "cascadeAffected": {
                           "type": "integer",
                           "description": "Descendentes cujas permissões foram cortadas"
-                        },
-                        "mailboxError": {
-                          "type": "string",
-                          "nullable": true
                         }
                       }
                     }
@@ -24124,6 +24192,51 @@
           },
           "404": {
             "description": "Tenant não encontrado"
+          }
+        }
+      }
+    },
+    "/team/mailbox-preview": {
+      "get": {
+        "summary": "O endereço de email que um membro novo vai receber (previsão, não cria nada)",
+        "description": "Dono, ou membro com `equipa` Ver. As caixas dos membros criam-se sozinhas ao convidar (`ana.<código>@…`, depois `ana.silva.<código>@…`, `ana2.<código>@…`); isto mostra o que sairia agora. `address` é `null` se o negócio ainda não tem domínio de email da plataforma (ou o módulo Correio). Só lê o negócio da sessão.",
+        "tags": [
+          "Team"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 150
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Previsão",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "address": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": "ana.tifas@rufvision.com"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Nome em falta"
+          },
+          "403": {
+            "description": "`TEAM_FORBIDDEN`"
           }
         }
       }

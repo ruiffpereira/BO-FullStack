@@ -148,6 +148,15 @@ for (const { w, h } of SIZES) {
     test("membro só com «Ver»: lê a conversa mas não responde, não arquiva nem marca", async ({ page, context }) => {
       await loginAs(context, MEMBRO_VER);
       await page.goto("/correio?pasta=sent");
+      await expect(page.getByTestId("mail-split")).toBeVisible({ timeout: 15_000 });
+      // B55: se a reconciliação já deu a este membro a caixa pessoal (que abre primeiro e é sempre dele), este teste é do `suporte@`
+      // (correio.caixa só Ver): escolhe-se essa caixa. A caixa pessoal tem o seu spec em `correio-caixas.spec.ts`.
+      const selector = page.getByRole("combobox", { name: "Caixa" });
+      if (await selector.count()) {
+        const suporte = (await selector.locator("option").allTextContents()).find((t) => t.startsWith("Suporte · "));
+        expect(suporte, "o selector tem a caixa «Suporte · …»").toBeTruthy();
+        await selector.selectOption({ label: suporte! });
+      }
       const linha = page.getByTestId("mail-thread-row").filter({ hasText: assunto });
       await expect(linha).toBeVisible({ timeout: 15_000 });
       await expect(page.getByRole("button", { name: "Novo email" })).toBeDisabled();

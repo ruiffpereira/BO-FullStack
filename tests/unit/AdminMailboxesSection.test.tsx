@@ -54,7 +54,7 @@ describe("AdminMailboxesSection", () => {
     const rows = screen.getAllByTestId("admin-mailbox-row");
     expect(rows).toHaveLength(3);
     expect(within(rows[0]).getByText("geral@tifas.rufvision.com")).toBeInTheDocument();
-    expect(within(rows[0]).getByText("Negócio")).toBeInTheDocument();
+    expect(within(rows[0]).getByText("Suporte")).toBeInTheDocument();
     expect(within(rows[0]).getByText("1024 MB")).toBeInTheDocument();
     expect(within(rows[0]).getByText("12 MB")).toBeInTheDocument();
     expect(within(rows[1]).getByText("Pendente")).toBeInTheDocument();

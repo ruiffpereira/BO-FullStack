@@ -20,6 +20,7 @@ import {
   formatBytes,
   formatMailDate,
   mailErrorMessage,
+  mailLeaf,
   normCid,
   type MailMode,
 } from "../../lib/mail";
@@ -145,20 +146,24 @@ export function MailThreadView({
   mailboxId,
   mailboxAddress,
   threadId,
+  personal,
   archived,
   onBack,
 }: {
   mailboxId: string;
   mailboxAddress: string;
   threadId: string;
+  /** Caixa pessoal (sempre minha, sem depender de `correio.caixa`); falso = a do negócio. */
+  personal?: boolean;
   /** A pasta aberta é o Arquivo (a acção passa a «Desarquivar»). */
   archived: boolean;
   onBack: () => void;
 }) {
   const invalidate = useInvalidateMail();
   const { can } = useTeamAccess();
-  const { readOnly } = useWriteGuard("correio.caixa");
-  const canRespond = can("correio.caixa", "edit");
+  const leaf = mailLeaf(personal);
+  const { readOnly } = useWriteGuard(leaf);
+  const canRespond = !!personal || can("correio.caixa", "edit");
   const [remote, setRemote] = useState(false);
   const [composer, setComposer] = useState<MailMode | null>(null);
 
@@ -224,18 +229,18 @@ export function MailThreadView({
           </h3>
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5">
-          <GuardButton leaf="correio.caixa" size="sm" variant="outline" icon="send" disabled={!last} onClick={() => setComposer("reply")}>
+          <GuardButton leaf={leaf} size="sm" variant="outline" icon="send" disabled={!last} onClick={() => setComposer("reply")}>
             Responder
           </GuardButton>
-          <GuardButton leaf="correio.caixa" size="sm" variant="outline" disabled={!last} onClick={() => setComposer("reply_all")}>
+          <GuardButton leaf={leaf} size="sm" variant="outline" disabled={!last} onClick={() => setComposer("reply_all")}>
             Responder a todos
           </GuardButton>
-          <GuardButton leaf="correio.caixa" size="sm" variant="outline" disabled={!last} onClick={() => setComposer("forward")}>
+          <GuardButton leaf={leaf} size="sm" variant="outline" disabled={!last} onClick={() => setComposer("forward")}>
             Encaminhar
           </GuardButton>
           {archived ? (
             <GuardButton
-              leaf="correio.caixa"
+              leaf={leaf}
               size="sm"
               variant="ghost"
               isLoading={unarchive.isPending}
@@ -245,7 +250,7 @@ export function MailThreadView({
             </GuardButton>
           ) : (
             <GuardButton
-              leaf="correio.caixa"
+              leaf={leaf}
               size="sm"
               variant="ghost"
               isLoading={archive.isPending}
@@ -255,7 +260,7 @@ export function MailThreadView({
             </GuardButton>
           )}
           <GuardButton
-            leaf="correio.caixa"
+            leaf={leaf}
             size="sm"
             variant="ghost"
             isLoading={markUnread.isPending}

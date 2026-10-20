@@ -7,7 +7,7 @@ import { usePostMailMailboxesMailboxidSend } from "../../gen/backoffice/hooks/us
 import { uploadImage } from "../../gen/backoffice/hooks/useUploadImage.js";
 import { uploadPdf } from "../../gen/backoffice/hooks/useUploadPdf.js";
 import type { MailMessage } from "../../gen/backoffice/types/MailMessage";
-import { addressName, formatBytes, mailErrorMessage, parseRecipients, type MailMode } from "../../lib/mail";
+import { addressName, formatBytes, mailErrorMessage, mailLeaf, parseRecipients, type MailMode } from "../../lib/mail";
 import { useInvalidateMail } from "../../hooks/useMail";
 
 const TITLE: Record<MailMode, string> = {
@@ -33,10 +33,13 @@ export function MailComposer({
   onClose,
   mailboxId,
   mailboxAddress,
+  personal,
   mode,
   original,
   onSent,
 }: {
+  /** Caixa pessoal: o envio não depende de `correio.caixa`. */
+  personal?: boolean;
   open: boolean;
   onClose: () => void;
   mailboxId: string;
@@ -174,7 +177,7 @@ export function MailComposer({
             Cancelar
           </Button>
           <GuardButton
-            leaf="correio.caixa"
+            leaf={mailLeaf(personal)}
             icon="send"
             onClick={submit}
             isLoading={busy}

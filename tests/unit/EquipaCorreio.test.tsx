@@ -3,12 +3,13 @@ import { render, screen, fireEvent, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // ── Equipa x Correio (B42 · fase 6): ☐ «Dar-lhe um endereço de email» no convite e na ficha do membro ───────────────
-const { useGetTeamMock, useGetCatalogMock, authMock, toastSuccess, toastError, toastWarning, mutations, mut } = vi.hoisted(() => {
+const { useGetTeamMock, useGetCatalogMock, authMock, previewMock, toastSuccess, toastError, toastWarning, mutations, mut } = vi.hoisted(() => {
   const mutations = { create: vi.fn(), update: vi.fn(), noop: vi.fn() };
   return {
     useGetTeamMock: vi.fn(),
     useGetCatalogMock: vi.fn(),
     authMock: vi.fn(),
+    previewMock: vi.fn(),
     toastSuccess: vi.fn(),
     toastError: vi.fn(),
     toastWarning: vi.fn(),
@@ -37,8 +38,8 @@ vi.mock("../../src/gen/backoffice/hooks/useGetTeamMemberidActivity", () => ({
 vi.mock("../../src/gen/backoffice/hooks/useGetBillingSubscription", () => ({
   useGetBillingSubscription: () => ({ data: { readOnly: false, reason: "active" } }),
 }));
-vi.mock("../../src/gen/backoffice/hooks/useGetMailMailboxes.js", () => ({
-  useGetMailMailboxes: () => ({ data: { configured: true, mailboxes: [{ mailboxId: "b1", kind: "business", address: "geral@tifas.rufvision.com" }] } }),
+vi.mock("../../src/gen/backoffice/hooks/useGetTeamMailboxPreview.js", () => ({
+  useGetTeamMailboxPreview: () => previewMock(),
 }));
 vi.mock("../../src/context/AuthContext", () => ({ useAuth: () => authMock() }));
 vi.mock("sonner", () => ({
@@ -84,7 +85,7 @@ const MEMBERS = [
     status: "active",
     lastLoginAt: null,
     grants: [{ key: "agenda.servicos", level: "view" }],
-    mailbox: { address: "rui@tifas.rufvision.com", status: "active" },
+    mailbox: { address: "rui.tifas@rufvision.com", status: "active" },
   },
 ];
 
@@ -112,91 +113,63 @@ beforeEach(() => {
   useGetTeamMock.mockReturnValue({ data: MEMBERS, isLoading: false, isError: false });
   useGetCatalogMock.mockReturnValue({ data: catalog({}) });
   authMock.mockReturnValue({ supportSession: null });
+  previewMock.mockReturnValue({ data: undefined });
 });
 
 describe("canGiveMailbox", () => {
-  it("só com o nó correio.caixa disponível e dentro do tecto de quem convida", () => {
+  it("só com o nó correio.caixa disponível (o módulo Correio ligado no negócio)", () => {
     expect(canGiveMailbox(catalog({}).tree as never)).toBe(true);
     expect(canGiveMailbox(catalog({ available: false }).tree as never)).toBe(false);
-    expect(canGiveMailbox(catalog({ maxLevel: "view" }).tree as never)).toBe(false);
-    expect(canGiveMailbox(catalog({ maxLevel: null }).tree as never)).toBe(false);
     expect(canGiveMailbox(catalog(null).tree as never)).toBe(false);
   });
 });
 
-describe("Convite — ☐ Dar-lhe um endereço de email", () => {
-  it("sem o módulo Correio o campo não aparece", () => {
+describe("Convite — a caixa do membro cria-se sozinha (B55, CR-09)", () => {
+  it("sem o módulo Correio o aviso não aparece", () => {
     useGetCatalogMock.mockReturnValue({ data: catalog(null) });
     const dialog = openInvite();
-    expect(within(dialog).queryByRole("checkbox", { name: /Dar-lhe um endereço de email/ })).toBeNull();
+    expect(within(dialog).queryByTestId("member-mailbox-notice")).toBeNull();
   });
 
-  it("com o módulo: ☐ desligado por omissão; ligar sugere a parte local do nome e mostra o domínio", () => {
+  it("com o módulo: já NÃO pede o endereço (sem checkbox nem parte local) e mostra o que vai ser criado, vindo da API", async () => {
     const dialog = openInvite();
-    const box = within(dialog).getByRole("checkbox", { name: /Dar-lhe um endereço de email/ });
-    expect(box).not.toBeChecked();
-    expect(within(dialog).queryByLabelText("Parte local do endereço")).toBeNull();
+    expect(within(dialog).queryByRole("checkbox", { name: /Dar-lhe um endereço de email/ })).toBeNull();
+    expect(within(dialog).queryByLabelText(/Parte local do endereço/)).toBeNull();
+    expect(within(dialog).getByTestId("member-mailbox-notice")).toHaveTextContent("só dele");
+    previewMock.mockReturnValue({ data: { address: "marta.tifas@rufvision.com" } });
     fireEvent.change(within(dialog).getByLabelText("Nome"), { target: { value: "Marta Sá" } });
-    fireEvent.click(box);
-    expect(within(dialog).getByLabelText(/^Parte local do endereço/)).toHaveAttribute("placeholder", "marta");
-    expect(within(dialog).getByText(/marta@tifas\.rufvision\.com/)).toBeInTheDocument();
+    expect(await within(dialog).findByTestId("member-mailbox-preview")).toHaveTextContent("marta.tifas@rufvision.com");
   });
 
-  it("sem tocar na parte local envia giveMailbox sem mailboxLocalPart (a API deriva e desambigua)", () => {
+  it("o convite nunca envia giveMailbox nem mailboxLocalPart", () => {
     const dialog = openInvite();
     fill(dialog);
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Dar-lhe um endereço de email/ }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Enviar convite" }));
     expect(mutations.create.mock.calls[0][0].data).toEqual({
       name: "Marta Sá",
       email: "marta@x.pt",
       grants: [{ key: "agenda.servicos", level: "edit" }],
-      giveMailbox: true,
     });
-  });
-
-  it("escrevendo a parte local, vai com o pedido; inválida bloqueia", () => {
-    const dialog = openInvite();
-    fill(dialog);
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Dar-lhe um endereço de email/ }));
-    fireEvent.change(within(dialog).getByLabelText(/^Parte local do endereço/), { target: { value: "marta.sa" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Enviar convite" }));
-    expect(mutations.create.mock.calls[0][0].data).toMatchObject({ giveMailbox: true, mailboxLocalPart: "marta.sa" });
-
-    mutations.create.mockClear();
-    fireEvent.change(within(dialog).getByLabelText(/^Parte local do endereço/), { target: { value: "má!" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Enviar convite" }));
-    expect(mutations.create).not.toHaveBeenCalled();
-    expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/caracteres inválidos/));
-  });
-
-  it("sem ☐ não envia nada do correio", () => {
-    const dialog = openInvite();
-    fill(dialog);
-    fireEvent.click(within(dialog).getByRole("button", { name: "Enviar convite" }));
-    expect(mutations.create.mock.calls[0][0].data).not.toHaveProperty("giveMailbox");
   });
 
   it("mailboxError: o convite segue e o motivo aparece em PT", () => {
     const dialog = openInvite();
     fill(dialog);
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Dar-lhe um endereço de email/ }));
     mutations.create.mockImplementation((_v, opts) =>
       opts.onSuccess({ emailSent: true, member: { memberId: "x" }, mailboxError: "mailbox_address_unavailable" }),
     );
     fireEvent.click(within(dialog).getByRole("button", { name: "Enviar convite" }));
-    expect(toastWarning).toHaveBeenCalledWith(expect.stringMatching(/não está disponível/));
+    expect(toastWarning).toHaveBeenCalledWith(expect.stringMatching(/endereço livre/));
   });
 
-  it("sucesso mostra o endereço criado", () => {
+  it("sucesso mostra a caixa criada", () => {
     const dialog = openInvite();
     fill(dialog);
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Dar-lhe um endereço de email/ }));
     mutations.create.mockImplementation((_v, opts) =>
-      opts.onSuccess({ emailSent: true, member: { memberId: "x", mailbox: { address: "marta@tifas.rufvision.com", status: "active" } } }),
+      opts.onSuccess({ emailSent: true, member: { memberId: "x", mailbox: { address: "marta.tifas@rufvision.com", status: "active" } } }),
     );
     fireEvent.click(within(dialog).getByRole("button", { name: "Enviar convite" }));
-    expect(toastSuccess).toHaveBeenCalledWith("Endereço criado: marta@tifas.rufvision.com");
+    expect(toastSuccess).toHaveBeenCalledWith("Caixa criada: marta.tifas@rufvision.com");
   });
 });
 
@@ -205,23 +178,16 @@ describe("Ficha do membro — endereço de email", () => {
     renderPage();
     fireEvent.click(screen.getByRole("row", { name: /Abrir Rui/ }));
     const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByTestId("member-mailbox-address")).toHaveTextContent("rui@tifas.rufvision.com");
+    expect(within(dialog).getByTestId("member-mailbox-address")).toHaveTextContent("rui.tifas@rufvision.com");
     expect(within(within(dialog).getByTestId("member-mailbox")).getByText("Activo")).toBeInTheDocument();
   });
 
-  it("membro sem caixa: oferece criar o endereço (PUT com giveMailbox)", () => {
+  it("membro sem caixa (ainda não criada): nada para criar à mão — a secção não aparece", () => {
     renderPage();
     fireEvent.click(screen.getByRole("row", { name: /Abrir Ana Sá/ }));
     const dialog = screen.getByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Dar-lhe um endereço de email/ }));
-    fireEvent.click(within(dialog).getByRole("button", { name: "Criar endereço" }));
-    expect(mutations.update.mock.calls[0][0]).toEqual({ memberId: "m1", data: { giveMailbox: true } });
-  });
-
-  it("sem o módulo, a secção não existe (a não ser que o membro já tenha caixa)", () => {
-    useGetCatalogMock.mockReturnValue({ data: catalog(null) });
-    renderPage();
-    fireEvent.click(screen.getByRole("row", { name: /Abrir Ana Sá/ }));
-    expect(within(screen.getByRole("dialog")).queryByTestId("member-mailbox")).toBeNull();
+    expect(within(dialog).queryByTestId("member-mailbox")).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Criar endereço" })).toBeNull();
+    expect(mutations.update).not.toHaveBeenCalled();
   });
 });

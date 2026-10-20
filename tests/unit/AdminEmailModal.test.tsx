@@ -94,20 +94,21 @@ import { AdminEmailModal, EmailStatusCard } from "../../src/components/AdminEmai
 const TENANT = { userId: "u1", name: "Barbearia Central" };
 const REC = (over: object) => ({ record: "DKIM", type: "TXT", name: "resend._domainkey.tifas", value: "p=ABC123", status: "not_started", verified: false, ...over });
 
-const SEM_DOMINIO = { configured: true, platformDomain: "rufvision.com", suggestedDomain: "barbearia-central.rufvision.com", domain: null };
+const SEM_DOMINIO = { configured: true, platformDomain: "rufvision.com", suggestedCode: "barbearia-central", domain: null };
+// Domínio próprio (o único com DNS/Resend): a base dos testes do ciclo de verificação.
 const base = {
-  domain: "tifas.rufvision.com",
-  kind: "platform-subdomain",
+  domain: "tifas.pt",
+  kind: "own",
   verified: false,
   lastCheckedAt: null,
   sendingEnabled: true,
   useForSending: true,
   active: false,
-  fromLocalPart: "geral",
+  fromLocalPart: "suporte",
   senderName: "Tifas",
   records: [REC({}), REC({ type: "MX", name: "send.tifas", value: "feedback-smtp.eu-west-1.amazonses.com", priority: 10 })],
 };
-const envelope = (d: object) => ({ configured: true, platformDomain: "rufvision.com", suggestedDomain: null, domain: { ...base, ...d } });
+const envelope = (d: object) => ({ configured: true, platformDomain: "rufvision.com", suggestedCode: null, domain: { ...base, ...d } });
 
 function renderModal() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -127,23 +128,37 @@ beforeEach(() => {
 });
 
 describe("AdminEmailModal", () => {
-  it("sem domínio: formulário com a sugestão, nome e parte local; Configurar envia o PUT", () => {
+  it("sem nada: formulário do código (sugerido a partir do nome), pré-visualização, SEM tabela de DNS; Configurar envia o PUT com platformCode", () => {
     getMock.mockReturnValue({ data: SEM_DOMINIO, isLoading: false, isError: false });
     renderModal();
-    expect(screen.getByLabelText(/^Domínio de email/)).toHaveValue("barbearia-central.rufvision.com");
+    expect(screen.getByLabelText(/^Código do negócio/)).toHaveValue("barbearia-central");
     expect(screen.getByLabelText("Nome do remetente")).toHaveValue("Barbearia Central");
-    expect(screen.getByLabelText(/^Parte local do endereço/)).toHaveValue("geral");
+    expect(screen.getByLabelText(/^Parte local do endereço/)).toHaveValue("suporte");
+    expect(screen.getByTestId("platform-address-preview")).toHaveTextContent("suporte.barbearia-central@rufvision.com");
+    expect(screen.queryByTestId("dns-records")).toBeNull();
+    expect(screen.queryByTestId("own-domain-mail")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Configurar" }));
     expect(mutates.put).toHaveBeenCalledWith({
       userId: "u1",
-      data: { domain: "barbearia-central.rufvision.com", fromLocalPart: "geral", senderName: "Barbearia Central" },
+      data: { platformCode: "barbearia-central", fromLocalPart: "suporte", senderName: "Barbearia Central" },
     });
   });
 
-  it("Configurar fica desactivado com o domínio vazio", () => {
-    getMock.mockReturnValue({ data: { ...SEM_DOMINIO, suggestedDomain: null }, isLoading: false, isError: false });
+  it("escrever o código actualiza a pré-visualização (minúsculas no envio) e Configurar fica desactivado com o código vazio", () => {
+    getMock.mockReturnValue({ data: { ...SEM_DOMINIO, suggestedCode: null }, isLoading: false, isError: false });
     renderModal();
     expect(screen.getByRole("button", { name: "Configurar" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/^Código do negócio/), { target: { value: "Tifas" } });
+    expect(screen.getByTestId("platform-address-preview")).toHaveTextContent("suporte.tifas@rufvision.com");
+    fireEvent.click(screen.getByRole("button", { name: "Configurar" }));
+    expect(mutates.put).toHaveBeenCalledWith({ userId: "u1", data: expect.objectContaining({ platformCode: "tifas" }) });
+  });
+
+  it("sem o domínio da plataforma configurado só há o domínio próprio no formulário", () => {
+    getMock.mockReturnValue({ data: { configured: false, platformDomain: null, suggestedCode: null, domain: null }, isLoading: false, isError: false });
+    renderModal();
+    expect(screen.getByLabelText(/^Domínio de email/)).toHaveValue("");
+    expect(screen.queryByLabelText(/^Código do negócio/)).toBeNull();
   });
 
   it("não verificado: mostra o estado, quantos registos faltam e a tabela", () => {
@@ -166,7 +181,7 @@ describe("AdminEmailModal", () => {
     renderModal();
     expect(screen.getByTestId("email-domain-state")).toHaveTextContent("Verificado ✓");
     expect(screen.queryByText(/falta/)).not.toBeInTheDocument();
-    expect(screen.getByTestId("email-sending-state")).toHaveTextContent("geral@tifas.rufvision.com");
+    expect(screen.getByTestId("email-sending-state")).toHaveTextContent("suporte@tifas.pt");
   });
 
   it("voltou à plataforma: oferece 'Usar o domínio do negócio' (activo só se verificado)", () => {
@@ -221,7 +236,7 @@ describe("AdminEmailModal", () => {
   it("Alterar domínio abre o formulário com os valores actuais", () => {
     renderModal();
     fireEvent.click(screen.getByRole("button", { name: "Alterar domínio" }));
-    expect(screen.getByLabelText(/^Domínio de email/)).toHaveValue("tifas.rufvision.com");
+    expect(screen.getByLabelText(/^Domínio de email/)).toHaveValue("tifas.pt");
     expect(screen.getByLabelText("Nome do remetente")).toHaveValue("Tifas");
     expect(screen.getByRole("button", { name: "Guardar" })).toBeInTheDocument();
   });
@@ -236,10 +251,28 @@ describe("AdminEmailModal", () => {
     expect(toastError).toHaveBeenCalledWith(msg);
   });
 
-  it("400 → 'Domínio inválido.'", () => {
+  it("400 → 'Domínio inválido.' (domínio próprio) ou texto do formato do código (formulário do código)", () => {
     renderModal();
     opts.put.mutation.onError({ response: { status: 400, data: { error: "Validation" } } });
     expect(toastError).toHaveBeenCalledWith("Domínio inválido.");
+  });
+
+  it.each([
+    ["EMAIL_CODE_TAKEN", "Esse código já é de outro negócio. Escolhe outro."],
+    ["EMAIL_CODE_RESERVED", "Esse código está reservado. Escolhe outro."],
+    ["EMAIL_CODE_ADDRESS_TAKEN", "Algum endereço com o código novo já está ocupado: a mudança foi recusada e nada mudou. Escolhe outro código."],
+    ["platform_domain_missing", "O domínio de email da plataforma ainda não está configurado no servidor."],
+  ])("erro do código %s → mensagem PT", (key, msg) => {
+    renderModal();
+    opts.put.mutation.onError({ response: { status: 409, data: { error: key } } });
+    expect(toastError).toHaveBeenCalledWith(msg);
+  });
+
+  it("400 no formulário do código → texto do formato (sem pontos)", () => {
+    getMock.mockReturnValue({ data: SEM_DOMINIO, isLoading: false, isError: false });
+    renderModal();
+    opts.put.mutation.onError({ response: { status: 400, data: { error: [{ message: "x" }] } } });
+    expect(toastError).toHaveBeenCalledWith(expect.stringContaining("sem pontos"));
   });
 
   it("use-own com 409 domain_not_verified mostra a mensagem", () => {
@@ -256,7 +289,18 @@ describe("AdminEmailModal", () => {
 });
 
 // ── Fase 7: dois domínios, domínio próprio, mover caixas, pausa ─────────────────────────────────────────────────
-const SUB = { ...base, kind: "platform-subdomain", domain: "tifas.rufvision.com", verified: true, active: true, mailRecords: null };
+// O endereço da plataforma: domínio partilhado + código; sem registos DNS, nasce verificado.
+const SUB = {
+  ...base,
+  kind: "platform",
+  domain: "rufvision.com",
+  platformCode: "tifas",
+  address: "suporte.tifas@rufvision.com",
+  verified: true,
+  active: true,
+  records: [],
+  mailRecords: null,
+};
 const OWN = {
   ...base,
   kind: "own",
@@ -277,24 +321,82 @@ const SENDING_OK = { paused: false, pausedAt: null, reason: null, pausedBy: null
 const twoDomains = (over: object = {}, sending: object = SENDING_OK) => ({
   configured: true,
   platformDomain: "rufvision.com",
-  suggestedDomain: null,
+  suggestedCode: null,
   domain: OWN,
   domains: [SUB, OWN],
-  sendingFrom: "geral@tifas.pt",
+  sendingFrom: "suporte@tifas.pt",
   mail: { configured: true, mxHost: "mail.rufvision.com" },
   sending,
   ...over,
 });
-const onlySub = (over: object = {}) => twoDomains({ domain: SUB, domains: [SUB], sendingFrom: "geral@tifas.rufvision.com", ...over });
+const onlySub = (over: object = {}) => twoDomains({ domain: SUB, domains: [SUB], sendingFrom: "suporte.tifas@rufvision.com", ...over });
 
 describe("AdminEmailModal — domínio próprio (fase 7)", () => {
   it("mostra os dois domínios e de onde se envia agora", () => {
     getMock.mockReturnValue({ data: twoDomains(), isLoading: false, isError: false });
     renderModal();
-    expect(screen.getByTestId("email-sending-from")).toHaveTextContent("geral@tifas.pt");
-    expect(screen.getByTestId("email-domain-block-platform-subdomain")).toHaveTextContent("tifas.rufvision.com");
+    expect(screen.getByTestId("email-sending-from")).toHaveTextContent("suporte@tifas.pt");
+    expect(screen.getByTestId("email-domain-block-platform")).toHaveTextContent("suporte.tifas@rufvision.com");
+    expect(screen.getByTestId("email-domain-block-platform")).toHaveTextContent("Endereço da plataforma");
     expect(screen.getByTestId("email-domain-block-own")).toHaveTextContent("tifas.pt");
     expect(screen.getByTestId("email-domain-block-own")).toHaveTextContent("Domínio próprio");
+  });
+
+  it("o endereço da plataforma: «Pronto», o código, SEM tabela de DNS nem «Verificar agora»; o código pode mudar sempre", () => {
+    getMock.mockReturnValue({ data: onlySub(), isLoading: false, isError: false });
+    renderModal();
+    const p = within(screen.getByTestId("email-domain-block-platform"));
+    expect(p.getByTestId("email-domain-state")).toHaveTextContent("Pronto");
+    expect(p.getByTestId("platform-code-line")).toHaveTextContent("tifas");
+    expect(p.getByTestId("platform-code-line")).toHaveTextContent("pode mudar-se quando quiseres");
+    expect(p.queryByTestId("dns-records")).toBeNull();
+    expect(p.queryByRole("button", { name: "Verificar agora" })).toBeNull();
+    expect(p.getByRole("button", { name: "Remover endereço" })).toBeInTheDocument();
+  });
+
+  it("o código muda sempre: o campo está activo, sem «fixo», e o botão de remover mantém-se (a API recusa se há caixas)", () => {
+    getMock.mockReturnValue({ data: onlySub(), isLoading: false, isError: false });
+    renderModal();
+    const p = within(screen.getByTestId("email-domain-block-platform"));
+    expect(p.getByTestId("platform-code-line")).not.toHaveTextContent("fixo");
+    fireEvent.click(p.getByRole("button", { name: "Alterar código e remetente" }));
+    expect(screen.getByLabelText(/^Código do negócio/)).toBeEnabled();
+    expect(screen.getByText(/não pode conter «rufvision»/)).toBeInTheDocument();
+  });
+
+  it("mudar o código pede confirmação («as caixas passam a X, os endereços antigos continuam a receber»); só envia se confirmar", async () => {
+    getMock.mockReturnValue({ data: onlySub(), isLoading: false, isError: false });
+    confirmMock.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    renderModal();
+    fireEvent.click(screen.getByRole("button", { name: "Alterar código e remetente" }));
+    fireEvent.change(screen.getByLabelText(/^Código do negócio/), { target: { value: "tifas-barber" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(confirmMock).toHaveBeenCalledTimes(1));
+    const msg = confirmMock.mock.calls[0][0].message as string;
+    expect(msg).toContain("suporte.tifas-barber@rufvision.com");
+    expect(msg).toContain("continuam a receber");
+    expect(mutates.put).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(mutates.put).toHaveBeenCalledWith({ userId: "u1", data: expect.objectContaining({ platformCode: "tifas-barber" }) }));
+    // Sem mudar o código (só o remetente) não pergunta nada.
+    confirmMock.mockClear();
+    mutates.put.mockClear();
+    fireEvent.change(screen.getByLabelText(/^Código do negócio/), { target: { value: "tifas" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(mutates.put).toHaveBeenCalled());
+    expect(confirmMock).not.toHaveBeenCalled();
+  });
+
+  it("código ainda livre: alterar abre o campo activo e o PUT leva o platformCode novo", async () => {
+    confirmMock.mockResolvedValue(true);
+    getMock.mockReturnValue({ data: onlySub(), isLoading: false, isError: false });
+    renderModal();
+    fireEvent.click(screen.getByRole("button", { name: "Alterar código e remetente" }));
+    const input = screen.getByLabelText(/^Código do negócio/);
+    expect(input).toBeEnabled();
+    fireEvent.change(input, { target: { value: "novo-codigo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(mutates.put).toHaveBeenCalledWith({ userId: "u1", data: expect.objectContaining({ platformCode: "novo-codigo", fromLocalPart: "suporte" }) }));
   });
 
   it("registos da caixa (MX e DKIM) numa tabela à parte, sem coluna de estado", () => {
@@ -313,16 +415,16 @@ describe("AdminEmailModal — domínio próprio (fase 7)", () => {
     getMock.mockReturnValue({ data: twoDomains(), isLoading: false, isError: false });
     confirmMock.mockResolvedValue(true);
     renderModal();
-    const sub = within(screen.getByTestId("email-domain-block-platform-subdomain"));
+    const sub = within(screen.getByTestId("email-domain-block-platform"));
     const own = within(screen.getByTestId("email-domain-block-own"));
-    fireEvent.click(sub.getByRole("button", { name: "Verificar agora" }));
-    expect(mutates.verify).toHaveBeenLastCalledWith({ userId: "u1", params: { kind: "platform-subdomain" } });
+    fireEvent.click(own.getByRole("button", { name: "Verificar agora" }));
+    expect(mutates.verify).toHaveBeenLastCalledWith({ userId: "u1", params: { kind: "own" } });
     // O interruptor do envio só existe no domínio próprio.
     expect(sub.queryByRole("button", { name: "Voltar ao envio da plataforma" })).toBeNull();
     fireEvent.click(own.getByRole("button", { name: "Voltar ao envio da plataforma" }));
     expect(mutates.platform).toHaveBeenCalledWith({ userId: "u1", params: { kind: "own" } });
-    fireEvent.click(sub.getByRole("button", { name: "Remover domínio" }));
-    await waitFor(() => expect(mutates.del).toHaveBeenCalledWith({ userId: "u1", params: { kind: "platform-subdomain" } }));
+    fireEvent.click(sub.getByRole("button", { name: "Remover endereço" }));
+    await waitFor(() => expect(mutates.del).toHaveBeenCalledWith({ userId: "u1", params: { kind: "platform" } }));
   });
 
   it("só com o subdomínio: «Adicionar domínio próprio» abre a pergunta do email existente e o aviso do MX", () => {
@@ -330,12 +432,11 @@ describe("AdminEmailModal — domínio próprio (fase 7)", () => {
     renderModal();
     fireEvent.click(screen.getByRole("button", { name: "Adicionar domínio próprio" }));
     expect(screen.getByLabelText(/^Domínio de email/)).toHaveValue("");
-    // Domínio próprio → aparece «Já tem email neste domínio?»; um subdomínio da plataforma não.
+    // Domínio próprio → aparece «Já tem email neste domínio?» e o aviso do MX; o código não existe neste formulário.
     fireEvent.change(screen.getByLabelText(/^Domínio de email/), { target: { value: "tifas.pt" } });
     expect(screen.getByTestId("own-domain-mail")).toBeInTheDocument();
     expect(screen.getByTestId("mx-warning")).toHaveTextContent("corta o email");
-    fireEvent.change(screen.getByLabelText(/^Domínio de email/), { target: { value: "x.rufvision.com" } });
-    expect(screen.queryByTestId("own-domain-mail")).toBeNull();
+    expect(screen.queryByLabelText(/^Código do negócio/)).toBeNull();
   });
 
   it("caminho (a) sem email → caixa na raiz: PUT com existingEmail false e mail root", () => {
@@ -350,7 +451,7 @@ describe("AdminEmailModal — domínio próprio (fase 7)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Configurar" }));
     expect(mutates.put).toHaveBeenCalledWith({
       userId: "u1",
-      data: { domain: "tifas.pt", fromLocalPart: "geral", senderName: "Barbearia Central", existingEmail: false, mail: "root" },
+      data: { domain: "tifas.pt", fromLocalPart: "suporte", senderName: "Barbearia Central", existingEmail: false, mail: "root" },
     });
   });
 
@@ -362,7 +463,7 @@ describe("AdminEmailModal — domínio próprio (fase 7)", () => {
     fireEvent.click(screen.getByLabelText(/Sim, já usa email neste domínio/));
     expect(screen.getByLabelText(/Na raiz do domínio/)).toBeDisabled();
     expect(screen.getByLabelText(/Num subdomínio/)).toBeChecked();
-    expect(screen.getByText("geral@contacto.tifas.pt")).toBeInTheDocument();
+    expect(screen.getByText("suporte@contacto.tifas.pt")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Configurar" }));
     expect(mutates.put).toHaveBeenCalledWith({
       userId: "u1",
@@ -384,18 +485,18 @@ describe("AdminEmailModal — domínio próprio (fase 7)", () => {
     });
   });
 
-  it("um subdomínio da plataforma não leva existingEmail nem mail", () => {
+  it("o endereço da plataforma não leva existingEmail nem mail (só platformCode)", () => {
     getMock.mockReturnValue({
-      data: twoDomains({ domain: OWN, domains: [OWN], suggestedDomain: "tifas.rufvision.com" }),
+      data: twoDomains({ domain: OWN, domains: [OWN], suggestedCode: "tifas" }),
       isLoading: false,
       isError: false,
     });
     renderModal();
-    fireEvent.click(screen.getByRole("button", { name: "Adicionar subdomínio da plataforma" }));
+    fireEvent.click(screen.getByRole("button", { name: "Adicionar endereço da plataforma" }));
     fireEvent.click(screen.getByRole("button", { name: "Configurar" }));
     expect(mutates.put).toHaveBeenCalledWith({
       userId: "u1",
-      data: { domain: "tifas.rufvision.com", fromLocalPart: "geral", senderName: "Barbearia Central" },
+      data: { platformCode: "tifas", fromLocalPart: "suporte", senderName: "Barbearia Central" },
     });
   });
 
@@ -417,7 +518,7 @@ describe("AdminEmailModal — domínio próprio (fase 7)", () => {
 
   it("mover as caixas para o domínio próprio pede confirmação e chama {to: own}", async () => {
     getMock.mockReturnValue({ data: twoDomains(), isLoading: false, isError: false });
-    mailboxesMock.mockReturnValue(boxes("geral@tifas.rufvision.com"));
+    mailboxesMock.mockReturnValue(boxes("suporte.tifas@rufvision.com"));
     confirmMock.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
     renderModal();
     const btn = screen.getByRole("button", { name: "Mover as caixas para o domínio próprio" });
@@ -430,18 +531,18 @@ describe("AdminEmailModal — domínio próprio (fase 7)", () => {
 
   it("mover fica desactivado com o domínio por verificar", () => {
     getMock.mockReturnValue({ data: twoDomains({ domains: [SUB, { ...OWN, verified: false }] }), isLoading: false, isError: false });
-    mailboxesMock.mockReturnValue(boxes("geral@tifas.rufvision.com"));
+    mailboxesMock.mockReturnValue(boxes("suporte.tifas@rufvision.com"));
     renderModal();
     expect(screen.getByRole("button", { name: "Mover as caixas para o domínio próprio" })).toBeDisabled();
   });
 
   it("caixas já no domínio próprio: oferece voltar ({to: platform})", async () => {
     getMock.mockReturnValue({ data: twoDomains(), isLoading: false, isError: false });
-    mailboxesMock.mockReturnValue(boxes("geral@tifas.pt"));
+    mailboxesMock.mockReturnValue(boxes("suporte@tifas.pt"));
     confirmMock.mockResolvedValue(true);
     renderModal();
     expect(screen.queryByRole("button", { name: "Mover as caixas para o domínio próprio" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Voltar as caixas ao subdomínio da plataforma" }));
+    fireEvent.click(screen.getByRole("button", { name: "Voltar as caixas ao endereço da plataforma" }));
     await waitFor(() => expect(mutates.move).toHaveBeenCalledWith({ userId: "u1", data: { to: "platform" } }));
   });
 
@@ -554,6 +655,42 @@ describe("EmailStatusCard (Admin → Sistema)", () => {
     statusMock.mockReturnValue(status({ configured: st !== "not_configured", reachable: null, authenticated: null, status: st }));
     render(<EmailStatusCard />);
     expect(within(screen.getByTestId("email-stalwart")).getByText(label)).toBeInTheDocument();
+  });
+
+  it("DNS da plataforma: o MX do domínio partilhado → servidor de correio, com ✅/❌ (só leitura)", () => {
+    statusMock.mockReturnValue({
+      data: {
+        platformDomain: "rufvision.com",
+        platformDns: { records: [{ type: "MX", name: "rufvision.com", value: "mail.rufvision.com", priority: 10, ok: false }] },
+        resend: { configured: true, domains: { total: 0, verified: 0, unverified: 0 }, sentThisMonth: 0 },
+        stalwart: { status: "ok" },
+      },
+      isLoading: false,
+      isError: false,
+    });
+    const { unmount } = render(<EmailStatusCard />);
+    const row = screen.getByTestId("email-platform-dns-row");
+    expect(row).toHaveTextContent("MX · rufvision.com → mail.rufvision.com · prioridade 10");
+    expect(row).toHaveTextContent("❌");
+    unmount();
+    statusMock.mockReturnValue({
+      data: {
+        platformDomain: "rufvision.com",
+        platformDns: { records: [{ type: "MX", name: "rufvision.com", value: "mail.rufvision.com", priority: 10, ok: true }] },
+        resend: { configured: true, domains: { total: 0, verified: 0, unverified: 0 }, sentThisMonth: 0 },
+        stalwart: { status: "ok" },
+      },
+      isLoading: false,
+      isError: false,
+    });
+    render(<EmailStatusCard />);
+    expect(screen.getByTestId("email-platform-dns-row")).toHaveTextContent("✅");
+  });
+
+  it("sem platformDns (envs por configurar) não mostra a secção", () => {
+    statusMock.mockReturnValue(status({ status: "ok" }));
+    render(<EmailStatusCard />);
+    expect(screen.queryByTestId("email-platform-dns")).toBeNull();
   });
 
   it("tenants pausados: lista com o motivo e Retomar", () => {

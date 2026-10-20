@@ -75,7 +75,7 @@ describe("Correio — erros em PT", () => {
     expect(teamErrorMessage(err(409, "module_not_enabled"), "x")).toMatch(/módulo Correio/);
   });
   it("mailboxError da Equipa → PT (desconhecido = mensagem genérica)", () => {
-    expect(mailboxErrorMessage("mailbox_address_unavailable")).toMatch(/não está disponível/);
+    expect(mailboxErrorMessage("mailbox_address_unavailable")).toMatch(/endereço livre/);
     expect(mailboxErrorMessage("mail_provider_error")).toMatch(/não respondeu/);
     expect(mailboxErrorMessage("coisa_estranha")).toMatch(/Não foi possível criar o endereço/);
   });
@@ -126,6 +126,15 @@ describe("Correio — navegação e permissões", () => {
     expect(leafForPath("/correio/campanhas")).toBe("correio.campanhas");
     expect(leafForPath("/correio/campanhas/abc")).toBe("correio.campanhas");
     expect(memberSubitems("/correio", ((k: string) => k === "correio.campanhas") as any).map((i) => i.id)).toEqual(["campanhas"]);
+  });
+  it("CR-09: com o módulo Correio a «Caixa» vê-se sempre a um membro (a caixa pessoal não depende de correio.caixa); o resto continua por folha", () => {
+    const opts = { personalMailbox: true };
+    expect(memberSubitems("/correio", () => false, opts).map((i) => i.id)).toEqual(["caixa"]);
+    expect(memberSubitems("/correio", ((k: string) => k === "correio.contactos") as any, opts).map((i) => i.id)).toEqual(["caixa", "contactos"]);
+    // Sem o módulo (ou sem pedir) nada muda: sem folha, sem subitem.
+    expect(memberSubitems("/correio", () => false, { personalMailbox: false })).toEqual([]);
+    // A opção só vale para a Caixa do Correio, nunca para outros menus.
+    expect(memberSubitems("/loja", () => false, opts)).toEqual([]);
   });
   it("a folha da página é correio.caixa", () => {
     expect(leafForPath("/correio")).toBe("correio.caixa");

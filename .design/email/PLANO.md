@@ -104,33 +104,33 @@ não é um estado à parte: enquanto o DNS não verifica, conta como não verifi
 
 | | Transaccional (marcações, reset, convites) | Caixa de correio (Stalwart) | Campanhas (Resend) |
 |---|---|---|---|
-| **Sem domínio verificado** | Resend, **do subdomínio do negócio**: `geral@tifas.rufvision.com` (decisão do dono; até a caixa existir, a resposta vai para o email do dono do negócio) | No subdomínio do negócio na plataforma: `ana@tifas.rufvision.com` (secção 2b — a confirmar no piloto) | **Desligadas** (decisão do dono) |
-| **Domínio verificado** | Resend, **do domínio dele** (`noreply@tifas.pt`, resposta para `geral@tifas.pt`) | `ana@tifas.pt` | Resend, do subdomínio `news.tifas.pt` |
+| **Sem domínio próprio** | Resend, **do domínio da plataforma com o código do negócio**: `suporte.tifas@rufvision.com` (decisão do dono, 2026-10-20 — B55; a resposta cai na caixa `suporte@`, senão no email do dono) | No domínio da plataforma: `suporte.tifas@rufvision.com` (negócio), `ana.tifas@rufvision.com` (pessoa) — secção 2b | **Desligadas** (decisão do dono) |
+| **Domínio próprio verificado** | Resend, **do domínio dele** (`suporte@tifas.pt`, resposta para `suporte@tifas.pt`) | `ana@tifas.pt` (o código sai do endereço) | Resend, do subdomínio `news.tifas.pt` |
 
 **Porque não há campanhas sem domínio verificado:** marketing a sair do domínio da plataforma põe a
 reputação de todos os tenants nas mãos de um só. Se os clientes de um tenant carregarem em "spam", os
 emails de marcações de toda a gente começam a cair na pasta de spam.
 
-### 2b · Caixa sem domínio próprio: `pessoa@negocio.rufvision.com`
+### 2b · Caixa sem domínio próprio: `pessoa.codigo@rufvision.com` (revisto no B55)
 
-Ideia do dono. **Tecnicamente dá**: cada negócio tem um subdomínio (`tifas.rufvision.com`), e um
-subdomínio pode receber email como qualquer domínio. Basta pôr nele os registos MX e DKIM e
-criá-lo como domínio no Stalwart. O MX convive com o registo do site no mesmo subdomínio.
+**Decisão do dono (2026-10-20): deixa de haver um subdomínio de email por negócio** (`geral@tifas.rufvision.com`). Motivo:
+no Resend cada subdomínio conta como um domínio verificado (plano grátis 1, Pro 10) → custo por cliente. Passa a haver um
+**endereço no domínio da plataforma com o código do negócio**: `suporte.tifas@rufvision.com` (caixa do negócio) e
+`<pessoa>.tifas@rufvision.com` (caixa de uma pessoa: `ana.tifas@`, `ana.silva.tifas@`, `ana2.tifas@`). O `rufvision.com` já está verificado no
+Resend (é de lá que sai o `noreply@`), por isso qualquer parte local serve, de graça.
 
-O que é preciso ter em conta:
-- **Confirmar no piloto** que a edição Community aceita vários domínios (cada negócio é um domínio) e
-  que o Resend deixa verificar os subdomínios para o envio (secção 1, ponto 3).
-- **Os registos ficam no DNS do `rufvision.com`**, que é teu. Cada negócio novo com caixa = 2–3 registos
-  novos nesse DNS. O Admin mostra-os para copiar. Se um dia o DNS estiver num fornecedor com API, isto
-  pode passar a ser automático (não está planeado; o dono não sabe se fica na Cloudflare).
-- **Reputação partilhada**: todos os negócios ficam debaixo do `rufvision.com`. Um negócio que abuse da
-  caixa (spam a partir dela) pode afectar o domínio da plataforma, de onde também saem os emails de reset
-  e de marcações. **Decidido: fica no `rufvision.com`** (o dono quer os emails automáticos a sair do
-  subdomínio do negócio). Mitigação: cada negócio no seu subdomínio, com o seu DKIM (a reputação separa-se
-  em parte), tecto de envios por caixa, e pausa automática de um negócio com queixas a mais.
-- **Quando o negócio verificar o domínio dele**, o endereço muda (`ana@tifas.rufvision.com` →
-  `ana@tifas.pt`). O antigo fica como **reencaminhamento** para o novo (o Stalwart suporta
-  aliases e reencaminhamentos), para nada se perder.
+- **DNS: uma vez, para todos.** O MX do apex `rufvision.com` → `MAIL_SERVER_HOST` (`mail.rufvision.com`, o Stalwart), prioridade 10.
+  Sem registos por negócio; o Admin → Sistema mostra-o (só leitura) com ✅/❌.
+- **Código do negócio (CR-24):** letras minúsculas, números e hífen, 1–30, **sem pontos** (o último `.` do endereço separa a pessoa do
+  negócio), único na plataforma, com uma lista de reservados e sem «rufvision» em lado nenhum; sugere-se do nome do negócio; **muda-se a qualquer momento** (decisão do dono, 2.ª ronda do B55): as caixas passam ao código novo, os endereços antigos ficam como alias e o código antigo fica reservado para sempre.
+- **Isolamento:** o Stalwart tem UM domínio (`rufvision.com`) partilhado; quem isola os negócios é a API (código único + linhas `Mailbox` por
+  `userId`). Um negócio nunca cria, lê nem recebe alias de um endereço com o código de outro.
+- **Tudo automático (CR-25):** código, `suporte@`, caixa pessoal do dono (campo «Nome do dono»), uma por membro e a do admin
+  (`primeiro.último@rufvision.com`); os negócios que já existiam recebem-nas por um job idempotente.
+- **Reputação partilhada** continua a ser a do `rufvision.com` (decidido): tecto de envios por caixa, pausa automática de um negócio com queixas.
+- **Quando o negócio verificar o domínio dele**, o código sai da parte local: `suporte.tifas@rufvision.com` → `suporte@tifas.pt`,
+  `ana.silva.tifas@rufvision.com` → `ana.silva@tifas.pt`. O antigo fica como **alias** (entre domínios diferentes) para nada se perder.
+- As caixas que já existiam em subdomínios antigos (`geral@x.rufvision.com`, do piloto) **não se mexem**.
 
 **A armadilha do domínio verificado — o tenant já tem email no domínio.** Se a Tifas já usa Gmail/Google Workspace
 em `@tifas.pt`, o registo MX já aponta para a Google, e pôr a caixa no Stalwart **corta-lhe o email

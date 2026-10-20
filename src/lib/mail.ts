@@ -93,6 +93,18 @@ export function parseRecipients(raw: string): { valid: string[]; invalid: string
   return { valid, invalid };
 }
 
+// ── Caixa pessoal vs. caixa do negócio (B55) ─────────────────────────────────
+
+/** Sem folha: a caixa PESSOAL de cada um (membro, dono, admin) é sempre sua — só o billing a pode bloquear. */
+export const NO_LEAF: readonly string[] = [];
+/** A folha que manda nas escritas: `correio.caixa` na caixa do negócio (`suporte@`); nenhuma na pessoal. */
+export const mailLeaf = (personal?: boolean): string | readonly string[] => (personal ? NO_LEAF : "correio.caixa");
+
+/** Rótulo de uma caixa no selector: «Suporte · suporte.tifas@…» / «Pessoal · tiago.tifas@…». */
+export function mailboxLabel(kind: string | undefined, address: string | undefined): string {
+  return `${kind === "business" ? "Suporte" : "Pessoal"} · ${address ?? ""}`;
+}
+
 // ── Erros (a API devolve o código em `error`, em minúsculas ou MAIÚSCULAS, e uma `message` PT) ──────────────
 
 export const MAIL_MESSAGE_BY_CODE: Record<string, string> = {
@@ -104,20 +116,26 @@ export const MAIL_MESSAGE_BY_CODE: Record<string, string> = {
   MAIL_ORIGINAL_REQUIRED: "Falta o email a que isto responde.",
   MAIL_TOO_MANY_RECIPIENTS: "Demasiados destinatários (máximo 20).",
   ATTACHMENT_INVALID: "Há um anexo inválido (só fotos JPEG/PNG/WebP e PDF, até 5 anexos e 20 MB no total).",
-  mailbox_address_unavailable: "Esse endereço não está disponível. Escolhe outro.",
+  mailbox_address_unavailable: "Não foi possível escolher um endereço livre para esta caixa.",
+  mailbox_error: "A caixa não se criou agora; cria-se sozinha daqui a pouco.",
+  business_mailbox_missing: "A caixa do negócio ainda não existe.",
   module_not_enabled: "Este negócio não tem o módulo Correio.",
   email_domain_not_found: "O negócio ainda não tem domínio de email configurado.",
   own_domain_not_supported: "As caixas em domínio próprio ainda não estão disponíveis.",
-  business_mailbox_protected: "A caixa do negócio não se desactiva.",
+  business_mailbox_protected: "Esta caixa não se desactiva por aqui.",
   member_removed: "O membro desta caixa já não existe.",
   // Domínio próprio (fase 7)
   mx_conflict:
     "Este domínio já tem email noutro sítio: pôr a caixa na raiz cortava-lhe o email que já usa. Escolhe «contacto.<domínio>» ou «Sem caixa».",
   mx_not_ready:
     "O registo MX do domínio ainda não aponta para o servidor de correio. Põe o MX da tabela «Registos da caixa» no DNS, espera que propague e tenta de novo.",
-  kind_required: "Há dois domínios: diz de qual falas (subdomínio da plataforma ou domínio próprio).",
+  kind_required: "Há dois domínios: diz de qual falas (endereço da plataforma ou domínio próprio).",
+  EMAIL_CODE_TAKEN: "Esse código já é de outro negócio. Escolhe outro.",
+  EMAIL_CODE_RESERVED: "Esse código está reservado. Escolhe outro.",
+  EMAIL_CODE_ADDRESS_TAKEN: "Algum endereço com o código novo já está ocupado: a mudança foi recusada e nada mudou.",
+  platform_domain_missing: "O domínio de email da plataforma ainda não está configurado no servidor.",
   existing_email_required: "Diz se o negócio já tem email neste domínio antes de activar a caixa.",
-  mailboxes_in_domain: "Há caixas activas neste domínio. Passa-as para o subdomínio da plataforma antes de o mudar ou remover.",
+  mailboxes_in_domain: "Há caixas activas neste domínio. Passa-as para o endereço da plataforma antes de o mudar ou remover (o endereço da plataforma de um negócio com caixas também não se remove).",
   mail_not_enabled: "A caixa de correio não está activada neste domínio.",
   own_domain_missing: "O negócio ainda não tem domínio próprio.",
   domain_not_verified: "O domínio ainda não está verificado — põe os registos no DNS e carrega em «Verificar agora».",
@@ -140,7 +158,7 @@ export const MAIL_MESSAGE_BY_CODE: Record<string, string> = {
   CAMPAIGN_NOT_EDITABLE: "Só os rascunhos se editam. Duplica a campanha para mudar o conteúdo.",
   CAMPAIGN_NOT_CANCELLABLE: "Esta campanha já não se pode cancelar.",
   CAMPAIGN_TEST_LIMIT: "Atingiste o limite de testes de hoje. Tenta amanhã.",
-  own_domain_required: "As campanhas precisam de um domínio próprio do negócio, não só do subdomínio da plataforma.",
+  own_domain_required: "As campanhas precisam de um domínio próprio do negócio, não só do endereço da plataforma.",
 };
 
 /** Texto PT de um código de erro de correio (`mailboxError` da Equipa ou `error` de uma resposta); `null` se desconhecido. */

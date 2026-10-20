@@ -29,11 +29,15 @@ import type { EmailDnsRecord } from "../gen/backoffice/types/EmailDnsRecord.js";
 import type { TenantEmailDomain } from "../gen/backoffice/types/TenantEmailDomain.js";
 import { AdminMailboxesSection } from "./AdminMailboxesSection";
 
-type DomainKind = "platform-subdomain" | "own";
+type DomainKind = "platform" | "own";
 
 // Mensagens PT dos erros da API (vêm em `error`, não em `code`).
 const EMAIL_ERROR_BY_KEY: Record<string, string> = {
   domain_taken: "Esse domínio de email já pertence a outro cliente.",
+  EMAIL_CODE_TAKEN: "Esse código já é de outro negócio. Escolhe outro.",
+  EMAIL_CODE_RESERVED: "Esse código está reservado. Escolhe outro.",
+  EMAIL_CODE_ADDRESS_TAKEN: "Algum endereço com o código novo já está ocupado: a mudança foi recusada e nada mudou. Escolhe outro código.",
+  platform_domain_missing: "O domínio de email da plataforma ainda não está configurado no servidor.",
   email_provider_error: "O fornecedor de email (Resend) não aceitou o pedido. Tenta de novo daqui a pouco.",
   domain_not_verified: "O domínio ainda não está verificado — põe os registos no DNS e carrega em «Verificar agora».",
 };
@@ -136,7 +140,7 @@ export function DnsRecordsTable({
 type Tenant = { userId: string; name: string };
 
 const KIND_LABEL: Record<string, string> = {
-  "platform-subdomain": "Subdomínio da plataforma",
+  platform: "Endereço da plataforma",
   own: "Domínio próprio",
 };
 
@@ -146,9 +150,10 @@ const fmtDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString
 const pausedByLabel = (by?: string | null) => (by === "auto" ? "automática, por queixas" : by === "admin" ? "pelo admin" : "");
 
 /**
- * Admin → Utilizadores → acção "Email" (B42 · fases 4 e 7): os domínios de email do tenant — o subdomínio da plataforma
- * e o domínio próprio (coexistem) —, de onde sai o email agora, registos DNS para copiar (envio + caixa), verificar,
- * voltar ao envio da plataforma, mover as caixas, pausar envios e remover. Só o dono da plataforma mexe aqui.
+ * Admin → Utilizadores → acção "Email" (B42 · fases 4 e 7, B55): o endereço do negócio no domínio da plataforma
+ * (`suporte.<código>@rufvision.com`, sem DNS nem verificação) e/ou o domínio próprio (coexistem), de onde sai o email agora,
+ * registos DNS do domínio próprio para copiar (envio + caixa), verificar, voltar ao envio da plataforma, mover as caixas,
+ * pausar envios e remover. Só o dono da plataforma mexe aqui.
  */
 export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; onClose: () => void }) {
   const qc = useQueryClient();
@@ -161,7 +166,9 @@ export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; on
   const [editing, setEditing] = useState<string | null>(null);
   const [domain, setDomain] = useState("");
   const [senderName, setSenderName] = useState("");
-  const [localPart, setLocalPart] = useState("geral");
+  const [localPart, setLocalPart] = useState("suporte");
+  // Código do negócio no domínio da plataforma (endereço `suporte.<código>@…`).
+  const [code, setCode] = useState("");
   // «Já tem email neste domínio?» e onde fica a caixa (só no domínio próprio).
   const [existing, setExisting] = useState<"" | "yes" | "no">("");
   const [mailChoice, setMailChoice] = useState<"" | "root" | "subdomain" | "none">("");
@@ -170,7 +177,7 @@ export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; on
   const domains: TenantEmailDomain[] = data?.domains?.length ? data.domains : data?.domain ? [data.domain] : [];
   const multi = domains.length > 1;
   const platformDomain = data?.platformDomain ?? null;
-  const hasPlatformSub = domains.some((x) => x.kind === "platform-subdomain");
+  const hasPlatform = domains.some((x) => x.kind === "platform");
   const hasOwn = domains.some((x) => x.kind === "own");
 
   // Ao abrir (ou mudar de tenant) volta à vista principal.
@@ -184,22 +191,24 @@ export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; on
   useEffect(() => {
     if (!data || !formKey) return;
     if (formKey === "first" || formKey === "new-platform") {
-      setDomain(data.suggestedDomain ?? "");
+      setCode(data.suggestedCode ?? "");
+      setDomain("");
       setSenderName(tenant?.name ?? "");
-      setLocalPart("geral");
+      setLocalPart("suporte");
       setExisting("");
       setMailChoice("");
     } else if (formKey === "new-own") {
       setDomain("");
       setSenderName(tenant?.name ?? "");
-      setLocalPart("geral");
+      setLocalPart("suporte");
       setExisting("");
       setMailChoice("");
     } else {
       const cur = domains.find((x) => x.kind === formKey);
-      setDomain(cur?.domain ?? "");
+      setCode(cur?.platformCode ?? "");
+      setDomain(cur?.kind === "own" ? (cur?.domain ?? "") : "");
       setSenderName(cur?.senderName ?? "");
-      setLocalPart(cur?.fromLocalPart || "geral");
+      setLocalPart(cur?.fromLocalPart || "suporte");
       setExisting(cur?.existingEmail == null ? "" : cur.existingEmail ? "yes" : "no");
       setMailChoice(cur?.existingEmail == null ? "" : (cur.mailMode ?? ""));
     }
@@ -212,17 +221,22 @@ export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; on
     qc.invalidateQueries({ queryKey: [{ url: "/admin/email/status" }] });
   };
   const onError = (e: unknown) => toast.error(emailErrorMessage(e));
+  // Num formulário de código, um 400 é do formato do código (não de um domínio).
+  const onPutError = (e: unknown) =>
+    (e as any)?.response?.status === 400 && isPlatformForm
+      ? toast.error("Código inválido: só letras, números e hífen (1 a 30), sem pontos.")
+      : onError(e);
   const client = {};
 
   const putM = usePutAdminUsersUseridEmailDomain({
     client,
     mutation: {
       onSuccess: () => {
-        toast.success("Domínio de email guardado");
+        toast.success("Email do negócio guardado");
         setEditing(null);
         refresh();
       },
-      onError,
+      onError: onPutError,
     },
   });
   const verifyM = usePostAdminUsersUseridEmailDomainVerify({
@@ -332,10 +346,12 @@ export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; on
     pauseM.isPending ||
     resumeM.isPending;
 
-  // O domínio escrito é «próprio» se não está debaixo do domínio da plataforma.
+  // Formulário do endereço da plataforma (código) ou do domínio próprio. Sem o domínio da plataforma configurado só há o próprio.
   const typed = domain.trim().toLowerCase();
-  const looksPlatform = !!platformDomain && typed.endsWith(`.${platformDomain.toLowerCase()}`);
-  const isOwnForm = typed !== "" && !looksPlatform;
+  const isPlatformForm = formKey === "first" ? !!platformDomain : formKey === "new-platform" || formKey === "platform";
+  const isOwnForm = !isPlatformForm;
+  const currentPlatform = domains.find((x) => x.kind === "platform");
+  const typedCode = code.trim().toLowerCase();
   const mailIncomplete = isOwnForm && (existing === "" || mailChoice === "");
 
   const pickExisting = (v: "yes" | "no") => {
@@ -344,12 +360,22 @@ export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; on
     setMailChoice((cur) => (v === "yes" ? (cur === "root" || cur === "" ? "subdomain" : cur) : cur === "" ? "root" : cur));
   };
 
-  const save = () => {
+  const save = async () => {
     if (!tenant) return;
+    // Mudar o código de um negócio que já o tem: as caixas mudam de endereço (os antigos ficam alias) — confirma antes.
+    const oldCode = currentPlatform?.platformCode;
+    if (isPlatformForm && formKey === "platform" && oldCode && typedCode && typedCode !== oldCode) {
+      const ok = await confirmDialog({
+        title: "Mudar o código do negócio?",
+        message: `As caixas passam a ${localPart.trim() || "suporte"}.${typedCode}@${platformDomain ?? "…"} (e o mesmo para cada pessoa); os endereços antigos (…${oldCode}@) continuam a receber na mesma caixa e ficam reservados para este negócio.`,
+        confirmLabel: "Mudar código",
+      });
+      if (!ok) return;
+    }
     putM.mutate({
       userId: tenant.userId,
       data: {
-        domain: domain.trim(),
+        ...(isPlatformForm ? { platformCode: typedCode } : { domain: domain.trim() }),
         fromLocalPart: localPart.trim() || undefined,
         senderName: senderName.trim() || null,
         ...(isOwnForm && existing !== "" && mailChoice !== ""
@@ -364,8 +390,11 @@ export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; on
   const remove = async (d: TenantEmailDomain) => {
     if (!tenant) return;
     const ok = await confirmDialog({
-      title: "Remover o domínio de email?",
-      message: `${d.domain} deixa de enviar os emails de ${tenant.name}; voltam a sair do endereço da plataforma. O domínio também é apagado no Resend.`,
+      title: d.kind === "platform" ? "Remover o endereço da plataforma?" : "Remover o domínio de email?",
+      message:
+        d.kind === "platform"
+          ? `${d.address ?? d.domain} deixa de enviar os emails de ${tenant.name}; voltam a sair do remetente geral da plataforma.`
+          : `${d.domain} deixa de enviar os emails de ${tenant.name}; voltam a sair do endereço da plataforma. O domínio também é apagado no Resend.`,
       confirmLabel: "Remover",
       danger: true,
     });
@@ -379,11 +408,11 @@ export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; on
   const moveBoxes = async (to: "own" | "platform") => {
     if (!tenant || !ownDomain) return;
     const ok = await confirmDialog({
-      title: to === "own" ? "Mover as caixas para o domínio próprio?" : "Voltar as caixas ao subdomínio da plataforma?",
+      title: to === "own" ? "Mover as caixas para o domínio próprio?" : "Voltar as caixas ao endereço da plataforma?",
       message:
         to === "own"
-          ? `O login passa a ser geral@${ownDomain.mailDomain ?? ownDomain.domain}. As mensagens ficam onde estão e os endereços antigos continuam a entregar na mesma caixa. Só funciona com o MX do domínio já a apontar para o servidor de correio.`
-          : "Os logins voltam aos endereços do subdomínio da plataforma e a mudança automática para o domínio próprio fica travada.",
+          ? `O código do negócio sai do endereço: suporte.<código>@… passa a suporte@${ownDomain.mailDomain ?? ownDomain.domain}, e o mesmo para cada pessoa (ana.<código>@… → ana@…). As mensagens ficam onde estão e os endereços antigos continuam a entregar na mesma caixa. Só funciona com o MX do domínio já a apontar para o servidor de correio.`
+          : "Os logins voltam aos endereços da plataforma, com o código do negócio, e a mudança automática para o domínio próprio fica travada.",
       confirmLabel: to === "own" ? "Mover" : "Voltar",
     });
     if (ok) moveM.mutate({ userId: tenant.userId, data: { to } });
@@ -414,7 +443,11 @@ export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; on
           Fechar
         </Button>
       )}
-      <GuardButton isLoading={putM.isPending} disabled={!domain.trim() || putM.isPending || mailIncomplete} onClick={save}>
+      <GuardButton
+        isLoading={putM.isPending}
+        disabled={!(isPlatformForm ? typedCode : domain.trim()) || putM.isPending || mailIncomplete}
+        onClick={save}
+      >
         {domains.length > 0 && formKey !== "new-own" && formKey !== "new-platform" ? "Guardar" : "Configurar"}
       </GuardButton>
     </>
@@ -438,20 +471,38 @@ export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; on
         <div className="space-y-4">
           {domains.length === 0 && (
             <p className="text-sm text-zinc-600 dark:text-zinc-300">
-              Este negócio ainda não tem domínio de email. Os emails automáticos (marcações, reset de password, convites)
-              continuam a sair do endereço da plataforma até o domínio ficar verificado.
+              Este negócio ainda não tem email próprio. Os emails automáticos (marcações, reset de password, convites)
+              continuam a sair do endereço geral da plataforma até isto ficar configurado.
             </p>
           )}
-          <Input
-            label="Domínio de email"
-            value={domain}
-            onChange={(e: any) => setDomain(e.target.value)}
-            placeholder={
-              formKey === "new-own" ? "negocio.pt" : platformDomain ? `negocio.${platformDomain}` : "negocio.exemplo.pt"
-            }
-            hint="Um subdomínio (ex.: tifas.rufvision.com) não mexe no email que o negócio já usa."
-            autoComplete="off"
-          />
+          {isPlatformForm ? (
+            <div className="space-y-2" data-testid="platform-code-form">
+              <Input
+                label="Código do negócio"
+                value={code}
+                onChange={(e: any) => setCode(e.target.value)}
+                placeholder="tifas"
+                hint="Só letras, números e hífen, sem pontos (não pode conter «rufvision»). Pode mudar-se quando quiseres: as caixas passam ao código novo e os endereços antigos continuam a receber."
+                autoComplete="off"
+              />
+              <p className="text-sm text-zinc-600 dark:text-zinc-300" data-testid="platform-address-preview">
+                Endereço do negócio:{" "}
+                <span className="font-mono text-xs break-all">
+                  {localPart.trim() || "suporte"}.{typedCode || "código"}@{platformDomain ?? "plataforma"}
+                </span>
+              </p>
+              <p className="text-xs text-zinc-500">Pronto a usar: não é preciso DNS nem verificar nada.</p>
+            </div>
+          ) : (
+            <Input
+              label="Domínio de email"
+              value={domain}
+              onChange={(e: any) => setDomain(e.target.value)}
+              placeholder="negocio.pt"
+              hint="O domínio do próprio negócio (ex.: tifas.pt). O domínio da plataforma não se usa aqui."
+              autoComplete="off"
+            />
+          )}
           <Input
             label="Nome do remetente"
             value={senderName}
@@ -463,8 +514,12 @@ export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; on
             label="Parte local do endereço"
             value={localPart}
             onChange={(e: any) => setLocalPart(e.target.value)}
-            placeholder="geral"
-            hint={`Os emails saem de ${localPart.trim() || "geral"}@${domain.trim() || "dominio"}.`}
+            placeholder="suporte"
+            hint={`Os emails saem de ${
+              isPlatformForm
+                ? `${localPart.trim() || "suporte"}.${typedCode || "código"}@${platformDomain ?? "plataforma"}`
+                : `${localPart.trim() || "suporte"}@${domain.trim() || "dominio"}`
+            }.`}
             autoComplete="off"
           />
 
@@ -494,7 +549,7 @@ export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; on
                       onChange={() => setMailChoice("root")}
                     />
                     <span>
-                      Na raiz do domínio — <span className="font-mono text-xs">geral@{typed}</span>
+                      Na raiz do domínio — <span className="font-mono text-xs">suporte@{typed}</span>
                     </span>
                   </label>
                   <label className="flex items-start gap-2">
@@ -506,7 +561,7 @@ export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; on
                       onChange={() => setMailChoice("subdomain")}
                     />
                     <span>
-                      Num subdomínio — <span className="font-mono text-xs">geral@contacto.{typed}</span>
+                      Num subdomínio — <span className="font-mono text-xs">suporte@contacto.{typed}</span>
                     </span>
                   </label>
                   <label className="flex items-start gap-2">
@@ -533,7 +588,7 @@ export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; on
             </fieldset>
           )}
 
-          {formKey !== "first" && formKey !== "new-platform" && formKey !== "new-own" && (() => {
+          {formKey === "own" && (() => {
             const cur = domains.find((x) => x.kind === formKey);
             return cur && typed !== (cur.domain ?? "").toLowerCase() ? (
               <p className="text-sm text-amber-700 dark:text-amber-300">
@@ -622,9 +677,9 @@ export function AdminEmailModal({ tenant, onClose }: { tenant: Tenant | null; on
                 Adicionar domínio próprio
               </GuardButton>
             )}
-            {!hasPlatformSub && data?.suggestedDomain && (
+            {!hasPlatform && data?.suggestedCode && (
               <GuardButton size="sm" variant="outline" icon="plus" disabled={busy} onClick={() => setEditing("new-platform")}>
-                Adicionar subdomínio da plataforma
+                Adicionar endereço da plataforma
               </GuardButton>
             )}
           </div>
@@ -678,8 +733,8 @@ function DomainBlock({
   const missing = records.filter((r) => !r.verified).length;
   const verified = !!d.verified;
   const isOwn = d.kind === "own";
-  // Voltar ao envio da plataforma / usar o do negócio actua no domínio próprio (ou no único que há).
-  const showSendingSwitch = !multi || isOwn;
+  // Voltar ao envio da plataforma / usar o do negócio só faz sentido com um domínio próprio.
+  const showSendingSwitch = isOwn;
   const mailOn = isOwn && !!d.mailMode && d.mailMode !== "none";
   const mailDomain = d.mailDomain ?? d.domain ?? "";
   const boxesOnOwn = activeBoxes.some((a) => a.toLowerCase().endsWith(`@${mailDomain.toLowerCase()}`));
@@ -688,9 +743,15 @@ function DomainBlock({
     <section className="space-y-3" data-testid={`email-domain-block-${d.kind ?? "own"}`}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         {multi && <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">{KIND_LABEL[d.kind ?? "own"]}</span>}
-        <span className="font-mono text-sm break-all" data-testid="email-domain-name">{d.domain}</span>
+        <span className="font-mono text-sm break-all" data-testid="email-domain-name">
+          {isOwn ? d.domain : (d.address ?? d.domain)}
+        </span>
         <span data-testid="email-domain-state">
-          {verified ? <Badge tone="green">Verificado ✓</Badge> : <Badge tone="amber">Não verificado</Badge>}
+          {isOwn ? (
+            verified ? <Badge tone="green">Verificado ✓</Badge> : <Badge tone="amber">Não verificado</Badge>
+          ) : (
+            <Badge tone="green">Pronto</Badge>
+          )}
         </span>
         {!verified && missing > 0 && (
           <span className="text-xs text-zinc-500">
@@ -701,7 +762,7 @@ function DomainBlock({
 
       <p className="text-sm text-zinc-600 dark:text-zinc-300" data-testid="email-sending-state">
         {d.useForSending && verified && d.sendingEnabled
-          ? `Os emails do negócio saem de ${d.fromLocalPart}@${d.domain}.`
+          ? `Os emails do negócio saem de ${isOwn ? `${d.fromLocalPart}@${d.domain}` : (d.address ?? d.domain)}.`
           : !d.useForSending
             ? "O envio está na plataforma (o domínio fica configurado, mas não é usado)."
             : "Os emails continuam a sair da plataforma até o domínio ficar verificado."}
@@ -718,10 +779,21 @@ function DomainBlock({
         </p>
       )}
 
-      <DnsRecordsTable records={records} />
-      <p className="text-xs text-zinc-400">
-        Põe estes registos no DNS do domínio. Depois carrega em «Verificar agora» — o DNS pode demorar a propagar.
-      </p>
+      {!isOwn && (
+        <p className="text-sm text-zinc-600 dark:text-zinc-300" data-testid="platform-code-line">
+          Código do negócio: <span className="font-mono">{d.platformCode}</span>
+          {" — pode mudar-se quando quiseres (os endereços antigos continuam a receber)."}
+        </p>
+      )}
+
+      {isOwn && (
+        <>
+          <DnsRecordsTable records={records} />
+          <p className="text-xs text-zinc-400">
+            Põe estes registos no DNS do domínio. Depois carrega em «Verificar agora» — o DNS pode demorar a propagar.
+          </p>
+        </>
+      )}
 
       {mailRecords.length > 0 && (
         <div className="space-y-2" data-testid="mail-records">
@@ -744,13 +816,13 @@ function DomainBlock({
             <>
               <p className="text-sm text-zinc-600 dark:text-zinc-300">As caixas já usam o domínio próprio (@{mailDomain}).</p>
               <GuardButton size="sm" variant="outline" isLoading={movePending} disabled={busy} onClick={() => onMove("platform")}>
-                Voltar as caixas ao subdomínio da plataforma
+                Voltar as caixas ao endereço da plataforma
               </GuardButton>
             </>
           ) : (
             <>
               <p className="text-sm text-zinc-600 dark:text-zinc-300">
-                As caixas ainda usam o subdomínio da plataforma. Quando o domínio estiver verificado e o MX a apontar para
+                As caixas ainda usam o endereço da plataforma. Quando o domínio estiver verificado e o MX a apontar para
                 o servidor de correio, passam para <span className="font-mono">@{mailDomain}</span> (o endereço antigo
                 continua a entregar).
               </p>
@@ -769,9 +841,11 @@ function DomainBlock({
       )}
 
       <div className="flex flex-wrap gap-2">
-        <GuardButton size="sm" icon="check" isLoading={verifying} disabled={busy} onClick={onVerify}>
-          Verificar agora
-        </GuardButton>
+        {isOwn && (
+          <GuardButton size="sm" icon="check" isLoading={verifying} disabled={busy} onClick={onVerify}>
+            Verificar agora
+          </GuardButton>
+        )}
         {showSendingSwitch &&
           (d.useForSending ? (
             <GuardButton size="sm" variant="outline" isLoading={platformPending} disabled={busy} onClick={onUsePlatform}>
@@ -790,10 +864,10 @@ function DomainBlock({
             </GuardButton>
           ))}
         <GuardButton size="sm" variant="outline" disabled={busy} onClick={onEdit}>
-          Alterar domínio
+          {isOwn ? "Alterar domínio" : "Alterar código e remetente"}
         </GuardButton>
         <GuardButton size="sm" variant="danger" icon="trash" disabled={busy} onClick={onRemove}>
-          Remover domínio
+          {isOwn ? "Remover domínio" : "Remover endereço"}
         </GuardButton>
       </div>
     </section>
@@ -884,7 +958,7 @@ export function EmailStatusCard() {
                 <>
                   <p className="text-sm font-medium">{resend?.configured ? "Configurado" : "Por configurar"}</p>
                   <p className="text-xs text-zinc-500">
-                    Domínios: {resend?.domains?.verified ?? 0} verificados · {resend?.domains?.unverified ?? 0} por verificar
+                    Domínios próprios: {resend?.domains?.verified ?? 0} verificados · {resend?.domains?.unverified ?? 0} por verificar
                   </p>
                   <p className="text-xs text-zinc-500">
                     Envios {resend?.period ? `em ${resend.period}` : "este mês"}:{" "}
@@ -904,6 +978,21 @@ export function EmailStatusCard() {
               )}
             </div>
           </div>
+
+          {data?.platformDns?.records?.length ? (
+            <div className="space-y-1" data-testid="email-platform-dns">
+              <p className="text-[13px] text-zinc-500">DNS do email da plataforma (um só, para todos os negócios)</p>
+              {data.platformDns.records.map((r, i) => (
+                <div key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" data-testid="email-platform-dns-row">
+                  <span className="font-mono text-xs">
+                    {r.type} · {r.name} → {r.value} · prioridade {r.priority}
+                  </span>
+                  {r.ok ? <Badge tone="green">✅ A apontar para nós</Badge> : <Badge tone="amber">❌ Por pôr</Badge>}
+                </div>
+              ))}
+              <p className="text-xs text-zinc-400">Só leitura: o registo MX do domínio da plataforma põe-se uma vez, no fornecedor de DNS.</p>
+            </div>
+          ) : null}
 
           <div className="space-y-2" data-testid="email-paused-tenants">
             <p className="text-[13px] text-zinc-500">Negócios com os envios pausados</p>

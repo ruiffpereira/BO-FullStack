@@ -10,9 +10,9 @@ import { usePostMailMailboxesMailboxidAppPassword } from "../../gen/backoffice/h
 import { useDeleteMailMailboxesMailboxidAppPassword } from "../../gen/backoffice/hooks/useDeleteMailMailboxesMailboxidAppPassword.js";
 import type { MailAppPasswordCreated } from "../../gen/backoffice/types/MailAppPasswordCreated.js";
 import type { MailClientSettings } from "../../gen/backoffice/types/MailClientSettings.js";
-import { mailErrorMessage } from "../../lib/mail";
+import { mailErrorMessage, mailLeaf } from "../../lib/mail";
 
-type Box = { mailboxId?: string; address?: string };
+type Box = { mailboxId?: string; address?: string; /** Caixa pessoal: não depende de `correio.caixa`. */ personal?: boolean };
 
 async function copy(value: string, what: string) {
   try {
@@ -46,7 +46,7 @@ const server = (s?: { host?: string | null; port?: number; security?: string }) 
 
 /**
  * Correio → Caixa → «Configurar no telemóvel»: a password da app (IMAP/SMTP no telemóvel ou no Outlook) da caixa que é
- * MINHA (a `geral@` para o dono, a própria para um membro — a API diz-o em `canManageAppPassword`). A password
+ * MINHA (a pessoal e a `suporte@` para o dono, a própria para um membro — a API diz-o em `canManageAppPassword`). A password
  * aparece UMA vez, logo a seguir a gerar: fica só em memória deste componente (não vai para a cache de queries) e some
  * ao fechar. «Revogar» corta todas as passwords da app (o Backoffice continua a funcionar).
  */
@@ -113,7 +113,7 @@ export function MailAppPasswordModal({ mailbox, onClose }: { mailbox: Box | null
         <>
           {count > 0 && (
             <GuardButton
-              leaf="correio.caixa"
+              leaf={mailLeaf(mailbox?.personal)}
               variant="danger"
               isLoading={revokeM.isPending}
               disabled={revokeM.isPending || createM.isPending}
@@ -181,7 +181,7 @@ export function MailAppPasswordModal({ mailbox, onClose }: { mailbox: Box | null
         </div>
 
         <GuardButton
-          leaf="correio.caixa"
+          leaf={mailLeaf(mailbox?.personal)}
           icon="key"
           isLoading={createM.isPending}
           disabled={createM.isPending || revokeM.isPending || count >= 5}

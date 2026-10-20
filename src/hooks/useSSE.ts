@@ -30,6 +30,8 @@ export function useSSE() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const abortRef = useRef<AbortController | null>(null);
+  // Já houve uma ligação neste ecrã? As seguintes (retry, token renovado) refrescam o que se pode ter perdido no intervalo.
+  const connectedOnceRef = useRef(false);
 
   useEffect(() => {
     // Sessão de suporte: a API devolve 403 IMPERSONATION_FORBIDDEN em
@@ -106,7 +108,20 @@ export function useSSE() {
     }
 
     function handleEvent(event: { type: string; data?: Record<string, unknown> }) {
-      if (event.type === "connected") return;
+      if (event.type === "connected") {
+        // O SSE não repete o que passou enquanto esteve em baixo (429, rede, token renovado): ao religar, refresca.
+        if (connectedOnceRef.current) {
+          queryClient.invalidateQueries({ queryKey: messagesKeys.all });
+          queryClient.invalidateQueries({ queryKey: ["chat"] });
+          queryClient.invalidateQueries({ queryKey: getMessagesSummaryQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getNotificationsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getOrdersQueryKey() });
+          invalidateMailQueries(queryClient);
+        }
+        connectedOnceRef.current = true;
+        return;
+      }
 
       if (event.type === "notification") {
         // Always refresh the notification bell

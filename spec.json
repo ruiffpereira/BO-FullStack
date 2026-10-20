@@ -3857,11 +3857,11 @@
               },
               "port": {
                 "type": "integer",
-                "example": 587
+                "example": 465
               },
               "security": {
                 "type": "string",
-                "example": "STARTTLS"
+                "example": "SSL/TLS"
               }
             }
           }
@@ -18611,7 +18611,7 @@
       },
       "post": {
         "summary": "Criar uma password da app (para abrir a caixa no telemóvel ou no Outlook)",
-        "description": "Exige `correio.caixa` Responder e ser o dono da caixa. Gera uma password aleatória forte, junta-a às credenciais da conta (a que a API usa mantém-se) e devolve-a **uma única vez**, com os dados de configuração (IMAP 993 SSL/TLS, SMTP 587 STARTTLS, utilizador = o endereço). A API não a guarda. Máx. 5 por caixa (409 `APP_PASSWORD_LIMIT`; revogar zera). 10 pedidos/hora.",
+        "description": "Exige `correio.caixa` Responder e ser o dono da caixa. Gera uma password aleatória forte, junta-a às credenciais da conta (a que a API usa mantém-se) e devolve-a **uma única vez**, com os dados de configuração (IMAP 993 SSL/TLS, SMTP 465 SSL/TLS, utilizador = o endereço). A API não a guarda. Máx. 5 por caixa (409 `APP_PASSWORD_LIMIT`; revogar zera). 10 pedidos/hora.",
         "tags": [
           "Mail"
         ],
@@ -21836,6 +21836,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "from/to (YYYY-MM-DD) ou month (YYYY-MM) inválidos"
           }
         }
       },

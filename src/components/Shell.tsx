@@ -355,7 +355,7 @@ function NavItemGroup({
           aparece no menu E, escondido por CSS, dentro do Financeiro). */}
       {!collapsed && expanded && (
         <div className="mt-1">
-          <div className="ml-4 pl-3 border-l border-zinc-200 dark:border-zinc-800 space-y-0.5 pb-0.5">
+          <div className="ml-[21px] pl-6 border-l border-zinc-200 dark:border-zinc-800 space-y-0.5 pb-0.5">
             {items.map((it) => (
               <SubmenuLink
                 key={it.path}

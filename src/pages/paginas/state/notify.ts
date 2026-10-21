@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import type { WorkOp } from "./ops";
 
 /** Id fixo: cada confirmação rápida substitui a anterior em vez de empilhar. */
 const QUICK_ID = "paginas-rapido";
@@ -10,4 +11,10 @@ const QUICK_ID = "paginas-rapido";
  */
 export const quickToast = (message: string): void => {
   toast.success(message, { id: QUICK_ID, duration: 2200 });
+};
+
+/** Apagar página (só local até «Guardar») + confirmação: partilhado pela lista e pelas Definições. */
+export const deletePageWithToast = (apply: (op: WorkOp) => void, id: string, title: string): void => {
+  apply({ type: "deletePage", id });
+  quickToast(`«${title}» apagada. Os blocos continuam em Blocos.`);
 };

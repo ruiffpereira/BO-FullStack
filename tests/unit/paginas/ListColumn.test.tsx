@@ -2,10 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-const state = vi.hoisted(() => ({ query: {} as Record<string, unknown> }));
+const state = vi.hoisted(() => ({ query: {} as Record<string, unknown>, readOnly: false }));
 
 vi.mock("../../../src/hooks/useWriteGuard", () => ({
   useWriteGuard: () => ({ readOnly: false, reason: "ok", message: "" }),
+}));
+
+// «Só ver» (EQ-03): o construtor tira o `readOnly` de `can("paginas.rascunho", "edit")`.
+vi.mock("../../../src/hooks/useTeamAccess", () => ({
+  useTeamAccess: () => ({ can: (_k: string, level?: string) => !(state.readOnly && level === "edit"), canAny: () => true, scopeOf: () => "todos", scopeOfAll: () => "todos", member: null, isMember: false, staffId: null }),
 }));
 
 vi.mock("../../../src/hooks/useSiteBuilder", async () => {
@@ -62,7 +67,7 @@ const nav = () => screen.getByRole("navigation", { name: "Páginas do site" });
 const names = () => within(nav()).getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? b.textContent ?? "");
 
 describe("Paginas · lista lateral", () => {
-  beforeEach(() => window.localStorage.clear());
+  beforeEach(() => { window.localStorage.clear(); state.readOnly = false; });
   afterEach(() => vi.restoreAllMocks());
 
   it("os três grupos, as páginas com selo e os blocos com pastas", () => {
@@ -105,6 +110,43 @@ describe("Paginas · lista lateral", () => {
     // a mãe ganha a seta de abrir/fechar, que esconde a filha
     fireEvent.click(within(nav()).getByRole("button", { name: "Abrir ou fechar o ramo" }));
     expect(within(nav()).queryByText("/obras/nova-pagina")).not.toBeInTheDocument();
+  });
+
+  it("apagar página: a home não tem botão; a livre pede confirmação, apaga e desfaz-se", () => {
+    renderPage();
+    const del = within(nav()).getAllByRole("button", { name: "Apagar página" });
+    expect(del).toHaveLength(1); // só a Obras
+    fireEvent.click(del[0]);
+    // 1.º clique só pede confirmação
+    expect(within(nav()).getByText("Apagar «Obras»? Os blocos continuam em Blocos.")).toBeInTheDocument();
+    fireEvent.click(within(nav()).getByRole("button", { name: "Cancelar" }));
+    expect(within(nav()).getByRole("button", { name: "Obras" })).toBeInTheDocument();
+    fireEvent.click(within(nav()).getByRole("button", { name: "Apagar página" }));
+    fireEvent.click(within(nav()).getByRole("button", { name: "Apagar" }));
+    expect(within(nav()).queryByRole("button", { name: "Obras" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Desfazer" }));
+    expect(within(nav()).getByRole("button", { name: "Obras" })).toBeInTheDocument();
+  });
+
+  it("apagar página com impedimentos: cadeado, não apaga e abre as Definições", () => {
+    const d = data();
+    d.pages = [...d.pages, { id: "p3", slug: "filha", parentId: "p2", sortOrder: 0, title: { pt: "Filha", en: "Child" }, status: "draft" }] as never;
+    renderPage(d);
+    const del = within(nav()).getAllByRole("button", { name: "Apagar página" });
+    expect(del).toHaveLength(2);
+    const [mae, filha] = del;
+    expect(mae).toHaveAttribute("title", "Não pode ser apagada — ver porquê");
+    fireEvent.click(mae);
+    expect(within(nav()).queryByText(/Os blocos continuam em Blocos/)).not.toBeInTheDocument();
+    expect(within(nav()).getByRole("button", { name: "Obras" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("region", { name: "Apagar página" })).toBeInTheDocument();
+    expect(filha).toHaveAttribute("title", "Apagar esta página");
+  });
+
+  it("só ver: o botão de apagar página fica desactivado", () => {
+    state.readOnly = true;
+    renderPage();
+    expect(within(nav()).getByRole("button", { name: "Apagar página" })).toBeDisabled();
   });
 
   it("pasta nova: nasce com o nome em edição, Enter grava, Esc cancela", () => {

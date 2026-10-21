@@ -152,14 +152,14 @@ describe("Paginas · Definições e SEO", () => {
     openSettings();
     expect(screen.getByRole("textbox", { name: "Endereço" })).toBeDisabled();
     expect(screen.getByText("A página inicial não pode ser apagada.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Apagar página" })).toBeNull();
+    expect(within(screen.getByRole("region", { name: "Apagar página" })).queryByRole("button", { name: "Apagar página" })).toBeNull();
   });
 
   it("apagar bloqueado: motivos clicáveis que levam lá", () => {
     renderPage();
     goPage("Obras");
     openSettings();
-    expect(screen.getByRole("button", { name: "Apagar página" })).toBeDisabled();
+    expect(within(screen.getByRole("region", { name: "Apagar página" })).getByRole("button", { name: "Apagar página" })).toBeDisabled();
     expect(screen.getByText("Esta página não pode ser apagada enquanto:")).toBeInTheDocument();
     const note = screen.getByText("Esta página não pode ser apagada enquanto:").closest("[role=note]") as HTMLElement;
     fireEvent.click(within(note).getByRole("button", { name: "Braga" })); // a subpágina
@@ -171,7 +171,7 @@ describe("Paginas · Definições e SEO", () => {
     goPage("Contactos");
     openSettings();
     // «Contactos» é o destino do botão do Herói
-    expect(screen.getByRole("button", { name: "Apagar página" })).toBeDisabled();
+    expect(within(screen.getByRole("region", { name: "Apagar página" })).getByRole("button", { name: "Apagar página" })).toBeDisabled();
     const note = screen.getByText("Esta página não pode ser apagada enquanto:").closest("[role=note]") as HTMLElement;
     fireEvent.click(within(note).getByRole("button", { name: "Herói" }));
     expect(screen.getByRole("heading", { name: "Herói" })).toBeInTheDocument();
@@ -183,10 +183,10 @@ describe("Paginas · Definições e SEO", () => {
     renderPage(d);
     goPage("Contactos");
     openSettings();
-    fireEvent.click(screen.getByRole("button", { name: "Apagar página" }));
+    fireEvent.click(within(screen.getByRole("region", { name: "Apagar página" })).getByRole("button", { name: "Apagar página" }));
     fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     expect(within(sideNav()).getByRole("button", { name: /^Contactos/ })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Apagar página" }));
+    fireEvent.click(within(screen.getByRole("region", { name: "Apagar página" })).getByRole("button", { name: "Apagar página" }));
     fireEvent.click(screen.getByRole("button", { name: "Apagar" }));
     expect(within(sideNav()).queryByRole("button", { name: /^Contactos/ })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Desfazer" }));

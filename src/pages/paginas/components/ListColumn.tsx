@@ -15,6 +15,8 @@ import { useSupportSession } from "../../../context/AuthContext";
 import { NOT_CONFIGURED_HINT, useBuilder } from "../state/store";
 import { VIEW_ONLY_MESSAGE } from "../../../lib/teamAccess";
 import { newEntityId } from "../state/ids";
+import { deletePageWithToast } from "../state/notify";
+import { pageBlockers } from "../state/refs";
 import { FOLDER_NAME_MAX, buildAddPage, canMoveLibrary } from "../state/ops";
 import {
   blockUsage,
@@ -30,6 +32,7 @@ import {
 } from "../state/listing";
 import { MAX_DEPTH, canAddChild, canMovePage, flattenPages, pagePath, pageTitle, type PageRow } from "../state/tree";
 import type { Block, Page, PartName } from "../state/types";
+import { Confirm } from "./EditorBits";
 import { DragHandle, SortableTree, type HandleProps } from "./SortableTree";
 import { SortableList } from "./SortableList";
 
@@ -156,8 +159,9 @@ function visibleRows(pages: readonly Page[], closed: ReadonlySet<string>): PageR
 }
 
 function PagesGroup({ shell, idx, onOpen }: { shell: Shell; idx: MissingIndex; onOpen: () => void }) {
-  const { state, lang, limits, select, apply, readOnly } = useBuilder();
+  const { state, lang, limits, catalog, manifest, select, apply, readOnly } = useBuilder();
   const pages = state.work.pages;
+  const [deleting, setDeleting] = useState<string | null>(null);
   const maxDepth = num(limits, "maxDepth", MAX_DEPTH);
   const maxPages = num(limits, "pages", 200);
   const [closed, setClosed] = useState<ReadonlySet<string>>(new Set());
@@ -202,6 +206,23 @@ function PagesGroup({ shell, idx, onOpen }: { shell: Shell; idx: MissingIndex; o
           const miss = idx.pages.has(p.id) || (isClosed && descendantMissing(pages, p.id, idx));
           const canAdd = canAddChild(pages, p.id, maxDepth) && !full;
           // «Só ver» (EQ-03): o botão fica, desactivado, com o motivo — não some nem fica activo.
+          const blocked = !p.isHome && pageBlockers(state.work, catalog, manifest, p.id).length > 0;
+          if (deleting === p.id) {
+            // Confirmação em linha, a ocupar a linha (quebra em linhas na coluna estreita e a 390).
+            return (
+              <div className={`${rowBase} flex-wrap gap-2 bg-red-50/60 px-2 py-1 dark:bg-red-500/10`} style={{ paddingLeft: 8 + r.depth * 14 }}>
+                <Confirm
+                  text={`Apagar «${pageTitle(p, lang.defaultLanguage)}»? Os blocos continuam em Blocos.`}
+                  action="Apagar"
+                  onYes={() => {
+                    setDeleting(null);
+                    deletePageWithToast(apply, p.id, pageTitle(p, lang.defaultLanguage));
+                  }}
+                  onNo={() => setDeleting(null)}
+                />
+              </div>
+            );
+          }
           return (
             <div className={`${rowBase} ${rowTone(active)}`} style={{ paddingLeft: r.depth * 14 }}>
               <DragHandle handle={ctx.handle} describedBy={titleId} />
@@ -235,6 +256,25 @@ function PagesGroup({ shell, idx, onOpen }: { shell: Shell; idx: MissingIndex; o
                 </button>
               ) : (
                 <span aria-hidden="true" className="h-10 w-2 shrink-0" />
+              )}
+              {p.isHome ? (
+                <span aria-hidden="true" className="h-10 w-2 shrink-0" />
+              ) : (
+                <button
+                  type="button"
+                  aria-label="Apagar página"
+                  aria-describedby={titleId}
+                  disabled={readOnly}
+                  title={readOnly ? VIEW_ONLY_MESSAGE : blocked ? "Não pode ser apagada — ver porquê" : "Apagar esta página"}
+                  className={`${iconBtn} ${reveal} disabled:opacity-40 disabled:cursor-not-allowed`}
+                  onClick={() => {
+                    if (!blocked) return setDeleting(p.id);
+                    select({ pageId: p.id, libId: null, sel: { kind: "page", id: p.id }, tab: "settings" });
+                    onOpen();
+                  }}
+                >
+                  <Icon name={blocked ? "lock" : "trash"} className="h-4 w-4" />
+                </button>
               )}
             </div>
           );

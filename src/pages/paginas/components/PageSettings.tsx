@@ -8,7 +8,7 @@
  * os do construtor (`FieldRenderer`), por isso trazem "por traduzir", contadores e os issues do 422.
  */
 import { useMemo, useState, type ReactNode } from "react";
-import { quickToast } from "../state/notify";
+import { deletePageWithToast, quickToast } from "../state/notify";
 import { Button, SectionTitle, Select } from "../../../ui/ui.jsx";
 import { Icon } from "../../../ui/icons.jsx";
 import { buildFieldCtx, normalizeMedia, orderedLanguages, revealFor } from "../fields/ctx";
@@ -192,8 +192,7 @@ export function PageSettings({ page }: { page: Page }) {
     }
   };
   const remove = () => {
-    apply({ type: "deletePage", id: page.id });
-    quickToast(`«${pageTitle(page, base)}» apagada. Os blocos continuam em Blocos.`);
+    deletePageWithToast(apply, page.id, pageTitle(page, base));
   };
 
   const field = (def: FieldSpec, name: string, path: string, value: unknown, onChange: (v: unknown, key?: string) => void) => (

@@ -137,12 +137,13 @@ for (const vp of VIEWPORTS) {
       const p = new PaginasPage(page, context);
       await p.open();
       const u = uniq();
-      const [pai, filho, alvo, origem, livre] = [`Pai-${u}`, `Filho-${u}`, `Alvo-${u}`, `Origem-${u}`, `Livre-${u}`];
+      const [pai, filho, alvo, origem, livre, livre2] = [`Pai-${u}`, `Filho-${u}`, `Alvo-${u}`, `Origem-${u}`, `Livre-${u}`, `Livre2-${u}`];
 
       await p.createPage(pai, `pai-${u}`);
       await p.createSubpage(pai, filho, `filho-${u}`);
       await p.createPage(alvo, `alvo-${u}`);
       await p.createPage(livre, `livre-${u}`);
+      await p.createPage(livre2, `livre2-${u}`);
       // Uma página com um botão que leva para `alvo` (referência).
       await p.createPage(origem, `origem-${u}`);
       await p.addStarter("Em branco");
@@ -182,6 +183,25 @@ for (const vp of VIEWPORTS) {
       await p.reload();
       await expect(p.pageRow(alvo)).toBeVisible();
       await expect(p.pageRow(livre)).toHaveCount(0);
+
+      // 4) A partir da lista (sem abrir a página): com impedimentos é um cadeado que leva às Definições;
+      //    livre pede confirmação e só apaga ao confirmar.
+      await p.showList();
+      await p.pageRow(pai).getByRole("button", { name: "Apagar página" }).click();
+      await expect(p.pageHeading).toHaveText(pai);
+      await expect(apagar.getByText("Esta página não pode ser apagada enquanto:")).toBeVisible();
+      await p.showList();
+      await p.pageRow(livre2).getByRole("button", { name: "Apagar página" }).click();
+      await expect(p.list.getByText(`Apagar «${livre2}»? Os blocos continuam em Blocos.`)).toBeVisible();
+      await p.list.getByRole("button", { name: "Cancelar" }).click();
+      await expect(p.pageRow(livre2)).toHaveCount(1);
+      await p.pageRow(livre2).getByRole("button", { name: "Apagar página" }).click();
+      await p.list.getByRole("button", { name: "Apagar", exact: true }).click();
+      await expect(p.pageRow(livre2)).toHaveCount(0);
+      await p.save();
+      await p.reload();
+      await expect(p.pageRow(livre2)).toHaveCount(0);
+      await expect(p.pageRow(alvo)).toBeVisible();
     });
   });
 }

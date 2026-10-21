@@ -5,7 +5,9 @@ import {
   isMailNotConfigured,
   mailErrorMessage,
   MAIL_FRAME_SANDBOX,
+  mailStatusParam,
   mailThreadHref,
+  parseMailView,
   normCid,
   parseRecipients,
   suggestLocalPart,
@@ -183,5 +185,27 @@ describe("Correio — contactos (fase 8) e domínio próprio (fase 7)", () => {
     ["contact_blocked", "bloqueado"],
   ])("código %s tem mensagem PT", (code, part) => {
     expect(mailErrorMessage({ response: { data: { error: code } } })).toContain(part);
+  });
+});
+
+describe("parseMailView — pasta + filtro de estado a partir do URL (CR-26)", () => {
+  const view = (qs: string) => parseMailView(new URLSearchParams(qs));
+  it("por omissão Entrada + Todas", () => {
+    expect(view("")).toEqual({ folder: "all", status: "all" });
+    expect(view("pasta=lixo&filtro=lixo")).toEqual({ folder: "all", status: "all" });
+  });
+  it("?filtro= vale na Entrada e no Arquivo; nos Enviados nunca há filtro", () => {
+    expect(view("filtro=por-ler")).toEqual({ folder: "all", status: "unread" });
+    expect(view("pasta=archive&filtro=lidas")).toEqual({ folder: "archive", status: "read" });
+    expect(view("pasta=sent&filtro=por-ler")).toEqual({ folder: "sent", status: "all" });
+  });
+  it("o link antigo ?pasta=unread abre a Entrada com Por ler; um ?filtro= explícito ganha", () => {
+    expect(view("pasta=unread")).toEqual({ folder: "all", status: "unread" });
+    expect(view("pasta=unread&filtro=lidas")).toEqual({ folder: "all", status: "read" });
+  });
+  it("mailStatusParam é o inverso (Todas não escreve nada no URL)", () => {
+    expect(mailStatusParam("all")).toBeNull();
+    expect(mailStatusParam("unread")).toBe("por-ler");
+    expect(mailStatusParam("read")).toBe("lidas");
   });
 });

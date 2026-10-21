@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, within, fireEvent, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -21,6 +21,8 @@ const readMutate = vi.fn();
 const unreadMutate = vi.fn();
 const archiveMutate = vi.fn();
 const unarchiveMutate = vi.fn();
+const pinMutate = vi.fn();
+const unpinMutate = vi.fn();
 const sendMutateAsync = vi.fn();
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
@@ -45,6 +47,12 @@ vi.mock("../../src/gen/backoffice/hooks/usePostMailMailboxesMailboxidThreadsThre
 }));
 vi.mock("../../src/gen/backoffice/hooks/usePostMailMailboxesMailboxidThreadsThreadidUnarchive.js", () => ({
   usePostMailMailboxesMailboxidThreadsThreadidUnarchive: () => ({ mutate: unarchiveMutate, isPending: false }),
+}));
+vi.mock("../../src/gen/backoffice/hooks/usePostMailMailboxesMailboxidThreadsThreadidPin.js", () => ({
+  usePostMailMailboxesMailboxidThreadsThreadidPin: () => ({ mutate: pinMutate, isPending: false }),
+}));
+vi.mock("../../src/gen/backoffice/hooks/usePostMailMailboxesMailboxidThreadsThreadidUnpin.js", () => ({
+  usePostMailMailboxesMailboxidThreadsThreadidUnpin: () => ({ mutate: unpinMutate, isPending: false }),
 }));
 vi.mock("../../src/gen/backoffice/hooks/usePostMailMailboxesMailboxidSend.js", () => ({
   usePostMailMailboxesMailboxidSend: () => ({ mutateAsync: sendMutateAsync, isPending: false }),
@@ -74,6 +82,7 @@ const ITEMS = [
     receivedAt: "2026-10-19T09:00:00.000Z",
     unread: true,
     hasAttachment: true,
+    pinned: false,
   },
   {
     threadId: "t2",
@@ -85,6 +94,7 @@ const ITEMS = [
     receivedAt: "2026-10-18T09:00:00.000Z",
     unread: false,
     hasAttachment: false,
+    pinned: false,
   },
 ];
 
@@ -128,7 +138,7 @@ beforeEach(() => {
   setAuth(true);
   mailboxesMock.mockReturnValue({ data: { configured: true, mailboxes: [BOX] }, isLoading: false, isError: false });
   threadsMock.mockReturnValue({ data: { items: ITEMS, total: 2, page: 1, limit: 25 }, isLoading: false, isError: false });
-  threadMock.mockReturnValue({ data: { threadId: "t1", messages: [MSG] }, isLoading: false, isError: false });
+  threadMock.mockReturnValue({ data: { threadId: "t1", pinned: false, messages: [MSG] }, isLoading: false, isError: false });
   sendMutateAsync.mockResolvedValue({ emailId: "e9", threadId: "t9" });
 });
 
@@ -146,14 +156,84 @@ describe("Correio → Caixa — lista, pastas e pesquisa", () => {
     expect(within(rows[1]).queryByTestId("mail-clip")).toBeNull();
   });
 
-  it("pastas Por ler · Todas · Arquivo · Enviados: a escolhida vai ao servidor", async () => {
+  it("pastas Entrada · Arquivo · Enviados (sem separador «Por ler»): abre na Entrada e a escolhida vai ao servidor", async () => {
     renderAt();
-    for (const name of ["Por ler", "Todas", "Arquivo", "Enviados"]) {
+    for (const name of ["Entrada", "Arquivo", "Enviados"]) {
       expect(screen.getByRole("tab", { name: new RegExp(name) })).toBeInTheDocument();
     }
-    expect(threadsMock).toHaveBeenLastCalledWith("b1", expect.objectContaining({ folder: "unread", page: 1 }), expect.anything());
+    expect(screen.queryByRole("tab", { name: /Por ler/ })).toBeNull();
+    expect(screen.queryByRole("tab", { name: /Todas/ })).toBeNull();
+    // A Entrada leva o contador de por ler da caixa.
+    expect(within(screen.getByRole("tab", { name: /Entrada/ })).getByText("2")).toBeInTheDocument();
+    expect(threadsMock).toHaveBeenLastCalledWith("b1", { folder: "all", page: 1, limit: 25 }, expect.anything());
     await userEvent.click(screen.getByRole("tab", { name: "Arquivo" }));
     expect(threadsMock).toHaveBeenLastCalledWith("b1", expect.objectContaining({ folder: "archive" }), expect.anything());
+  });
+
+  it("filtro Todas / Por ler / Lidas: ortogonal à pasta, vai como status, mantém-se ao mudar de pasta e some nos Enviados", async () => {
+    renderAt();
+    const filter = screen.getByLabelText("Filtrar conversas");
+    expect(within(filter).getAllByRole("option").map((o) => o.textContent)).toEqual(["Todas", "Por ler", "Lidas"]);
+    expect(filter).toHaveValue("all");
+    await userEvent.selectOptions(filter, "unread");
+    expect(threadsMock).toHaveBeenLastCalledWith("b1", expect.objectContaining({ folder: "all", status: "unread" }), expect.anything());
+    await userEvent.click(screen.getByRole("tab", { name: "Arquivo" }));
+    expect(threadsMock).toHaveBeenLastCalledWith("b1", expect.objectContaining({ folder: "archive", status: "unread" }), expect.anything());
+    expect(screen.getByLabelText("Filtrar conversas")).toHaveValue("unread");
+    await userEvent.selectOptions(screen.getByLabelText("Filtrar conversas"), "read");
+    expect(threadsMock).toHaveBeenLastCalledWith("b1", expect.objectContaining({ folder: "archive", status: "read" }), expect.anything());
+    // Enviados: sem filtro e sem status no pedido.
+    await userEvent.click(screen.getByRole("tab", { name: "Enviados" }));
+    expect(screen.queryByLabelText("Filtrar conversas")).toBeNull();
+    expect(threadsMock.mock.lastCall![1]).toEqual({ folder: "sent", page: 1, limit: 25 });
+  });
+
+  it("deep-links: ?filtro=por-ler, ?filtro=lidas e o link antigo ?pasta=unread (= Entrada + Por ler)", () => {
+    renderAt("/correio?filtro=lidas");
+    expect(threadsMock).toHaveBeenLastCalledWith("b1", expect.objectContaining({ folder: "all", status: "read" }), expect.anything());
+    cleanup();
+    renderAt("/correio?pasta=unread");
+    expect(threadsMock).toHaveBeenLastCalledWith("b1", expect.objectContaining({ folder: "all", status: "unread" }), expect.anything());
+    expect(screen.getByLabelText("Filtrar conversas")).toHaveValue("unread");
+    expect(screen.getByRole("tab", { name: /Entrada/ })).toHaveAttribute("aria-selected", "true");
+    cleanup();
+    renderAt("/correio?pasta=archive&filtro=por-ler");
+    expect(threadsMock).toHaveBeenLastCalledWith("b1", expect.objectContaining({ folder: "archive", status: "unread" }), expect.anything());
+  });
+
+  it("vazio com o filtro Por ler diz «Tudo lido»; com Lidas diz que não há nenhuma", () => {
+    threadsMock.mockReturnValue({ data: { items: [], total: 0, page: 1, limit: 25 }, isLoading: false, isError: false });
+    renderAt("/correio?filtro=por-ler");
+    expect(screen.getByTestId("mail-empty")).toHaveTextContent("Tudo lido");
+    cleanup();
+    renderAt("/correio?filtro=lidas");
+    expect(screen.getByTestId("mail-empty")).toHaveTextContent("Nenhuma conversa lida");
+  });
+
+  it("fixar: o pin da linha chama a API sem abrir a conversa; uma fixada mostra-se preenchida e desafixa", async () => {
+    threadsMock.mockReturnValue({ data: { items: [{ ...ITEMS[1], pinned: true }, ITEMS[0]], total: 2, page: 1, limit: 25 }, isLoading: false, isError: false });
+    renderAt();
+    const pins = screen.getAllByTestId("mail-pin");
+    expect(pins[0]).toHaveAttribute("aria-pressed", "true");
+    expect(pins[0]).toHaveAccessibleName("Desafixar conversa");
+    expect(pins[1]).toHaveAttribute("aria-pressed", "false");
+    expect(pins[1]).toHaveAccessibleName("Fixar conversa");
+    await userEvent.click(pins[1]);
+    expect(pinMutate.mock.calls[0][0]).toEqual({ mailboxId: "b1", threadId: "t1" });
+    await userEvent.click(pins[0]);
+    expect(unpinMutate.mock.calls[0][0]).toEqual({ mailboxId: "b1", threadId: "t2" });
+    // Clicar no pin não abre a conversa.
+    expect(screen.queryByTestId("mail-thread")).toBeNull();
+    expect(screen.getByText("Escolhe uma conversa")).toBeInTheDocument();
+  });
+
+  it("só Ver: o pin das linhas fica desactivado com o motivo", () => {
+    setAuth(false);
+    renderAt();
+    for (const pin of screen.getAllByTestId("mail-pin")) {
+      expect(pin).toBeDisabled();
+      expect(pin).toHaveAttribute("title", "Só tens permissão para ver");
+    }
   });
 
   it("a pesquisa vai como `q` (com um pequeno atraso)", async () => {
@@ -298,7 +378,7 @@ describe("Correio → Caixa — conversa", () => {
     renderAt("/correio?caixa=b1&conversa=t1");
     expect(screen.getByTestId("mail-thread-subject")).toHaveTextContent("Marcação para sábado");
     expect(readMutate).not.toHaveBeenCalled();
-    for (const name of ["Responder", "Responder a todos", "Encaminhar", "Arquivar", "Marcar como não lido", "Novo email"]) {
+    for (const name of ["Responder", "Responder a todos", "Encaminhar", "Arquivar", "Fixar", "Marcar como não lido", "Novo email"]) {
       const btn = screen.getByRole("button", { name });
       expect(btn).toBeDisabled();
       expect(btn.closest("span")).toHaveAttribute("title", "Só tens permissão para ver");
@@ -316,6 +396,18 @@ describe("Correio → Caixa — conversa", () => {
     expect(screen.queryByRole("button", { name: "Arquivar" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Desarquivar" }));
     expect(unarchiveMutate).toHaveBeenCalled();
+  });
+
+  it("Fixar / Desafixar no cabeçalho da conversa chama a API certa", async () => {
+    renderAt("/correio?caixa=b1&conversa=t1");
+    await userEvent.click(screen.getByRole("button", { name: "Fixar" }));
+    expect(pinMutate.mock.calls[0][0]).toEqual({ mailboxId: "b1", threadId: "t1" });
+    threadMock.mockReturnValue({ data: { threadId: "t1", pinned: true, messages: [MSG] }, isLoading: false, isError: false });
+    cleanup();
+    renderAt("/correio?caixa=b1&conversa=t1");
+    expect(screen.queryByRole("button", { name: "Fixar" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Desafixar" }));
+    expect(unpinMutate.mock.calls[0][0]).toEqual({ mailboxId: "b1", threadId: "t1" });
   });
 
   it("Marcar como não lido chama a API", async () => {

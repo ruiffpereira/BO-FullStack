@@ -80,7 +80,7 @@ for (const { w, h } of SIZES) {
       await loginAs(context, DONO);
       await page.goto("/correio");
       await expect(page.getByTestId("mail-split")).toBeVisible({ timeout: 15_000 });
-      for (const pasta of ["Por ler", "Todas", "Arquivo", "Enviados"]) {
+      for (const pasta of ["Entrada", "Arquivo", "Enviados"]) {
         await expect(page.getByRole("tab", { name: new RegExp(pasta) })).toBeVisible();
       }
 
@@ -163,7 +163,7 @@ for (const { w, h } of SIZES) {
       await linha.click();
 
       await expect(page.getByTestId("mail-message").first()).toContainText("Abrimos das 9h");
-      for (const name of ["Responder", "Responder a todos", "Encaminhar", "Arquivar", "Marcar como não lido"]) {
+      for (const name of ["Responder", "Responder a todos", "Encaminhar", "Arquivar", "Fixar", "Marcar como não lido"]) {
         const btn = page.getByRole("button", { name, exact: true });
         await expect(btn).toBeDisabled();
         await expect(btn.locator("xpath=..")).toHaveAttribute("title", "Só tens permissão para ver");

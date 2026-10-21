@@ -4508,6 +4508,10 @@
           },
           "hasAttachment": {
             "type": "boolean"
+          },
+          "pinned": {
+            "type": "boolean",
+            "description": "Fixada (`$flagged` em alguma mensagem; o 'sinalizado' do telemóvel). As fixadas vêm sempre primeiro."
           }
         }
       },
@@ -19809,8 +19813,8 @@
     },
     "/mail/mailboxes/{mailboxId}/threads": {
       "get": {
-        "summary": "Conversas de uma caixa (Por ler, Todas, Arquivo, Enviados, pesquisa)",
-        "description": "Paginado (`page`, `limit` até 50). Caixa que não é minha = 404. 502 se o servidor de correio falhar; 503 `mail_not_configured`.",
+        "summary": "Conversas de uma caixa (Entrada, Arquivo, Enviados; filtro Todas/Por ler/Lidas; pesquisa)",
+        "description": "Paginado (`page`, `limit` até 50). `folder` = onde; `status` = o estado (ortogonal à pasta): `unread` = alguma mensagem da conversa por ler, `read` = todas lidas. As conversas fixadas vêm primeiro (data desc), depois as restantes (data desc), em qualquer pasta; a paginação corre sobre as duas juntas (sem repetidos). Caixa que não é minha = 404. 502 se o servidor de correio falhar; 503 `mail_not_configured`.",
         "tags": [
           "Mail"
         ],
@@ -19830,10 +19834,23 @@
             "schema": {
               "type": "string",
               "enum": [
-                "unread",
                 "all",
                 "archive",
                 "sent"
+              ],
+              "default": "all"
+            },
+            "description": "all = Entrada"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "unread",
+                "read"
               ],
               "default": "all"
             }
@@ -19956,6 +19973,10 @@
                     "threadId": {
                       "type": "string"
                     },
+                    "pinned": {
+                      "type": "boolean",
+                      "description": "Fixada (alguma mensagem com `$flagged`)"
+                    },
                     "messages": {
                       "type": "array",
                       "items": {
@@ -19982,7 +20003,7 @@
     "/mail/mailboxes/{mailboxId}/threads/{threadId}/read": {
       "post": {
         "summary": "Marcar a conversa como lida",
-        "description": "Exige `correio.caixa` Responder. Idempotente.",
+        "description": "Exige `correio.caixa` Responder. Idempotente. Também marca como lidos os avisos do sino (email) dessa conversa e caixa, SÓ de quem a leu (CR-27); o aviso-resumo de uma rajada fica lido quando a caixa já não tem nada por ler.",
         "tags": [
           "Mail"
         ],
@@ -20109,6 +20130,90 @@
       "post": {
         "summary": "Tirar a conversa do arquivo",
         "description": "Exige `correio.caixa` Responder. Idempotente.",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "mailboxId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "threadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feito"
+          },
+          "403": {
+            "description": "`suporte@` sem `correio.caixa` Responder (`TEAM_FORBIDDEN`); a caixa pessoal nunca depende dessa folha"
+          },
+          "404": {
+            "description": "Caixa ou conversa não encontrada"
+          },
+          "502": {
+            "description": "O servidor de correio falhou"
+          }
+        }
+      }
+    },
+    "/mail/mailboxes/{mailboxId}/threads/{threadId}/pin": {
+      "post": {
+        "summary": "Fixar a conversa (fica no topo da lista)",
+        "description": "Exige `correio.caixa` Responder (como arquivar e marcar). Põe `$flagged` em todas as mensagens da conversa (menos rascunhos e lixo): é o \"sinalizado\" do telemóvel, nos dois sentidos. Arquivar não desafixa. Idempotente.",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "mailboxId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "threadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feito"
+          },
+          "403": {
+            "description": "`suporte@` sem `correio.caixa` Responder (`TEAM_FORBIDDEN`); a caixa pessoal nunca depende dessa folha"
+          },
+          "404": {
+            "description": "Caixa ou conversa não encontrada"
+          },
+          "502": {
+            "description": "O servidor de correio falhou"
+          }
+        }
+      }
+    },
+    "/mail/mailboxes/{mailboxId}/threads/{threadId}/unpin": {
+      "post": {
+        "summary": "Desafixar a conversa",
+        "description": "Exige `correio.caixa` Responder. Tira `$flagged` de todas as mensagens da conversa. Idempotente.",
         "tags": [
           "Mail"
         ],

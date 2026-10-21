@@ -5,18 +5,40 @@ import type { MailAddress } from "../gen/backoffice/types/MailAddress";
  * resposta, saneamento do HTML, permissões); aqui só há rótulos, formatação, textos de erro e o documento do iframe.
  */
 
-export type MailFolder = "unread" | "all" | "archive" | "sent";
+/** Onde: Entrada (`all`, o que a API chama a caixa de entrada), Arquivo e Enviados. */
+export type MailFolder = "all" | "archive" | "sent";
 
 export const MAIL_FOLDERS: ReadonlyArray<{ id: MailFolder; label: string }> = [
-  { id: "unread", label: "Por ler" },
-  { id: "all", label: "Todas" },
+  { id: "all", label: "Entrada" },
   { id: "archive", label: "Arquivo" },
   { id: "sent", label: "Enviados" },
 ];
 
 export function isMailFolder(v: unknown): v is MailFolder {
-  return v === "unread" || v === "all" || v === "archive" || v === "sent";
+  return v === "all" || v === "archive" || v === "sent";
 }
+
+/** Estado, ortogonal à pasta (CR-26): o filtro Todas / Por ler / Lidas. Só vale na Entrada e no Arquivo. */
+export type MailStatus = "all" | "unread" | "read";
+
+export const MAIL_STATUSES: ReadonlyArray<{ id: MailStatus; label: string; param: string | null }> = [
+  { id: "all", label: "Todas", param: null },
+  { id: "unread", label: "Por ler", param: "por-ler" },
+  { id: "read", label: "Lidas", param: "lidas" },
+];
+
+/** A pasta e o filtro a partir do URL (`?pasta=` e `?filtro=`). `?pasta=unread` (links antigos) = Entrada + Por ler. */
+export function parseMailView(params: URLSearchParams): { folder: MailFolder; status: MailStatus } {
+  const pasta = params.get("pasta");
+  const folder: MailFolder = isMailFolder(pasta) ? pasta : "all";
+  const filtro = params.get("filtro");
+  const fromParam = MAIL_STATUSES.find((s) => s.param && s.param === filtro)?.id;
+  const status: MailStatus = fromParam ?? (pasta === "unread" ? "unread" : "all");
+  // Enviados nunca tem filtro (o que enviámos nunca está «por ler»).
+  return { folder, status: folder === "sent" ? "all" : status };
+}
+
+export const mailStatusParam = (status: MailStatus): string | null => MAIL_STATUSES.find((s) => s.id === status)?.param ?? null;
 
 export type MailMode = "new" | "reply" | "reply_all" | "forward";
 

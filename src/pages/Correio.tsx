@@ -11,7 +11,19 @@ import { MailThreadRow, MailPager } from "../components/correio/MailThreadList";
 import { MailThreadView } from "../components/correio/MailThreadView";
 import { MailComposer } from "../components/correio/MailComposer";
 import { MailAppPasswordModal } from "../components/correio/MailAppPasswordModal";
-import { isMailFolder, isMailNotConfigured, MAIL_FOLDERS, mailErrorMessage, mailLeaf, mailboxLabel, type MailFolder } from "../lib/mail";
+import { useWriteGuard } from "../hooks/useWriteGuard";
+import { usePinThread } from "../hooks/useMail";
+import {
+  isMailNotConfigured,
+  MAIL_FOLDERS,
+  MAIL_STATUSES,
+  mailErrorMessage,
+  mailLeaf,
+  mailStatusParam,
+  mailboxLabel,
+  parseMailView,
+  type MailStatus,
+} from "../lib/mail";
 
 const PAGE_LIMIT = 25;
 
@@ -29,10 +41,11 @@ function NotConfigured() {
 }
 
 /**
- * Correio → Caixa (B42, fases 5 e 6, B55). Lista de conversas por pasta (Por ler · Todas · Arquivo · Enviados) com
- * pesquisa, selector de caixa quando há mais do que uma («Pessoal · …» primeiro e «Suporte · …» depois) e a conversa ao lado. Abaixo de
+ * Correio → Caixa (B42, fases 5 e 6, B55, CR-26). Lista de conversas por pasta (Entrada · Arquivo · Enviados) com o filtro
+ * Todas / Por ler / Lidas (Entrada e Arquivo) e as fixadas no topo, pesquisa, selector de caixa quando há mais do que uma («Pessoal · …» primeiro e «Suporte · …» depois) e a conversa ao lado. Abaixo de
  * `lg` é um ecrã de cada vez (lista → conversa, com «Voltar»). A página enche o que o Shell dá (`fillPage`) por flex.
- * Selecção no URL (`?caixa=&pasta=&conversa=`): é o deep-link do sino e da ficha do cliente.
+ * Selecção no URL (`?caixa=&pasta=&filtro=&conversa=`): é o deep-link do sino e da ficha do cliente. `?pasta=unread` (links
+ * antigos) abre a Entrada com o filtro Por ler.
  */
 export function Correio() {
   const [params, setParams] = useSearchParams();
@@ -44,7 +57,10 @@ export function Correio() {
   const mailboxId = mailbox?.mailboxId ?? "";
   // A caixa pessoal (membro, dono, admin) é sempre de quem a abre; `suporte@` depende de `correio.caixa`.
   const personal = !!mailbox && mailbox.kind !== "business";
-  const folder: MailFolder = isMailFolder(params.get("pasta")) ? (params.get("pasta") as MailFolder) : "unread";
+  const { folder, status } = parseMailView(params);
+  // Fixar é «marcar»: a mesma folha que arquivar (CR-07); só Ver → desactivado.
+  const pinGuard = useWriteGuard(mailLeaf(personal));
+  const pin = usePinThread(mailboxId);
   const threadId = params.get("conversa") ?? "";
 
   const [qInput, setQInput] = useState("");
@@ -58,13 +74,13 @@ export function Correio() {
     const t = setTimeout(() => setQ(qInput.trim()), 300);
     return () => clearTimeout(t);
   }, [qInput]);
-  useEffect(() => setPage(1), [q, folder, mailboxId]);
+  useEffect(() => setPage(1), [q, folder, status, mailboxId]);
 
   usePageSubtitle(mailbox ? mailbox.address : null);
 
   const threadsQ = useGetMailMailboxesMailboxidThreads(
     mailboxId,
-    { folder, ...(q ? { q } : {}), page, limit: PAGE_LIMIT },
+    { folder, ...(status !== "all" ? { status } : {}), ...(q ? { q } : {}), page, limit: PAGE_LIMIT },
     { query: { enabled: !!mailboxId, retry: false, placeholderData: keepPreviousData } },
   );
   const items = threadsQ.data?.items ?? [];
@@ -113,7 +129,7 @@ export function Correio() {
   const tabs = MAIL_FOLDERS.map((f) => ({
     id: f.id,
     label:
-      f.id === "unread" ? (
+      f.id === "all" ? (
         <>
           {f.label}
           <CountBadge count={mailbox.unread ?? 0} size="nav" className="ml-1" />
@@ -143,7 +159,28 @@ export function Correio() {
             </Select>
           </div>
         )}
-        <Tabs tabs={tabs} value={folder} onChange={(id: string) => patch({ pasta: id === "unread" ? null : id, conversa: null })} size="sm" />
+        <Tabs
+          tabs={tabs}
+          value={folder}
+          onChange={(id: string) => patch({ pasta: id === "all" ? null : id, filtro: id === "sent" ? null : mailStatusParam(status), conversa: null })}
+          size="sm"
+        />
+        {/* O filtro de estado vale na Entrada e no Arquivo; nos Enviados não há «por ler». */}
+        {folder !== "sent" && (
+          <div className="w-32 shrink-0" data-testid="mail-status-filter">
+            <Select
+              aria-label="Filtrar conversas"
+              value={status}
+              onChange={(e: any) => patch({ filtro: mailStatusParam(e.target.value as MailStatus), conversa: null })}
+            >
+              {MAIL_STATUSES.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
         <div className="flex-1 min-w-[10rem]">
           <Input
             icon="search"
@@ -189,8 +226,8 @@ export function Correio() {
             <div className="flex-1 flex" data-testid="mail-empty">
               <EmptyState
                 icon="mail"
-                title={q ? "Nada encontrado" : folder === "unread" ? "Tudo lido" : "Sem conversas"}
-                desc={q ? "Experimenta outras palavras." : `${selectedLabel}: nada nesta pasta.`}
+                title={q ? "Nada encontrado" : status === "unread" ? "Tudo lido" : status === "read" ? "Nenhuma conversa lida" : "Sem conversas"}
+                desc={q ? "Experimenta outras palavras." : `${selectedLabel}: nada ${status === "all" ? "nesta pasta" : "com este filtro"}.`}
               />
             </div>
           ) : (
@@ -202,6 +239,8 @@ export function Correio() {
                   folder={folder}
                   selected={it.threadId === threadId}
                   onSelect={() => patch({ conversa: it.threadId ?? null })}
+                  onTogglePin={pin.toggle}
+                  pinGuard={pinGuard}
                 />
               ))}
             </ul>

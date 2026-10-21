@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button, Badge } from "../../ui/ui.jsx";
 import { Icon } from "../../ui/icons.jsx";
@@ -24,7 +25,7 @@ import {
   normCid,
   type MailMode,
 } from "../../lib/mail";
-import { blobToDataUrlSafe, downloadMailAttachment, fetchMailAttachment, useInvalidateMail } from "../../hooks/useMail";
+import { blobToDataUrlSafe, downloadMailAttachment, fetchMailAttachment, invalidateNotifications, usePinThread, useInvalidateMail } from "../../hooks/useMail";
 import { MailHtmlFrame } from "./MailHtmlFrame";
 import { MailComposer } from "./MailComposer";
 
@@ -160,6 +161,8 @@ export function MailThreadView({
   onBack: () => void;
 }) {
   const invalidate = useInvalidateMail();
+  const qc = useQueryClient();
+  const pin = usePinThread(mailboxId);
   const { can } = useTeamAccess();
   const leaf = mailLeaf(personal);
   const { readOnly } = useWriteGuard(leaf);
@@ -182,6 +185,7 @@ export function MailThreadView({
   const last = messages[messages.length - 1];
   const hasRemote = messages.some((m) => m.hasRemoteImages);
   const hasUnread = messages.some((m) => m.unread);
+  const pinned = !!q.data?.pinned;
 
   const markRead = usePostMailMailboxesMailboxidThreadsThreadidRead();
   const markUnread = usePostMailMailboxesMailboxidThreadsThreadidUnread();
@@ -194,7 +198,8 @@ export function MailThreadView({
     if (!q.data || !hasUnread || !canRespond || readOnly) return;
     if (markedFor.current === threadId) return;
     markedFor.current = threadId;
-    markRead.mutate({ mailboxId, threadId }, { onSuccess: () => invalidate() });
+    // Ler limpa também o aviso do sino desta pessoa (CR-27): o badge refresca sem esperar pelo SSE.
+    markRead.mutate({ mailboxId, threadId }, { onSuccess: () => { void invalidate(); void invalidateNotifications(qc); } });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q.data, hasUnread, canRespond, readOnly, threadId, mailboxId]);
 
@@ -259,6 +264,18 @@ export function MailThreadView({
               Arquivar
             </GuardButton>
           )}
+          <GuardButton
+            leaf={leaf}
+            size="sm"
+            variant="ghost"
+            icon="pin"
+            data-testid="mail-thread-pin"
+            aria-pressed={pinned}
+            disabled={!q.data}
+            onClick={() => pin.toggle(threadId, !pinned)}
+          >
+            {pinned ? "Desafixar" : "Fixar"}
+          </GuardButton>
           <GuardButton
             leaf={leaf}
             size="sm"

@@ -213,7 +213,7 @@ Preço do módulo: decide-se com o resto do billing.
 ### Tenant — sidebar **Correio** (submenus: Caixa · Campanhas · Contactos · Definições)
 
 **Caixa**
-- Lista de conversas: *Por ler* · *Todas* · *Arquivo* · pesquisa. Se houver várias caixas
+- Lista de conversas: *Entrada* (filtro Todas · Por ler · Lidas) · *Arquivo* · *Enviados* · pesquisa; as conversas **fixadas** (`$flagged`, a bandeira do telemóvel) ficam no topo (CR-26). Ler uma conversa limpa o aviso do sino de quem leu (CR-27). Se houver várias caixas
   (`geral@`, `ana@`): seletor de caixa.
 - Abrir conversa → **Responder** · **Responder a todos** · **Encaminhar** · **Anexar** · **Arquivar** ·
   **Marcar como não lido** · **Ligar a cliente** (automático quando o email bate com um cliente).

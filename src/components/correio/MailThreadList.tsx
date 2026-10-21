@@ -2,28 +2,43 @@ import { Icon } from "../../ui/icons.jsx";
 import type { MailThreadSummary } from "../../gen/backoffice/types/MailThreadSummary";
 import { addressSummary, formatMailDate, type MailFolder } from "../../lib/mail";
 
-/** Uma linha: remetente (destinatário nos Enviados), assunto, pré-visualização, data e clipe de anexo. */
+// O pin só se esconde (até ao hover/foco) onde há rato E espaço (computador): em ecrãs táteis e a 390px está sempre à vista.
+const HOVER_WIDE = "[@media(hover:hover)_and_(min-width:768px)]";
+const PIN_HIDDEN = `${HOVER_WIDE}:opacity-0 ${HOVER_WIDE}:group-hover:opacity-100 ${HOVER_WIDE}:group-focus-within:opacity-100`;
+
+/**
+ * Uma linha: remetente (destinatário nos Enviados), assunto, pré-visualização, data e clipe de anexo. O pin (CR-26) é um
+ * botão IRMÃO do botão da linha (nunca dentro dele): clicar não abre a conversa. Escrita → fica desactivado só com «Ver».
+ */
 export function MailThreadRow({
   item,
   folder,
   selected,
   onSelect,
+  onTogglePin,
+  pinGuard,
 }: {
   item: MailThreadSummary;
   folder: MailFolder;
   selected?: boolean;
   onSelect: () => void;
+  /** Fixar / desafixar (`pinned` = o estado pedido). Sem isto a linha não mostra o pin. */
+  onTogglePin?: (threadId: string, pinned: boolean) => void;
+  /** `useWriteGuard` da caixa: `readOnly` desactiva o pin e `message` diz porquê. */
+  pinGuard?: { readOnly: boolean; message: string };
 }) {
   const who = folder === "sent" ? `Para: ${addressSummary(item.to) || "—"}` : addressSummary(item.from) || "(sem remetente)";
+  const pinned = !!item.pinned;
+  const blocked = !!pinGuard?.readOnly;
   return (
-    <li>
+    <li data-pinned={pinned ? "true" : "false"} className="group relative border-b border-zinc-100 dark:border-zinc-800">
       <button
         type="button"
         data-testid="mail-thread-row"
         data-unread={item.unread ? "true" : "false"}
         aria-current={selected ? "true" : undefined}
         onClick={onSelect}
-        className={`w-full text-left px-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800 transition-colors ${
+        className={`w-full text-left px-3 py-2.5 transition-colors ${
           selected ? "bg-accent/10" : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
         }`}
       >
@@ -37,11 +52,30 @@ export function MailThreadRow({
             {formatMailDate(item.receivedAt)}
           </time>
         </div>
-        <p className={`pl-4 truncate text-[13px] ${item.unread ? "font-medium text-zinc-800 dark:text-zinc-100" : "text-zinc-600 dark:text-zinc-400"}`}>
+        <p className={`pl-4 pr-8 truncate text-[13px] ${item.unread ? "font-medium text-zinc-800 dark:text-zinc-100" : "text-zinc-600 dark:text-zinc-400"}`}>
           {item.subject || "(sem assunto)"}
         </p>
-        {item.preview && <p className="pl-4 truncate text-xs text-zinc-400">{item.preview}</p>}
+        {item.preview && <p className="pl-4 pr-8 truncate text-xs text-zinc-400">{item.preview}</p>}
       </button>
+      {onTogglePin && (
+        <button
+          type="button"
+          data-testid="mail-pin"
+          aria-pressed={pinned}
+          aria-label={pinned ? "Desafixar conversa" : "Fixar conversa"}
+          title={blocked ? pinGuard?.message : pinned ? "Desafixar" : "Fixar no topo"}
+          disabled={blocked}
+          onClick={(e) => {
+            e.stopPropagation();
+            onTogglePin(item.threadId ?? "", !pinned);
+          }}
+          className={`absolute right-1 bottom-1 w-8 h-8 rounded-lg flex items-center justify-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-40 ${
+            pinned ? "text-accent" : `text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 ${PIN_HIDDEN}`
+          } ${blocked ? "" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+        >
+          <Icon name="pin" className={`w-4 h-4 ${pinned ? "fill-current" : ""}`} />
+        </button>
+      )}
     </li>
   );
 }

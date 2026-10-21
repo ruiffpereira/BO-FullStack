@@ -141,6 +141,11 @@ export function useSSE() {
         }
       }
 
+      // Correio (CR-27): a API limpou avisos de email desta pessoa (leu a conversa noutro separador/dispositivo) — refresca o sino.
+      if (event.type === "notifications_refresh") {
+        queryClient.invalidateQueries({ queryKey: getNotificationsQueryKey() });
+      }
+
       // Backoffice appointment update (status change, etc.) — refresh list only
       if (event.type === "appointments_refresh") {
         queryClient.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() });

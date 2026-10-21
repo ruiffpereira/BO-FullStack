@@ -3,8 +3,8 @@ import type { MailThreadSummary } from "../../gen/backoffice/types/MailThreadSum
 import { addressSummary, formatMailDate, type MailFolder } from "../../lib/mail";
 
 // O pin só se esconde (até ao hover/foco) onde há rato E espaço (computador): em ecrãs táteis e a 390px está sempre à vista.
-const HOVER_WIDE = "[@media(hover:hover)_and_(min-width:768px)]";
-const PIN_HIDDEN = `${HOVER_WIDE}:opacity-0 ${HOVER_WIDE}:group-hover:opacity-100 ${HOVER_WIDE}:group-focus-within:opacity-100`;
+const PIN_HIDDEN =
+  "[@media(hover:hover)_and_(min-width:768px)]:opacity-0 [@media(hover:hover)_and_(min-width:768px)]:group-hover:opacity-100 [@media(hover:hover)_and_(min-width:768px)]:group-focus-within:opacity-100";
 
 /**
  * Uma linha: remetente (destinatário nos Enviados), assunto, pré-visualização, data e clipe de anexo. O pin (CR-26) é um

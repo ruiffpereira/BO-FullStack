@@ -19911,10 +19911,10 @@
             "description": "Parâmetros inválidos"
           },
           "403": {
-            "description": "`suporte@` sem `correio.caixa` (`TEAM_FORBIDDEN`); a caixa pessoal nunca depende dessa folha"
+            "description": "Sessão de suporte (`IMPERSONATION_FORBIDDEN`: o admin não lê o correio de um tenant) ou sem o módulo Correio. Nunca `TEAM_FORBIDDEN`: `suporte@` sem `correio.caixa` responde 404 e quem só tem Ver lê"
           },
           "404": {
-            "description": "Caixa não encontrada"
+            "description": "Caixa não encontrada (inclui `suporte@` sem `correio.caixa`, e caixas de outro tenant ou de outro membro)"
           },
           "502": {
             "description": "O servidor de correio falhou"
@@ -19989,10 +19989,10 @@
             }
           },
           "403": {
-            "description": "`suporte@` sem `correio.caixa` (`TEAM_FORBIDDEN`); a caixa pessoal nunca depende dessa folha"
+            "description": "Sessão de suporte (`IMPERSONATION_FORBIDDEN`: o admin não lê o correio de um tenant) ou sem o módulo Correio. Nunca `TEAM_FORBIDDEN`: `suporte@` sem `correio.caixa` responde 404 e quem só tem Ver lê"
           },
           "404": {
-            "description": "Caixa ou conversa não encontrada"
+            "description": "Caixa ou conversa não encontrada (inclui `suporte@` sem `correio.caixa`, e caixas de outro tenant ou de outro membro)"
           },
           "502": {
             "description": "O servidor de correio falhou"
@@ -20435,11 +20435,10 @@
             }
           },
           "403": {
-            "description": "`suporte@` sem `correio.caixa` (`TEAM_FORBIDDEN`); a caixa pessoal nunca depende dessa folha"
+            "description": "Sessão de suporte (`IMPERSONATION_FORBIDDEN`: o admin não lê o correio de um tenant) ou sem o módulo Correio. Nunca `TEAM_FORBIDDEN`: `suporte@` sem `correio.caixa` responde 404 e quem só tem Ver lê"
           },
           "404": {
-            "description": "Caixa",
-            "email ou anexo não encontrado": null
+            "description": "Caixa, email ou anexo não encontrado (inclui `suporte@` sem `correio.caixa`, e caixas de outro tenant ou de outro membro)"
           },
           "502": {
             "description": "O servidor de correio falhou"

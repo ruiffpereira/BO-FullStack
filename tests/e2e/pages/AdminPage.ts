@@ -47,11 +47,10 @@ export class AdminPage {
     if (opts.email)    await dialog.locator('input[type="email"]').first().fill(opts.email);
     if (opts.phone)    await dialog.locator('input[placeholder*="912"]').first().fill(opts.phone).catch(() => {});
     if (opts.password) await dialog.locator('input[type="password"]').first().fill(opts.password).catch(() => {});
-    // Permissão é obrigatória (validação client-side). O seletor é um Combobox
-    // custom (opções num portal); escolher a 1ª permissão real (índice 1; o 0 é
-    // o placeholder "Seleccionar permissão").
+    // Permissão é obrigatória (validação client-side). O seletor é um Combobox custom (opções num portal).
+    // Role dedicada do seed («E2E Registo»): o registo liga-lhe o VIEW_EMAIL (B55), por isso nunca uma role partilhada com tenants do seed.
     await dialog.getByRole("button", { name: /seleccionar permissão/i }).click();
-    await this.page.locator('[role="option"]').nth(1).locator("button").click();
+    await this.page.locator('[role="option"]').filter({ hasText: "E2E Registo" }).first().locator("button").click();
   }
 
   async submitUserForm() {

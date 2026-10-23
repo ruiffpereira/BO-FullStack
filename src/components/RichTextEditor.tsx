@@ -50,14 +50,7 @@ function Btn({
   )
 }
 
-// SVG icons as components
-const Svg = ({ d, ...rest }: { d: string; [k: string]: unknown }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" {...(rest as any)}>
-    <path d={d} />
-  </svg>
-)
-
-export function RichTextEditor({ value, onChange, placeholder = 'Escreve aqui…' }: Props) {
+export function RichTextEditor({ value, onChange }: Props) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ codeBlock: false }),

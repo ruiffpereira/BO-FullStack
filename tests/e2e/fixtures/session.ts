@@ -5,7 +5,7 @@ import { loginAs } from "./login";
  * Mitigação partilhada para a corrida diagnosticada em `doRefresh`
  * (`src/context/AuthContext.tsx`, ~284-337): no arranque a app faz TRÊS
  * chamadas em série — `GET /csrf-token` → `POST /users/refresh` →
- * `GET /userpermissions` — cada uma com o seu timeout de 5s
+ * `GET /user-permissions` — cada uma com o seu timeout de 5s
  * (`AUTH_REQUEST_TIMEOUT_MS`). Se qualquer uma atrasar sob carga, o `catch`
  * desliga `initializing` sem `isAuthenticated`, e o `App.tsx` renderiza o
  * ecrã de Login público em vez da rota pedida. Não é preciso rotação de

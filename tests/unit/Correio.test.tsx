@@ -320,7 +320,7 @@ describe("Correio → Caixa — por configurar", () => {
       data: undefined,
       isLoading: false,
       isError: true,
-      error: { response: { status: 503, data: { error: "mail_not_configured" } } },
+      error: { response: { status: 503, data: { error: "x", code: "MAIL_NOT_CONFIGURED" } } },
     });
     renderAt();
     expect(screen.getByTestId("mail-not-configured")).toBeInTheDocument();
@@ -331,7 +331,7 @@ describe("Correio → Caixa — por configurar", () => {
       data: undefined,
       isLoading: false,
       isError: true,
-      error: { response: { status: 502, data: { error: "mail_provider_error" } } },
+      error: { response: { status: 502, data: { error: "x", code: "MAIL_PROVIDER_ERROR" } } },
       refetch: vi.fn(),
     });
     renderAt();
@@ -486,7 +486,7 @@ describe("Correio → Caixa — compositor", () => {
   });
 
   it("um erro da API (MAIL_NO_RECIPIENTS) aparece em PT e o compositor fica aberto", async () => {
-    sendMutateAsync.mockRejectedValue({ response: { status: 400, data: { error: "MAIL_NO_RECIPIENTS" } } });
+    sendMutateAsync.mockRejectedValue({ response: { status: 400, data: { error: "x", code: "MAIL_NO_RECIPIENTS" } } });
     const dialog = await openNew();
     await userEvent.type(within(dialog).getByLabelText("Para"), "maria@x.pt");
     await userEvent.type(within(dialog).getByLabelText("Mensagem"), "Olá");

@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { getApiError } from "../lib/apiError";
 import { Icon } from "../ui/icons.jsx";
-import { Card, Button, IconButton, Badge, Modal, Input, Toggle, EmptyState, Tabs, BADGE_TONES } from "../ui/ui.jsx";
+import { Card, Button, Badge, Modal, Input, Toggle, EmptyState, Tabs, BADGE_TONES } from "../ui/ui.jsx";
 import { useWriteGuard } from "../hooks/useWriteGuard";
 import { DatePicker } from "../components/DatePicker";
 import { TimeField } from "../components/TimeField";
@@ -18,6 +18,7 @@ import {
 } from "../gen/backoffice/hooks/useGetScheduleBlockedSlots.js";
 import { usePostScheduleBlockedSlots } from "../gen/backoffice/hooks/usePostScheduleBlockedSlots.js";
 import { useDeleteScheduleBlockedSlotsId } from "../gen/backoffice/hooks/useDeleteScheduleBlockedSlotsId.js";
+import { REVEAL_ON_HOVER } from "../ui/reveal";
 import { usePostScheduleBlockedSlotsVacation } from "../gen/backoffice/hooks/usePostScheduleBlockedSlotsVacation.js";
 import {
   useGetScheduleSettings,
@@ -64,7 +65,7 @@ const fmtDataCurta = (s?: string | null) => { if (!s) return "—"; const [, m, 
 const addDayStr = (s: string, n: number) => { const d = new Date(s + "T00:00:00"); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
 
 // Barra visual de cobertura do dia (abertura preenchida, almoço recortado).
-function DayBar({ startTime, endTime, lunchStart, lunchEnd }: { startTime: string; endTime: string; lunchStart: string | null; lunchEnd: string | null }) {
+function DayBar({ startTime, endTime, lunchStart, lunchEnd }: { startTime: string; endTime: string; lunchStart?: string | null; lunchEnd?: string | null }) {
   const START = 6, END = 24, span = END - START;
   const pos = (h: number) => `${((Math.max(START, Math.min(END, h)) - START) / span) * 100}%`;
   const wid = (a: number, b: number) => `${((Math.min(END, b) - Math.max(START, a)) / span) * 100}%`;
@@ -340,7 +341,7 @@ export function ConfiguracoesPanel() {
   };
   const onAddPeriodo = (f: { de: string; ate: string; inteiro: boolean; startTime: string; endTime: string; motivo: string }) => {
     if (f.de !== f.ate) {
-      vacation.mutate({ data: { startDate: f.de, endDate: f.ate, reason: f.motivo || undefined } as any });
+      vacation.mutate({ data: { startDate: f.de, endDate: f.ate, reason: f.motivo || undefined } });
     } else {
       createSlot.mutate({ data: { date: f.de, startTime: f.inteiro ? undefined : f.startTime, endTime: f.inteiro ? undefined : f.endTime, reason: f.motivo || undefined } });
     }
@@ -401,7 +402,7 @@ export function ConfiguracoesPanel() {
                     <div className="flex items-center gap-2"><p className="font-medium text-zinc-900 dark:text-white text-sm truncate">{p.reason || meta.t}</p><Badge tone={meta.tone}>{meta.t}</Badge></div>
                     <p className="text-xs text-zinc-400 mt-0.5">{label}</p>
                   </div>
-                  <GuardIconButton leaf="agenda.bloqueios" icon="trash" label="Remover" onClick={() => removePeriodo(p.ids)} className="opacity-0 group-hover:opacity-100 hover:text-red-500" />
+                  <GuardIconButton leaf="agenda.bloqueios" icon="trash" label="Remover" onClick={() => removePeriodo(p.ids)} className={`hover:text-red-500 ${REVEAL_ON_HOVER}`} />
                 </Card>
               );
             })}

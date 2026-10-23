@@ -253,7 +253,7 @@ test.describe("Acesso de suporte — sessão de suporte", () => {
       const tp = await tenantCtx.newPage();
       await tp.goto("/agenda/servicos");
       await expect(tp.getByText(svc, { exact: true })).toBeVisible({ timeout: 20_000 });
-      await expect(tp.getByText("25.00€")).toBeVisible();
+      await expect(tp.getByText(/25,00\s€/)).toBeVisible();
       await expect(bar(tp)).toHaveCount(0);
     } finally {
       await tenantCtx.close();

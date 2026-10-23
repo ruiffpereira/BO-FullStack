@@ -141,7 +141,6 @@ export function MessageThread({
     requestAnimationFrame(scrollToBottom);
     const t = setTimeout(scrollToBottom, 150);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Se o container encolher (ex.: o teclado abre → a área visível encolhe) e

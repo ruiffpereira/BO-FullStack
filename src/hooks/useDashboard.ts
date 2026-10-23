@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { getDashboard as getDashboardGen } from "../gen/backoffice/hooks/useGetDashboard.js";
 import type { GetDashboard200, GetDashboard200PeriodEnum } from "../gen/backoffice/types/GetDashboard.js";
+import { queryKeys } from '../lib/queryKeys'
 
 /**
  * Tipos DERIVADOS do gerado, nunca uma `interface` à mão ao lado: dois tipos a
@@ -22,7 +23,7 @@ export type ExpensesStats = DashboardData["expenses"];
  * `schedule`/`gym`) — mantido opcional aqui para continuar a servir os três,
  * como antes da migração.
  */
-export type RevenuePoint = ScheduleStats["revenueByPeriod"][number] & { orders?: number };
+export type RevenuePoint = NonNullable<ScheduleStats["revenueByPeriod"]>[number] & { orders?: number };
 
 /**
  * GET /dashboard?period= — analytics agregadas por módulo acessível.
@@ -41,7 +42,7 @@ export function useDashboard(period: DashboardPeriod = "30d", customStart?: stri
   const { isAuthenticated } = useAuth();
   const isCustomValid = period !== "custom" || (!!customStart && !!customEnd);
   return useQuery<DashboardData>({
-    queryKey: ["dashboard", period, customStart, customEnd, staff ?? "all"],
+    queryKey: queryKeys.dashboard.of(period, customStart, customEnd, staff),
     // `enabled`: um membro sem a folha `dashboard` não pede (a API recusa com 403 TEAM_FORBIDDEN).
     enabled: enabled && isAuthenticated && isCustomValid,
     queryFn: async () => {

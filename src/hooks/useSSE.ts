@@ -13,6 +13,7 @@ import { invalidateMailQueries } from "./useMail";
 import { mailThreadHref, CORREIO_PATH } from "../lib/mail";
 
 import { API_BASE } from "../lib/env";
+import { queryKeys } from '../lib/queryKeys'
 
 // /events/stream é SSE — uma ligação longa lida com fetch + ReadableStream.
 // O client gerado pelo Kubb é axios, que não serve para consumir um stream
@@ -112,7 +113,7 @@ export function useSSE() {
         // O SSE não repete o que passou enquanto esteve em baixo (429, rede, token renovado): ao religar, refresca.
         if (connectedOnceRef.current) {
           queryClient.invalidateQueries({ queryKey: messagesKeys.all });
-          queryClient.invalidateQueries({ queryKey: ["chat"] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.chat.all });
           queryClient.invalidateQueries({ queryKey: getMessagesSummaryQueryKey() });
           queryClient.invalidateQueries({ queryKey: getNotificationsQueryKey() });
           queryClient.invalidateQueries({ queryKey: getScheduleAppointmentsQueryKey() });
@@ -154,7 +155,7 @@ export function useSSE() {
       // Chat de suporte — nova mensagem OU leitura do outro lado ("visto" em
       // tempo real): refresca thread + lista de conversas + badges.
       if (event.type === "message" || event.type === "chat_read") {
-        queryClient.invalidateQueries({ queryKey: ["chat"] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.chat.all });
         // O Suporte também conta no total do menu (summary).
         queryClient.invalidateQueries({ queryKey: getMessagesSummaryQueryKey() });
       }

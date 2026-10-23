@@ -9,6 +9,7 @@ import {
 import { Icon } from "../ui/icons.jsx";
 import { useAuth } from "../context/AuthContext";
 import { useWriteGuard } from "../hooks/useWriteGuard";
+import { queryKeys } from '../lib/queryKeys'
 
 // ─── NotifCard ──────────────────────────────────────────────────────────────
 
@@ -75,18 +76,18 @@ function NotifCard({
           locale: l,
           value: form[l]?.title ?? "",
           type: "text",
-        } as any);
+        });
         await putCmsEntries({
           key: template.bodyKey,
           locale: l,
           value: form[l]?.body ?? "",
           type: "text",
-        } as any);
+        });
       }
     },
     onSuccess: () => {
       toast.success(`"${template.label}" guardado`);
-      qc.invalidateQueries({ queryKey: ["notification-templates"] });
+      qc.invalidateQueries({ queryKey: queryKeys.notificationTemplates });
     },
     onError: () => toast.error("Erro ao guardar notificação"),
   });

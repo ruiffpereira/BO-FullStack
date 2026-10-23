@@ -7,6 +7,7 @@ import { Icon } from "../ui/icons.jsx";
 import { RichTextEditor } from "./RichTextEditor";
 import { useAuth } from "../context/AuthContext";
 import { useWriteGuard } from "../hooks/useWriteGuard";
+import { queryKeys } from '../lib/queryKeys'
 
 // ─── EmailCard ────────────────────────────────────────────────────────────────
 
@@ -76,18 +77,18 @@ function EmailCard({
           locale: l,
           value: form[l]?.subject ?? "",
           type: "text",
-        } as any);
+        });
         await putCmsEntries({
           key: template.bodyKey,
           locale: l,
           value: form[l]?.body ?? "",
           type: "richtext",
-        } as any);
+        });
       }
     },
     onSuccess: () => {
       toast.success(`"${template.label}" guardado`);
-      qc.invalidateQueries({ queryKey: ["email-templates"] });
+      qc.invalidateQueries({ queryKey: queryKeys.emailTemplates });
       onSaved();
     },
     onError: () => toast.error("Erro ao guardar email"),

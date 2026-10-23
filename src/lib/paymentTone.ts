@@ -1,3 +1,4 @@
+import { fmtEur } from './money'
 /**
  * Estado do valor de pagamento sendo INTRODUZIDO num formulário (ApptModal),
  * comparado com o preço do serviço — decide a cor de um só botão de
@@ -32,7 +33,7 @@ export function paymentTone(payNoTip: number, targetPrice: number): PaymentToneI
     return {
       tone: "amber",
       label: "Em dívida",
-      hint: `Fica em dívida · faltam ${shortfall.toFixed(2)} €`,
+      hint: `Fica em dívida · faltam ${fmtEur(shortfall)}`,
     };
   }
 
@@ -40,7 +41,7 @@ export function paymentTone(payNoTip: number, targetPrice: number): PaymentToneI
     return {
       tone: "green",
       label: "A mais",
-      hint: `A mais · +${diff.toFixed(2)} €`,
+      hint: `A mais · +${fmtEur(diff)}`,
     };
   }
 

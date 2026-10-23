@@ -82,7 +82,7 @@ export function CmsCombo({
   const activate = (idx: number) => {
     if (idx < suggestions.length) {
       const r = suggestions[idx]
-      onChange(r.key, r.label ?? '')
+      onChange(r.key ?? null, r.label ?? '')
       setOpen(false)
     } else if (showCreate) {
       createAndTranslate()

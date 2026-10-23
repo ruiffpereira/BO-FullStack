@@ -53,7 +53,7 @@ function scopeKeyOf(scope: ChatScope): string {
  * pagina mensagens antigas. Partilhada pelo ChatDrawer e pela tab Mensagens.
  */
 export function ChatConversationView({ scope, active = true }: { scope: ChatScope; active?: boolean }) {
-  const { authHeader, userId, supportSession, can } = useAuth();
+  const { userId, supportSession, can } = useAuth();
   // Equipa (B41/B43): cada conversa guarda-se pela SUA folha — só `view` lê mas não envia. (O dono pode sempre.)
   const leaf =
     scope.kind === "support" ? "mensagens.suporte"
@@ -148,14 +148,13 @@ export function ChatConversationView({ scope, active = true }: { scope: ChatScop
             : await fetchOlderMessages(
                 scope.kind === "support" ? { kind: "support" } : { kind: "admin", tenantUserId: scope.tenantUserId },
                 oldest.createdAt,
-                authHeader,
               );
       setOlder((prev) => mergeMessages(res.messages, prev));
       setHasMore(res.hasMore);
     } finally {
       setLoadingOlder(false);
     }
-  }, [loadingOlder, serverMessages, scope, authHeader]);
+  }, [loadingOlder, serverMessages, scope]);
 
   const onSend = useCallback(
     async (input: MessageInput) => {

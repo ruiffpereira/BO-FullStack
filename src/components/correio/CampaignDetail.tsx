@@ -74,6 +74,7 @@ export function CampaignDetail({ campaign }: { campaign: Campaign }) {
         : "A campanha deixa de estar agendada e não é enviada.",
       confirmLabel: sending ? "Parar o envio" : "Cancelar agendamento",
       danger: true,
+      leaf: "correio.campanhas.enviar", // a do botão que abre este diálogo
     });
     if (!ok) return;
     try {

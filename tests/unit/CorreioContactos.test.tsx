@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, within, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -213,15 +213,17 @@ describe("Correio → Contactos — importar CSV", () => {
     await toConsentStep();
     await userEvent.click(screen.getByRole("checkbox"));
     await userEvent.click(screen.getByRole("button", { name: "Importar" }));
-    opts.import.mutation.onSuccess({
-      total: 4,
-      created: 1,
-      updated: 1,
-      rejected: 2,
-      skipped: [
-        { line: 3, email: "x@", reason: "invalid_email" },
-        { line: 4, email: "ana@x.pt", reason: "already_unsubscribed" },
-      ],
+    act(() => {
+      opts.import.mutation.onSuccess({
+        total: 4,
+        created: 1,
+        updated: 1,
+        rejected: 2,
+        skipped: [
+          { line: 3, email: "x@", reason: "invalid_email" },
+          { line: 4, email: "ana@x.pt", reason: "already_unsubscribed" },
+        ],
+      });
     });
     const report = await screen.findByTestId("import-report");
     const rows = within(report).getAllByTestId("import-skipped-row");
@@ -233,7 +235,7 @@ describe("Correio → Contactos — importar CSV", () => {
 
   it("erro 400 consent_confirmation_required → mensagem PT", () => {
     renderPage();
-    opts.import.mutation.onError({ response: { status: 400, data: { error: "consent_confirmation_required" } } });
+    opts.import.mutation.onError({ response: { status: 400, data: { error: "x", code: "CONSENT_CONFIRMATION_REQUIRED" } } });
     expect(toastError).toHaveBeenCalledWith("Tens de confirmar que estes contactos deram consentimento.");
   });
 

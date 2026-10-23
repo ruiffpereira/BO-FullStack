@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 
 // ── B41 — AuthContext: membro da equipa, `member`, `isMember`, `can()` ─────────
 //
-// Depois do refresh o contexto vai buscar `GET /userpermissions/access` e expõe quem está ligado e o nível por
+// Depois do refresh o contexto vai buscar `GET /user-permissions/access` e expõe quem está ligado e o nível por
 // módulo. Nada se calcula no frontend: os níveis vêm da API. Mesma fronteira mockada do AuthContext.test.tsx.
 const axiosPostMock = vi.fn();
 vi.mock("@kubb/plugin-client/clients/axios", () => {
@@ -22,13 +22,13 @@ const getCsrfTokenMock = vi.fn();
 vi.mock("../../src/gen/backoffice/hooks/useGetCsrfToken", () => ({
   getCsrfToken: (...args: unknown[]) => getCsrfTokenMock(...args),
 }));
-const getUserpermissionsMock = vi.fn();
-vi.mock("../../src/gen/backoffice/hooks/useGetUserpermissions", () => ({
-  getUserpermissions: (...args: unknown[]) => getUserpermissionsMock(...args),
+const getUserPermissionsMock = vi.fn();
+vi.mock("../../src/gen/backoffice/hooks/useGetUserPermissions", () => ({
+  getUserPermissions: (...args: unknown[]) => getUserPermissionsMock(...args),
 }));
-const getUserpermissionsAccessMock = vi.fn();
-vi.mock("../../src/gen/backoffice/hooks/useGetUserpermissionsAccess", () => ({
-  getUserpermissionsAccess: (...args: unknown[]) => getUserpermissionsAccessMock(...args),
+const getUserPermissionsAccessMock = vi.fn();
+vi.mock("../../src/gen/backoffice/hooks/useGetUserPermissionsAccess", () => ({
+  getUserPermissionsAccess: (...args: unknown[]) => getUserPermissionsAccessMock(...args),
 }));
 
 import { AuthProvider, useAuth } from "../../src/context/AuthContext";
@@ -68,13 +68,13 @@ const text = (id: string) => screen.getByTestId(id).textContent;
 beforeEach(() => {
   vi.clearAllMocks();
   getCsrfTokenMock.mockResolvedValue({ csrfToken: "csrf" });
-  getUserpermissionsMock.mockResolvedValue([]);
+  getUserPermissionsMock.mockResolvedValue([]);
   axiosPostMock.mockResolvedValue({ status: 200, data: { accessToken: "access.token.value" } });
 });
 
 describe("AuthContext — acesso da equipa (B41)", () => {
   it("membro: expõe quem é e `can` respeita o nível por módulo (edit implica view; sem módulo = não)", async () => {
-    getUserpermissionsAccessMock.mockResolvedValue({
+    getUserPermissionsAccessMock.mockResolvedValue({
       member: { memberId: "m1", name: "Ana", email: "ana@x.pt", tenantName: "Tifas Barber" },
       modules: [
         { key: "agenda", label: "Agenda", level: "view" },
@@ -97,7 +97,7 @@ describe("AuthContext — acesso da equipa (B41)", () => {
   });
 
   it("folhas: `can` aceita chaves de folha e de agrupador; a acção não eleva a folha-pai", async () => {
-    getUserpermissionsAccessMock.mockResolvedValue({
+    getUserPermissionsAccessMock.mockResolvedValue({
       member: { memberId: "m1", name: "Ana", email: "ana@x.pt", tenantName: "Tifas Barber" },
       modules: [
         { key: "agenda", label: "Agenda", level: "edit" },
@@ -122,7 +122,7 @@ describe("AuthContext — acesso da equipa (B41)", () => {
   });
 
   it("dono (`member: null`): pode tudo, `isMember` falso", async () => {
-    getUserpermissionsAccessMock.mockResolvedValue({ member: null, modules: [] });
+    getUserPermissionsAccessMock.mockResolvedValue({ member: null, modules: [] });
     renderAuth();
     await waitFor(() => expect(screen.queryByTestId("pending")).toBeNull());
 
@@ -133,11 +133,11 @@ describe("AuthContext — acesso da equipa (B41)", () => {
   });
 
   it("o acesso é pedido com o token novo, antes de a sessão ficar autenticada", async () => {
-    getUserpermissionsAccessMock.mockResolvedValue({ member: null, modules: [] });
+    getUserPermissionsAccessMock.mockResolvedValue({ member: null, modules: [] });
     renderAuth();
     await waitFor(() => expect(screen.queryByTestId("pending")).toBeNull());
 
-    expect(getUserpermissionsAccessMock).toHaveBeenCalledTimes(1);
-    expect(getUserpermissionsAccessMock.mock.calls[0][0].headers.Authorization).toBe("Bearer access.token.value");
+    expect(getUserPermissionsAccessMock).toHaveBeenCalledTimes(1);
+    expect(getUserPermissionsAccessMock.mock.calls[0][0].headers.Authorization).toBe("Bearer access.token.value");
   });
 });

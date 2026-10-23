@@ -12,8 +12,8 @@ const TEXTAREA =
 /** Produto ou serviço do negócio: escolhe-se de uma lista (o `refId` tem de ser do tenant; o preço lê-se da BD). */
 function RefPicker({ block, onChange }: { block: CampaignBlock; onChange: (b: CampaignBlock) => void }) {
   const isProduct = block.type === "product";
-  const productsQ = useGetProducts({ query: { enabled: isProduct, retry: false } } as any);
-  const servicesQ = useGetScheduleServices({ query: { enabled: !isProduct, retry: false } } as any);
+  const productsQ = useGetProducts({ query: { enabled: isProduct, retry: false } });
+  const servicesQ = useGetScheduleServices({ query: { enabled: !isProduct, retry: false } });
   const options: { id: string; name: string }[] = isProduct
     ? (productsQ.data?.rows ?? []).map((p: any) => ({ id: p.productId, name: p.name }))
     : ((servicesQ.data as any[]) ?? []).filter((s) => s.active !== false).map((s) => ({ id: s.serviceId, name: s.name }));

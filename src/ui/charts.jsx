@@ -72,7 +72,7 @@ function AreaChart({ data, height = 180, valueKey = 'v', labelKey = 'm', format 
 // `values` alinhado com `labels` (x). Cada linha tem área preenchida (cor da série) para
 // ser legível. Com 1 só treino o ponto fica na ponta esquerda e o nível estende-se em
 // banda; com mais treinos os pontos dividem-se ao longo da largura.
-function LineChart({ labels, series, height = 220, format = (n) => n, refLine = null, refColor = '#1F8A5B', refLabel = '', label = 'Gráfico de linhas' }) {
+function LineChart({ labels, series, height = 220, format: _format = (n) => n, refLine = /** @type {number | null} */ (null), refColor = '#1F8A5B', refLabel = '', label = 'Gráfico de linhas' }) {
   const accent = useAccent();
   const [hover, setHover] = useStateC(null);
   const w = 560, h = height, pad = { t: 16, r: 12, b: 28, l: 40 };

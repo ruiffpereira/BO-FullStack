@@ -3,13 +3,13 @@ import { format } from 'date-fns'
 import { pt } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '../context/AuthContext'
 import { Icon } from '../ui/icons.jsx'
-import { Card, Badge, Button, Input, Modal, PageHeader, EmptyState, IconButton, BADGE_TONES } from '../ui/ui.jsx'
+import { Card, Button, Input, Modal, PageHeader, EmptyState, IconButton, BADGE_TONES } from '../ui/ui.jsx'
 import { usePageSubtitle } from '../context/PageMetaContext'
 import { usePagination, Pagination } from '../components/Pagination'
 import { Combobox } from '../components/Combobox'
 import { DatePicker } from '../components/DatePicker'
+import { REVEAL_ON_HOVER } from '../ui/reveal'
 import { useGetExpenses, getExpensesQueryKey } from '../gen/backoffice/hooks/useGetExpenses.js'
 import { useGetExpensesSummary, getExpensesSummaryQueryKey } from '../gen/backoffice/hooks/useGetExpensesSummary.js'
 import { usePostExpenses } from '../gen/backoffice/hooks/usePostExpenses.js'
@@ -29,9 +29,8 @@ import { StaffField, StaffFilterSelect } from '../components/StaffSelect'
 import { useStaffOptions } from '../hooks/useStaff'
 import { STAFF_ALL, staffParam } from '../lib/staffFilter'
 import { getApiError } from '../lib/apiError'
-
-const fmtEur = (n: number) =>
-  '€' + (n || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+import { fmtEur } from '../lib/money'
+import { invalidateMoney } from '../lib/invalidateMoney'
 
 const currentMonth = () => new Date().toISOString().slice(0, 7)
 
@@ -162,7 +161,7 @@ function CategoriesModal({ open, onClose, categories }: {
               <div key={c.expenseCategoryId} className="flex items-center gap-3 py-2 group">
                 <span className="w-3 h-3 rounded-full shrink-0" style={{ background: c.color }} />
                 <span className="flex-1 text-sm text-zinc-700 dark:text-zinc-200">{c.name}</span>
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className={`flex items-center gap-0.5 transition-opacity ${REVEAL_ON_HOVER}`}>
                   <IconButton icon="edit" label="Editar" className="w-8 h-8" onClick={() => startEdit(c)} />
                   <GuardIconButton icon="trash" label="Eliminar" className="w-8 h-8 hover:text-red-500" onClick={() => remove(c)} />
                 </div>
@@ -176,9 +175,7 @@ function CategoriesModal({ open, onClose, categories }: {
 }
 
 export function Despesas() {
-  const { authHeader } = useAuth()
   const qc = useQueryClient()
-  const headers = authHeader()
   const [month, setMonth] = useState(currentMonth())
   // Profissionais: filtro da lista/resumo (`?staff=`) — só aparece se o tenant tem profissionais.
   const [staffSel, setStaffSel] = useState<string>(STAFF_ALL)
@@ -202,11 +199,11 @@ export function Despesas() {
 
   const { data: listData, isLoading: loadingList } = useGetExpenses(
     queryParams,
-    { client: { headers }, query: { staleTime: 0 } },
+    { query: { staleTime: 0 } },
   )
   const { data: summary, isLoading: loadingSummary } = useGetExpensesSummary(
     queryParams,
-    { client: { headers }, query: { staleTime: 0 } },
+    { query: { staleTime: 0 } },
   )
 
   const rows = useMemo(() => listData?.rows ?? [], [listData])
@@ -215,12 +212,13 @@ export function Despesas() {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: getExpensesQueryKey(queryParams) })
     qc.invalidateQueries({ queryKey: getExpensesSummaryQueryKey(queryParams) })
-    qc.invalidateQueries({ queryKey: ['dashboard'] })
+    // Despesa mexe no lucro/margem: Dashboard e Financeiro também (FI-05).
+    invalidateMoney(qc)
   }
 
-  const createMut = usePostExpenses({ client: { headers } })
-  const updateMut = usePatchExpensesId({ client: { headers } })
-  const deleteMut = useDeleteExpensesId({ client: { headers } })
+  const createMut = usePostExpenses()
+  const updateMut = usePatchExpensesId()
+  const deleteMut = useDeleteExpensesId()
 
   const openCreate = () => { setEditing(null); setForm(emptyForm()); setModalOpen(true) }
   const openEdit = (e: Expense) => {
@@ -366,7 +364,7 @@ export function Despesas() {
                     </p>
                   </div>
                   <span className="text-sm font-semibold text-zinc-900 dark:text-white tabular-nums">{fmtEur(Number(e.amount) || 0)}</span>
-                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className={`flex items-center gap-0.5 transition-opacity ${REVEAL_ON_HOVER}`}>
                     <IconButton icon="edit" label="Editar" onClick={() => openEdit(e)} className="w-8 h-8" />
                     <GuardIconButton icon="trash" label="Eliminar" onClick={() => setConfirmDelete(e)} className="w-8 h-8 hover:text-red-500" />
                   </div>

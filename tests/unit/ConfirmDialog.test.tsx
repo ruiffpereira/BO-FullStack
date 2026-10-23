@@ -1,6 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+// O write-guard (GuardButton) lê a subscrição de billing: dono com tudo pago.
+vi.mock("../../src/gen/backoffice/hooks/useGetBillingSubscription", () => ({
+  useGetBillingSubscription: () => ({ data: { readOnly: false, reason: "active" } }),
+}));
+
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 
 const base = {

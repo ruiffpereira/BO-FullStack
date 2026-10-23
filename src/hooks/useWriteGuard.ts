@@ -1,7 +1,8 @@
-import { useInRouterContext, useLocation } from 'react-router-dom'
+import { useContext } from 'react'
+import { useInRouterContext, UNSAFE_LocationContext } from 'react-router-dom'
 import { useBillingReadOnly } from './useBillingReadOnly'
 import { useTeamAccess } from './useTeamAccess'
-import { leafForPath } from '../lib/navigation'
+import { isLeafExempt, leafForPath } from '../lib/navigation'
 import { VIEW_ONLY_MESSAGE } from '../lib/teamAccess'
 import type { BillingSubscriptionReasonEnum } from '../gen/backoffice/types/BillingSubscription'
 
@@ -50,14 +51,15 @@ export interface WriteGuard {
 export function useWriteGuard(leaf?: string | readonly string[]): WriteGuard {
   const { readOnly: billingReadOnly, reason } = useBillingReadOnly()
   const { isMember, can } = useTeamAccess()
-  // Renderizado isolado (testes, sem Router) → sem pathname, sem bloqueio de equipa. `useInRouterContext` é
-  // estável durante a vida do componente, por isso a chamada condicional não muda a ordem dos hooks.
+  // Renderizado isolado (testes, sem Router) → sem pathname, sem bloqueio de equipa.
   const inRouter = useInRouterContext()
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const pathname = inRouter ? useLocation().pathname : ''
+  // Fora de um Router o contexto é `null` → lê-se sem chamar `useLocation` condicionalmente.
+  const pathname = useContext(UNSAFE_LocationContext)?.location.pathname ?? ''
   const pathLeaf = isMember && !leaf ? leafForPath(pathname) : undefined
   const leaves: readonly string[] = !isMember ? [] : leaf ? (typeof leaf === 'string' ? [leaf] : leaf) : pathLeaf ? [pathLeaf] : []
-  const viewOnly = leaves.length > 0 && !leaves.some((l) => can(l, 'edit'))
+  // Fail-closed (EQ-03/EQ-04): um membro numa rota sem folha (e não isenta) só lê. Sem Router não há pathname → não decide.
+  const unmapped = isMember && !leaf && inRouter && !pathLeaf && !isLeafExempt(pathname)
+  const viewOnly = unmapped || (leaves.length > 0 && !leaves.some((l) => can(l, 'edit')))
   return {
     readOnly: billingReadOnly || viewOnly,
     billingReadOnly,

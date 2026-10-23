@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "kubb": "kubb generate",
     "kubb:refresh": "node scripts/kubb-refresh.mjs",
-    "lint": "tsc --noEmit",
+    "lint": "eslint src && tsc --noEmit",
     "lint:tests": "tsc --noEmit -p tsconfig.tests.json",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
@@ -46,6 +46,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@kubb/cli": "^3.0.0",
     "@kubb/core": "^3.0.0",
     "@kubb/plugin-client": "^3.0.0",
@@ -62,10 +63,14 @@
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "dotenv": "^17.4.2",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
     "jsdom": "^29.1.1",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",
+    "typescript-eslint": "^8.72.0",
     "vite": "^5.4.11",
     "vitest": "^2.1.9"
   }

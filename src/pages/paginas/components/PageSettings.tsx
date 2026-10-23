@@ -8,7 +8,7 @@
  * os do construtor (`FieldRenderer`), por isso trazem "por traduzir", contadores e os issues do 422.
  */
 import { useMemo, useState, type ReactNode } from "react";
-import { deletePageWithToast, quickToast } from "../state/notify";
+import { deletePageWithToast } from "../state/notify";
 import { Button, SectionTitle, Select } from "../../../ui/ui.jsx";
 import { Icon } from "../../../ui/icons.jsx";
 import { buildFieldCtx, normalizeMedia, orderedLanguages, revealFor } from "../fields/ctx";
@@ -69,7 +69,7 @@ interface SlugProps {
 }
 
 /** «/obras/ [ endereço ]»: o prefixo da mãe fixo e a caixa do endereço. */
-function SlugRow({ lang, badge, prefix, value, placeholder, disabled, label, issues, warn, onChange, onBlur }: SlugProps) {
+function SlugRow({ badge, prefix, value, placeholder, disabled, label, issues, warn, onChange, onBlur }: SlugProps) {
   const bad = issues.length > 0 || !!warn;
   return (
     <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:gap-2">

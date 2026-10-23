@@ -54,7 +54,7 @@ export function FinanceiroLoja({ period, iva, customStart, customEnd, staff }: {
           {serie.length > 0 ? <AreaChart data={serie} valueKey="v" labelKey="m" format={fmtEur} yAxis height={200} /> : <p className="text-sm text-zinc-400 mt-3">Sem dados no período.</p>}
         </Card>
         <Card className="p-5">
-          <SectionTitle right={<InfoDot title={INFO.topCategorias.title} body={INFO.topCategorias.body} />}>Top categorias</SectionTitle>
+          <SectionTitle right={<InfoDot title={INFO.topCategorias.title} body={INFO.topCategorias.body} />}>Top categorias (vendas de produtos)</SectionTitle>
           {(data?.topCategories ?? []).length === 0 ? <p className="text-sm text-zinc-400 mt-3">Sem vendas.</p> : (
             <div className="space-y-3 mt-3">
               {data!.topCategories.map((c) => (
@@ -78,7 +78,7 @@ export function FinanceiroLoja({ period, iva, customStart, customEnd, staff }: {
             <table className="w-full text-sm">
               <thead><tr className="text-left text-zinc-500 border-b border-zinc-100 dark:border-zinc-800">
                 <th className="font-medium py-2 pr-3">Produto</th><th className="font-medium py-2 px-3">Qtd</th>
-                <th className="font-medium py-2 px-3">Faturado</th>{showCost && <th className="font-medium py-2 px-3 hidden sm:table-cell">Margem</th>}
+                <th className="font-medium py-2 px-3" title="Vendas de produtos (linhas), sem portes nem descontos">Vendas de produtos</th>{showCost && <th className="font-medium py-2 px-3 hidden sm:table-cell">Margem</th>}
                 <th className="font-medium py-2 px-3 hidden md:table-cell">Stock</th>
               </tr></thead>
               <tbody>

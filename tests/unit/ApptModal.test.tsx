@@ -11,6 +11,10 @@ vi.mock("../../src/gen/backoffice/hooks/useGetBillingSubscription", () => ({
   useGetBillingSubscription: () => ({ data: { readOnly: false, reason: "active" } }),
 }));
 
+// «Anular pagamento» pede confirmação (confirmDialog).
+const confirmMock = vi.hoisted(() => vi.fn());
+vi.mock("../../src/components/confirm", () => ({ confirmDialog: (...a: unknown[]) => confirmMock(...a) }));
+
 // Profissionais (R2): sem QueryClientProvider, o tenant "não tem profissionais" (nenhum selector aparece).
 vi.mock("../../src/hooks/useStaff", () => ({
   useStaffOptions: () => ({ staff: [], active: [], hasStaff: false, isLoading: false }),
@@ -175,8 +179,8 @@ describe("ApptModal — sem toggle de notificação", () => {
 // Marcação concluída e PAGA (€10 em dinheiro). Cobre a aba Pagamento: ver o
 // recibo, entrar em modo de edição e *reverter o pagamento* baixando o valor
 // recebido — o caminho que o frontend disponibiliza para "anular" um pagamento
-// (o botão dedicado "Anular pagamento" existe no código mas não está ligado à UI;
-// ver o relatório). Ao baixar o valor recebido, o backend volta a pôr a marcação
+// e, no modo «Editar pagamento», o botão «Anular pagamento» (AG-06: limpa tudo,
+// com confirmação). Ao baixar o valor recebido, o backend volta a pôr a marcação
 // em dívida / por concluir.
 const paidAppt: Partial<Appointment> = {
   status: "completed",
@@ -206,7 +210,7 @@ describe("ApptModal — pagamento de uma marcação concluída", () => {
     const user = userEvent.setup();
     renderModal(paidAppt);
 
-    await user.click(screen.getByRole("button", { name: "Pagamento" }));
+    await user.click(screen.getByRole("tab", { name: "Pagamento" }));
     // Recibo: total recebido visível.
     expect(screen.getByText("Total recebido")).toBeInTheDocument();
 
@@ -225,7 +229,7 @@ describe("ApptModal — pagamento de uma marcação concluída", () => {
     const user = userEvent.setup();
     const { onSave } = renderModal(paidAppt);
 
-    await user.click(screen.getByRole("button", { name: "Pagamento" }));
+    await user.click(screen.getByRole("tab", { name: "Pagamento" }));
     await user.click(screen.getByRole("button", { name: "Editar pagamento" }));
 
     // O campo Dinheiro arranca com o valor pago (10). Limpa → 0 (reverte o pago).
@@ -254,7 +258,7 @@ describe("ApptModal — pagamento de uma marcação concluída", () => {
     const user = userEvent.setup();
     const { onSave } = renderModal(paidAppt);
 
-    await user.click(screen.getByRole("button", { name: "Pagamento" }));
+    await user.click(screen.getByRole("tab", { name: "Pagamento" }));
     await user.click(screen.getByRole("button", { name: "Editar pagamento" }));
 
     const cashInput = document.querySelector(
@@ -286,7 +290,7 @@ describe("ApptModal — contribuinte na fatura (wantsInvoice)", () => {
       },
     );
 
-    await user.click(screen.getByRole("button", { name: "Pagamento" }));
+    await user.click(screen.getByRole("tab", { name: "Pagamento" }));
     // Liga o toggle "Contribuinte na fatura".
     const invoiceToggle = screen.getByRole("switch");
     await user.click(invoiceToggle);
@@ -318,7 +322,7 @@ describe("ApptModal — botão único de pagamento (cor por tom)", () => {
     const user = userEvent.setup();
     const { onSetStatus } = renderModal({ status: "confirmed" });
 
-    await user.click(screen.getByRole("button", { name: "Pagamento" }));
+    await user.click(screen.getByRole("tab", { name: "Pagamento" }));
 
     const payBtn = screen.getByRole("button", { name: "Guardar pagamento" });
     expect(payBtn).toBeDisabled();
@@ -333,7 +337,7 @@ describe("ApptModal — botão único de pagamento (cor por tom)", () => {
   it("valor a menos: âmbar, e o link de concluir sem pagamento desaparece", async () => {
     const user = userEvent.setup();
     renderModal({ status: "confirmed" });
-    await user.click(screen.getByRole("button", { name: "Pagamento" }));
+    await user.click(screen.getByRole("tab", { name: "Pagamento" }));
 
     // Preço do serviço (svc-1, "Corte") é 10€.
     const cashInput = document.querySelector(
@@ -352,7 +356,7 @@ describe("ApptModal — botão único de pagamento (cor por tom)", () => {
   it("valor exato: azul", async () => {
     const user = userEvent.setup();
     renderModal({ status: "confirmed" });
-    await user.click(screen.getByRole("button", { name: "Pagamento" }));
+    await user.click(screen.getByRole("tab", { name: "Pagamento" }));
 
     const cashInput = document.querySelector(
       'input[type="number"]',
@@ -366,7 +370,7 @@ describe("ApptModal — botão único de pagamento (cor por tom)", () => {
   it("valor a mais: verde", async () => {
     const user = userEvent.setup();
     renderModal({ status: "confirmed" });
-    await user.click(screen.getByRole("button", { name: "Pagamento" }));
+    await user.click(screen.getByRole("tab", { name: "Pagamento" }));
 
     const cashInput = document.querySelector(
       'input[type="number"]',
@@ -418,5 +422,57 @@ describe("ApptModal — editar uma marcação concluída", () => {
 
     expect(onSave).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Editar marcação" })).toBeInTheDocument();
+  });
+});
+
+// AG-18: a dívida vem da API (`debt`) — o modal não faz contas, por isso 0,29×3 contra 0,87 (debt 0) nunca mostra «Dívida».
+describe("ApptModal — dívida vinda da API (AG-18)", () => {
+  const split = {
+    status: "completed",
+    servicePrice: 0.87,
+    paymentCash: 0.29,
+    paymentMbway: 0.29,
+    paymentCard: 0.29,
+    paidAt: "2026-07-01T10:30:00.000Z",
+  } as Partial<Appointment>;
+
+  it("pagamento repartido sem dívida (debt 0): não mostra «Dívida»", () => {
+    renderModal({ ...split, debt: 0 });
+    expect(screen.queryByText(/Dívida/)).not.toBeInTheDocument();
+  });
+
+  it("mostra a dívida que a API envia, formatada pt-PT", () => {
+    renderModal({ ...split, servicePrice: 20, paymentCash: 5, paymentMbway: 0, paymentCard: 0, debt: 15 });
+    expect(screen.getAllByText(/Dívida 15,00/).length).toBeGreaterThan(0);
+  });
+
+  it("sem o campo debt (membro sem valores) nunca inventa dívida", () => {
+    renderModal({ status: "completed", paidAt: "2026-07-01T10:30:00.000Z" });
+    expect(screen.queryByText(/Dívida/)).not.toBeInTheDocument();
+  });
+});
+
+// AG-06: «Anular pagamento» (religado) — só no modo «Editar pagamento», com confirmação; envia cancelPayment.
+describe("ApptModal — anular pagamento (AG-06)", () => {
+  it("confirma e envia { cancelPayment: true }", async () => {
+    confirmMock.mockResolvedValue(true);
+    const user = userEvent.setup();
+    const { onSave } = renderModal(paidAppt);
+    await user.click(screen.getByRole("tab", { name: "Pagamento" }));
+    expect(screen.queryByRole("button", { name: "Anular pagamento" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Editar pagamento" }));
+    await user.click(screen.getByRole("button", { name: "Anular pagamento" }));
+    expect(confirmMock).toHaveBeenCalled();
+    expect(onSave).toHaveBeenCalledWith("appt-1", { cancelPayment: true });
+  });
+
+  it("sem confirmação não grava nada", async () => {
+    confirmMock.mockResolvedValue(false);
+    const user = userEvent.setup();
+    const { onSave } = renderModal(paidAppt);
+    await user.click(screen.getByRole("tab", { name: "Pagamento" }));
+    await user.click(screen.getByRole("button", { name: "Editar pagamento" }));
+    await user.click(screen.getByRole("button", { name: "Anular pagamento" }));
+    expect(onSave).not.toHaveBeenCalled();
   });
 });

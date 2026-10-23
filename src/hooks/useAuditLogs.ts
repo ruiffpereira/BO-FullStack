@@ -1,10 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { getAuditLogs as getAuditLogsGen } from "../gen/backoffice/hooks/useGetAuditLogs.js";
-import { getHealth } from "../gen/backoffice/hooks/useGetHealth.js";
+// O `/health` público só devolve estado + commit (G-18/B57); o diagnóstico completo é admin-only.
+import { getHealthDetails } from "../gen/backoffice/hooks/useGetHealthDetails.js";
 import type { AuditLog as GenAuditLog } from "../gen/backoffice/types/AuditLog.js";
 import type { AuditLogActor } from "../gen/backoffice/types/AuditLogActor.js";
+import type { GetHealthDetails200 } from "../gen/backoffice/types/GetHealthDetails.js";
 import type { GetAuditLogs200 } from "../gen/backoffice/types/GetAuditLogs.js";
+import { queryKeys } from '../lib/queryKeys'
 
 /**
  * Tipos DERIVADOS do gerado, nunca uma `interface` à mão ao lado: dois tipos a
@@ -35,13 +38,7 @@ export interface AuditFilters {
   q?: string;
 }
 
-export interface Health {
-  status: string;
-  db: "up" | "down";
-  uptimeSeconds: number;
-  version: string;
-  timestamp: string;
-}
+export type Health = GetHealthDetails200;
 
 const clean = (o: Record<string, unknown>) =>
   Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== "" && v !== null));
@@ -49,7 +46,7 @@ const clean = (o: Record<string, unknown>) =>
 export function useAuditLogs(filters: AuditFilters = {}) {
   const { isAuthenticated } = useAuth();
   return useQuery<Paginated<AuditLog>>({
-    queryKey: ["audit-logs", filters],
+    queryKey: queryKeys.auditLogs(filters),
     enabled: isAuthenticated,
     queryFn: async () => {
       // B19: `success`/`errors` passaram de boolean a string no QueryParams
@@ -69,9 +66,9 @@ export function useAuditLogs(filters: AuditFilters = {}) {
 export function useHealth() {
   const { isAuthenticated } = useAuth();
   return useQuery<Health>({
-    queryKey: ["health"],
+    queryKey: queryKeys.health,
     enabled: isAuthenticated,
     refetchInterval: 30_000,
-    queryFn: async () => (await getHealth()) as Health,
+    queryFn: async () => (await getHealthDetails()) as Health,
   });
 }

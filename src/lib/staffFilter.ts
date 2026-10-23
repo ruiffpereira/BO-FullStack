@@ -1,3 +1,4 @@
+import { fmtEur } from './money'
 /**
  * Profissionais (R2): peças puras do filtro `?staff=` e dos selectores. A API é que filtra e que decide o âmbito
  * («Só os meus»); aqui só se traduz a escolha do selector para o parâmetro.
@@ -62,5 +63,5 @@ export function staffPriceHint(
   const s = staffId ? staff.find((x) => x.staffId === staffId) : undefined;
   if (!s) return null;
   if (s.doesService === false) return "Este profissional não faz este serviço";
-  return s.price != null ? `Preço com este profissional: ${Number(s.price).toFixed(2)}€` : null;
+  return s.price != null ? `Preço com este profissional: ${fmtEur(Number(s.price))}` : null;
 }

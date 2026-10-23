@@ -7,6 +7,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useAdminConversations, type ChatConversation } from "../../hooks/useChat";
 import { ChatConversationView } from "./ChatConversationView";
 import { colorFromString, timeLabel } from "./chatFormat";
+import { queryKeys } from '../../lib/queryKeys'
 
 interface UserRow {
   userId: string;
@@ -33,12 +34,12 @@ function shortWhen(iso: string): string {
 
 /** Lista de utilizadores (tenants) para iniciar uma conversa nova. */
 function useUsersPicker(enabled: boolean) {
-  const { authHeader, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   return useQuery<UserRow[]>({
-    queryKey: ["chat", "users-picker"],
+    queryKey: queryKeys.chat.usersPicker,
     enabled: isAuthenticated && enabled,
     queryFn: async () => {
-      const data: any = await getUsers({ headers: authHeader() });
+      const data: any = await getUsers();
       const arr = Array.isArray(data) ? data : (data?.users ?? []);
       return arr as UserRow[];
     },
@@ -147,7 +148,7 @@ export function MensagensTab() {
   const conversations = data?.conversations ?? [];
 
   return (
-    <div className="flex flex-1 min-h-0 overflow-hidden bg-white dark:bg-zinc-900 sm:flex-none sm:h-[calc(100dvh-15rem)] sm:min-h-[480px] sm:rounded-xl sm:border sm:border-zinc-200/80 dark:sm:border-zinc-800">
+    <div className="flex flex-1 min-h-0 overflow-hidden bg-white dark:bg-zinc-900 sm:rounded-xl sm:border sm:border-zinc-200/80 dark:sm:border-zinc-800">
       {/* Lista */}
       <aside
         className={`${selected ? "hidden lg:flex" : "flex"} flex-col w-full lg:w-80 shrink-0 border-r border-zinc-100 dark:border-zinc-800`}

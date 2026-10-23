@@ -233,7 +233,7 @@ test.describe("Árvore — só 'Serviços' da Agenda", () => {
     await dialog.locator('input[type="number"]').nth(1).fill("41");
     await dialog.getByRole("button", { name: "Guardar" }).click();
     await expect(page.getByText("Serviço actualizado")).toBeVisible({ timeout: 10_000 });
-    await expect(card).toContainText("41.00€");
+    await expect(card).toContainText(/41,00\s€/);
   });
 
   test("Agenda só para ver (serviços) com 'Calendário e marcações' em editar: os dois submenus aparecem e Serviços fica bloqueado", async ({ page, context }) => {
@@ -274,7 +274,8 @@ test.describe("Árvore — Clientes", () => {
     await expect(ficha.getByRole("button", { name: "Exportar dados" })).toHaveCount(0);
     await expect(ficha.getByRole("button", { name: "Apagar dados" })).toHaveCount(0);
     // Sem Agenda nem Ginásio na árvore: a ficha não tem os atalhos desses módulos, nem dinheiro.
-    await expect(ficha.getByRole("button", { name: "Agenda" })).toHaveCount(0);
+    await expect(ficha.getByRole("tab", { name: "Agenda" })).toHaveCount(0);
+    await expect(ficha.getByRole("tab", { name: "Ginásio" })).toHaveCount(0);
     expect(await domText(page)).not.toMatch(MONEY_UI);
 
     // "Editar" abre o formulário só para ler: Guardar bloqueado.

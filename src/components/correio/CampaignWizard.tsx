@@ -283,6 +283,7 @@ export function CampaignWizard({ campaign, status }: Props) {
       title: "Enviar agora?",
       message: `«${name.trim()}» sai já para ${count != null ? `${count} subscritos` : "os subscritos do segmento"}. Não dá para desfazer o que já saiu.`,
       confirmLabel: "Enviar agora",
+      leaf: "correio.campanhas.enviar", // a mesma folha do botão que abre este diálogo (a da rota é `correio.campanhas`)
     });
     if (!ok) return;
     setServerError(null);

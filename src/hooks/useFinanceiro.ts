@@ -7,91 +7,25 @@ import { getFinanceiroLoja } from '../gen/backoffice/hooks/useGetFinanceiroLoja.
 import { postGymMensalidadeBulkPay } from '../gen/backoffice/hooks/usePostGymMensalidadeBulkPay.js'
 import { postGymMensalidadeRemind } from '../gen/backoffice/hooks/usePostGymMensalidadeRemind.js'
 import { patchGymMensalidadeCustomersCustomeridPayOnly } from '../gen/backoffice/hooks/usePatchGymMensalidadeCustomersCustomeridPayOnly.js'
+import type { FinanceiroAgenda } from '../gen/backoffice/types/FinanceiroAgenda.js'
+import type { FinanceiroLoja } from '../gen/backoffice/types/FinanceiroLoja.js'
+import type { FinanceiroNegocio } from '../gen/backoffice/types/FinanceiroNegocio.js'
+import { queryKeys } from '../lib/queryKeys'
 
-// Migrado (B18) para os clients gerados pelo Kubb — ver secção "Mutations do
-// ginásio" para a nota sobre `authHeader` mantido por compatibilidade.
-
+// Tipos DERIVADOS do gerado (nunca uma interface à mão ao lado).
 export type VatMode = 'com' | 'sem'
+export type AgendaFinance = FinanceiroAgenda
+export type LojaFinance = FinanceiroLoja
+export type NegocioFinance = FinanceiroNegocio
+/** Os três `money` partilham faturado/recebido/emDivida; os crescimentos variam por módulo. */
+export type Money = Pick<FinanceiroAgenda['money'], 'faturado' | 'recebido' | 'emDivida'> &
+  Partial<Pick<FinanceiroAgenda['money'], 'faturadoGrowth' | 'recebidoGrowth'>>
 
-export interface Money {
-  faturado: number
-  recebido: number
-  emDivida: number
-  faturadoGrowth?: number | null
-  recebidoGrowth?: number | null
-}
-
-export interface AgendaFinance {
-  period: DashboardPeriod
-  iva: VatMode
-  money: Money
-  valorMedioPorMarcacao: number
-  counts: { total: number; byStatus: Record<string, number> }
-  rates: { completion: number; cancellation: number; noShow: number }
-  paymentMethods: { cash: number; mbway: number; card: number }
-  revenueByPeriod: { date: string; faturado: number; recebido: number }[]
-  topServices: { serviceId: string | null; name: string | null; color: string | null; count: number; faturado: number }[]
-  heatmap: { dayOfWeek: number; day: string; hour: number; count: number }[]
-  occupancy: { availableHours: number; bookedHours: number; occupancyPct: number; revenuePerHour: number }
-  customers: { novos: number; recorrentes: number; taxaRetorno: number; novosGrowth: number | null; perdidos: number; lostAfterDays: number }
-  /** Membro sem `clientes.lista`: `lostCustomers` vem vazio e `access.lostCustomers` é false. */
-  access?: { lostCustomers?: boolean }
-  lostCustomers: { customerId: string; name: string; contact: string | null; email: string | null; lastVisit: string; daysSince: number; visits: number }[]
-}
-
-export interface LojaFinance {
-  period: DashboardPeriod
-  iva: VatMode
-  money: Money
-  /** Sem `loja.produtos.custo` (membro) a API nem envia a margem — `access.cost` é false. */
-  margem?: { total: number; coverage: number; marginPct: number }
-  access?: { cost?: boolean }
-  valorMedioPorCompra: number
-  counts: { orders: number; byStatus: Record<string, number> }
-  devolucoes: number
-  descontoDado: number
-  revenueByPeriod: { date: string; faturado: number; margem?: number }[]
-  topProducts: { productId: string; name: string | null; stock: number | null; qty: number; faturado: number; margem?: number | null }[]
-  topCategories: { categoryId: string | null; name: string; faturado: number }[]
-  customers: { novos: number; recorrentes: number; perdidos: number; taxaRecompra: number; ltv: number; novosGrowth: number | null; lostAfterDays: number }
-  inventory: {
-    lowStock: { name: string; reference: string | null; stock: number }[]
-    deadStock: { count: number | null; value: number | null; items: { name: string; stock: number; value: number }[] }
-  }
-  abandonedCarts: { count: number; value: number }
-}
-
-export interface NegocioFinance {
-  period: DashboardPeriod
-  modules: { agenda: boolean; loja: boolean; gym: boolean }
-  /** Blocos que entraram (tenant tem o módulo E a sessão tem acesso). Falso = "sem acesso", nunca 0 €. */
-  included?: { agenda?: boolean; loja?: boolean; gym?: boolean; despesas?: boolean }
-  money: Money
-  /** `null` sem o bloco das despesas (e então `lucro`/`margem` também). */
-  despesas: number | null
-  lucro: number | null
-  margem: number | null
-  revenueBySource: Partial<Record<'agenda' | 'loja' | 'gym', number>>
-  /** `null` se faltar algum bloco do tenant. */
-  health: {
-    score: number
-    hasData: boolean
-    factors: { key: string; label: string; score: number; weight: number; detail: string }[]
-  } | null
-}
-
-// path → função gerada. Mantém a MESMA query key de sempre
-// (['financeiro', path, ...]) — só a chamada HTTP deixou de ter o path à mão.
-const financeiroFetchers = {
-  negocio: getFinanceiroNegocio,
-  agenda: getFinanceiroAgenda,
-  loja: getFinanceiroLoja,
-} as const
-
-type FinanceiroPath = keyof typeof financeiroFetchers
+type FinanceParams = { period: DashboardPeriod; iva: VatMode; staff?: string; startDate?: string; endDate?: string }
 
 function useFinanceQuery<T>(
-  path: FinanceiroPath,
+  path: 'negocio' | 'agenda' | 'loja',
+  fetcher: (params: FinanceParams) => Promise<T>,
   period: DashboardPeriod,
   iva: VatMode,
   customStart?: string,
@@ -101,49 +35,41 @@ function useFinanceQuery<T>(
   const { isAuthenticated } = useAuth()
   const isCustomValid = period !== 'custom' || (!!customStart && !!customEnd)
   return useQuery<T>({
-    queryKey: ['financeiro', path, period, iva, customStart, customEnd, staff ?? 'all'],
+    queryKey: queryKeys.financeiro.of(path, period, iva, customStart, customEnd, staff),
     enabled: isAuthenticated && isCustomValid,
-    queryFn: async () => {
-      const params: Record<string, string> = { period, iva }
+    queryFn: () => {
+      const params: FinanceParams = { period, iva }
       // Profissionais: `none` ou o id de um profissional (omitido = Global).
       if (staff) params.staff = staff
       if (period === 'custom' && customStart && customEnd) {
         params.startDate = customStart
         params.endDate = customEnd
       }
-      // Os QueryParams gerados diferem ligeiramente entre os 3 endpoints (ex.:
-      // `negocio` nem documenta `iva`) — cast pragmático, o runtime dos 3
-      // sempre aceitou estes campos da mesma forma.
-      const fetcher = financeiroFetchers[path] as unknown as (
-        params?: Record<string, string>,
-      ) => Promise<T>
       return fetcher(params)
     },
   })
 }
 
+// `negocio` não documenta `iva` no spec (o parâmetro é ignorado/aceite pela API); o objecto largo passa sem cast.
 export const useNegocioFinance = (period: DashboardPeriod = 'month', iva: VatMode = 'com', s?: string, e?: string, staff?: string) =>
-  useFinanceQuery<NegocioFinance>('negocio', period, iva, s, e, staff)
+  useFinanceQuery<NegocioFinance>('negocio', (p) => getFinanceiroNegocio(p), period, iva, s, e, staff)
 export const useAgendaFinance = (period: DashboardPeriod = 'month', iva: VatMode = 'com', s?: string, e?: string, staff?: string) =>
-  useFinanceQuery<AgendaFinance>('agenda', period, iva, s, e, staff)
+  useFinanceQuery<AgendaFinance>('agenda', (p) => getFinanceiroAgenda(p), period, iva, s, e, staff)
 export const useLojaFinance = (period: DashboardPeriod = 'month', iva: VatMode = 'com', s?: string, e?: string, staff?: string) =>
-  useFinanceQuery<LojaFinance>('loja', period, iva, s, e, staff)
+  useFinanceQuery<LojaFinance>('loja', (p) => getFinanceiroLoja(p), period, iva, s, e, staff)
 
 // ── Mutations do ginásio (cobrança em massa / lembretes) ──
-// `authHeader` mantém-se nos parâmetros por compatibilidade com GymMensalidade.tsx
-// (fora do âmbito desta migração) — deixou de ser necessário: o client gerado
-// corre no mesmo axiosInstance partilhado cujo interceptor (AuthContext.tsx)
-// já injeta o Authorization.
-export async function gymBulkMarkPaid(_authHeader: () => Record<string, string>, body: { customerIds: string[]; period?: string; method?: string }) {
+// O client gerado corre no `axiosInstance` partilhado: o interceptor (AuthContext.tsx) injeta o Authorization.
+export async function gymBulkMarkPaid(body: { customerIds: string[]; period?: string; method?: string }) {
   const data = await postGymMensalidadeBulkPay(body)
   return data as { period: string; paid: number }
 }
-export async function gymRemind(_authHeader: () => Record<string, string>, body: { customerIds?: string[]; period?: string }) {
+export async function gymRemind(body: { customerIds?: string[]; period?: string }) {
   const data = await postGymMensalidadeRemind(body)
   return data as { period: string; sent: number }
 }
 /** Marca/desmarca o cliente como "só paga" (fora das estatísticas de assiduidade). */
-export async function gymSetPayOnly(_authHeader: () => Record<string, string>, customerId: string, payOnly: boolean) {
+export async function gymSetPayOnly(customerId: string, payOnly: boolean) {
   const data = await patchGymMensalidadeCustomersCustomeridPayOnly(customerId, { payOnly })
   return data as { payOnly: boolean }
 }

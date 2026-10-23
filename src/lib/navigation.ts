@@ -264,6 +264,29 @@ export const LEAF_FOR_PATH: ReadonlyArray<readonly [string, string]> = [
   ["/estatisticas", "estatisticas"],
 ];
 
+/**
+ * Rotas SEM folha em `LEAF_FOR_PATH` de propósito (EQ-03/EQ-04): o `useWriteGuard` deixa-as como estão. Qualquer outra
+ * rota sem folha é só-leitura para um MEMBRO (fail-closed — uma rota nova nasce fechada). Cada entrada leva o porquê;
+ * o teste `routesLeaves.test.ts` exige que toda a rota do `App.tsx` esteja aqui ou em `LEAF_FOR_PATH`.
+ */
+export const LEAF_EXEMPT_PATHS: ReadonlyArray<readonly [string, string]> = [
+  ["/", "redirect para /dashboard"],
+  ["/dashboard", "só leitura (cartões por folha `dashboard`); sem escritas"],
+  ["/faturacao", "só o dono — um membro nunca a vê (TEAM_OWNER_ONLY)"],
+  ["/perfil", "o membro tem o seu PerfilMembro (nome/password/tema próprios); o dono não tem folha"],
+  ["/equipa", "o dono, ou membro com a folha `equipa` — os botões passam `leaf=\"equipa\"`"],
+  ["/admin", "VIEW_ADMIN, o dono da plataforma — nunca de membro"],
+  ["/suporte", "entrada de suporte do admin, fora do Shell"],
+  ["/website", "redirects legacy para /estatisticas"],
+];
+
+/** `pathname` está isento de folha (ver `LEAF_EXEMPT_PATHS`)? */
+export function isLeafExempt(pathname: string): boolean {
+  return LEAF_EXEMPT_PATHS.some(([prefix]) =>
+    prefix === "/" ? pathname === "/" : pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
 /** Folha da árvore a que `pathname` pertence, ou `undefined` (Dashboard, Perfil, Equipa, …). */
 export function leafForPath(pathname: string): string | undefined {
   for (const [prefix, leaf] of LEAF_FOR_PATH) {

@@ -24,7 +24,7 @@ pnpm dev          # Kubb + Vite (porta 5173)
 pnpm build        # Kubb + build de produção
 pnpm kubb         # regenera hooks/tipos a partir do spec.json COMMITADO (offline)
 pnpm kubb:refresh # busca o spec fresco da API, reescreve spec.json e regenera
-pnpm lint         # tsc --noEmit
+pnpm lint         # eslint src (flat config) + tsc --noEmit (strictNullChecks, noUnusedLocals/Parameters)
 pnpm test:unit    # componentes (Vitest + RTL + jsdom) — sem servidor
 pnpm test:e2e     # Playwright — arranca tudo sozinho
 ```
@@ -74,10 +74,9 @@ semeia uma BD dedicada:
 - **API de teste** na `:3002` (`ENVIRONMENT=TEST`, `API-FullStack/.env.e2e`) contra a BD **`api_e2e`**
   no `mysql-test:3307` — separada do `api_test` dos testes de integração e da de dev.
 - **Vite** na `:5273` com `--mode test` → lê `.env.test`.
-- **`globalSetup`** corre `pnpm seed:e2e` (`API-FullStack/scripts/seedE2e.ts`): recria o schema
-  (`sync force`) e cria **4 tenants** — `admin@e2e` (Admin), `limited@e2e` (só `VIEW_PRODUCTS`),
-  `tenantA@e2e`/`tenantB@e2e` (Admin, dados distintos) — mais dados de negócio.
-  Password: `E2ePass123!`. + o tenant `equipa@e2e.local` ("Barbearia Navalha", não-admin) com dois membros de equipa — `membro@e2e.local` (agenda ver · clientes editar) e `convidado@e2e.local` (B41, `equipa.spec.ts`).
+- **`globalSetup`** corre `pnpm seed:e2e` (`API-FullStack/scripts/seedE2e.ts`): recria o schema (`sync force`) e semeia
+  os tenants, utilizadores e dados de negócio. **O seed é a verdade** — tenants, utilizadores e constantes `E2E_*` estão
+  nesse ficheiro, incluindo a password (`E2E_PASSWORD`); não se copiam listas para aqui.
 
 **Autenticação nos specs:** os gerais importam `{ test, expect }` de `tests/e2e/fixtures/auth.ts`
 (login como `admin@e2e`). Os de **RBAC/isolamento** usam `loginAs(context, "<user>@e2e")` de
@@ -96,15 +95,37 @@ auth de propósito; o `errors` intercepta a API.
 ```
 src/
   App.tsx         — rotas + redirects legacy (LegacyTabEntry, AgendaEntry, AdminEntry)
-  pages/          — uma por rota (+ clientes/ e financeiro/)
+  pages/          — uma por rota; cada página grande vive em `pages/<área>/` (ver «Tamanho e partição»)
   components/     — Shell, BillingBanner, GuardButton, FirstValueChecklist, chat/…
   ui/ui.jsx       — primitivas partilhadas
   hooks/          — hooks manuais (não gerados)
   gen/backoffice/ — GERADO pelo Kubb — nunca editar à mão
-  context/        — AuthContext (JWT + refresh automático)
+  context/        — AuthContext (JWT + refresh automático); helpers puros em `context/auth/`
   lib/            — env, navigation (SUBMENU), apptStatus, billingStatus…
-  templates/ types/ utils/
+  types/ utils/
 ```
+
+### Tamanho e partição (B57 · F6c2)
+
+**Nenhum ficheiro de página ou componente passa de ~600 linhas.** O ficheiro da rota (`pages/Agenda.tsx`) fica fino —
+escolhe a vista — e cada vista/separador vive em `pages/<área>/` (`agenda/`, `ginasio/`, `conteudos/`, `admin/`,
+`loja/`, `equipa/`, `dashboard/`, `gymMensalidade/`, `paginas/`). Regras:
+
+- **Lógica pura sai do componente** para módulos `*.ts` com teste unitário (`agenda/geometry.ts`, `conteudos/model.ts` +
+  `importFile.ts`, `ginasio/drafts.ts`, `components/appt/paymentMath.ts`, `components/customers/customerAccess.ts`,
+  `context/auth/{jwt,identity,api}.ts`). Estado/efeitos de uma vista vão para um hook da pasta (`useCmsData`,
+  `useEntryEditor`, `useProductEditor`, `useApptEditor`, `useCalendarPointer`).
+- **Os imports de fora não mudam:** o ficheiro original reexporta o que outros importam (`Equipa` →
+  `createdByLabel/lastAccessLabel/memberStatus/StatusBadge/canGiveMailbox`; `GymMensalidade` → `ClienteMensalidade…`;
+  `AdminEmailModal` → `EmailStatusCard/DnsRecordsTable`; `ApptModal` → `STATUS_LABELS/colorForService`;
+  `AuthContext` → `AccessMember/AccessModule/TeamLevel`). Ao partir um ficheiro, manter o reexport.
+- Componentes de apresentação que partilham muito estado recebem o resultado do hook por `ctx` (`ApptModal` →
+  `components/appt/*` com `useApptEditor`); os outros recebem props explícitas.
+- **Ficha de cliente: UMA só** — `components/customers/CustomerProfileModal` (Agenda: versão curta; Clientes: `full`).
+  As permissões (EQ-06) vivem em `customerAccess()`: sem `agenda.marcacoes.valores` não há dinheiro; bloquear é
+  `clientes.lista` (edit); quem só edita a Agenda mexe só na preferência de fatura. Não duplicar a ficha noutra página.
+- Excepções conhecidas (> 600, fora desta partição): `Shell.tsx` (904), `paginas/components/SiteSettingsModal.tsx` (723),
+  `correio/CampaignWizard.tsx`, `lib/planPdf.ts`. `AuthContext.tsx` fica em ~590 (o `AuthProvider` é uma função só).
 
 ---
 
@@ -155,10 +176,10 @@ Detalhe de cada página em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
 
 Um **membro** da equipa entra pelo mesmo login e vê só os módulos que o dono lhe deu, cada um **[Ver | Editar]**. Detalhe em [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md) → *Equipa do tenant*. Invariantes:
 
-- **`useAuth()` expõe `member` (`null` = dono), `isMember` e `can(chave, nível)`.** Os níveis vêm da API (`GET /userpermissions/access`) — **nunca** se calculam nem se deduzem no frontend. O dono pode sempre; `edit` implica `view`. Em sessão de suporte o admin é o **dono**.
+- **`useAuth()` expõe `member` (`null` = dono), `isMember` e `can(chave, nível)`.** Os níveis vêm da API (`GET /user-permissions/access`) — **nunca** se calculam nem se deduzem no frontend. O dono pode sempre; `edit` implica `view`. Em sessão de suporte o admin é o **dono**.
 - **Um membro nunca pede o que a API recusa** (`TEAM_OWNER_ONLY`): nem `/billing`, `/users/me*`. Por isso o Shell esconde a Faturação, `BillingBanner`/`useBillingReadOnly` não arrancam, e o guard **não monta** a página de uma rota fora do permitido enquanto redirige. Um hook novo que corra em todas as páginas tem de respeitar `isMember`. **Desde a 2c** o Dashboard (folha `dashboard`), o Financeiro (`financeiro.negocio|agenda|loja`), o sino, o SSE e o push são também de membro: a API filtra por folha e o BO só **lê** — o Dashboard escolhe os cartões pelo `included` (`lib/dashboardBlocks.ts`; membro sem o bloco = cartão fora, nunca "€0"), O Negócio por `included.{agenda,loja,gym,despesas}` (sem despesas → sem lucro/margem; nota "Só vês as áreas a que tens acesso"), a Loja esconde margem/custos sem `access.cost` e a Agenda esconde os perdidos sem `access.lostCustomers`. O `useSSE` volta a ligar com backoff quando o servidor fecha o stream (membro desactivado/mudou de folhas/password) e chama `refreshAccess()` (um 401 cai no interceptor → refresh → login). O sino mostra o "lido" de quem está ligado e "eliminar" de um membro só esconde para si.
 - **As permissões são uma ÁRVORE de folhas** (B41 2b; `lib/teamTree.ts`): `can('agenda.servicos','edit')` com folha, ou `can('agenda')` com topo/agrupador (= alguma folha debaixo). Os submenus filtram por folha (`SubmenuItem.leaf`/`ownerOnly`, `memberSubitems`); um subitem novo **tem** de declarar uma das duas, senão um membro não o vê (default-deny, provado em `teamAccess.test.ts`). **O dinheiro some, não vira "0 €"**: sem `agenda.marcacoes.valores`/`loja.produtos.custo` a API nem envia os campos — a UI trata `undefined` e esconde a secção.
-- **"Só ver" é o `useWriteGuard`**, não um `disabled` à mão: a folha da página resolve-se pelo pathname (`leafForPath`, `LEAF_FOR_PATH` em `lib/navigation.ts` — uma rota nova entra aí); onde a página mistura folhas o controlo passa `leaf="…"` (`GuardButton`/`GuardIconButton`/`useWriteGuard(leaf)`). O motivo é "Só tens permissão para ver" (o billing tem prioridade). CTAs de escrita → `GuardButton`/`GuardIconButton`; um `<button>` cru de escrita usa `useWriteGuard()` (`readOnly` + `message`). Um 403 `TEAM_FORBIDDEN`/`TEAM_OWNER_ONLY` que escape dá toast (`notifyTeamForbidden`, ao lado do 402).
+- **"Só ver" é o `useWriteGuard`**, não um `disabled` à mão: a folha da página resolve-se pelo pathname (`leafForPath`, `LEAF_FOR_PATH` em `lib/navigation.ts` — uma rota nova entra aí); **fail-closed:** a um membro, rota sem folha em `LEAF_FOR_PATH` e fora de `LEAF_EXEMPT_PATHS` fica só-leitura (`routesLeaves.test.ts` exige uma das duas para cada rota do `App.tsx`); onde a página mistura folhas o controlo passa `leaf="…"` (`GuardButton`/`GuardIconButton`/`useWriteGuard(leaf)`). O motivo é "Só tens permissão para ver" (o billing tem prioridade). CTAs de escrita → `GuardButton`/`GuardIconButton`; um `<button>` cru de escrita usa `useWriteGuard()` (`readOnly` + `message`). Um 403 `TEAM_FORBIDDEN`/`TEAM_OWNER_ONLY` que escape dá toast (`notifyTeamForbidden`, ao lado do 402).
 - **O `/perfil` do membro é outra página** (`PerfilMembro`): só nome, password (`/team/me*`) e tema local. O tema de um membro **não** vai ao servidor.
 
 > ⚠ **Regra crítica — labels de subitens nunca duplicam nomes acessíveis da sidebar.** Quando um
@@ -177,13 +198,23 @@ Integrações e cartão de subscrição na Agenda) estão a `false`. O código f
 
 ---
 
+## Dinheiro no ecrã — só se mostra
+
+O Backoffice **nunca calcula** dívida, totais faturados, contagens abertas nem o limite de stock baixo: lê `debt`/`priorDebt`,
+`stats` de `/orders` e `/products` (AG-18/AG-20, LJ-05/LJ-11). Euros formatam-se **só** com `fmtEur` de `lib/money.ts`
+(pt-PT; `tests/unit/moneyFormat.test.ts` falha com `toFixed(2)} €` ou um `fmtEur` novo). Toda a mutation que mexe em dinheiro
+chama `invalidateMoney(qc)` (`lib/invalidateMoney.ts`). Listas que podem crescer (encomendas, marcações) paginam no servidor
+(`serverPagination` + `<Pagination>`). Um `<select>` que grava ao mudar usa `GuardSelect`.
+
+---
+
 ## Primitivas de UI — não reimplementar
 
 `src/ui/ui.jsx`: `Card`, `Button`, `IconButton`, `Badge`, `Input`, `Select`, `Toggle`, `Avatar`,
 `Modal`, `PageHeader`, `EmptyState`, `ImgPlaceholder`, `Tabs`, `SectionTitle`.
 
-**Toda a troca de secção usa `<Tabs>`** (pílulas segmentadas, `role=tablist`, navegação por ←/→).
-`SectionTitle` é o eyebrow das secções dentro de `Card`. **Não reimplementar barras de tabs nem
+**Toda a troca de secção usa `<Tabs>`** (inclui as abas de uma modal — ex.: Detalhes/Pagamento da `ApptModal`; os specs seleccionam por `getByRole('tab')`) (pílulas segmentadas, `role=tablist`, navegação por ←/→).
+`SectionTitle` é o eyebrow das secções dentro de `Card`. **Período em segmentos** («Hoje · 7 dias · …»): `components/PeriodSelector` (Estatísticas e Financeiro). **Folha em baixo no telemóvel:** é a própria `Modal` (já ancora em baixo abaixo de `sm`) — não fazer sheets à mão. **Não reimplementar barras de tabs nem
 eyebrows à mão.**
 
 **`Modal` tem pilha:** os modais registam-se numa pilha ao nível do módulo — **Esc fecha só o do
@@ -208,6 +239,16 @@ depende dela.
 - **Quando a API muda:** `pnpm kubb:refresh` (busca o spec, reescreve `spec.json`, regenera) e
   **committar o `spec.json`**. Sem a API a correr, a alternativa é `pnpm exec ts-node
   --transpile-only scripts/dumpSpec.ts backoffice > ../Backoffice/spec.json` na API.
+- **Tipos: sempre os gerados.** Um tipo de resposta/pedido é um **alias** de `src/gen/backoffice/types/**`
+  (`export type X = GetFoo200`, `NonNullable<X["campo"]>`, `Omit<Gen, …> & { só-do-cliente }`), nunca uma
+  `interface` à mão que duplica um schema (exemplos: `useDashboard.ts`, `useFinanceiro.ts`, `useChat.ts`,
+  `useNotifications.ts`, `useEmailTemplates.ts`, `pages/conteudos/model.ts`). Um `as any` por «falta de tipo» é um
+  defeito do `@swagger` da API — corrige-se lá (e `pnpm kubb:refresh`), não se tapa aqui. Os `as any` que restam são
+  lacunas conhecidas do spec (uploads multipart; o corpo «reabrir marcação» `{ status: "confirmed" }`) ou apanham
+  erros desconhecidos (`catch`).
+- **Aliases deprecated:** a API gera-os no spec com `operationId` explícito `legacy…Deprecated` (distinto dos novos,
+  mesmo ignorando maiúsculas), por isso o Kubb gera-os sem colisão; o BO não os usa (só `useGetUserPermissions`,
+  `/order-products`…). Ver `docs/ARMADILHAS.md` → «operationIds que só diferem em maiúsculas».
 - `VITE_API_BASE_URL` continua obrigatória (é o `baseURL` dos hooks) mas só precisa de estar
   **definida**, não de a API estar **a correr**.
 - `kubb.config.ts` é tooling Node fora do `tsconfig` da app → `@ts-nocheck` no topo.
@@ -222,10 +263,13 @@ depende dela.
 - Login `POST /users/login` → `accessToken` **em memória** (+ `username`/`email` cacheados em
   localStorage para sobreviver a um reload — o JWT do BO nunca embute isso, só `userId`+`tokenVersion`).
 - Refresh automático `POST /users/refresh` (cookie httpOnly) · CSRF de `/csrf-token` no header
-  `x-csrf-token` · `authHeader()` para os hooks manuais.
+  `x-csrf-token`. O interceptor de pedido do axios partilhado injecta o `Authorization` (token da sessão
+  actual — inclui o da sessão de suporte — e o novo após um refresh); **nunca se passa `headers`/`authHeader` à mão**
+  (o `authHeader()` deixou de existir; um header à mão ficava velho depois do refresh). `fetch`/SSE directos
+  (`useSSE`, bootstrap do AuthContext) são a única excepção, com o token do `AuthContext`.
 - `setAccessToken(token)` — adopta um token novo sem passar por login/refresh (usado depois de
   `PUT /users/me/password`, que faz bump ao `tokenVersion`) e realinha o `scheduleRefresh`.
-- Depois do refresh/login vai buscar também `GET /userpermissions/access` (`member`, `isMember`, `can()`; ver *Equipa do
+- Depois do refresh/login vai buscar também `GET /user-permissions/access` (`member`, `isMember`, `can()`; ver *Equipa do
   tenant* acima) antes de a sessão ficar autenticada.
 - `updateIdentity({username?, email?})` — sincroniza a identidade em memória + localStorage sem
   round-trip, para o avatar/topbar ficarem coerentes sem logout.
@@ -268,15 +312,18 @@ página recebe `flex-1 min-h-0` → tabelas/listas/threads fazem scroll **intern
 em runtime** — o `BillingBanner` aparece e desaparece consoante o estado de billing. Tirar os
 títulos do corpo das páginas (`1f320cc`) partiu tabelas e a página Mensagens exactamente por isso.
 
-⚠ Ainda há medições fixas herdadas por varrer. Ao mexer numa página que as tenha, **converter para
-flex** em vez de reajustar o número.
+Páginas que enchem a altura pedem-no ao Shell (`fillPage`/`fillAgenda`/`fillConteudos`/`fullBleed` em `Shell.tsx`) e repartem por `flex-1 min-h-0`; abaixo do breakpoint a página faz scroll normal. Acções só-hover usam `REVEAL_ON_HOVER` (`src/ui/reveal.ts`), nunca `opacity-0 group-hover` à mão. Qualquer botão que escreve (incl. `ConfirmDialog`) é `GuardButton`/`GuardIconButton`.
+
+**Confirmações — um só sistema:** o componente `ConfirmDialog` (`components/ConfirmDialog.tsx`, botão = `GuardButton`). `confirmDialog({...})` de `components/confirm.tsx` (imperativo, `<ConfirmHost/>` em `main.tsx`) desenha-o por baixo, por isso o write-guard (EQ-03) vale nos dois caminhos; `promptDialog` (pedir texto) não é confirmação de escrita. Não criar um terceiro desenho de confirmação. **A folha do confirmar tem de ser a do botão que o abre:** se o gatilho leva `leaf=…` (ou `NO_LEAF`), passa o mesmo `leaf` ao `confirmDialog` (por omissão vale a folha da ROTA — um membro com Editar só na folha do gatilho ficaria com o confirmar desactivado); `guard: false` só para o que a API deixa fazer a um tenant só-leitura (revogar o acesso do suporte).
+
+**Lint:** `eslint.config.js` — `typescript-eslint` recomendado + `react-hooks` (`rules-of-hooks` = erro, `exhaustive-deps` = aviso; deps deliberadamente parciais ficam como aviso). `src/gen/**` ignorado. `no-explicit-any` = **aviso** (B57 F6c3; ~230 avisos, objectivo: ir baixando — um `any` novo precisa de motivo, não de falta de tipo). Chaves de React Query escritas à mão vivem em `src/lib/queryKeys.ts`; as dos hooks do Kubb são `get…QueryKey()`.
 
 ---
 
 ## Segurança e boas práticas
 
 - Nunca expor `userId` nem dados de outros tenants nas queries.
-- Usar sempre `authHeader()` nos hooks manuais (nos gerados, o cliente axios já o injecta).
+- Nunca passar `headers`/`Authorization` à mão (`client: { headers }`): o interceptor do axios injecta o token — nos hooks gerados e nos escritos à mão.
 - Uploads de imagem/vídeo via `/api/uploads` — **nunca base64 em JSON**.
 - **Upload diferido:** os ficheiros escolhidos ficam locais (preview `blob:`) e só são enviados
   quando o utilizador carrega em **Guardar** — nunca ao escolher. Evita órfãos no storage se o

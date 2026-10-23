@@ -80,6 +80,7 @@ export function SupportAccessCard() {
       message: "O suporte deixa de poder entrar na tua conta e qualquer sessão de suporte aberta termina.",
       confirmLabel: "Revogar acesso",
       danger: true,
+      guard: false, // a API não põe billingGate neste PUT: um tenant read-only tem de poder revogar
     });
     if (!ok) return;
     putM.mutate(

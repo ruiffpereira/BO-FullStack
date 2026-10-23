@@ -77,7 +77,7 @@ describe("CustomerEmailsTab", () => {
       data: undefined,
       isLoading: false,
       isError: true,
-      error: { response: { status: 503, data: { error: "mail_not_configured" } } },
+      error: { response: { status: 503, data: { error: "x", code: "MAIL_NOT_CONFIGURED" } } },
     });
     renderTab();
     expect(screen.getByTestId("customer-emails-not-configured")).toBeInTheDocument();

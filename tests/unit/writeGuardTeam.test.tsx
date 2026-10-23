@@ -143,3 +143,63 @@ describe("useWriteGuard — membro da equipa com 'ver'", () => {
     );
   });
 });
+
+describe("useWriteGuard — fail-closed (EQ-03/EQ-04: uma rota nova nasce fechada)", () => {
+  it("membro numa rota SEM folha e não isenta → só-ver (mesmo com Acesso total)", () => {
+    authMock.mockReturnValue(memberAuth({ "agenda.marcacoes": "edit", "loja.produtos": "edit" }));
+    renderAt("/rota-nova-sem-folha");
+    const btn = screen.getByRole("button", { name: "Guardar" });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute("title", VIEW_ONLY_MESSAGE);
+  });
+
+  it("`leaf` explícito numa rota sem folha manda (o botão da Equipa passa leaf='equipa')", () => {
+    authMock.mockReturnValue(memberAuth({ equipa: "edit" }));
+    render(
+      <MemoryRouter initialEntries={["/equipa"]}>
+        <GuardButton leaf="equipa">Convidar</GuardButton>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("button", { name: "Convidar" })).not.toBeDisabled();
+  });
+
+  it("rotas isentas (Perfil, Dashboard) não fecham; dono e sem Router como antes", () => {
+    authMock.mockReturnValue(memberAuth({ "agenda.marcacoes": "view" }));
+    renderAt("/dashboard");
+    expect(screen.getByRole("button", { name: "Guardar" })).not.toBeDisabled();
+  });
+
+  it("o dono numa rota sem folha continua com tudo activo", () => {
+    renderAt("/rota-nova-sem-folha");
+    expect(screen.getByRole("button", { name: "Guardar" })).not.toBeDisabled();
+  });
+
+  it("ConfirmDialog: a membro só-ver o botão de confirmar fica desactivado e não dispara", async () => {
+    const { ConfirmDialog } = await import("../../src/components/ConfirmDialog");
+    authMock.mockReturnValue(memberAuth({ "clientes.lista": "view" }));
+    const onConfirm = vi.fn();
+    render(
+      <MemoryRouter initialEntries={["/clientes"]}>
+        <ConfirmDialog open onClose={() => {}} onConfirm={onConfirm} title="Apagar?" description="x" />
+      </MemoryRouter>,
+    );
+    const btn = screen.getByRole("button", { name: "Eliminar" });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute("title", VIEW_ONLY_MESSAGE);
+    fireEvent.click(btn);
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("ConfirmDialog: `leaf` manda sobre a rota; com edit, confirma", async () => {
+    const { ConfirmDialog } = await import("../../src/components/ConfirmDialog");
+    authMock.mockReturnValue(memberAuth({ "clientes.lista": "view", "equipa": "edit" }));
+    const onConfirm = vi.fn();
+    render(
+      <MemoryRouter initialEntries={["/clientes"]}>
+        <ConfirmDialog open onClose={() => {}} onConfirm={onConfirm} title="Remover?" description="x" leaf="equipa" confirmLabel="Remover" />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Remover" }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+});

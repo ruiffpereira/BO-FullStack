@@ -1,4 +1,4 @@
-import { MAIL_MESSAGE_BY_CODE } from "./mail";
+import { mailCodeMessage } from "./mail";
 
 /** Códigos dos Profissionais (R2): mensagens PT partilhadas com `teamErrorMessage` (lib/teamAccess.ts). */
 export const STAFF_MESSAGE_BY_CODE: Record<string, string> = {
@@ -18,14 +18,12 @@ const MESSAGE_BY_CODE: Record<string, string> = {
   ...STAFF_MESSAGE_BY_CODE,
 };
 
-/** Correio (B42): a API devolve estes códigos em `error` (não em `code`) — ver `getApiError`. */
-const MAIL_BY_ERROR: Record<string, string> = MAIL_MESSAGE_BY_CODE;
-
 export function getApiError(error: unknown, fallback = "Ocorreu um erro"): string {
   if (error && typeof error === "object" && "response" in error) {
     const data = (error as any).response?.data;
     if (typeof data?.code === "string" && MESSAGE_BY_CODE[data.code]) return MESSAGE_BY_CODE[data.code];
-    if (typeof data?.error === "string" && MAIL_BY_ERROR[data.error]) return MAIL_BY_ERROR[data.error];
+    const mail = mailCodeMessage(data?.code);
+    if (mail) return mail;
     if (typeof data?.error === "string" && data.error) return data.error;
     if (typeof data?.message === "string" && data.message) return data.message;
   }

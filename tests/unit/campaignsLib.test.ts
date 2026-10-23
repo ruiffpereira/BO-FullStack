@@ -121,7 +121,7 @@ describe("Campanhas — prontidão, números, datas, erros", () => {
   });
 
   it("mensagens PT dos códigos novos", () => {
-    const err = (status: number, error: string) => ({ response: { status, data: { error } } });
+    const err = (status: number, code: string) => ({ response: { status, data: { error: "x", code } } });
     expect(mailErrorMessage(err(409, "CAMPAIGNS_LOCKED"))).toMatch(/domínio/);
     expect(mailErrorMessage(err(423, "MAIL_SENDING_PAUSED"))).toMatch(/pausados/);
     expect(mailErrorMessage(err(400, "NO_AUDIENCE"))).toMatch(/nenhum subscrito/);
@@ -135,13 +135,13 @@ describe("Campanhas — prontidão, números, datas, erros", () => {
   });
 
   it("CAMPAIGN_INCOMPLETE mostra o que falta; sem details cai no texto geral", () => {
-    const e = { response: { status: 400, data: { error: "CAMPAIGN_INCOMPLETE", details: ["Falta o assunto (en)."] } } };
+    const e = { response: { status: 400, data: { error: "x", code: "CAMPAIGN_INCOMPLETE", details: ["Falta o assunto (en)."] } } };
     expect(campaignErrorMessage(e)).toBe("Falta o assunto (en).");
-    expect(campaignErrorMessage({ response: { status: 400, data: { error: "CAMPAIGN_INCOMPLETE" } } })).toMatch(/incompleta/);
+    expect(campaignErrorMessage({ response: { status: 400, data: { error: "x", code: "CAMPAIGN_INCOMPLETE" } } })).toMatch(/incompleta/);
   });
 
   it("isCampaignsLocked só para 409 CAMPAIGNS_LOCKED", () => {
-    expect(isCampaignsLocked({ response: { status: 409, data: { error: "CAMPAIGNS_LOCKED" } } })).toBe(true);
-    expect(isCampaignsLocked({ response: { status: 409, data: { error: "CAMPAIGN_STATE" } } })).toBe(false);
+    expect(isCampaignsLocked({ response: { status: 409, data: { error: "x", code: "CAMPAIGNS_LOCKED" } } })).toBe(true);
+    expect(isCampaignsLocked({ response: { status: 409, data: { error: "x", code: "CAMPAIGN_STATE" } } })).toBe(false);
   });
 });

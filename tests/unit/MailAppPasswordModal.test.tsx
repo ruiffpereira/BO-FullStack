@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -92,7 +92,7 @@ describe("MailAppPasswordModal", () => {
     renderModal();
     await userEvent.click(screen.getByRole("button", { name: "Gerar password da app" }));
     expect(createMutate).toHaveBeenCalledWith({ mailboxId: "b1" });
-    opts.create.mutation.onSuccess({ password: "abcd-efgh-ijkl-mnop-qrst-uvwx", createdAt: "2026-10-19T10:00:00.000Z", count: 1, settings: SETTINGS });
+    act(() => { opts.create.mutation.onSuccess({ password: "abcd-efgh-ijkl-mnop-qrst-uvwx", createdAt: "2026-10-19T10:00:00.000Z", count: 1, settings: SETTINGS }); });
     expect(await screen.findByTestId("app-password-value")).toHaveTextContent("abcd-efgh-ijkl-mnop-qrst-uvwx");
     expect(screen.getByTestId("app-password-warning")).toHaveTextContent("não volta a aparecer");
     await userEvent.click(screen.getByRole("button", { name: "Copiar" }));
@@ -101,7 +101,7 @@ describe("MailAppPasswordModal", () => {
 
   it("fechar apaga a password: ao reabrir não está lá", async () => {
     const { rerenderBox, onClose } = renderModal();
-    opts.create.mutation.onSuccess({ password: "segredo-uma-vez", count: 1, settings: SETTINGS });
+    act(() => { opts.create.mutation.onSuccess({ password: "segredo-uma-vez", count: 1, settings: SETTINGS }); });
     expect(await screen.findByTestId("app-password-value")).toBeInTheDocument();
     await userEvent.click(screen.getAllByRole("button", { name: "Fechar" })[0]);
     expect(onClose).toHaveBeenCalled();
@@ -126,9 +126,9 @@ describe("MailAppPasswordModal", () => {
     statusMock.mockReturnValue({ data: { exists: true, createdAt: null, count: 5, settings: SETTINGS }, isLoading: false, isError: false });
     renderModal();
     expect(screen.getByRole("button", { name: "Gerar password da app" })).toBeDisabled();
-    opts.create.mutation.onError({ response: { status: 409, data: { error: "APP_PASSWORD_LIMIT" } } });
+    opts.create.mutation.onError({ response: { status: 409, data: { error: "x", code: "APP_PASSWORD_LIMIT" } } });
     expect(toastError).toHaveBeenCalledWith("Já há 5 passwords da app. Revoga-as e gera uma nova.");
-    opts.create.mutation.onError({ response: { status: 403, data: { error: "app_password_owner_only" } } });
+    opts.create.mutation.onError({ response: { status: 403, data: { error: "x", code: "APP_PASSWORD_OWNER_ONLY" } } });
     expect(toastError).toHaveBeenLastCalledWith("Só o dono desta caixa pode gerir a password da app.");
   });
 

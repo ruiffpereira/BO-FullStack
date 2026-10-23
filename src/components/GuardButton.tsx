@@ -88,3 +88,25 @@ export function GuardIconButton({ disabled, title, className = '', leaf, ...rest
     </span>
   )
 }
+
+type GuardSelectProps = {
+  children?: ReactNode
+  disabled?: boolean
+  className?: string
+  /** Folha(s) da árvore que mandam neste controlo (ver `GuardButton`). */
+  leaf?: string | readonly string[]
+  [key: string]: unknown
+}
+
+/**
+ * `<select>` de ESCRITA com o mesmo write-guard do `GuardButton` (billing read-only + membro só com `view`):
+ * desactiva-se e mostra o motivo. Para escolhas que gravam logo ao mudar (ex.: «Vendido por»).
+ */
+export function GuardSelect({ disabled, className = '', leaf, children, ...rest }: GuardSelectProps) {
+  const { readOnly, message } = useWriteGuard(leaf)
+  return (
+    <select {...rest} disabled={disabled || readOnly} title={readOnly ? message : (rest.title as string | undefined)} className={className}>
+      {children}
+    </select>
+  )
+}

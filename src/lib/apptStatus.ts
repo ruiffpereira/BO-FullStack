@@ -1,3 +1,4 @@
+import { fmtEur } from './money'
 /**
  * Fonte única do "estado visual" de uma marcação (cor + label), usada na
  * ficha do cliente (`Clientes.tsx`) e na Agenda (`Agenda.tsx`) — evita ter o
@@ -6,7 +7,7 @@
  * Esquema:
  *  - confirmada            → azul
  *  - concluída, paga       → verde
- *  - concluída, EM DÍVIDA  → amarelo (dívida = preço do serviço − total pago)
+ *  - concluída, EM DÍVIDA  → amarelo (dívida = `debt` da API: preço − pago)
  *  - cancelada             → vermelho
  *  - pendente              → âmbar
  *  - faltou (`no_show`)    → neutro ("Faltou"; não faz parte do enum gerado
@@ -19,11 +20,8 @@ export type ApptTone = "neutral" | "blue" | "green" | "amber" | "red";
  * gerado pelo Kubb como nas variantes `HistoryAppt` locais (Clientes/Agenda). */
 export type ApptStatusInput = {
   status?: string | null;
-  paymentCash?: number | null;
-  paymentMbway?: number | null;
-  paymentCard?: number | null;
-  servicePrice?: number | null;
-  service?: { price?: number | null } | null;
+  /** AG-18: calculada na API; ausente sem `agenda.marcacoes.valores`. */
+  debt?: number | null;
 };
 
 export type ApptStatusView = {
@@ -38,7 +36,7 @@ export type ApptStatusView = {
   tone: ApptTone;
   /** Classe Tailwind para uma barra/indicador de cor sólida (consistente com o tom do Badge). */
   barClass: string;
-  /** Dívida em euros (0 se não concluída ou já paga). */
+  /** Dívida em euros (a da API; 0 se não há ou se não se vê o dinheiro). */
   debt: number;
 };
 
@@ -50,30 +48,13 @@ const BAR_CLASS: Record<ApptTone, string> = {
   neutral: "bg-zinc-300 dark:bg-zinc-600",
 };
 
-/** Dívida de uma marcação: preço do serviço − (dinheiro+MBway+cartão), nunca negativa; 0 se não estiver concluída.
- * Arredondada aos cêntimos ANTES do clamp/comparação — pagamentos repartidos por 2-3 métodos
- * (ex.: 0.29+0.29+0.29 contra um preço de 0.87) deixam um resíduo de vírgula flutuante
- * (~1e-16) que, sem arredondar, passava `debt > 0` e mostrava uma marcação totalmente paga
- * como "em dívida". */
+/**
+ * Dívida de uma marcação (AG-18) — vem SEMPRE da API (`debt`, arredondada aos cêntimos, nunca negativa). O Backoffice
+ * não calcula dinheiro: sem o campo (membro sem `agenda.marcacoes.valores`, ou resposta antiga) é 0.
+ */
 export function apptDebt(appt: ApptStatusInput): number {
-  if ((appt.status ?? "pending") !== "completed") return 0;
-  // Equipa (B41 2b): sem `agenda.marcacoes.valores` a API nem envia os campos de dinheiro (ausentes, não `null`).
-  // Sem eles não se sabe o que foi pago — e cair no preço do catálogo mostraria uma "dívida" falsa (e o preço).
-  if (
-    appt.servicePrice === undefined &&
-    appt.paymentCash === undefined &&
-    appt.paymentMbway === undefined &&
-    appt.paymentCard === undefined
-  ) {
-    return 0;
-  }
-  const paid =
-    Number(appt.paymentCash || 0) +
-    Number(appt.paymentMbway || 0) +
-    Number(appt.paymentCard || 0);
-  const price = Number(appt.servicePrice ?? appt.service?.price ?? 0);
-  const rounded = Math.round((price - paid) * 100) / 100;
-  return Math.max(0, rounded);
+  const d = Number(appt.debt ?? 0)
+  return Number.isFinite(d) && d > 0 ? d : 0
 }
 
 export function apptStatusView(appt: ApptStatusInput): ApptStatusView {
@@ -85,7 +66,7 @@ export function apptStatusView(appt: ApptStatusInput): ApptStatusView {
       return { key: status, label: "Confirmada", statusLabel: "Confirmada", tone: "blue", barClass: BAR_CLASS.blue, debt };
     case "completed":
       return debt > 0
-        ? { key: status, label: `Dívida ${debt.toFixed(2)} €`, statusLabel: "Concluída", tone: "amber", barClass: BAR_CLASS.amber, debt }
+        ? { key: status, label: `Dívida ${fmtEur(debt)}`, statusLabel: "Concluída", tone: "amber", barClass: BAR_CLASS.amber, debt }
         : { key: status, label: "Concluída", statusLabel: "Concluída", tone: "green", barClass: BAR_CLASS.green, debt };
     case "cancelled":
       return { key: status, label: "Cancelada", statusLabel: "Cancelada", tone: "red", barClass: BAR_CLASS.red, debt };

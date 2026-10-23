@@ -1,26 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { getCmsEntriesKeyReferences } from "../gen/backoffice/hooks/useGetCmsEntriesKeyReferences.js";
 import { getCmsEntriesReferencesCounts } from "../gen/backoffice/hooks/useGetCmsEntriesReferencesCounts.js";
+import type { GetCmsEntriesKeyReferences200 } from "../gen/backoffice/types/GetCmsEntriesKeyReferences.js";
+import { queryKeys } from '../lib/queryKeys'
 
-export interface CmsReference {
-  productId?: string;
-  serviceId?: string;
-  name: string;
-  contentKey: string | null;
-  descriptionKey: string | null;
-}
-
-export interface GymReference {
-  id: string;
-  type: "exercise" | "group" | "treino" | "plano" | string;
-  name: string;
-}
-
-export interface CmsReferences {
-  products: CmsReference[];
-  services: CmsReference[];
-  gym: GymReference[];
-}
+// Derivados do gerado (nunca à mão).
+export type CmsReferences = GetCmsEntriesKeyReferences200;
+export type CmsReference = CmsReferences["products"][number] | CmsReferences["services"][number];
+export type GymReference = CmsReferences["gym"][number];
 
 /**
  * GET /cms/entries/{key}/references — migrado (B18) para o client gerado
@@ -33,7 +20,7 @@ export async function fetchCmsReferences(key: string): Promise<CmsReferences> {
 
 export function useCmsReferences(key: string | null, enabled = true) {
   return useQuery({
-    queryKey: ["cms-references", key],
+    queryKey: queryKeys.cmsReferences(key),
     queryFn: () => fetchCmsReferences(key!),
     enabled: !!key && enabled,
     staleTime: 30_000,
@@ -54,7 +41,7 @@ export async function fetchCmsReferencesCounts(keys: string[]): Promise<Record<s
 
 export function useCmsReferencesCounts(keys: string[]) {
   return useQuery({
-    queryKey: ["cms-references-counts", keys.slice().sort().join(",")],
+    queryKey: queryKeys.cmsReferencesCounts.of(keys),
     queryFn: () => fetchCmsReferencesCounts(keys),
     enabled: keys.length > 0,
   });

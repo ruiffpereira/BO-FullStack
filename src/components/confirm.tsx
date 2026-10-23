@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { Modal, Button, Input } from "../ui/ui.jsx";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 // ----------------------------------------------------------------------------
 // Diálogos da app (confirm / prompt) — substituem os popups nativos do
 // dispositivo (window.confirm / window.prompt) por um Modal consistente.
 // API imperativa estilo `toast`: `await confirmDialog({...})` / `await promptDialog({...})`.
 // O <ConfirmHost/> é montado uma vez (main.tsx), tal como o <Toaster/>.
+// UM só sistema de confirmação: `confirmDialog` desenha o `ConfirmDialog` (components/ConfirmDialog.tsx), cujo botão é
+// um `GuardButton` — logo o write-guard (EQ-03: billing read-only / membro só-ver) vale aqui como no uso declarativo.
+// Confirmar é uma ESCRITA; para perguntas que não escrevem usa-se `promptDialog` ou um Modal próprio.
 // ----------------------------------------------------------------------------
 
 type ConfirmOpts = {
@@ -15,6 +19,10 @@ type ConfirmOpts = {
   cancelLabel?: string;
   danger?: boolean;
   icon?: string;
+  /** Folha(s) da árvore que mandam na escrita (ver `GuardButton`); omitida = a da rota actual. */
+  leaf?: string | readonly string[];
+  /** `false` = o confirmar não é uma escrita de gestão (ex.: revogar o acesso do suporte): sem write-guard. Por omissão guarda (EQ-03). */
+  guard?: boolean;
 };
 
 type PromptOpts = {
@@ -68,54 +76,64 @@ export function ConfirmHost() {
 
   if (!s.open) return null;
 
-  const isPrompt = s.kind === "prompt";
-  const opts = s.opts;
-  const cancelVal = isPrompt ? null : false;
-  const close = (result: boolean | string | null) => {
-    (s.resolve as (v: any) => void)(result);
+  if (s.kind === "confirm") {
+    const { opts, resolve } = s;
+    const close = (result: boolean) => {
+      resolve(result);
+      setState({ open: false });
+    };
+    return (
+      <ConfirmDialog
+        open
+        title={opts.title}
+        description={opts.message ?? null}
+        confirmLabel={opts.confirmLabel ?? (opts.danger ? "Eliminar" : "Confirmar")}
+        cancelLabel={opts.cancelLabel}
+        variant={opts.danger ? "danger" : "primary"}
+        leaf={opts.leaf}
+        guard={opts.guard}
+        onClose={() => close(false)}
+        onConfirm={() => close(true)}
+      />
+    );
+  }
+
+  // Pedir um valor não é uma confirmação de escrita: Modal próprio, sem guard.
+  const { opts, resolve } = s;
+  const close = (result: string | null) => {
+    resolve(result);
     setState({ open: false });
   };
-  const danger = !isPrompt && (s.opts as ConfirmOpts).danger;
-  const promptDisabled = isPrompt && (s.opts as PromptOpts).required && !val.trim();
-  const confirmValue: boolean | string = isPrompt ? val : true;
+  const promptDisabled = opts.required && !val.trim();
 
   return (
     <Modal
       open
-      onClose={() => close(cancelVal)}
+      onClose={() => close(null)}
       title={opts.title}
       subtitle={typeof opts.message === "string" ? opts.message : undefined}
       width="max-w-sm"
       footer={
         <>
-          <Button variant="ghost" onClick={() => close(cancelVal)}>
+          <Button variant="ghost" onClick={() => close(null)}>
             {opts.cancelLabel ?? "Cancelar"}
           </Button>
-          <Button
-            variant={danger ? "danger" : "primary"}
-            icon={danger ? "trash" : "check"}
-            disabled={!!promptDisabled}
-            onClick={() => close(confirmValue)}
-          >
-            {opts.confirmLabel ?? (danger ? "Eliminar" : "Confirmar")}
+          <Button variant="primary" icon="check" disabled={!!promptDisabled} onClick={() => close(val)}>
+            {opts.confirmLabel ?? "Confirmar"}
           </Button>
         </>
       }
     >
-      {isPrompt ? (
-        <Input
-          autoFocus
-          label={(opts as PromptOpts).label}
-          value={val}
-          onChange={(e: any) => setVal(e.target.value)}
-          onKeyDown={(e: any) => {
-            if (e.key === "Enter" && !promptDisabled) close(val);
-          }}
-          placeholder={(opts as PromptOpts).placeholder}
-        />
-      ) : typeof opts.message !== "string" && opts.message ? (
-        <div className="text-sm text-zinc-600 dark:text-zinc-300">{opts.message}</div>
-      ) : null}
+      <Input
+        autoFocus
+        label={opts.label}
+        value={val}
+        onChange={(e: any) => setVal(e.target.value)}
+        onKeyDown={(e: any) => {
+          if (e.key === "Enter" && !promptDisabled) close(val);
+        }}
+        placeholder={opts.placeholder}
+      />
     </Modal>
   );
 }

@@ -1,24 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { getCmsNotificationTemplates } from "../gen/backoffice/hooks/useGetCmsNotificationTemplates.js";
+import type { GetCmsNotificationTemplates200 } from "../gen/backoffice/types/GetCmsNotificationTemplates.js";
+import { queryKeys } from '../lib/queryKeys'
 
-export interface NotificationTemplate {
-  key: string;
-  label: string;
-  placeholders: string[];
-  defaultTitle: string;
-  defaultBody: string;
-  titleKey: string;
-  bodyKey: string;
-  permissions: string[];
-  /** Values per locale: { pt: { title, body }, en: { title, body } } */
-  localeValues: Record<string, { title: string; body: string }>;
-}
-
-export interface NotificationTemplatesResponse {
-  locales: string[];
-  defaultLocale: string;
-  templates: NotificationTemplate[];
-}
+// Derivados do gerado (nunca à mão).
+export type NotificationTemplatesResponse = GetCmsNotificationTemplates200;
+export type NotificationTemplate = NotificationTemplatesResponse["templates"][number];
 
 /**
  * GET /cms/notification-templates — migrado (B18) para o client gerado pelo
@@ -29,7 +16,7 @@ export interface NotificationTemplatesResponse {
  */
 export function useNotificationTemplates() {
   return useQuery({
-    queryKey: ["notification-templates"],
+    queryKey: queryKeys.notificationTemplates,
     queryFn: async (): Promise<NotificationTemplatesResponse> => await getCmsNotificationTemplates(),
     staleTime: 30_000,
   });

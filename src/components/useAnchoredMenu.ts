@@ -58,7 +58,6 @@ export function useAnchoredMenu<T extends HTMLElement>(
       window.removeEventListener('scroll', onMove, true)
       window.removeEventListener('resize', onMove)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   // Mede a altura real assim que o menu está no DOM (e quando o conteúdo muda),

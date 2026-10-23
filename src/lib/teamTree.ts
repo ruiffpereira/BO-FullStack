@@ -3,7 +3,7 @@
  *
  * Duas coisas vivem aqui:
  *  1. `canFromGrants` — a pergunta "esta sessão pode `key` ao nível `level`?" sobre as folhas efectivas que a API
- *     devolve em `GET /userpermissions/access`. O Backoffice nunca decide permissões: só LÊ o que a API deu.
+ *     devolve em `GET /user-permissions/access`. O Backoffice nunca decide permissões: só LÊ o que a API deu.
  *  2. A edição da árvore da página Equipa — marcar pai/filho, estado parcial, tecto de nível, acesso total e a
  *     serialização (só os nós `storable`). Espelha as regras que a API valida (`validateGrants`), para o
  *     utilizador nunca chegar a um 422.

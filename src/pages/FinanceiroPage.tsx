@@ -6,6 +6,7 @@ import { Icon } from '../ui/icons.jsx'
 import { PageHeader } from '../ui/ui.jsx'
 import { usePageSubtitle } from '../context/PageMetaContext'
 import { DateRangePicker, type DateRange } from '../components/DateRangePicker'
+import { PeriodSelector, periodBtnClass } from '../components/PeriodSelector'
 import { VatToggle } from '../components/financeiro/kit'
 import { StaffFilterSelect } from '../components/StaffSelect'
 import { STAFF_ALL, staffParam } from '../lib/staffFilter'
@@ -85,20 +86,14 @@ export function FinanceiroPage({ view }: { view: FinanceiroView }) {
             {/* IVA só afeta Agenda/Loja (decompõem por item); O Negócio agrega recebido. */}
             {(tab === 'agenda' || tab === 'loja') && <VatToggle value={iva} onChange={setIva} />}
             <div className="relative">
-              <div className="inline-flex flex-wrap items-center rounded-lg border border-zinc-200 dark:border-zinc-700 p-0.5 bg-white dark:bg-zinc-900">
-                {PRESETS.map((p) => (
-                  <button key={p.key} onClick={() => { setPeriod(p.key); setCustomOpen(false) }}
-                    className={`px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors ${period === p.key ? 'bg-accent text-white' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}>
-                    {p.label}
-                  </button>
-                ))}
+              <PeriodSelector presets={PRESETS} value={period} onChange={(k) => { setPeriod(k); setCustomOpen(false) }}>
                 <span className="w-px h-5 bg-zinc-200 dark:bg-zinc-700 mx-0.5" />
                 <button onClick={() => { setPeriod('custom'); setCustomOpen((o) => !o) }}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors ${period === 'custom' ? 'bg-accent text-white' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}>
+                  aria-pressed={period === 'custom'} className={periodBtnClass(period === 'custom', 'inline-flex items-center gap-1.5')}>
                   <Icon name="calendar" className="w-3.5 h-3.5" />
                   {period === 'custom' && range?.from && range?.to ? `${format(range.from, 'd MMM', { locale: pt })} – ${format(range.to, 'd MMM', { locale: pt })}` : 'Personalizado'}
                 </button>
-              </div>
+              </PeriodSelector>
               {customOpen && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setCustomOpen(false)} />

@@ -11,6 +11,7 @@ import type { CampaignsStatus } from "../gen/backoffice/types/CampaignsStatus";
 import type { CampaignSummary } from "../gen/backoffice/types/CampaignSummary";
 import { CAMPAIGNS_PATH, CAMPAIGN_FILTERS, CAMPAIGN_STATUS, NEW_CAMPAIGN, campaignHref, fmtDateTime, isCampaignStatus, pct } from "../lib/campaigns";
 import { mailErrorMessage } from "../lib/mail";
+import type { GetMailCampaignsQueryParamsStatusEnum } from "../gen/backoffice/types/GetMailCampaigns.js";
 
 const PAGE_LIMIT = 25;
 export const LOCKED_FALLBACK = "Disponível quando o teu domínio estiver configurado.";
@@ -77,7 +78,7 @@ export function CorreioCampanhas() {
   useEffect(() => setPage(1), [filter]);
 
   const listQ = useGetMailCampaigns(
-    { ...(filter !== "all" ? { status: filter as any } : {}), page, limit: PAGE_LIMIT },
+    { ...(filter !== "all" ? { status: filter as GetMailCampaignsQueryParamsStatusEnum } : {}), page, limit: PAGE_LIMIT },
     { query: { enabled: statusQ.isSuccess, retry: false, placeholderData: keepPreviousData } },
   );
   const items = listQ.data?.items ?? [];

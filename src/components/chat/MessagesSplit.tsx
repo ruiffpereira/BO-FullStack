@@ -24,7 +24,7 @@ export function MessagesSplit({
   return (
     <div
       data-testid="messages-split"
-      className="flex flex-1 min-h-0 overflow-hidden bg-white dark:bg-zinc-900 sm:flex-none sm:h-[calc(100dvh-17rem)] sm:min-h-[480px] sm:rounded-xl sm:border sm:border-zinc-200/80 dark:sm:border-zinc-800"
+      className="flex flex-1 min-h-0 overflow-hidden bg-white dark:bg-zinc-900 sm:rounded-xl sm:border sm:border-zinc-200/80 dark:sm:border-zinc-800"
     >
       <aside
         className={`${selected ? "hidden lg:flex" : "flex"} flex-col w-full lg:w-80 shrink-0 border-r border-zinc-100 dark:border-zinc-800 min-h-0`}

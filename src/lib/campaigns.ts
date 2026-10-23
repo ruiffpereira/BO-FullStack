@@ -291,7 +291,7 @@ export const fmtDateTime = (iso?: string | null) =>
 /** Texto PT de um erro das campanhas; `CAMPAIGN_INCOMPLETE` mostra o que falta (`details[]`) quando a API o diz. */
 export function campaignErrorMessage(error: unknown, fallback?: string): string {
   const data = (error as any)?.response?.data;
-  if (data?.error === "CAMPAIGN_INCOMPLETE" && Array.isArray(data?.details) && data.details.length > 0) {
+  if (data?.code === "CAMPAIGN_INCOMPLETE" && Array.isArray(data?.details) && data.details.length > 0) {
     return data.details.map(String).join(" ");
   }
   return mailErrorMessage(error, fallback);
@@ -300,5 +300,5 @@ export function campaignErrorMessage(error: unknown, fallback?: string): string 
 /** 409 `CAMPAIGNS_LOCKED`: a página volta ao estado bloqueado. */
 export function isCampaignsLocked(error: unknown): boolean {
   const data = (error as any)?.response?.data;
-  return (error as any)?.response?.status === 409 && data?.error === "CAMPAIGNS_LOCKED";
+  return (error as any)?.response?.status === 409 && data?.code === "CAMPAIGNS_LOCKED";
 }

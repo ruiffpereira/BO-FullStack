@@ -24,7 +24,9 @@ vi.mock("../../src/gen/backoffice/hooks/usePostAdminUsersUseridMailboxesMailboxi
   usePostAdminUsersUseridMailboxesMailboxidEnable: () => ({ mutate: enable, isPending: false }),
 }));
 vi.mock("../../src/components/GuardButton", () => ({
-  GuardButton: ({ children, isLoading, ...rest }: any) => <button {...rest}>{children}</button>,
+  // Sem props de estilo/estado no DOM (isLoading, leaf, variant…): o write-guard não é o assunto destes testes.
+  GuardButton: ({ children, isLoading: _l, leaf: _f, variant: _v, size: _s, icon: _i, wrapperClassName: _w, ...rest }: any) => <button {...rest}>{children}</button>,
+  GuardIconButton: ({ icon: _i, label, leaf: _f, ...rest }: any) => <button aria-label={label} {...rest} />,
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: (...a: unknown[]) => toastError(...a) } }));
 
@@ -106,7 +108,7 @@ describe("AdminMailboxesSection", () => {
 
   it("erro ao activar aparece em PT", () => {
     renderIt();
-    opts.activate.mutation.onError({ response: { status: 409, data: { error: "email_domain_not_found" } } });
+    opts.activate.mutation.onError({ response: { status: 409, data: { error: "x", code: "EMAIL_DOMAIN_NOT_FOUND" } } });
     expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/domínio de email/));
   });
 });

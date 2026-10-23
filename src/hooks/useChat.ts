@@ -8,85 +8,53 @@ import { getAdminChatConversationsTenantuseridMessages } from "../gen/backoffice
 import { postAdminChatConversationsTenantuseridMessages } from "../gen/backoffice/hooks/usePostAdminChatConversationsTenantuseridMessages.js";
 import { useMessagesSummary } from "./useMessages";
 import { postAdminChatConversationsTenantuseridRead } from "../gen/backoffice/hooks/usePostAdminChatConversationsTenantuseridRead.js";
+import type { ChatAttachment as GenChatAttachment } from "../gen/backoffice/types/ChatAttachment.js";
+import type { ChatConversation as GenChatConversation } from "../gen/backoffice/types/ChatConversation.js";
+import type { ChatMessage as GenChatMessage } from "../gen/backoffice/types/ChatMessage.js";
+import type { ChatMessageInput } from "../gen/backoffice/types/ChatMessageInput.js";
+import type { ChatThread as GenChatThread } from "../gen/backoffice/types/ChatThread.js";
+import type { GetAdminChatConversations200 } from "../gen/backoffice/types/GetAdminChatConversations.js";
+import { queryKeys } from '../lib/queryKeys'
 
 /**
  * Chat de suporte (Admin ↔ tenant). Migrado (B18) para os clients gerados pelo
  * Kubb — os paths deixaram de estar escritos à mão:
  *  Tenant: GET/POST /chat/support/messages · POST /chat/support/read
  *  Admin:  GET /admin/chat/conversations · GET/POST /admin/chat/conversations/:id/messages · POST .../read
- * Tipos mantidos localmente (em vez dos gerados): os gerados marcam como
- * opcionais campos que a API devolve sempre (ex.: `unread`) e não incluem os
- * campos só-de-cliente (`pending`/`failed`) usados pelo envio otimista — os
- * `as` abaixo fazem a ponte, o payload em runtime não muda.
+ * Tipos DERIVADOS do gerado: só se acrescenta o que o gerado não pode saber — os
+ * campos só-de-cliente (`pending`/`failed`, envio otimista), os papéis das
+ * conversas de Clientes/Equipa (B43) e o cabeçalho dessas conversas.
  */
 
 /** Suporte: admin/tenant · Clientes (B43): business/customer · Equipa (B43): me/other. */
 export type SenderRole = "admin" | "tenant" | "business" | "customer" | "me" | "other";
 
-export interface ChatAttachment {
-  url: string;
-  name?: string;
-  mime?: string;
-  size?: number;
-  width?: number;
-  height?: number;
-  srcSet?: string;
-}
+export type ChatAttachment = GenChatAttachment;
 
-export interface ChatMessage {
-  messageId: string;
-  conversationId: string;
+export type ChatMessage = Omit<GenChatMessage, "senderRole" | "senderName"> & {
   senderRole: SenderRole;
-  senderUserId: string;
   /** Nome do membro da equipa que escreveu (B41); `null` = o dono do tenant ou o suporte. */
   senderName?: string | null;
-  body: string | null;
-  attachments: ChatAttachment[] | null;
-  createdAt: string;
   /** Só no cliente: estado de envio otimista. */
   pending?: boolean;
   failed?: boolean;
-}
+};
 
-export interface ChatThread {
-  conversationId: string;
-  tenantUserId?: string | null;
+export type ChatThread = Omit<GenChatThread, "messages"> & {
   messages: ChatMessage[];
-  hasMore: boolean;
-  unread: number;
-  otherLastReadAt: string | null;
   /** B43: nome para o cabeçalho (cliente / pessoa da equipa) e conversa só de leitura (membro removido). */
   title?: string;
   subtitle?: string | null;
   readOnly?: boolean;
-}
-
-export interface ChatConversation {
-  conversationId: string;
-  tenantUserId: string;
-  tenantName: string;
-  tenantEmail: string | null;
-  lastMessageAt: string | null;
-  unread: number;
-  lastMessage: { senderRole: SenderRole; preview: string; createdAt: string } | null;
-}
-
-export interface ConversationsResponse {
-  conversations: ChatConversation[];
-  unreadTotal: number;
-}
-
-export interface MessageInput {
-  body?: string | null;
-  attachments?: ChatAttachment[] | null;
-}
-
-export const chatKeys = {
-  all: ["chat"] as const,
-  support: ["chat", "support"] as const,
-  adminConversations: (search?: string) => ["chat", "admin", "conversations", search ?? ""] as const,
-  adminThread: (tenantUserId: string) => ["chat", "admin", "thread", tenantUserId] as const,
 };
+
+export type ChatConversation = GenChatConversation;
+
+export type ConversationsResponse = GetAdminChatConversations200;
+
+export type MessageInput = ChatMessageInput;
+
+export const chatKeys = queryKeys.chat;
 
 // ── Tenant ───────────────────────────────────────────────────────────────────
 
@@ -96,14 +64,14 @@ export function useSupportThread(enabled = true) {
     queryKey: chatKeys.support,
     enabled: isAuthenticated && enabled,
     staleTime: 0,
-    queryFn: async () => (await getChatSupportMessages()) as ChatThread,
+    queryFn: () => getChatSupportMessages(),
   });
 }
 
 export function useSendSupportMessage() {
   const qc = useQueryClient();
   return useMutation<ChatMessage, unknown, MessageInput>({
-    mutationFn: async (input) => (await postChatSupportMessages(input)) as ChatMessage,
+    mutationFn: (input) => postChatSupportMessages(input),
     onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.support }),
   });
 }
@@ -126,8 +94,8 @@ export function useAdminConversations(search = "", enabled = true) {
     queryKey: chatKeys.adminConversations(search),
     enabled: isAuthenticated && enabled,
     staleTime: 0,
-    queryFn: async () =>
-      (await getAdminChatConversations(search ? { search } : undefined)) as ConversationsResponse,
+    queryFn: () =>
+      getAdminChatConversations(search ? { search } : undefined),
   });
 }
 
@@ -137,20 +105,20 @@ export function useAdminThread(tenantUserId: string | null) {
     queryKey: chatKeys.adminThread(tenantUserId ?? ""),
     enabled: isAuthenticated && !!tenantUserId,
     staleTime: 0,
-    queryFn: async () =>
+    queryFn: () =>
       // `enabled` garante que a queryFn só corre com tenantUserId definido.
-      (await getAdminChatConversationsTenantuseridMessages(tenantUserId as string)) as ChatThread,
+      getAdminChatConversationsTenantuseridMessages(tenantUserId as string),
   });
 }
 
 export function useSendAdminMessage(tenantUserId: string) {
   const qc = useQueryClient();
   return useMutation<ChatMessage, unknown, MessageInput>({
-    mutationFn: async (input) =>
-      (await postAdminChatConversationsTenantuseridMessages(tenantUserId, input)) as ChatMessage,
+    mutationFn: (input) =>
+      postAdminChatConversationsTenantuseridMessages(tenantUserId, input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: chatKeys.adminThread(tenantUserId) });
-      qc.invalidateQueries({ queryKey: ["chat", "admin", "conversations"] });
+      qc.invalidateQueries({ queryKey: chatKeys.adminConversationsRoot });
     },
   });
 }
@@ -161,7 +129,7 @@ export function useMarkAdminRead() {
     mutationFn: async (tenantUserId) => {
       await postAdminChatConversationsTenantuseridRead(tenantUserId);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["chat", "admin", "conversations"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.adminConversationsRoot }),
   });
 }
 
@@ -170,17 +138,12 @@ export function useMarkAdminRead() {
 export async function fetchOlderMessages(
   scope: { kind: "support" } | { kind: "admin"; tenantUserId: string },
   before: string,
-  _authHeader: () => Record<string, string>,
 ): Promise<ChatThread> {
-  // `_authHeader` mantém-se na assinatura por compatibilidade com o chamador
-  // (ChatConversationView.tsx, fora do âmbito desta migração) — deixou de ser
-  // necessário: o client gerado corre no mesmo axiosInstance partilhado cujo
-  // interceptor (AuthContext.tsx) já injeta o Authorization.
   const data =
     scope.kind === "support"
       ? await getChatSupportMessages({ before })
       : await getAdminChatConversationsTenantuseridMessages(scope.tenantUserId, { before });
-  return data as ChatThread;
+  return data;
 }
 
 /**

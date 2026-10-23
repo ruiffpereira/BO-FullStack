@@ -84,7 +84,7 @@ export const Combobox = forwardRef<HTMLButtonElement, ComboboxProps>(function Co
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
-  }, [open])
+  }, [open, anchorRef, menuRef])
 
   const pick = (v: string) => {
     onChange(v)

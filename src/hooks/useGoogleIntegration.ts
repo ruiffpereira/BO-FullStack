@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
+import type { GetIntegrationsGoogleStatus200 } from "../gen/backoffice/types/GetIntegrationsGoogleStatus.js";
+import type { GetIntegrationsGoogleReviews200 } from "../gen/backoffice/types/GetIntegrationsGoogleReviews.js";
 import { getIntegrationsGoogleStatus } from "../gen/backoffice/hooks/useGetIntegrationsGoogleStatus.js";
 import { getIntegrationsGoogleReviews } from "../gen/backoffice/hooks/useGetIntegrationsGoogleReviews.js";
 import { getIntegrationsGoogleConnect } from "../gen/backoffice/hooks/useGetIntegrationsGoogleConnect.js";
@@ -12,39 +14,14 @@ import { putIntegrationsGooglePlace } from "../gen/backoffice/hooks/usePutIntegr
  * (interceptor posto pelo `AuthContext`) já injeta `Authorization`, `baseURL`
  * e `withCredentials` em TODOS os pedidos, incluindo os dos clients gerados
  * (correm no mesmo `axiosInstance`) — por isso `authHeader()` deixou de ser
- * preciso aqui. Os tipos locais (`GoogleStatus`/`GoogleReview`/
- * `GoogleReviewsResponse`) mantêm-se: o spec marca os campos como opcionais/
- * nullable (contrato genérico), mas o servidor devolve sempre o objeto
- * completo nestas respostas de sucesso — os `as Tipo` abaixo são esse cast
- * de fronteira. As query keys mantêm-se EXACTAMENTE como antes da migração
- * (não as dos hooks gerados) para não desalinhar nenhuma invalidação.
+ * preciso aqui. Os tipos vêm do spec (F6b6: os campos que a API devolve
+ * sempre são `required`). As query keys mantêm-se EXACTAMENTE como antes da
+ * migração (não as dos hooks gerados) para não desalinhar nenhuma invalidação.
  */
 
-export interface GoogleStatus {
-  connected: boolean;
-  calendarId: string;
-  placeId: string | null;
-  connectedAt: string | null;
-  configured: boolean;
-}
-
-export interface GoogleReview {
-  author_name: string;
-  rating: number;
-  text: string;
-  relative_time_description: string;
-  profile_photo_url?: string;
-  time?: number;
-}
-
-export interface GoogleReviewsResponse {
-  configured: boolean;
-  name?: string | null;
-  rating?: number | null;
-  total?: number | null;
-  reviews: GoogleReview[];
-  error?: string;
-}
+export type GoogleStatus = GetIntegrationsGoogleStatus200;
+export type GoogleReviewsResponse = GetIntegrationsGoogleReviews200;
+export type GoogleReview = GoogleReviewsResponse["reviews"][number];
 
 const STATUS_KEY = ["google-integration", "status"];
 const REVIEWS_KEY = ["google-integration", "reviews"];
@@ -54,7 +31,7 @@ export function useGoogleStatus() {
   return useQuery<GoogleStatus>({
     queryKey: STATUS_KEY,
     enabled: isAuthenticated,
-    queryFn: async () => (await getIntegrationsGoogleStatus()) as GoogleStatus,
+    queryFn: () => getIntegrationsGoogleStatus(),
   });
 }
 
@@ -63,7 +40,7 @@ export function useGoogleReviews(enabled: boolean) {
   return useQuery<GoogleReviewsResponse>({
     queryKey: REVIEWS_KEY,
     enabled: isAuthenticated && enabled,
-    queryFn: async () => (await getIntegrationsGoogleReviews()) as GoogleReviewsResponse,
+    queryFn: () => getIntegrationsGoogleReviews(),
   });
 }
 

@@ -141,7 +141,7 @@ describe("NotificationsPanel", () => {
         defaultLocale: "pt",
         templates: [
           makeTemplate({
-            key: "sem_perm",
+            key: "sem_perm" as never,
             label: "Sempre visível",
             permissions: [],
           }),

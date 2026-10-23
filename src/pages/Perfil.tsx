@@ -6,6 +6,7 @@ import { Icon } from "../ui/icons.jsx";
 import { useAuth } from "../context/AuthContext";
 import { usePageSubtitle } from "../context/PageMetaContext";
 import { GuardButton } from "../components/GuardButton";
+import { useWriteGuard } from "../hooks/useWriteGuard";
 import { FileUpload } from "../components/FileUpload";
 import { getApiError } from "../lib/apiError";
 import { useGetUsersMe, getUsersMeQueryKey } from "../gen/backoffice/hooks/useGetUsersMe";
@@ -380,6 +381,7 @@ function PreferenciasCard({ data }: { data?: GetUsersMe200 }) {
 
   const { data: langData } = useGetSettingsLanguages();
   const saveLangs = usePutSettingsLanguages();
+  const { readOnly: langLocked, message: langLockedMsg } = useWriteGuard();
   const available = langData?.available ?? [];
   const selected = langData?.selected ?? [];
   const defaultLang = langData?.default ?? "";
@@ -421,7 +423,8 @@ function PreferenciasCard({ data }: { data?: GetUsersMe200 }) {
                 <button
                   key={code}
                   type="button"
-                  disabled={saveLangs.isPending}
+                  disabled={saveLangs.isPending || langLocked}
+                  title={langLocked ? langLockedMsg : undefined}
                   onClick={() => onSetDefaultLang(code)}
                   className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition select-none ${
                     isDefault
@@ -545,9 +548,9 @@ function LogoCard({ data }: { data?: GetUsersMe200 }) {
         </button>
       )}
       <div className="flex justify-end">
-        <Button onClick={onSave} isLoading={uploading || updateMe.isPending}>
+        <GuardButton onClick={onSave} isLoading={uploading || updateMe.isPending}>
           Guardar logótipo
-        </Button>
+        </GuardButton>
       </div>
     </Card>
   );

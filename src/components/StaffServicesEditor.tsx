@@ -1,3 +1,4 @@
+import { fmtEur } from '../lib/money'
 import { useEffect, useState } from "react";
 import { Badge } from "../ui/ui.jsx";
 import { GuardButton } from "./GuardButton";
@@ -78,7 +79,7 @@ export function StaffServicesEditor({
             </label>
             <div className="flex items-center gap-2 pl-6 sm:pl-0 shrink-0">
               <span className="text-xs text-zinc-400 whitespace-nowrap">
-                {r.price != null ? `normal ${r.price.toFixed(2)}€` : ""}
+                {r.price != null ? `normal ${fmtEur(r.price)}` : ""}
               </span>
               <input
                 type="text"

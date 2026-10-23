@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -9,7 +9,7 @@ import { MemoryRouter } from "react-router-dom";
 // (autenticado / 401 duro / "ainda sem veredito") vivem inteiramente dentro
 // de `doRefresh`. Mockamos só a fronteira de rede que o bootstrap encadeia —
 // `axiosInstance` partilhado (POST /users/refresh) e os dois hooks gerados
-// (GET /csrf-token, GET /userpermissions) — para controlar os três desfechos
+// (GET /csrf-token, GET /user-permissions) — para controlar os três desfechos
 // sem servidor. `usePostUsersLogin` fica por mockar de propósito: nenhum
 // destes testes chama `login()`.
 const axiosPostMock = vi.fn();
@@ -46,14 +46,14 @@ vi.mock("../../src/gen/backoffice/hooks/useGetCsrfToken", () => ({
   getCsrfToken: (...args: unknown[]) => getCsrfTokenMock(...args),
 }));
 
-const getUserpermissionsMock = vi.fn();
+const getUserPermissionsMock = vi.fn();
 // B41 — acesso da equipa: por omissão o dono do tenant (`member: null`).
-const getUserpermissionsAccessMock = vi.fn();
-vi.mock("../../src/gen/backoffice/hooks/useGetUserpermissionsAccess", () => ({
-  getUserpermissionsAccess: (...args: unknown[]) => getUserpermissionsAccessMock(...args),
+const getUserPermissionsAccessMock = vi.fn();
+vi.mock("../../src/gen/backoffice/hooks/useGetUserPermissionsAccess", () => ({
+  getUserPermissionsAccess: (...args: unknown[]) => getUserPermissionsAccessMock(...args),
 }));
-vi.mock("../../src/gen/backoffice/hooks/useGetUserpermissions", () => ({
-  getUserpermissions: (...args: unknown[]) => getUserpermissionsMock(...args),
+vi.mock("../../src/gen/backoffice/hooks/useGetUserPermissions", () => ({
+  getUserPermissions: (...args: unknown[]) => getUserPermissionsMock(...args),
 }));
 
 import { AuthProvider, useAuth } from "../../src/context/AuthContext";
@@ -94,8 +94,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   responseInterceptorRef.current = null;
   getCsrfTokenMock.mockResolvedValue({ csrfToken: "csrf-token-abc" });
-  getUserpermissionsMock.mockResolvedValue([]);
-  getUserpermissionsAccessMock.mockResolvedValue({ member: null, modules: [] });
+  getUserPermissionsMock.mockResolvedValue([]);
+  getUserPermissionsAccessMock.mockResolvedValue({ member: null, modules: [] });
 });
 
 describe("AuthContext — B12, os três estados do arranque (doRefresh)", () => {
@@ -190,7 +190,7 @@ describe("AuthContext — interceptor de resposta 401 (single-flight de refresh,
     expect(responseInterceptorRef.current).not.toBeNull();
 
     axiosPostMock.mockResolvedValueOnce({ status: 200, data: { accessToken: "refreshed.token.value" } });
-    getUserpermissionsMock.mockResolvedValueOnce([]);
+    getUserPermissionsMock.mockResolvedValueOnce([]);
     axiosCallMock.mockResolvedValue({ data: "ok" });
 
     const err1: any = { config: { url: "/customers", headers: {} }, response: { status: 401 } };
@@ -200,10 +200,13 @@ describe("AuthContext — interceptor de resposta 401 (single-flight de refresh,
     // Disparados sem `await` entre eles — simula três hooks/mutations
     // diferentes a levar 401 na mesma janela (o cenário real do B5).
     const interceptor = responseInterceptorRef.current!;
-    const p1 = interceptor(err1);
-    const p2 = interceptor(err2);
-    const p3 = interceptor(err3);
-    await Promise.all([p1, p2, p3]);
+    // Dentro de `act`: o refresh actualiza o estado do AuthProvider.
+    await act(async () => {
+      const p1 = interceptor(err1);
+      const p2 = interceptor(err2);
+      const p3 = interceptor(err3);
+      await Promise.all([p1, p2, p3]);
+    });
 
     const refreshCalls = axiosPostMock.mock.calls.filter((c) => c[0] === "/users/refresh");
     expect(refreshCalls).toHaveLength(1);
@@ -221,7 +224,9 @@ describe("AuthContext — interceptor de resposta 401 (single-flight de refresh,
     axiosPostMock.mockResolvedValueOnce({ status: 401, data: {} }); // refresh token morto
 
     const err: any = { config: { url: "/customers", headers: {} }, response: { status: 401 } };
-    await expect(responseInterceptorRef.current!(err)).rejects.toBe(err);
+    await act(async () => {
+      await expect(responseInterceptorRef.current!(err)).rejects.toBe(err);
+    });
 
     // Não repete o pedido original — a sessão morreu, não faz sentido retentar.
     expect(axiosCallMock).not.toHaveBeenCalled();

@@ -21,6 +21,9 @@ export function useTeamAccess(): {
 } {
   let ctx: ReturnType<typeof useAuth> | null = null
   try {
+    // `useAuth` chama sempre `useContext` antes de lançar sem provider → a ordem dos hooks não muda; o try/catch
+    // só dá o «dono» como fallback. (Os testes mockam `useAuth` para controlar o acesso da equipa.)
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     ctx = useAuth()
   } catch {
     ctx = null

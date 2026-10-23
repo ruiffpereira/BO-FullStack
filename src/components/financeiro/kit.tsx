@@ -3,8 +3,9 @@ import { Card, Badge, BADGE_TONES, Modal } from '../../ui/ui.jsx'
 import { Icon } from '../../ui/icons.jsx'
 import type { Money } from '../../hooks/useFinanceiro'
 
-export const fmtEur = (n: number) =>
-  '€' + (n || 0).toLocaleString('pt-PT', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })
+import { fmtEur } from '../../lib/money'
+// Reexportado só para os importadores existentes; a definição é a de `lib/money.ts` (pt-PT, vírgula).
+export { fmtEur }
 
 type Tone = keyof typeof BADGE_TONES
 

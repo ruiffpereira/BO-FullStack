@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FocusEvent } from "react";
 import { Card, Button, Input } from "../ui/ui.jsx";
 import { Icon } from "../ui/icons.jsx";
+import { GuardButton } from "./GuardButton";
 import { confirmDialog } from "./confirm";
 import { useSupportSession } from "../context/AuthContext";
 import {
@@ -140,7 +141,7 @@ function CalendarSubscribeCardContent() {
                 acontecer nada ao clicar, usa o link acima.
               </p>
 
-              <Button
+              <GuardButton
                 variant="outline"
                 size="sm"
                 className="w-full"
@@ -159,7 +160,7 @@ function CalendarSubscribeCardContent() {
                 }}
               >
                 {rotate.isPending ? "A regenerar…" : "Regenerar link"}
-              </Button>
+              </GuardButton>
             </>
           )}
         </div>

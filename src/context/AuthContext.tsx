@@ -1,396 +1,22 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { axiosInstance } from "@kubb/plugin-client/clients/axios";
-import { API_BASE } from "../lib/env";
 import { queryClient } from "../lib/queryClient";
-import { notifyBillingReadOnly } from "../lib/billing402";
-import {
-  type StoredSupportSession,
-  type SupportEndReason,
-  type SupportSessionInfo,
-  clearSupportSession,
-  notifyImpersonationForbidden,
-  readSupportSession,
-  writeSupportSession,
-} from "../lib/supportSession";
+import { type StoredSupportSession, type SupportEndReason, type SupportSessionInfo, clearSupportSession, readSupportSession, writeSupportSession } from "../lib/supportSession";
 import type { PostAdminUsersUseridImpersonate200 } from "../gen/backoffice/types/PostAdminUsersUseridImpersonate.js";
-import { getCsrfToken } from "../gen/backoffice/hooks/useGetCsrfToken.js";
 import { postUsersLogin } from "../gen/backoffice/hooks/usePostUsersLogin.js";
-import { getUserpermissions } from "../gen/backoffice/hooks/useGetUserpermissions.js";
-import type { GetUserpermissions200 } from "../gen/backoffice/types/GetUserpermissions.js";
-import { getUserpermissionsAccess } from "../gen/backoffice/hooks/useGetUserpermissionsAccess.js";
-import type { GetUserpermissionsAccess200 } from "../gen/backoffice/types/GetUserpermissionsAccess.js";
-import { notifyTeamForbidden } from "../lib/teamAccess";
-import { canFromGrants, grantScope, grantScopeAll, type GrantEntry, type TeamScope } from "../lib/teamTree";
+import { canFromGrants, grantScope, grantScopeAll, type TeamScope } from "../lib/teamTree";
+import { AuthCtx, AuthState, Permission, RefreshOutcome, TeamLevel } from "./auth/types";
+import { AUTH_REQUEST_TIMEOUT_MS, MAX_RECONNECT_ATTEMPTS, RECONNECT_RETRY_MS, REFRESH_RETRY_MS, emptyAuth, ownerAccess } from "./auth/constants";
+import { clearStoredIdentity, readStoredIdentity, writeStoredIdentity } from "./auth/identity";
+import { getIdentityFromJwt, getRefreshDelay } from "./auth/jwt";
+import { installAuthInterceptors } from "./auth/interceptors";
+import { fetchAccess, fetchCsrfToken, fetchPermissions, getBrowserPushSubscription, refreshSession } from "./auth/api";
 
-type Permission = GetUserpermissions200[number];
-
-/** Quem é o membro da equipa ligado (B41). `null` = o dono do tenant. */
-export type AccessMember = NonNullable<GetUserpermissionsAccess200["member"]>;
-/** Módulo da equipa que a sessão tem, com o nível dado pela API. */
-export type AccessModule = { key: string; label: string; level: "view" | "edit" };
-export type TeamLevel = "view" | "edit";
-interface AccessState {
-  member: AccessMember | null;
-  modules: AccessModule[];
-  /** Folhas efectivas da árvore (B41 2b), dadas pela API; o dono tem todas as disponíveis. */
-  grants: GrantEntry[];
-  /** Profissional ligado ao membro da sessão (`null` = dono ou sem ligação). */
-  staffId: string | null;
-}
-const ownerAccess: AccessState = { member: null, modules: [], grants: [], staffId: null };
-
-/**
- * B12 — resultado de `doRefresh`, explícito sobre QUAL ramo ocorreu (antes
- * disto, `string | null` confundia "401 duro" com "soluço transitório": os
- * dois casos de falha eram indistinguíveis para quem chamava).
- * - `authenticated`: sessão confirmada, token novo pronto a usar.
- * - `unauthenticated`: 401 duro — refresh token morto, sessão terminada
- *   (`clearSession()` já correu). Veredito definitivo.
- * - `transient`: erro de rede/servidor (timeout, 5xx, 429…) — a sessão em
- *   memória não foi tocada; um retry já está agendado. NÃO é um veredito.
- * - `stale`: esta chamada foi ultrapassada por um login/logout concorrente
- *   (`authVersionRef` mudou a meio) — o resultado não interessa a ninguém.
- */
-type RefreshOutcome =
-  | { kind: "authenticated"; accessToken: string }
-  | { kind: "unauthenticated" }
-  | { kind: "transient" }
-  | { kind: "stale" };
-
-interface AuthState {
-  userId: string | null;
-  username: string | null;
-  email: string | null;
-  accessToken: string | null;
-  permissions: Permission[];
-  /** B41 — quem está ligado (dono ou membro da equipa) e os módulos que tem. Vem da API, nunca se calcula aqui. */
-  access: AccessState;
-  isAuthenticated: boolean;
-}
-
-interface AuthCtx extends AuthState {
-  login: (username: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-  authHeader: () => Record<string, string>;
-  hasPermission: (name: string) => boolean;
-  /** Membro da equipa ligado (`null` = dono do tenant). */
-  member: AccessMember | null;
-  isMember: boolean;
-  /**
-   * Pode a sessão `key` com este nível? `key` é uma folha (`agenda.servicos`) ou um topo/agrupador (`agenda` = alguma folha
-   * debaixo). O dono do tenant pode sempre; um membro só o que a API lhe deu (`edit` implica `view`). A decisão final é sempre da API.
-   */
-  can: (key: string, level?: TeamLevel) => boolean;
-  /** Âmbito da folha na sessão: `meus` = «Só os meus» (dado pela API); o dono é sempre `todos`. */
-  scopeOf: (leaf: string) => TeamScope;
-  /** `meus` só quando todas as folhas que a sessão tem entre estas são «Só os meus». */
-  scopeOfAll: (leaves: readonly string[]) => TeamScope;
-  /** Profissional ligado ao membro da sessão (`null` = dono ou sem ligação). */
-  staffId: string | null;
-  /**
-   * Volta a pedir `GET /userpermissions/access` (folhas do membro) sem tocar no resto da sessão. Usado pelo SSE
-   * quando o servidor fecha a ligação de um membro (mudou de folhas, foi desactivado, mudou de password): um 401
-   * passa pelo interceptor → refresh → login, como qualquer pedido; senão as folhas novas entram sem recarregar.
-   */
-  refreshAccess: () => Promise<void>;
-  loading: boolean;
-  loggingOut: boolean;
-  error: string | null;
-  initializing: boolean;
-  /**
-   * B12 — verdadeiro quando o arranque ainda NÃO tem veredito definitivo
-   * (nem sessão confirmada, nem 401 duro) porque a última tentativa de
-   * `doRefresh` falhou por um motivo transitório (timeout, rede, 5xx, 429) e
-   * um retry já está agendado. Só existe enquanto `initializing` já é falso
-   * (o `doRefresh` inicial já resolveu, de alguma forma) e `isAuthenticated`
-   * ainda é falso — nunca fica verdadeiro depois de uma sessão já ter sido
-   * estabelecida nesta aba (um soluço do refresh agendado em fundo continua
-   * silencioso, como sempre foi). É só sobre O QUE SE MOSTRA: enquanto for
-   * verdadeiro, a UI não deve mostrar `<Login/>` — mas também não concede
-   * acesso a conteúdo autenticado, isso continua a ser só `isAuthenticated`.
-   */
-  reconnecting: boolean;
-  /**
-   * Adota um accessToken NOVO na sessão atual sem passar por login/refresh —
-   * usado pelo `PUT /users/me/password` (T3.2/T3.3, `Perfil.tsx`), que bump
-   * o `tokenVersion` (invalida o token antigo de imediato) mas já devolve, na
-   * mesma resposta, um par de tokens novo para a sessão que pediu a mudança.
-   * Sem isto, o próximo pedido autenticado usaria o token antigo (já inválido)
-   * e levava um 401 — recuperável pelo interceptor de refresh, mas só depois
-   * de uma volta extra. Também realinha o temporizador de refresh automático
-   * (`scheduleRefresh`) com a validade real do token novo.
-   */
-  setAccessToken: (accessToken: string) => void;
-  /**
-   * Atualiza `username`/`email` em memória + no cache de identidade
-   * (localStorage) sem round-trip ao servidor — usado pelo `Perfil.tsx` depois
-   * de um `PUT /users/me` bem-sucedido, para o nome/email mostrados no avatar
-   * do topbar (e num eventual reload) ficarem coerentes com a edição sem
-   * precisar de um logout/login.
-   */
-  updateIdentity: (patch: { username?: string; email?: string }) => void;
-  /**
-   * Sessão de suporte (admin dentro da conta de um tenant). `null` fora dela.
-   * Nunca expõe o token. Neste modo NUNCA há `/users/refresh`, `/users/logout`,
-   * `/push/unsubscribe` nem escritas em `localStorage` (ver o bloco "Sessão de
-   * suporte" no provider).
-   */
-  supportSession: SupportSessionInfo | null;
-  /** Motivo pelo qual a sessão de suporte deste separador terminou (ecrã final). */
-  supportEnded: SupportEndReason | null;
-  /** Adopta a resposta do `POST /admin/users/:userId/impersonate` e passa a agir como o tenant. */
-  startImpersonation: (res: PostAdminUsersUseridImpersonate200) => Promise<void>;
-  /** Termina a sessão de suporte só localmente (nada vai ao servidor). */
-  endImpersonation: (reason: SupportEndReason) => void;
-  /** "Ir para o meu backoffice": limpa o ecrã final e refaz o arranque pelo cookie (o do admin). */
-  dismissSupportEnded: () => void;
-}
+// Tipos da equipa: continuam a sair daqui (useTeamAccess e outros importam-nos).
+export type { AccessMember, AccessModule, TeamLevel } from "./auth/types";
 
 const AuthContext = createContext<AuthCtx | null>(null);
-
-/**
- * ⚠ EXCEPÇÃO DELIBERADA ao "Kubb everywhere" (2026-09-24). Os paths de auth
- * deste ficheiro ficam em strings, e não vêm dos clients gerados. Não é
- * esquecimento — não os migres.
- *
- * PORQUÊ. As funções geradas pelo Kubb devolvem `res.data` e **descartam o
- * status HTTP**. O bootstrap de sessão daqui ramifica precisamente por ele:
- *
- *     validateStatus: (s) => (s >= 200 && s < 300) || s === 401
- *     if (res.status === 401) return null;   // veredito DEFINITIVO
- *
- * Sem o status, a única alternativa seria deixar o 401 lançar e apanhá-lo — e
- * aí um **erro de rede** ficaria indistinguível de **sessão expirada**. Essa
- * distinção é o que sustenta tudo o resto: uma é transitória e faz retry
- * (`reconnecting`), a outra termina a sessão. Confundi-las dá logout a quem só
- * teve um soluço de rede, ou uma app presa a tentar renovar uma sessão morta.
- *
- * `SKIP_401` é, além disso, uma lista de POLÍTICA (onde um 401 não pode
- * disparar o interceptor de refresh, para não entrar em ciclo) — não é uma
- * lista de chamadas. Mesmo com clients gerados continuaria a existir.
- *
- * O resto do Backoffice está migrado; a excepção é só esta.
- */
-const SKIP_401 = [
-  "/csrf-token",
-  "/users/login",
-  "/users/refresh",
-  "/users/logout",
-  "/users/setup-password",
-];
-
-const REFRESH_FALLBACK_MS = 10 * 60 * 1000;
-const REFRESH_SKEW_MS = 60 * 1000;
-const REFRESH_RETRY_MS = 30 * 1000;
-const REFRESH_MIN_DELAY_MS = 30 * 1000;
-const AUTH_REQUEST_TIMEOUT_MS = 5 * 1000;
-const AUTH_IDENTITY_STORAGE_KEY = "backoffice.auth.identity";
-// B12 — cadência e orçamento do "ainda sem veredicto" no arranque (ver
-// `doRefresh` abaixo). Só se aplica ENQUANTO a sessão desta aba nunca chegou a
-// um veredito definitivo (autenticada, 401 duro, ou desistência); uma vez
-// resolvida, o refresh de fundo volta à cadência normal (REFRESH_RETRY_MS,
-// 30s) — não há motivo para martelar o servidor de uma app já em uso.
-// 3 tentativas a 2s dão um orçamento máximo de ~(15s + 2s) × 3 ≈ 51s no pior
-// caso (cada tentativa pode gastar até AUTH_REQUEST_TIMEOUT_MS × 3 = 15s, a
-// cadeia csrf→refresh→permissões) — o suficiente para engolir um soluço real
-// de rede sem deixar o utilizador a fitar "a reconectar…" durante minutos.
-const RECONNECT_RETRY_MS = 2 * 1000;
-const MAX_RECONNECT_ATTEMPTS = 3;
-
-const emptyAuth: AuthState = {
-  userId: null,
-  username: null,
-  email: null,
-  accessToken: null,
-  permissions: [],
-  access: ownerAccess,
-  isAuthenticated: false,
-};
-
-function readStoredIdentity(): {
-  userId: string | null;
-  username: string | null;
-  email: string | null;
-} {
-  if (typeof window === "undefined") return { userId: null, username: null, email: null };
-  try {
-    const raw = window.localStorage.getItem(AUTH_IDENTITY_STORAGE_KEY);
-    if (!raw) return { userId: null, username: null, email: null };
-    const parsed = JSON.parse(raw) as { userId?: unknown; username?: unknown; email?: unknown };
-    return {
-      userId:
-        typeof parsed.userId === "string" && parsed.userId.trim()
-          ? parsed.userId
-          : null,
-      username:
-        typeof parsed.username === "string" && parsed.username.trim()
-          ? parsed.username
-          : null,
-      email:
-        typeof parsed.email === "string" && parsed.email.trim()
-          ? parsed.email
-          : null,
-    };
-  } catch {
-    return { userId: null, username: null, email: null };
-  }
-}
-
-function writeStoredIdentity(identity: {
-  userId: string | null;
-  username: string | null;
-  email: string | null;
-}) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(
-      AUTH_IDENTITY_STORAGE_KEY,
-      JSON.stringify(identity),
-    );
-  } catch {
-    // ignore storage errors
-  }
-}
-
-function clearStoredIdentity() {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(AUTH_IDENTITY_STORAGE_KEY);
-  } catch {
-    // ignore storage errors
-  }
-}
-
-function isAuthEndpoint(url = "") {
-  const path = url.split("?")[0];
-  return SKIP_401.some((p) => path === p || path.endsWith(p));
-}
-
-function getJwtExpiry(accessToken: string): number | null {
-  const decoded = decodeJwtPayload(accessToken);
-  return typeof decoded?.exp === "number" ? decoded.exp * 1000 : null;
-}
-
-function decodeJwtPayload(accessToken: string): Record<string, unknown> | null {
-  const [, payload] = accessToken.split(".");
-  if (!payload) return null;
-
-  try {
-    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
-    return JSON.parse(atob(padded));
-  } catch {
-    return null;
-  }
-}
-
-function getIdentityFromJwt(accessToken: string): {
-  userId: string | null;
-  username: string | null;
-  email: string | null;
-} {
-  const payload = decodeJwtPayload(accessToken);
-  if (!payload) return { userId: null, username: null, email: null };
-
-  const pick = (...keys: string[]) => {
-    for (const key of keys) {
-      const value = payload[key];
-      if (typeof value === "string" && value.trim()) return value;
-    }
-    return null;
-  };
-
-  return {
-    userId: pick("userId", "uid", "sub"),
-    username: pick("username", "preferred_username", "name", "email"),
-    // O access token do BO só carrega { userId, tokenVersion } (ver
-    // `generateAccessToken` na API) — nunca vem daqui na prática hoje, mas
-    // fica pronto caso o payload alguma vez ganhe o campo, sem mais um sítio
-    // a mudar. A identidade real (login/reload) vem do `login()`/localStorage.
-    email: pick("email"),
-  };
-}
-
-function getRefreshDelay(accessToken: string) {
-  const expiry = getJwtExpiry(accessToken);
-  if (!expiry) return REFRESH_FALLBACK_MS;
-  return Math.max(expiry - Date.now() - REFRESH_SKEW_MS, REFRESH_MIN_DELAY_MS);
-}
-
-async function fetchCsrfToken(): Promise<string> {
-  const csrf = await getCsrfToken({ timeout: AUTH_REQUEST_TIMEOUT_MS } as any);
-  if (!csrf?.csrfToken) throw new Error("CSRF token em falta.");
-  return csrf.csrfToken;
-}
-
-async function fetchPermissions(accessToken: string): Promise<Permission[]> {
-  return getUserpermissions({
-    headers: { Authorization: `Bearer ${accessToken}` },
-    timeout: AUTH_REQUEST_TIMEOUT_MS,
-  } as any);
-}
-
-async function fetchAccess(accessToken: string): Promise<AccessState> {
-  const res = await getUserpermissionsAccess({
-    headers: { Authorization: `Bearer ${accessToken}` },
-    timeout: AUTH_REQUEST_TIMEOUT_MS,
-  } as any);
-  return {
-    member: res?.member ?? null,
-    modules: (res?.modules ?? [])
-      .filter((m) => !!m.key)
-      .map((m) => ({
-        key: m.key as string,
-        label: m.label ?? (m.key as string),
-        level: m.level === "edit" ? ("edit" as const) : ("view" as const),
-      })),
-    grants: (res?.grants ?? [])
-      .filter((g) => !!g.key)
-      .map((g) => ({
-        key: g.key as string,
-        level: g.level === "edit" ? ("edit" as const) : ("view" as const),
-        ...(g.scope === "meus" ? { scope: "meus" as const } : {}),
-      })),
-    staffId: res?.staffId ?? null,
-  };
-}
-
-async function refreshSession(): Promise<string | null> {
-  const csrfToken = await fetchCsrfToken();
-  const res = await axiosInstance.post<{ accessToken?: string }>(
-    "/users/refresh",
-    undefined,
-    {
-      headers: { "x-csrf-token": csrfToken },
-      validateStatus: (status) =>
-        (status >= 200 && status < 300) || status === 401,
-      timeout: AUTH_REQUEST_TIMEOUT_MS,
-      withCredentials: true,
-    },
-  );
-
-  if (res.status === 401) return null;
-  return res.data?.accessToken ?? null;
-}
-
-async function getBrowserPushSubscription(): Promise<PushSubscription | null> {
-  if (typeof window === "undefined") return null;
-  if (!("serviceWorker" in navigator)) return null;
-  try {
-    const registration = await navigator.serviceWorker.ready;
-    return await registration.pushManager.getSubscription();
-  } catch {
-    return null;
-  }
-}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [auth, setAuth] = useState<AuthState>(emptyAuth);
@@ -716,65 +342,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    axiosInstance.defaults.baseURL = API_BASE;
-    axiosInstance.defaults.withCredentials = true;
-
-    const reqId = axiosInstance.interceptors.request.use((config) => {
-      config.baseURL = API_BASE;
-      config.withCredentials = true;
-      const token = authRef.current.accessToken;
-      const url = config.url ?? "";
-      if (token && !isAuthEndpoint(url)) {
-        const headers = (config.headers ?? {}) as Record<string, string>;
-        if (!headers.Authorization) {
-          headers.Authorization = `Bearer ${token}`;
-        }
-        config.headers = headers as any;
-      }
-      return config;
-    });
-
-    const resId = axiosInstance.interceptors.response.use(
-      (res) => res,
-      async (err) => {
-        const url = err?.config?.url ?? "";
-        const is401 = err?.response?.status === 401;
-        const skipRefresh = isAuthEndpoint(url);
-
-        // Sessão de suporte: um 401 (ex.: `SUPPORT_SESSION_ENDED` — o cliente
-        // revogou) termina a sessão e rejeita. NUNCA refresca nem repete: o
-        // cookie de refresh é o do admin e repetir gravaria na conta dele.
-        if (supportActiveRef.current) {
-          if (is401) endImpersonation("ended");
-          notifyImpersonationForbidden(err?.response?.status, err?.response?.data);
-          return Promise.reject(err);
-        }
-
-        if (is401 && !skipRefresh && !err.config?._retry) {
-          const outcome = await doRefresh();
-          if (outcome.kind === "authenticated") {
-            err.config._retry = true;
-            err.config.withCredentials = true;
-            err.config.headers = err.config.headers ?? {};
-            err.config.headers.Authorization = `Bearer ${outcome.accessToken}`;
-            return axiosInstance(err.config);
-          }
-        }
-
-        // Gate read-only do platform billing: uma escrita bloqueada devolve 402
-        // com `reason`. Mostra um toast (coalescido) a apontar para /faturacao —
-        // só ADICIONA feedback, não engole o erro (a promise segue rejeitada, as
-        // mutations veem o 402). No-op para qualquer outro erro/status.
-        notifyBillingReadOnly(err?.response?.status, err?.response?.data, (to) =>
-          navigateRef.current(to),
-        );
-        // Backstop das permissões da equipa (B41): a UI já esconde/desactiva, mas se uma escrita
-        // escapar e a API disser 403 TEAM_*, o membro vê porquê. No-op para qualquer outro erro.
-        notifyTeamForbidden(err?.response?.status, err?.response?.data);
-
-        return Promise.reject(err);
-      },
-    );
+    const uninstall = installAuthInterceptors({ authRef, supportActiveRef, navigateRef, doRefresh, endImpersonation });
 
     // B12 — `initializing` só cobre a 1ª tentativa (qualquer que seja o
     // desfecho); `doRefresh` já decidiu, internamente, se esse desfecho é um
@@ -792,8 +360,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     return () => {
-      axiosInstance.interceptors.request.eject(reqId);
-      axiosInstance.interceptors.response.eject(resId);
+      uninstall();
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       clearSupportTimer();
     };
@@ -910,11 +477,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [clearSession, scheduleRefresh, endImpersonation]);
 
-  const authHeader = useCallback(() => {
-    const token = authRef.current.accessToken;
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }, []);
-
   const hasPermission = useCallback(
     (name: string) => auth.permissions.some((p) => p.name === name),
     [auth.permissions],
@@ -989,7 +551,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ...auth,
         login,
         logout,
-        authHeader,
         hasPermission,
         member: auth.access.member,
         isMember: !!auth.access.member,

@@ -4,7 +4,7 @@ import { mailCodeMessage } from "./mail";
 
 /**
  * Equipa do tenant (B41) — peças puras do lado do Backoffice. A decisão de quem pode o quê é SEMPRE da API
- * (`GET /userpermissions/access`); aqui só há textos, o feedback reactivo dos 403 e o mapa pathname → módulo.
+ * (`GET /user-permissions/access`); aqui só há textos, o feedback reactivo dos 403 e o mapa pathname → módulo.
  */
 
 /** Motivo único (PT) dos CTAs de escrita desactivados a um membro que só tem `view` no módulo da página. */

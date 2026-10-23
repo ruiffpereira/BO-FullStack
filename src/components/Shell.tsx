@@ -832,6 +832,13 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   // /correio (Caixa): idem — lista e conversa com scroll próprio, sem alturas calculadas.
   const fillPage = location.pathname === "/paginas" || location.pathname === "/correio" || location.pathname.startsWith("/correio/");
 
+  // Agenda (calendário e marcações): a partir de xl a página reparte a altura por flex e os painéis fazem scroll interno;
+  // abaixo de xl é uma coluna normal com scroll no <main>.
+  const fillAgenda = location.pathname === "/agenda" || location.pathname === "/agenda/marcacoes";
+
+  // Conteúdos (separadores CMS, md+): secções + entradas enchem a altura; linguas/emails/notificações são páginas normais.
+  const fillConteudos = location.pathname.startsWith("/conteudos") && !/^\/conteudos\/(linguas|emails|notificacoes)/.test(location.pathname);
+
   return (
     <PageMetaProvider>
     {/* Coluna: faixa de suporte (só em sessão de suporte, filho normal do flex)
@@ -872,15 +879,15 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
             isso persiste no topo enquanto o conteúdo faz scroll. Silenciosa
             quando está tudo pago. */}
         {!isMember && <BillingBanner />}
-        <main className={`flex-1 min-h-0 ${fullBleed || fillPage ? "overflow-hidden" : "overflow-y-auto"}${fullBleed ? " sm:overflow-y-auto" : ""}`}>
+        <main className={`flex-1 min-h-0 ${fullBleed || fillPage ? "overflow-hidden" : fillAgenda ? "overflow-y-auto xl:overflow-hidden" : "overflow-y-auto"}`}>
           <div
             className={
               fillPage
                 ? "h-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4"
                 : fullBleed
-                  ? "h-full sm:h-auto sm:max-w-[1400px] sm:mx-auto sm:px-6 lg:px-8 sm:py-8"
+                  ? "h-full flex flex-col sm:max-w-[1400px] sm:mx-auto sm:px-6 lg:px-8 sm:py-8"
                   // pb-24 no telemóvel: o fim da página fica livre do botão flutuante das mensagens (não tapa o último botão).
-                  : "max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-24 sm:pb-8"
+                  : `max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-24 sm:pb-8${fillAgenda ? " xl:h-full" : ""}${fillConteudos ? " md:h-full" : ""}`
             }
           >
             {blockedForMember ? null : children}

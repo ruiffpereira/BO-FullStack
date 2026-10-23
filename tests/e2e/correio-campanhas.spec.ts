@@ -44,7 +44,7 @@ test("a API recusa criar rascunhos sem domínio verificado (409 CAMPAIGNS_LOCKED
 
   const create = await ctx.post(`${API}/mail/campaigns`, { data: { name: "E2E bloqueada" } });
   expect(create.status()).toBe(409);
-  expect((await create.json()).error).toBe("CAMPAIGNS_LOCKED");
+  expect((await create.json()).code).toBe("CAMPAIGNS_LOCKED");
   await ctx.dispose();
 });
 

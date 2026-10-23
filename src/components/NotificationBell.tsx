@@ -178,7 +178,7 @@ export function NotificationBell() {
   } = usePushSubscription();
 
   const unread = data?.unread ?? 0;
-  const notifications = (data?.notifications as Notification[] | undefined) ?? [];
+  const notifications = data?.notifications ?? [];
   const showPushHelp = requiresInstall || pushError || (isIOS && isStandalone && !isSupported);
 
   // Clicar numa notificação: marca lida (se não lida), fecha o painel e — se a

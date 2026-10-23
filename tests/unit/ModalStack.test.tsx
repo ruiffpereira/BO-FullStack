@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { Button, Modal } from '../../src/ui/ui.jsx'
+import { Modal } from '../../src/ui/ui.jsx'
 import { useState } from 'react'
 
 /**

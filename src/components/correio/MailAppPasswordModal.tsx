@@ -98,6 +98,7 @@ export function MailAppPasswordModal({ mailbox, onClose }: { mailbox: Box | null
         "O telemóvel e o Outlook deixam de abrir esta caixa até gerares uma password nova. O Backoffice continua a funcionar.",
       confirmLabel: "Revogar",
       danger: true,
+      leaf: mailLeaf(mailbox?.personal), // a do botão que abre este diálogo (caixa pessoal: sem folha da equipa)
     });
     if (ok && mailboxId) revokeM.mutate({ mailboxId });
   };

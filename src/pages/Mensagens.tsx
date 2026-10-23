@@ -19,7 +19,7 @@ import { backofficeUnread } from "../lib/messages";
  */
 function TenantSupport() {
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-zinc-900 sm:flex-none sm:h-[calc(100dvh-13rem)] sm:min-h-[480px] sm:rounded-xl sm:border sm:border-zinc-200/80 dark:sm:border-zinc-800 sm:overflow-hidden">
+    <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-zinc-900 sm:rounded-xl sm:border sm:border-zinc-200/80 dark:sm:border-zinc-800 sm:overflow-hidden">
       {/* Cabeçalho só no desktop — no mobile o topbar da app já serve de header. */}
       <header className="hidden sm:flex items-center gap-3 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
         <Avatar name="Suporte" color="#0EA5A4" size={36} />
@@ -62,14 +62,14 @@ export function Mensagens({ view = "clientes" }: { view?: MensagensView }) {
 
   if (isAdmin) {
     return (
-      <div className="h-full sm:h-auto flex flex-col">
+      <div className="flex-1 min-h-0 flex flex-col">
         <MensagensTab />
       </div>
     );
   }
   if (supportSession) {
     return (
-      <div className="h-full sm:h-auto flex flex-col">
+      <div className="flex-1 min-h-0 flex flex-col">
         <TenantSupport />
       </div>
     );
@@ -88,7 +88,7 @@ export function Mensagens({ view = "clientes" }: { view?: MensagensView }) {
   ];
 
   return (
-    <div className="h-full sm:h-auto flex flex-col">
+    <div className="flex-1 min-h-0 flex flex-col">
       {/* Separadores só com mais do que um: quem tem uma folha só vê a lista dela. */}
       {tabs.length > 1 && (
         <div className="shrink-0 px-3 py-2 sm:px-0 sm:pt-0 sm:pb-3 bg-white dark:bg-zinc-900 sm:bg-transparent sm:dark:bg-transparent border-b border-zinc-100 dark:border-zinc-800 sm:border-0">

@@ -36,7 +36,7 @@ export function CmsTranslationsModal({
 
   const { data: allEntries = [], isLoading } = useGetCmsEntries()
 
-  const existing: Record<string, string> = (allEntries as any[])
+  const existing: Record<string, string> = allEntries
     .filter((e) => e.key === cmsKey && e.locale)
     .reduce((acc: Record<string, string>, e: any) => { acc[e.locale] = e.value; return acc }, {})
 

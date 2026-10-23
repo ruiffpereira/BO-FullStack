@@ -61,7 +61,7 @@ const USER_ME_FIXTURE = {
   name: "Barbearia Central",
   email: "dono@example.com",
   phone: "912345678",
-  logoUrl: null,
+  logoUrl: null as string | null,
   uiTheme: "system" as const,
   defaultLanguage: "pt",
 };

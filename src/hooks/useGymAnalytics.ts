@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { getGymMensalidadeAnalytics } from "../gen/backoffice/hooks/useGetGymMensalidadeAnalytics.js";
 import type { GetGymMensalidadeAnalytics200 } from "../gen/backoffice/types/GetGymMensalidadeAnalytics.js";
+import { queryKeys } from '../lib/queryKeys'
 
 /**
  * Tipos DERIVADOS do gerado, nunca uma `interface` à mão ao lado: dois tipos a
@@ -21,7 +22,7 @@ export type GymWaterfallPoint = GymAnalytics["waterfall"][number];
 export function useGymAnalytics() {
   const { isAuthenticated } = useAuth();
   return useQuery<GymAnalytics>({
-    queryKey: ["/gym/mensalidade/analytics"],
+    queryKey: queryKeys.gymAnalytics,
     enabled: isAuthenticated,
     queryFn: async () => await getGymMensalidadeAnalytics(),
   });

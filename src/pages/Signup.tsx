@@ -7,7 +7,8 @@ import { usePostUsersSignup } from '../gen/backoffice/hooks/usePostUsersSignup'
 import { usePostUsersSignupResend } from '../gen/backoffice/hooks/usePostUsersSignupResend'
 import { useGetBillingCatalog } from '../gen/backoffice/hooks/useGetBillingCatalog'
 import { getApiError } from '../lib/apiError'
-import { MODULE_LABELS, BILLABLE_MODULES, eur, type BillableModule } from '../lib/billingStatus'
+import { MODULE_LABELS, BILLABLE_MODULES, type BillableModule } from '../lib/billingStatus'
+import { fmtEur } from '../lib/money'
 import { VERTICALS, VERTICAL_MODULES, isVertical, type Vertical } from '../lib/verticals'
 
 /**
@@ -70,7 +71,6 @@ export function Signup({ theme, onToggleTheme }: Props) {
   }
   useEffect(() => {
     if (step === 'sent') armCooldown()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
   useEffect(() => {
     if (cooldownEpoch === 0) return
@@ -354,7 +354,7 @@ export function Signup({ theme, onToggleTheme }: Props) {
                       <div className="flex items-center gap-2 shrink-0">
                         {inactive && <Badge tone="neutral">Indisponível</Badge>}
                         <span className="text-sm text-zinc-500 tabular-nums">
-                          {entry ? `${eur.format(entry.monthlyAmountEur)}/mês` : '—'}
+                          {entry ? `${fmtEur(entry.monthlyAmountEur)}/mês` : '—'}
                         </span>
                       </div>
                     </div>
@@ -377,7 +377,7 @@ export function Signup({ theme, onToggleTheme }: Props) {
                       <span className="h-5 w-16 rounded bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
                     ) : (
                       <span className="text-lg font-semibold text-zinc-900 dark:text-white tabular-nums">
-                        {catalogError ? '—' : eur.format(total)}
+                        {catalogError ? '—' : fmtEur(total)}
                         <span className="text-sm font-normal text-zinc-400"> /mês</span>
                       </span>
                     )}

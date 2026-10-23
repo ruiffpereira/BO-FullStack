@@ -17,8 +17,6 @@ export const MODULE_LABELS: Record<string, string> = {
 export const BILLABLE_MODULES = ['agenda', 'gym', 'loja'] as const
 export type BillableModule = (typeof BILLABLE_MODULES)[number]
 
-export const eur = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' })
-
 // ── Fronteira €↔cêntimos ────────────────────────────────────────────────────
 // A API do catálogo/overrides fala SEMPRE em cêntimos inteiros
 // (`monthlyAmountCents`/`amountCents`); a UI edita/mostra em euros. A conversão

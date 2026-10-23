@@ -56,6 +56,7 @@ vi.mock("../../src/gen/backoffice/hooks/usePostAdminUsersUseridEmailDomainNews.j
 }));
 vi.mock("../../src/gen/backoffice/hooks/useGetAdminEmailStatus.js", () => ({
   useGetAdminEmailStatus: () => statusMock(),
+  getAdminEmailStatusQueryKey: () => [{ url: "/admin/email/status" }],
 }));
 // Secção «Caixas» (B42 · fases 5 e 6): aqui só interessa que o modal a monta; o detalhe testa-se em AdminMailboxesSection.test.tsx.
 vi.mock("../../src/gen/backoffice/hooks/useGetAdminUsersUseridMailboxes.js", () => ({
@@ -72,7 +73,9 @@ vi.mock("../../src/gen/backoffice/hooks/usePostAdminUsersUseridMailboxesMailboxi
   usePostAdminUsersUseridMailboxesMailboxidEnable: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock("../../src/components/GuardButton", () => ({
-  GuardButton: ({ children, isLoading, ...rest }: any) => <button {...rest}>{children}</button>,
+  // Sem props de estilo/estado no DOM (isLoading, leaf, variant…): o write-guard não é o assunto destes testes.
+  GuardButton: ({ children, isLoading: _l, leaf: _f, variant: _v, size: _s, icon: _i, wrapperClassName: _w, ...rest }: any) => <button {...rest}>{children}</button>,
+  GuardIconButton: ({ icon: _i, label, leaf: _f, ...rest }: any) => <button aria-label={label} {...rest} />,
 }));
 vi.mock("../../src/components/confirm", () => ({
   confirmDialog: (...a: unknown[]) => confirmMock(...a),
@@ -247,7 +250,7 @@ describe("AdminEmailModal", () => {
     ["domain_not_verified", 409, "O domínio ainda não está verificado — põe os registos no DNS e carrega em «Verificar agora»."],
   ])("erro %s → mensagem PT", (key, status, msg) => {
     renderModal();
-    opts.put.mutation.onError({ response: { status, data: { error: key, message: "raw" } } });
+    opts.put.mutation.onError({ response: { status, data: { error: "raw", code: key.toUpperCase() } } });
     expect(toastError).toHaveBeenCalledWith(msg);
   });
 
@@ -264,7 +267,7 @@ describe("AdminEmailModal", () => {
     ["platform_domain_missing", "O domínio de email da plataforma ainda não está configurado no servidor."],
   ])("erro do código %s → mensagem PT", (key, msg) => {
     renderModal();
-    opts.put.mutation.onError({ response: { status: 409, data: { error: key } } });
+    opts.put.mutation.onError({ response: { status: 409, data: { error: "x", code: key.toUpperCase() } } });
     expect(toastError).toHaveBeenCalledWith(msg);
   });
 
@@ -277,7 +280,7 @@ describe("AdminEmailModal", () => {
 
   it("use-own com 409 domain_not_verified mostra a mensagem", () => {
     renderModal();
-    opts.own.mutation.onError({ response: { status: 409, data: { error: "domain_not_verified" } } });
+    opts.own.mutation.onError({ response: { status: 409, data: { error: "x", code: "DOMAIN_NOT_VERIFIED" } } });
     expect(toastError).toHaveBeenCalledWith(expect.stringContaining("ainda não está verificado"));
   });
 
@@ -502,11 +505,11 @@ describe("AdminEmailModal — domínio próprio (fase 7)", () => {
 
   it("erros novos em PT: mx_conflict, mx_not_ready, kind_required", () => {
     renderModal();
-    opts.put.mutation.onError({ response: { status: 409, data: { error: "mx_conflict" } } });
+    opts.put.mutation.onError({ response: { status: 409, data: { error: "x", code: "MX_CONFLICT" } } });
     expect(toastError).toHaveBeenLastCalledWith(expect.stringContaining("corta"));
-    opts.move.mutation.onError({ response: { status: 409, data: { error: "mx_not_ready" } } });
+    opts.move.mutation.onError({ response: { status: 409, data: { error: "x", code: "MX_NOT_READY" } } });
     expect(toastError).toHaveBeenLastCalledWith(expect.stringContaining("MX"));
-    opts.del.mutation.onError({ response: { status: 400, data: { error: "kind_required" } } });
+    opts.del.mutation.onError({ response: { status: 400, data: { error: "x", code: "KIND_REQUIRED" } } });
     expect(toastError).toHaveBeenLastCalledWith(expect.stringContaining("dois domínios"));
   });
 
@@ -621,7 +624,7 @@ describe("AdminEmailModal — Preparar campanhas (news.)", () => {
 
   it("409 own_domain_required tem texto PT", () => {
     renderModal();
-    opts.news.mutation.onError({ response: { status: 409, data: { error: "own_domain_required" } } });
+    opts.news.mutation.onError({ response: { status: 409, data: { error: "x", code: "OWN_DOMAIN_REQUIRED" } } });
     expect(toastError).toHaveBeenCalledWith(expect.stringContaining("domínio próprio"));
   });
 });

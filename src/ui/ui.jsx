@@ -4,7 +4,7 @@ import { Icon } from './icons.jsx';
 // ----------------------------------------------------------------------------
 // Shared UI primitives — minimal/clean, light & dark aware
 // ----------------------------------------------------------------------------
-const { useState: useStateUI, useEffect: useEffectUI, useRef: useRefUI } = React;
+const { useEffect: useEffectUI, useRef: useRefUI } = React;
 
 function Card({ children, className = '', ...rest }) {
   return (
@@ -23,6 +23,7 @@ function Button({ children, variant = 'primary', size = 'md', icon, isLoading = 
     outline: 'border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800',
     ghost: 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800',
     danger: 'bg-red-500 text-white hover:bg-red-600 shadow-sm',
+    warning: 'bg-amber-600 text-white hover:bg-amber-700 shadow-sm',
   };
   const iconCls = size === 'sm' ? 'w-4 h-4' : 'w-[18px] h-[18px]';
   return (

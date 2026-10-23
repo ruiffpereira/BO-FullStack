@@ -55,7 +55,9 @@ vi.mock("../../src/gen/backoffice/hooks/usePutAdminUsersUseridSiteDomain.js", ()
   },
 }));
 vi.mock("../../src/components/GuardButton", () => ({
-  GuardButton: ({ children, ...rest }: any) => <button {...rest}>{children}</button>,
+  // Sem props de estilo/estado no DOM (isLoading, leaf, variant…): o write-guard não é o assunto destes testes.
+  GuardButton: ({ children, isLoading: _l, leaf: _f, variant: _v, size: _s, icon: _i, wrapperClassName: _w, ...rest }: any) => <button {...rest}>{children}</button>,
+  GuardIconButton: ({ icon: _i, label, leaf: _f, ...rest }: any) => <button aria-label={label} {...rest} />,
 }));
 vi.mock("../../src/gen/backoffice/hooks/useDeleteUsersUserid.js", () => ({
   useDeleteUsersUserid: (opts: any) => {
@@ -308,7 +310,7 @@ describe("Admin — formulário de novo utilizador", () => {
     expect(toastError).toHaveBeenCalledWith("Email já registado");
 
     act(() => {
-      createMutationOptions.mutation.onError({ response: { status: 409, data: { error: "domain_taken" } } });
+      createMutationOptions.mutation.onError({ response: { status: 409, data: { error: "x", code: "DOMAIN_TAKEN" } } });
     });
     expect(toastError).toHaveBeenCalledWith("Esse website já pertence a outro cliente.");
 

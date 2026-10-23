@@ -6,7 +6,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card, Badge, Button, Input, Modal, EmptyState, IconButton, Avatar, Tabs, Toggle, SectionTitle } from "../ui/ui.jsx";
 import { Icon } from "../ui/icons.jsx";
 import { GuardButton, GuardIconButton } from "../components/GuardButton";
-import { Combobox } from "../components/Combobox";
 import { DatePicker } from "../components/DatePicker";
 import { TimeField } from "../components/TimeField";
 import { FileUpload } from "../components/FileUpload";

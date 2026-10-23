@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
+import type { AvailableLanguage } from "../gen/backoffice/types/AvailableLanguage.js";
+import type { GetSettingsLanguages200 } from "../gen/backoffice/types/GetSettingsLanguages.js";
 import { getSettingsLanguages, getSettingsLanguagesQueryKey } from "../gen/backoffice/hooks/useGetSettingsLanguages.js";
 import { putSettingsLanguages as putSettingsLanguagesGen } from "../gen/backoffice/hooks/usePutSettingsLanguages.js";
 
@@ -7,17 +9,8 @@ import { putSettingsLanguages as putSettingsLanguagesGen } from "../gen/backoffi
 // (`[{ url: "/settings/languages" }]`) já era, por coincidência, idêntica à
 // key manual de antes — reexportamo-la directamente, sem trocar consumidores.
 
-export interface AvailableLanguage {
-  code: string;
-  name: string;
-  flag: string;
-}
-
-export interface LanguageSettings {
-  available: AvailableLanguage[];
-  selected: string[];
-  default: string;
-}
+export type { AvailableLanguage };
+export type LanguageSettings = GetSettingsLanguages200;
 
 export { getSettingsLanguagesQueryKey };
 
@@ -28,7 +21,7 @@ export function useGetSettingsLanguages() {
   const allowed = !isMember || can("conteudos.linguas", "view");
   return useQuery({
     queryKey: getSettingsLanguagesQueryKey(),
-    queryFn: async () => (await getSettingsLanguages()) as LanguageSettings,
+    queryFn: () => getSettingsLanguages(),
     staleTime: 5 * 60 * 1000,
     enabled: isAuthenticated && allowed,
   });
@@ -37,8 +30,7 @@ export function useGetSettingsLanguages() {
 export function usePutSettingsLanguages() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { languages: string[]; default?: string }) =>
-      putSettingsLanguagesGen(body) as Promise<{ languages: string[]; default: string }>,
+    mutationFn: (body: { languages: string[]; default?: string }) => putSettingsLanguagesGen(body),
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: getSettingsLanguagesQueryKey() }),
   });

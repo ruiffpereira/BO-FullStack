@@ -5,31 +5,25 @@ import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getApiError } from '../lib/apiError'
 import { Icon } from '../ui/icons.jsx'
-import { Card, Badge, Avatar, Modal, Input, Button, IconButton, EmptyState, Tabs, Toggle } from '../ui/ui.jsx'
+import { Card, Badge, Avatar, Modal, Input, Button, EmptyState, Toggle } from '../ui/ui.jsx';
 import { usePageSubtitle } from '../context/PageMetaContext'
 import { GuardButton } from '../components/GuardButton'
 import { useTeamAccess } from '../hooks/useTeamAccess'
-import { CustomerEmailsTab } from '../components/correio/CustomerEmailsTab'
-import { CustomerNewsletterBox } from '../components/correio/CustomerNewsletterBox'
 import { usePagination, Pagination } from '../components/Pagination'
 import { DatePicker } from '../components/DatePicker'
 import { useGetCustomers, getCustomersQueryKey } from '../gen/backoffice/hooks/useGetCustomers.js'
 import { useGetScheduleServices } from '../gen/backoffice/hooks/useGetScheduleServices.js'
-import { useGetCustomersIdHistory, getCustomersIdHistoryQueryKey } from '../gen/backoffice/hooks/useGetCustomersIdHistory.js'
+import { getCustomersIdHistoryQueryKey } from '../gen/backoffice/hooks/useGetCustomersIdHistory.js';
 import { postCustomers } from '../gen/backoffice/hooks/usePostCustomers.js'
 import { patchCustomersId } from '../gen/backoffice/hooks/usePatchCustomersId.js'
 import { putScheduleAppointmentsId } from '../gen/backoffice/hooks/usePutScheduleAppointmentsId.js'
-import { getCustomersIdExport } from '../gen/backoffice/hooks/useGetCustomersIdExport.js'
-import { deleteCustomersId } from '../gen/backoffice/hooks/useDeleteCustomersId.js'
 import type { Customer } from '../gen/backoffice/types/Customer.js'
 import type { Appointment } from '../gen/backoffice/types/Appointment.js'
+import { CustomerProfileModal } from '../components/customers/CustomerProfileModal'
 import { ApptModal } from '../components/ApptModal.js'
-import { ClienteMensalidade } from './GymMensalidade'
-import { ConfirmDialog } from '../components/ConfirmDialog'
 import { LeadsInbox } from './clientes/LeadsInbox'
 import { colorFromName } from '../lib/avatarColor'
-import { OpenConversationShortcut } from '../components/chat/OpenConversationShortcut'
-import { apptStatusView } from '../lib/apptStatus'
+import type { PutScheduleAppointmentsIdMutationRequestStatusEnum } from '../gen/backoffice/types/PutScheduleAppointmentsId.js'
 
 
 function SkeletonRow() {
@@ -48,18 +42,7 @@ function SkeletonRow() {
 type CustomerForm = { name: string; email: string; contact: string; nif: string; wantsInvoice: boolean; birthday: string; notes: string }
 const emptyForm: CustomerForm = { name: '', email: '', contact: '', nif: '', wantsInvoice: false, birthday: '', notes: '' }
 
-type HistoryAppt = {
-  appointmentId: string; serviceId: string; date: string; time: string; status: string
-  clientName: string; clientEmail: string; clientPhone: string; notes?: string | null
-  paymentCash?: number | null; paymentMbway?: number | null; paymentCard?: number | null; paidAt?: string | null
-  servicePrice?: number | null
-  service?: { name: string; price: number }
-}
-type CustomerHistory = {
-  customer: Customer
-  stats: { visitCount: number; totalSpent?: number; lastVisit: string | null; favoriteServiceId: string | null }
-  appointments: HistoryAppt[]
-}
+type HistoryAppt = Appointment
 
 export type ClientesView = 'clientes' | 'leads'
 
@@ -67,23 +50,15 @@ export type ClientesView = 'clientes' | 'leads'
  * Página "Clientes" (core). Cada separador vive na sua própria rota (`/clientes`,
  * `/clientes/leads`, T2.2 — Fase 2 da sidebar com submenus) — a navegação entre
  * vistas já não é feita por `Tabs` de topo, é a sidebar (`NavItemGroup`/
- * `Shell.tsx`); a página só recebe a vista pedida via `view`. As tabs da FICHA
- * do cliente (Agenda/Ginásio, `profileTab` abaixo) NÃO migram — continuam como
- * estado local dentro do modal de perfil.
+ * `Shell.tsx`); a página só recebe a vista pedida via `view`. A FICHA do
+ * cliente é `components/customers/CustomerProfileModal` (a mesma da Agenda; aqui `full`, com os
+ * separadores Agenda/Ginásio/Emails como estado local da modal).
  */
 export function Clientes({ view }: { view: ClientesView }) {
   const { hasPermission } = useAuth()
-  // Equipa (B41 2b): exportar/apagar são acções próprias; o dinheiro das marcações é `agenda.marcacoes.valores`
-  // (sem ele a API nem envia `totalSpent` nem os pagamentos — a caixa e o aviso de dívida somem).
+  // Equipa (B41 2b): a ficha de cliente resolve as suas próprias permissões (`customerAccess`); aqui só o que a página usa.
   const { can } = useTeamAccess()
-  const canExport = can('clientes.lista.exportar', 'edit')
-  const canErase = can('clientes.lista.apagar', 'edit')
-  const showMoney = can('agenda.marcacoes.valores', 'view')
-  // Um membro só vê os separadores Agenda/Ginásio da ficha se tiver as folhas desses módulos (a API recusa o resto).
   const canSchedule = hasPermission('VIEW_SCHEDULE') && can('agenda', 'view')
-  const canGym = hasPermission('VIEW_GYM') && can('financeiro.mensalidades', 'view')
-  // Correio (B42): separador Emails da ficha — módulo VIEW_EMAIL + Caixa (Ver) + Clientes → Lista (Ver).
-  const canMail = hasPermission('VIEW_EMAIL') && can('correio.caixa', 'view') && can('clientes.lista', 'view')
   const qc = useQueryClient()
   const navigate = useNavigate()
   const location = useLocation()
@@ -96,25 +71,11 @@ export function Clientes({ view }: { view: ClientesView }) {
   const [editCustomer, setEditCustomer] = useState<Customer | null>(null)
   const [form, setForm] = useState<CustomerForm>(emptyForm)
   const [selAppt, setSelAppt] = useState<HistoryAppt | null>(null)
-  const [eraseTarget, setEraseTarget] = useState<Customer | null>(null)
-  const [exporting, setExporting] = useState(false)
-  // Tab ativa na ficha do cliente (cada tab só aparece com a permissão respetiva).
-  const profileTabs = [
-    ...(canSchedule ? [{ id: 'agenda' as const, label: 'Agenda', icon: 'calendar' }] : []),
-    ...(canGym ? [{ id: 'ginasio' as const, label: 'Ginásio', icon: 'euro' }] : []),
-    ...(canMail ? [{ id: 'emails' as const, label: 'Emails', icon: 'mail' }] : []),
-  ]
-  const [profileTab, setProfileTab] = useState<'agenda' | 'ginasio' | 'emails'>('agenda')
-  useEffect(() => { if (profileId) setProfileTab(profileTabs[0]?.id ?? 'agenda') }, [profileId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data, isLoading, isError } = useGetCustomers()
   const { data: svcData } = useGetScheduleServices({ query: { enabled: canSchedule } })
-  const { data: history, isLoading: loadingHistory } = useGetCustomersIdHistory<CustomerHistory>(
-    profileId ?? '',
-    { query: { enabled: !!profileId && canSchedule } },
-  )
   const services = svcData ?? []
-  const customers = data?.rows ?? []
+  const customers = useMemo(() => data?.rows ?? [], [data])
   const totalClientes = data?.count ?? customers.length
   usePageSubtitle(`${totalClientes} ${totalClientes === 1 ? 'cliente registado' : 'clientes registados'}.`)
 
@@ -141,7 +102,7 @@ export function Clientes({ view }: { view: ClientesView }) {
       wantsInvoice: data.wantsInvoice,
       birthday: data.birthday || undefined,
       notes: data.notes || undefined,
-    } as any),
+    }),
     onSuccess: () => {
       toast.success('Cliente criado')
       qc.invalidateQueries({ queryKey: getCustomersQueryKey() })
@@ -152,7 +113,7 @@ export function Clientes({ view }: { view: ClientesView }) {
   })
 
   const updateMut = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<CustomerForm> }) => patchCustomersId(id, data as any),
+    mutationFn: ({ id, data }: { id: string; data: Partial<CustomerForm> }) => patchCustomersId(id, data),
     onSuccess: () => {
       toast.success('Cliente actualizado')
       qc.invalidateQueries({ queryKey: getCustomersQueryKey() })
@@ -164,7 +125,7 @@ export function Clientes({ view }: { view: ClientesView }) {
 
   const updateApptMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
-      putScheduleAppointmentsId(id, data as any),
+      putScheduleAppointmentsId(id, data),
     onSuccess: () => {
       toast.success('Marcação actualizada')
       if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
@@ -174,57 +135,11 @@ export function Clientes({ view }: { view: ClientesView }) {
 
   const setStatusApptMut = useMutation({
     mutationFn: ({ id, status, data }: { id: string; status: string; data?: Record<string, unknown> }) =>
-      putScheduleAppointmentsId(id, { status, ...data } as any),
+      putScheduleAppointmentsId(id, { ...data, status: status as PutScheduleAppointmentsIdMutationRequestStatusEnum }),
     onSuccess: (_d, { status }) => {
       toast.success(status === 'cancelled' ? 'Marcação cancelada' : 'Marcação reativada')
       setSelAppt(null)
       if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
-    },
-    onError: (e: any) => toast.error(getApiError(e)),
-  })
-
-  const blockMut = useMutation({
-    mutationFn: ({ id, blocked }: { id: string; blocked: boolean }) => patchCustomersId(id, { blocked } as any),
-    onSuccess: (_d, { blocked }) => {
-      toast.success(blocked ? 'Cliente bloqueado' : 'Cliente desbloqueado')
-      qc.invalidateQueries({ queryKey: getCustomersQueryKey() })
-      if (profileId) qc.invalidateQueries({ queryKey: getCustomersIdHistoryQueryKey(profileId) })
-    },
-    onError: (e: any) => toast.error(getApiError(e)),
-  })
-
-  // ── RGPD: exportar / anonimizar ──
-  const exportData = async (c: Customer) => {
-    try {
-      setExporting(true)
-      // O endpoint devolve um blob (ficheiro JSON), não JSON estruturado — o
-      // `RequestConfig` do client gerado aceita `responseType` (subset do
-      // AxiosRequestConfig), passado direto para o mesmo axiosInstance; o
-      // wrapper gerado já devolve `res.data` desembrulhado.
-      const blob = await getCustomersIdExport(c.customerId, { responseType: 'blob' })
-      const url = URL.createObjectURL(blob as Blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `dados-cliente-${c.customerId}.json`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
-      toast.success('Exportação concluída')
-    } catch (e) {
-      toast.error(getApiError(e))
-    } finally {
-      setExporting(false)
-    }
-  }
-
-  const eraseMut = useMutation({
-    mutationFn: (id: string) => deleteCustomersId(id),
-    onSuccess: () => {
-      toast.success('Dados pessoais anonimizados (RGPD)')
-      qc.invalidateQueries({ queryKey: getCustomersQueryKey() })
-      setEraseTarget(null)
-      closeProfile()
     },
     onError: (e: any) => toast.error(getApiError(e)),
   })
@@ -249,7 +164,7 @@ export function Clientes({ view }: { view: ClientesView }) {
 
   const openEdit = (c: Customer) => {
     setEditCustomer(c)
-    setForm({ name: c.name, email: c.email ?? '', contact: c.contact ?? '', nif: c.nif ?? '', wantsInvoice: (c as any).wantsInvoice ?? false, birthday: c.birthday ?? '', notes: c.notes ?? '' })
+    setForm({ name: c.name, email: c.email ?? '', contact: c.contact ?? '', nif: c.nif ?? '', wantsInvoice: c.wantsInvoice ?? false, birthday: c.birthday ?? '', notes: c.notes ?? '' })
   }
 
   const set = (k: keyof CustomerForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -266,9 +181,6 @@ export function Clientes({ view }: { view: ClientesView }) {
     if (!editCustomer) return
     updateMut.mutate({ id: editCustomer.customerId, data: form })
   }
-
-  const profileCustomer = profileId ? (history?.customer ?? customers.find((c) => c.customerId === profileId)) : null
-  const favoriteService = history?.appointments.find((a) => a.service && a.serviceId === history.stats.favoriteServiceId)?.service
 
   return (
     <div>
@@ -343,195 +255,28 @@ export function Clientes({ view }: { view: ClientesView }) {
       </Card>
       )}
 
-      {/* ── Customer profile modal ── */}
-      {profileId && profileCustomer && (
-        <Modal
-          open
+      {/* ── Ficha de cliente (a mesma da Agenda; aqui a versão completa) ── */}
+      {profileId && (
+        <CustomerProfileModal
+          full
+          customerId={profileId}
+          customers={customers}
           onClose={closeProfile}
-          title="Ficha de cliente"
-          width="max-w-lg"
-          footer={
-            <>
-              {returnToAppointment && (
-                <Button
-                  variant="outline"
-                  icon="calendar"
-                  onClick={() => navigate(`/agenda?marcacao=${encodeURIComponent(returnToAppointment.appointmentId)}&data=${encodeURIComponent(returnToAppointment.date)}`)}
-                >
-                  Voltar à marcação
-                </Button>
-              )}
-              <Button variant="outline" icon="edit" onClick={() => openEdit(profileCustomer)}>Editar</Button>
-              <GuardButton
+          onOpenAppointment={(a) => setSelAppt(a)}
+          onEdit={openEdit}
+          footerLeading={
+            returnToAppointment ? (
+              <Button
                 variant="outline"
-                disabled={blockMut.isPending}
-                onClick={() => blockMut.mutate({ id: profileCustomer.customerId, blocked: !profileCustomer.blocked })}
-                className={profileCustomer.blocked ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50' : 'text-red-500 border-red-200 hover:bg-red-50'}
+                icon="calendar"
+                onClick={() => navigate(`/agenda?marcacao=${encodeURIComponent(returnToAppointment.appointmentId)}&data=${encodeURIComponent(returnToAppointment.date)}`)}
               >
-                {blockMut.isPending ? '…' : profileCustomer.blocked ? 'Desbloquear' : 'Bloquear'}
-              </GuardButton>
-              <div className="flex-1" />
-              <Button variant="ghost" onClick={closeProfile}>Fechar</Button>
-            </>
+                Voltar à marcação
+              </Button>
+            ) : null
           }
-        >
-          <div className="space-y-5">
-            {/* Header */}
-            <div className="flex items-center gap-4">
-              <Avatar name={profileCustomer.name} color={colorFromName(profileCustomer.name)} size={56} />
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">{profileCustomer.name}</h3>
-                  {profileCustomer.blocked && (
-                    <Badge tone="red"><Icon name="ban" className="w-3 h-3 inline mr-0.5" />Bloqueado</Badge>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  {profileCustomer.birthday && (
-                    <span className="text-xs text-zinc-400 flex items-center gap-1">
-                      <Icon name="star" className="w-3 h-3" />
-                      {new Date(profileCustomer.birthday + 'T00:00:00').toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' })}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Contact info */}
-            <div className="space-y-2 text-sm text-zinc-600 dark:text-zinc-300">
-              {profileCustomer.email && <div className="flex items-center gap-2.5"><Icon name="mail" className="w-4 h-4 text-zinc-400" />{profileCustomer.email}</div>}
-              {profileCustomer.contact && <div className="flex items-center gap-2.5"><Icon name="phone" className="w-4 h-4 text-zinc-400" />{profileCustomer.contact}</div>}
-              {profileCustomer.nif && <div className="flex items-center gap-2.5"><Icon name="layers" className="w-4 h-4 text-zinc-400" />NIF {profileCustomer.nif}</div>}
-            </div>
-
-            {/* Consentimento de email de novidades (B42 · fase 8) */}
-            <CustomerNewsletterBox customerId={profileCustomer.customerId} />
-
-            {/* Atalho para a conversa do cliente (Mensagens → Clientes), se existir */}
-            <OpenConversationShortcut customerId={profileCustomer.customerId} onNavigate={closeProfile} />
-
-            {/* Notes */}
-            {profileCustomer.notes && (
-              <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-xl p-3 text-sm text-amber-900 dark:text-amber-200">
-                <p className="text-xs font-medium text-amber-600 dark:text-amber-400 mb-1">Notas</p>
-                {profileCustomer.notes}
-              </div>
-            )}
-
-            {/* Tabs por permissão (Agenda / Ginásio / …) */}
-            {profileTabs.length > 0 && (
-              <Tabs tabs={profileTabs} value={profileTab} onChange={setProfileTab} fullWidth size="sm" />
-            )}
-
-            {/* Tab Emails — conversas da caixa do negócio com este cliente (B42) */}
-            {profileTab === 'emails' && canMail && <CustomerEmailsTab customerId={profileCustomer.customerId} onOpen={closeProfile} />}
-
-            {/* Tab Ginásio — mensalidade do cliente */}
-            {profileTab === 'ginasio' && canGym && <ClienteMensalidade customerId={profileCustomer.customerId} dense />}
-
-            {/* Tab Agenda — stats + histórico de marcações */}
-            {profileTab === 'agenda' && canSchedule && loadingHistory && (
-              <div className="grid grid-cols-3 gap-3">
-                {[1, 2, 3].map((i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" />)}
-              </div>
-            )}
-            {profileTab === 'agenda' && canSchedule && !loadingHistory && history && (
-              <>
-                <div className={`grid gap-3 ${showMoney && history.stats.totalSpent != null ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
-                    <p className="text-2xl font-bold text-zinc-900 dark:text-white">{history.stats.visitCount}</p>
-                    <p className="text-xs text-zinc-400 mt-0.5">visitas</p>
-                  </div>
-                  {showMoney && history.stats.totalSpent != null && (
-                    <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
-                      <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{history.stats.totalSpent.toFixed(0)}€</p>
-                      <p className="text-xs text-zinc-400 mt-0.5">gasto total</p>
-                    </div>
-                  )}
-                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 text-center">
-                    <p className="text-sm font-bold text-zinc-900 dark:text-white leading-tight">{favoriteService?.name ?? '—'}</p>
-                    <p className="text-xs text-zinc-400 mt-0.5">serviço favorito</p>
-                  </div>
-                </div>
-                {history.stats.lastVisit && (
-                  <p className="text-xs text-zinc-400 text-center -mt-1">Última visita: {new Date(history.stats.lastVisit + 'T00:00:00').toLocaleDateString('pt-PT', { dateStyle: 'long' })}</p>
-                )}
-
-                {/* Aviso de dívida — soma das marcações concluídas com saldo em falta */}
-                {showMoney && (() => {
-                  const totalDebt = history.appointments.reduce((s, a) => {
-                    if (a.status !== 'completed') return s
-                    const paid = Number(a.paymentCash || 0) + Number(a.paymentMbway || 0) + Number(a.paymentCard || 0)
-                    return s + Math.max(0, Number(a.servicePrice ?? a.service?.price ?? 0) - paid)
-                  }, 0)
-                  return totalDebt > 0 ? (
-                    <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700/60 px-3 py-2.5 text-sm font-medium text-amber-800 dark:text-amber-300 flex items-center gap-2">
-                      <Icon name="alertCircle" className="w-4 h-4 shrink-0" />
-                      <span>Este cliente tem {totalDebt.toFixed(2)} € em dívida.</span>
-                    </div>
-                  ) : null
-                })()}
-
-                {/* Appointment history */}
-                {history.appointments.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">Histórico de marcações</p>
-                    <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
-                      {history.appointments.map((a) => {
-                        const totalPaid = Number(a.paymentCash || 0) + Number(a.paymentMbway || 0) + Number(a.paymentCard || 0)
-                        const paid = showMoney && a.paidAt ? totalPaid : null
-                        const view = apptStatusView(a)
-                        return (
-                          <button
-                            key={a.appointmentId}
-                            onClick={() => setSelAppt(a)}
-                            className="w-full flex items-center gap-3 p-2.5 pl-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/40 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition text-left"
-                          >
-                            <span className={`w-1 self-stretch rounded-full shrink-0 ${view.barClass}`} aria-hidden="true" />
-                            <div className="min-w-0 flex-1">
-                              <p className="font-medium text-zinc-800 dark:text-zinc-100">{a.date} · {a.time}</p>
-                              <p className="text-xs text-zinc-400 truncate">{a.service?.name ?? '—'}</p>
-                            </div>
-                            <div className="text-right shrink-0">
-                              <Badge tone={view.tone}>{view.label}</Badge>
-                              {paid != null && paid > 0 && <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">{paid.toFixed(2)} €</p>}
-                            </div>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-                {history.appointments.length === 0 && (
-                  <p className="text-sm text-zinc-400 text-center py-2">Sem marcações registadas para este cliente.</p>
-                )}
-              </>
-            )}
-
-            {/* Privacidade (RGPD) */}
-            {(canExport || canErase) && (
-              <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 flex flex-wrap items-center gap-2">
-                <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide mr-auto">Privacidade (RGPD)</span>
-                {canExport && <Button variant="outline" size="sm" icon="package" isLoading={exporting} onClick={() => exportData(profileCustomer)}>Exportar dados</Button>}
-                {canErase && <GuardButton variant="outline" size="sm" icon="trash" className="text-red-500 border-red-200 hover:bg-red-50 dark:border-red-500/30 dark:hover:bg-red-500/10" onClick={() => setEraseTarget(profileCustomer)}>Apagar dados</GuardButton>}
-              </div>
-            )}
-          </div>
-        </Modal>
+        />
       )}
-
-      {/* ── RGPD: confirmar anonimização ── */}
-      <ConfirmDialog
-        open={!!eraseTarget}
-        onClose={() => setEraseTarget(null)}
-        onConfirm={() => eraseTarget && eraseMut.mutate(eraseTarget.customerId)}
-        variant="danger"
-        title="Apagar dados do cliente?"
-        description={<>Os dados pessoais de <strong>{eraseTarget?.name}</strong> serão <strong>anonimizados</strong> (nome, email, telefone, NIF, data de nascimento, notas) e as marcações deixam de conter dados pessoais. O histórico e os registos financeiros mantêm-se. <strong>Esta ação é irreversível.</strong></>}
-        confirmLabel="Anonimizar"
-        pendingLabel="A anonimizar…"
-        isPending={eraseMut.isPending}
-      />
 
       {/* ── Create customer modal ── */}
       {createOpen && (

@@ -33,6 +33,7 @@ import {
 import { MAX_DEPTH, canAddChild, canMovePage, flattenPages, pagePath, pageTitle, type PageRow } from "../state/tree";
 import type { Block, Page, PartName } from "../state/types";
 import { Confirm } from "./EditorBits";
+import { REVEAL_ON_HOVER } from "../../../ui/reveal";
 import { DragHandle, SortableTree, type HandleProps } from "./SortableTree";
 import { SortableList } from "./SortableList";
 
@@ -43,7 +44,7 @@ const rowTone = (active: boolean) => (active ? "bg-accent/10 text-accent" : "tex
 const iconBtn =
   "h-10 w-8 [@media(hover:none)]:w-10 shrink-0 inline-flex items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-200/70 dark:text-zinc-400 dark:hover:bg-zinc-700/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-40 disabled:pointer-events-none";
 // Acções de linha: escondidas até ao hover/foco — mas sempre visíveis em ecrãs de toque.
-const reveal = "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100";
+const reveal = REVEAL_ON_HOVER;
 const tip = "px-2 pt-1 pb-2 text-xs text-zinc-400 dark:text-zinc-500";
 const headBtn = "min-h-10 !px-2";
 

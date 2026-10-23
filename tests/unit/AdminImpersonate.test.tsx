@@ -35,7 +35,9 @@ vi.mock("../../src/gen/backoffice/hooks/useDeleteUsersUserid.js", () => ({
   useDeleteUsersUserid: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock("../../src/components/GuardButton", () => ({
-  GuardButton: ({ children, ...rest }: any) => <button {...rest}>{children}</button>,
+  // Sem props de estilo/estado no DOM (isLoading, leaf, variant…): o write-guard não é o assunto destes testes.
+  GuardButton: ({ children, isLoading: _l, leaf: _f, variant: _v, size: _s, icon: _i, wrapperClassName: _w, ...rest }: any) => <button {...rest}>{children}</button>,
+  GuardIconButton: ({ icon: _i, label, leaf: _f, ...rest }: any) => <button aria-label={label} {...rest} />,
 }));
 vi.mock("../../src/context/AuthContext", () => ({
   useAuth: () => authMock(),

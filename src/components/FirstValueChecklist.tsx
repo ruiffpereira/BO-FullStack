@@ -49,8 +49,7 @@ function writeDismissed(userId: string | null) {
 }
 
 export function FirstValueChecklist() {
-  const { authHeader, hasPermission, userId } = useAuth()
-  const headers = authHeader()
+  const { hasPermission, userId } = useAuth()
   const navigate = useNavigate()
 
   const [expanded, setExpanded] = useState(true)
@@ -70,23 +69,18 @@ export function FirstValueChecklist() {
   // permissão correspondente (sem pedidos a mais para tenants de outra vertical).
   const { data: customersData } = useGetCustomers({
     query: { enabled: (isCoreOnly || canGym) && canCustomers },
-    client: { headers },
   })
   const { data: services } = useGetScheduleServices({
     query: { enabled: canSchedule },
-    client: { headers },
   })
   const { data: workingHours } = useGetScheduleWorkingHours({
     query: { enabled: canSchedule },
-    client: { headers },
   })
   const { data: gymSubscriptions } = useGetGymSubscriptions({
     query: { enabled: canGym },
-    client: { headers },
   })
   const { data: productsData } = useGetProducts({
     query: { enabled: canProducts },
-    client: { headers },
   })
 
   const customersCount = customersData?.count ?? customersData?.rows?.length ?? 0

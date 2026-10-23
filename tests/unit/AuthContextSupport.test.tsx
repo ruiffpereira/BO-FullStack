@@ -37,14 +37,14 @@ const getCsrfTokenMock = vi.fn();
 vi.mock("../../src/gen/backoffice/hooks/useGetCsrfToken", () => ({
   getCsrfToken: (...args: unknown[]) => getCsrfTokenMock(...args),
 }));
-const getUserpermissionsMock = vi.fn();
+const getUserPermissionsMock = vi.fn();
 // B41 — acesso da equipa: por omissão o dono do tenant (`member: null`).
-const getUserpermissionsAccessMock = vi.fn();
-vi.mock("../../src/gen/backoffice/hooks/useGetUserpermissionsAccess", () => ({
-  getUserpermissionsAccess: (...args: unknown[]) => getUserpermissionsAccessMock(...args),
+const getUserPermissionsAccessMock = vi.fn();
+vi.mock("../../src/gen/backoffice/hooks/useGetUserPermissionsAccess", () => ({
+  getUserPermissionsAccess: (...args: unknown[]) => getUserPermissionsAccessMock(...args),
 }));
-vi.mock("../../src/gen/backoffice/hooks/useGetUserpermissions", () => ({
-  getUserpermissions: (...args: unknown[]) => getUserpermissionsMock(...args),
+vi.mock("../../src/gen/backoffice/hooks/useGetUserPermissions", () => ({
+  getUserPermissions: (...args: unknown[]) => getUserPermissionsMock(...args),
 }));
 
 import { AuthProvider, useAuth } from "../../src/context/AuthContext";
@@ -122,8 +122,8 @@ beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
   getCsrfTokenMock.mockResolvedValue({ csrfToken: "csrf-token-abc" });
-  getUserpermissionsMock.mockResolvedValue([]);
-  getUserpermissionsAccessMock.mockResolvedValue({ member: null, modules: [] });
+  getUserPermissionsMock.mockResolvedValue([]);
+  getUserPermissionsAccessMock.mockResolvedValue({ member: null, modules: [] });
   axiosPostMock.mockResolvedValue({ status: 200, data: {} });
 });
 
@@ -166,7 +166,10 @@ describe("AuthContext — sessão de suporte", () => {
       config: { url: "/customers", headers: {} },
       response: { status: 401, data: { code: "SUPPORT_SESSION_ENDED" } },
     };
-    await expect(responseInterceptorRef.current!(err)).rejects.toBe(err);
+    // O interceptor actualiza o estado do AuthProvider (termina a sessão): dentro de `act`.
+    await act(async () => {
+      await expect(responseInterceptorRef.current!(err)).rejects.toBe(err);
+    });
 
     expect(refreshCalls()).toHaveLength(0);
     expect(getCsrfTokenMock).not.toHaveBeenCalled();
@@ -250,14 +253,14 @@ describe("AuthContext — sessão de suporte", () => {
     expect(axiosPostMock).not.toHaveBeenCalled();
     expect(getCsrfTokenMock).not.toHaveBeenCalled();
     // As permissões foram pedidas com o token de SUPORTE, nunca o do admin.
-    expect(getUserpermissionsMock.mock.calls[0][0].headers.Authorization).toBe("Bearer support.token.value");
+    expect(getUserPermissionsMock.mock.calls[0][0].headers.Authorization).toBe("Bearer support.token.value");
     expect(localStorage.length).toBe(0);
   });
 
   it("arranque com sessão válida mas 401 nas permissões: termina a sessão, sem refresh", async () => {
     sessionStorage.setItem(SUPPORT_KEY, JSON.stringify(supportResponse()));
-    getUserpermissionsMock.mockImplementation(async () => {
-      const err: any = { config: { url: "/userpermissions", headers: {} }, response: { status: 401, data: {} } };
+    getUserPermissionsMock.mockImplementation(async () => {
+      const err: any = { config: { url: "/user-permissions", headers: {} }, response: { status: 401, data: {} } };
       await responseInterceptorRef.current!(err).catch(() => {});
       throw err;
     });
@@ -307,7 +310,9 @@ describe("AuthContext — sessão de suporte", () => {
     axiosCallMock.mockResolvedValue({ data: "ok" });
 
     const err: any = { config: { url: "/customers", headers: {} }, response: { status: 401 } };
-    await responseInterceptorRef.current!(err);
+    await act(async () => {
+      await responseInterceptorRef.current!(err);
+    });
 
     expect(refreshCalls()).toHaveLength(1);
     expect(axiosCallMock).toHaveBeenCalledTimes(1);

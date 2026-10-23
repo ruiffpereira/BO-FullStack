@@ -98,9 +98,9 @@ describe("CustomerNewsletterBox", () => {
 
   it("409 contact_blocked / customer_no_email → mensagem PT", () => {
     renderBox();
-    opts.put.mutation.onError({ response: { status: 409, data: { error: "contact_blocked" } } });
+    opts.put.mutation.onError({ response: { status: 409, data: { error: "x", code: "CONTACT_BLOCKED" } } });
     expect(toastError).toHaveBeenLastCalledWith(expect.stringContaining("bloqueado"));
-    opts.put.mutation.onError({ response: { status: 409, data: { error: "customer_no_email" } } });
+    opts.put.mutation.onError({ response: { status: 409, data: { error: "x", code: "CUSTOMER_NO_EMAIL" } } });
     expect(toastError).toHaveBeenLastCalledWith("Este cliente não tem email na ficha.");
   });
 });

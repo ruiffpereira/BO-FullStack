@@ -14,6 +14,7 @@ import { usePostMailContactsContactidUnsubscribe } from "../gen/backoffice/hooks
 import { usePostMailContactsImport } from "../gen/backoffice/hooks/usePostMailContactsImport.js";
 import type { MailContact } from "../gen/backoffice/types/MailContact.js";
 import type { MailContactImportResult } from "../gen/backoffice/types/MailContactImportResult.js";
+import type { GetMailContactsQueryParamsSourceEnum, GetMailContactsQueryParamsStatusEnum } from "../gen/backoffice/types/GetMailContacts.js";
 import {
   CONTACT_SKIP_REASON,
   CONTACT_SOURCE,
@@ -73,8 +74,8 @@ export function CorreioContactos() {
   useEffect(() => setPage(1), [q, tag, status, source]);
 
   const filters = {
-    ...(status ? { status: status as any } : {}),
-    ...(source ? { source: source as any } : {}),
+    ...(status ? { status: status as GetMailContactsQueryParamsStatusEnum } : {}),
+    ...(source ? { source: source as GetMailContactsQueryParamsSourceEnum } : {}),
     ...(q ? { q } : {}),
     ...(tag ? { tag } : {}),
   };

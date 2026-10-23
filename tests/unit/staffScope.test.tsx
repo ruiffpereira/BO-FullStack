@@ -1,3 +1,4 @@
+import { fmtEur } from "../../src/lib/money";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { grantScope, grantScopeAll, type GrantEntry } from "../../src/lib/teamTree";
@@ -38,7 +39,7 @@ describe("staffFilter — âmbito fixo e dica de serviço", () => {
   });
 
   it("staffPriceHint: preço quando existe; aviso quando não faz o serviço; nada sem preço", () => {
-    expect(staffPriceHint(STAFF, "a1")).toBe("Preço com este profissional: 18.00€");
+    expect(staffPriceHint(STAFF, "a1")).toBe(`Preço com este profissional: ${fmtEur(18)}`);
     expect(staffPriceHint(STAFF, "b2")).toMatch(/não faz este serviço/);
     expect(staffPriceHint([{ staffId: "c3" }], "c3")).toBeNull();
     expect(staffPriceHint(STAFF, "")).toBeNull();
@@ -160,7 +161,7 @@ describe("StaffField — «Só os meus» e dica do serviço", () => {
       isLoading: false,
     });
     render(<StaffField value="a1" onChange={() => {}} serviceId="svc1" leaves={["agenda.marcacoes"]} />);
-    expect(screen.getByText("Preço com este profissional: 20.00€")).toBeInTheDocument();
+    expect(screen.getByText(/Preço com este profissional: 20,00/)).toBeInTheDocument();
   });
 });
 

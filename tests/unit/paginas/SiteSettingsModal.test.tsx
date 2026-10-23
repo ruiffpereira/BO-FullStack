@@ -113,9 +113,9 @@ describe("Definições do site — nome", () => {
     expect(screen.getByRole("button", { name: "Guardar nome" })).toBeDisabled();
   });
 
-  it("400 com a lista do zod mostra a primeira mensagem", () => {
+  it("400 no formato único mostra a frase de `error` (G-16)", () => {
     renderModal();
-    act(() => s.opts.settings.onError(apiErr(400, { error: [{ path: ["siteName"], message: "siteName: máximo 80 caracteres" }] })));
+    act(() => s.opts.settings.onError(apiErr(400, { error: "siteName: máximo 80 caracteres", code: "VALIDATION", fields: [{ path: "siteName", code: "too_big" }] })));
     expect(screen.getByRole("alert")).toHaveTextContent("siteName: máximo 80 caracteres");
   });
 });

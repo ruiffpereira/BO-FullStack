@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { apptStatusView, apptDebt } from "../../src/lib/apptStatus";
+import { fmtEur } from "../../src/lib/money";
 
 describe("apptStatusView", () => {
   it("confirmada → azul", () => {
@@ -10,24 +11,16 @@ describe("apptStatusView", () => {
   });
 
   it("concluída sem dívida (paga por completo) → verde", () => {
-    const view = apptStatusView({
-      status: "completed",
-      servicePrice: 30,
-      paymentCash: 30,
-    });
+    const view = apptStatusView({ status: "completed", debt: 0 });
     expect(view.tone).toBe("green");
     expect(view.label).toBe("Concluída");
     expect(view.debt).toBe(0);
   });
 
   it("concluída com dívida (pagamento parcial) → amarelo, label inclui o valor", () => {
-    const view = apptStatusView({
-      status: "completed",
-      servicePrice: 30,
-      paymentCash: 15,
-    });
+    const view = apptStatusView({ status: "completed", debt: 15 });
     expect(view.tone).toBe("amber");
-    expect(view.label).toBe("Dívida 15.00 €");
+    expect(view.label).toBe(`Dívida ${fmtEur(15)}`);
     expect(view.debt).toBe(15);
   });
 
@@ -61,24 +54,10 @@ describe("apptStatusView", () => {
     expect(view.tone).toBe("amber");
   });
 
-  it("dívida com pagamento repartido (dinheiro + cartão parcial)", () => {
-    const debt = apptDebt({
-      status: "completed",
-      servicePrice: 50,
-      paymentCash: 10,
-      paymentMbway: 5,
-      paymentCard: 20,
-    });
-    expect(debt).toBe(15);
-  });
-
-  it("dívida usa service.price como fallback quando não há servicePrice", () => {
-    const debt = apptDebt({
-      status: "completed",
-      service: { price: 40 },
-      paymentCard: 25,
-    });
-    expect(debt).toBe(15);
+  it("a dívida é a que a API envia (`debt`): o ecrã não faz contas (AG-18)", () => {
+    expect(apptDebt({ status: "completed", debt: 15 })).toBe(15);
+    // mesmo com preço/pagamentos à vista, o que manda é o campo da API
+    expect(apptDebt({ status: "completed", debt: 0 })).toBe(0);
   });
 
   it("sem os campos de dinheiro (membro sem 'valores') não inventa dívida a partir do preço do catálogo", () => {
@@ -87,29 +66,15 @@ describe("apptStatusView", () => {
     expect(apptStatusView(appt).label).toBe("Concluída");
   });
 
-  it("nunca há dívida fora de 'completed', mesmo sem pagamento", () => {
-    expect(apptDebt({ status: "confirmed", servicePrice: 30 })).toBe(0);
-    expect(apptDebt({ status: "pending", servicePrice: 30 })).toBe(0);
-    expect(apptDebt({ status: "cancelled", servicePrice: 30 })).toBe(0);
+  it("sem `debt` (membro sem 'valores' ou resposta sem o campo) → 0, nunca negativa", () => {
+    expect(apptDebt({ status: "completed" })).toBe(0);
+    expect(apptDebt({ status: "completed", debt: -3 })).toBe(0);
   });
 
-  it("dívida nunca é negativa (pagamento acima do preço)", () => {
-    expect(
-      apptDebt({ status: "completed", servicePrice: 20, paymentCash: 25 }),
-    ).toBe(0);
-  });
-
-  it("resíduo de vírgula flutuante em pagamento repartido não gera dívida falsa", () => {
-    const view = apptStatusView({
-      status: "completed",
-      servicePrice: 0.87,
-      paymentCash: 0.29,
-      paymentMbway: 0.29,
-      paymentCard: 0.29,
-    });
-    expect(view.debt).toBe(0);
-    expect(view.tone).toBe("green");
-    expect(view.label).toBe("Concluída");
+  it("AG-07: confirmada com dívida mostra o valor sem mudar o rótulo de estado", () => {
+    const view = apptStatusView({ status: "confirmed", debt: 20 });
+    expect(view.debt).toBe(20);
+    expect(view.label).toBe("Confirmada");
   });
 
   it("statusLabel de faltou (no_show) é 'Faltou'", () => {
@@ -117,12 +82,8 @@ describe("apptStatusView", () => {
   });
 
   it("statusLabel de concluída com dívida é 'Concluída' (não duplica o valor em dívida)", () => {
-    const view = apptStatusView({
-      status: "completed",
-      servicePrice: 30,
-      paymentCash: 15,
-    });
+    const view = apptStatusView({ status: "completed", debt: 15 });
     expect(view.statusLabel).toBe("Concluída");
-    expect(view.label).toBe("Dívida 15.00 €");
+    expect(view.label).toBe(`Dívida ${fmtEur(15)}`);
   });
 });

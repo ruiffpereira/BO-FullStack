@@ -3,33 +3,72 @@
     "allow": [
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push)",
-      "Bash(git push *)",
-      "Bash(git checkout -- *)",
-      "Bash(git stash *)",
       "Bash(pnpm exec tsc --noEmit)",
-      "Bash(pnpm exec vitest run *)",
-      "Bash(pnpm exec vitest run)",
-      "Bash(pnpm exec next build)",
       "Bash(pnpm exec eslint *)",
-      "Bash(docker compose -f docker-compose.test.yml *)",
       "Bash(docker inspect *)",
       "Bash(curl -s https://api.rufvision.com/api/*)",
       "Bash(curl -sI https://*)",
       "Read(//d/Projetos/Projectos/API-FullStack/**)",
-      "Read(//d/Projetos/Projectos/site-engine/**)",
       "Read(//d/Projetos/Projectos/gymnoprado/**)",
       "Edit(//d/Projetos/Projectos/API-FullStack/**)",
-      "Edit(//d/Projetos/Projectos/site-engine/**)",
       "Edit(//d/Projetos/Projectos/gymnoprado/**)",
       "Write(//d/Projetos/Projectos/API-FullStack/**)",
-      "Write(//d/Projetos/Projectos/site-engine/**)",
       "Write(//d/Projetos/Projectos/gymnoprado/**)"
     ],
     "additionalDirectories": [
-      "d:\\Projetos\\Projectos\\API-FullStack",
-      "d:\\Projetos\\Projectos\\site-engine",
-      "d:\\Projetos\\Projectos\\gymnoprado"
+      "d:ProjetosProjectosAPI-FullStack",
+      "d:ProjetosProjectosgymnoprado"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"D:/Projetos/Projectos/.claude/hooks/guard.mjs\" pre-edit",
+            "timeout": 10,
+            "statusMessage": "Guarda: código gerado"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"D:/Projetos/Projectos/.claude/hooks/guard.mjs\" pre-bash",
+            "timeout": 15,
+            "statusMessage": "Guarda: migrações, testes partilhados, git, cadeia cross-repo"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"D:/Projetos/Projectos/.claude/hooks/guard.mjs\" post-edit",
+            "timeout": 15,
+            "statusMessage": "Guarda: regras da plataforma"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"D:/Projetos/Projectos/.claude/hooks/guard.mjs\" session-start",
+            "timeout": 10,
+            "statusMessage": "A ler a fila de trabalho"
+          }
+        ]
+      }
     ]
   }
 }

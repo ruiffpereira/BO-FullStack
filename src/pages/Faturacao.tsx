@@ -1,3 +1,4 @@
+import { fmtEur } from '../lib/money'
 import { toast } from 'sonner'
 import { Card, PageHeader, EmptyState, Button, Badge, SectionTitle } from '../ui/ui.jsx'
 import { Icon } from '../ui/icons.jsx'
@@ -10,7 +11,6 @@ import { usePostBillingPortal } from '../gen/backoffice/hooks/usePostBillingPort
 import { usePostBillingSubscribe } from '../gen/backoffice/hooks/usePostBillingSubscribe'
 import {
   MODULE_LABELS,
-  eur,
   fmtLongDate as fmtDate,
   reasonBadge,
   type BillingTone as Tone,
@@ -287,7 +287,7 @@ export function Faturacao() {
               <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-baseline justify-between">
                 <span className="text-sm font-medium text-zinc-500">Total</span>
                 <span className="text-lg font-semibold text-zinc-900 dark:text-white tabular-nums">
-                  {eur.format(data.monthlyTotalEur ?? 0)}
+                  {fmtEur(data.monthlyTotalEur ?? 0)}
                   <span className="text-sm font-normal text-zinc-400"> /mês</span>
                 </span>
               </div>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Icon } from '../ui/icons.jsx'
-import { Button, Input } from '../ui/ui.jsx'
+import { Button } from '../ui/ui.jsx'
 import { getApiError } from '../lib/apiError'
 import { postUsersSetupPassword } from '../gen/backoffice/hooks/usePostUsersSetupPassword.js'
 

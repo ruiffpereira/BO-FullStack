@@ -69,10 +69,7 @@ export function buildPublishBody(webhook: string): PublishBody {
 }
 
 export function errMessage(err: unknown, fallback: string): string {
-  const e = err as { response?: { data?: unknown } } | null;
-  // Os 400 do zod trazem `error: [{ path, message }]` em vez de uma frase.
-  const list = (e?.response?.data as { error?: unknown } | undefined)?.error;
-  if (Array.isArray(list) && typeof list[0]?.message === "string") return list[0].message;
+  // Formato único (G-16): `error` é já a frase em PT (nos 400 do zod, a mensagem do primeiro campo) e `fields` só traz caminho + tipo.
   return getApiError(err, fallback);
 }
 

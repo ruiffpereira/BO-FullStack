@@ -74,7 +74,7 @@ beforeEach(() => {
   perms = new Set();
   dashMock.mockReturnValue({ data: { included: undefined, ecommerce: { period: { revenue: 0 } } }, isLoading: false });
   apptsMock.mockReturnValue({ data: [], isLoading: false });
-  ordersMock.mockReturnValue({ data: { rows: [{ orderId: "o1", status: "pending", createdAt: "2026-10-18T10:00:00Z" }] }, isLoading: false });
+  ordersMock.mockReturnValue({ data: { rows: [{ orderId: "o1", status: "pending", createdAt: "2026-10-18T10:00:00Z" }], stats: { billed: 10, open: 1 } }, isLoading: false });
   gymMock.mockReturnValue({
     data: { kpis: { recebido: 50, emDivida: 0, emAtraso: 2, mrr: 200, blocked: 0 }, rows: [] },
     isLoading: false,
@@ -89,6 +89,17 @@ describe("Dashboard — KPIs por permissão (dono)", () => {
     expect(screen.queryByText("Vendas de hoje")).not.toBeInTheDocument();
     expect(screen.queryByText("Ticket médio")).not.toBeInTheDocument();
     expect(screen.getByText("Marcações hoje")).toBeInTheDocument();
+  });
+
+  it("«Por despachar» é a contagem da API (LJ-11), não as encomendas carregadas", () => {
+    perms = new Set(["VIEW_PRODUCTS"]);
+    ordersMock.mockReturnValue({
+      data: { rows: [{ orderId: "o1", status: "pending", createdAt: "2026-10-18T10:00:00Z" }], stats: { billed: 10, open: 37 } },
+      isLoading: false,
+    });
+    renderDash();
+    expect(screen.getByText("Por despachar")).toBeInTheDocument();
+    expect(screen.getByText("37")).toBeInTheDocument();
   });
 
   it("sem VIEW_SCHEDULE não há 'Marcações hoje'", () => {

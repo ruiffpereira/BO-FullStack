@@ -3,6 +3,7 @@ import { Card, PageHeader, EmptyState } from '../ui/ui.jsx'
 import { Icon } from '../ui/icons.jsx'
 import { usePageSubtitle } from '../context/PageMetaContext'
 import { LineChart } from '../ui/charts.jsx'
+import { PeriodSelector } from '../components/PeriodSelector'
 import { KpiCard } from '../components/financeiro/kit'
 import {
   useSiteAnalytics,
@@ -133,17 +134,7 @@ export function Estatisticas() {
   return (
     <div className="space-y-4">
       <PageHeader>
-        <div className="inline-flex flex-wrap items-center rounded-lg border border-zinc-200 dark:border-zinc-700 p-0.5 bg-white dark:bg-zinc-900">
-          {PRESETS.map((p) => (
-            <button
-              key={p.key}
-              onClick={() => setPeriod(p.key)}
-              className={`px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors ${period === p.key ? 'bg-accent text-white' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+        <PeriodSelector<AnalyticsPeriod> presets={PRESETS} value={period} onChange={setPeriod} />
       </PageHeader>
 
       {hasError && (

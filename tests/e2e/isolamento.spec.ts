@@ -116,7 +116,7 @@ test.describe("Isolamento multi-tenant — vista simétrica de B + mais módulos
   });
 
   test("Loja/Encomendas: A vê exactamente 1 encomenda (a sua), não a de B", async ({ page, context }) => {
-    // O seed cria 1 encomenda por tenant (€39,80). A tabela de Encomendas mostra
+    // O seed cria 1 encomenda por tenant (39,80 €). A tabela de Encomendas mostra
     // ID/Total/Data. O isolamento prova-se por A ver SÓ 1 linha (a sua) — se a de B
     // vazasse, apareceriam 2 linhas.
     await loginAs(context, "tenantA@e2e");
@@ -125,7 +125,7 @@ test.describe("Isolamento multi-tenant — vista simétrica de B + mais módulos
     await expect(page.getByRole("columnheader", { name: "Total" })).toBeVisible({ timeout: 12_000 });
     const rows = page.locator("table tbody tr");
     await expect(rows).toHaveCount(1, { timeout: 8_000 });
-    await expect(rows.first()).toContainText("€39,80");
+    await expect(rows.first()).toContainText(/39,80\s€/);
   });
 
   test("Agenda/Marcações: B vê as suas (Ag B), não as de A (Ag A)", async ({ page, context }) => {

@@ -61,7 +61,7 @@ export function Pagination({ page, setPage, pageCount, total, start, end }: {
 }) {
   if (total === 0 || pageCount <= 1) return null
   return (
-    <div className="flex items-center justify-between gap-3 pt-3 mt-1 text-sm">
+    <div className="flex items-center justify-between gap-3 pt-3 mt-1 pr-16 text-sm" /* pr-16: o botão flutuante de Mensagens não tapa «Página seguinte» */>
       <p className="text-zinc-400 tabular-nums">{start + 1}–{end} <span className="text-zinc-300 dark:text-zinc-600">de</span> {total}</p>
       <div className="flex items-center gap-1.5">
         <button type="button" onClick={() => setPage(page - 1)} disabled={page <= 1} aria-label="Página anterior" className={btn}>
@@ -74,4 +74,20 @@ export function Pagination({ page, setPage, pageCount, total, start, end }: {
       </div>
     </div>
   )
+}
+
+/**
+ * Estado de paginação do SERVIDOR (a API devolve `count`; o cliente só pede a página): mesmos 6 campos do
+ * `<Pagination>`, sem `pageItems`. `page` é 1-based.
+ */
+export function serverPagination(
+  page: number,
+  setPage: (p: number) => void,
+  total: number,
+  pageSize: number,
+  shown: number,
+) {
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const start = (page - 1) * pageSize
+  return { page, setPage, pageCount, total, start, end: Math.min(start + shown, total) }
 }

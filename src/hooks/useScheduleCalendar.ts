@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
+import type { GetScheduleCalendar200 } from "../gen/backoffice/types/GetScheduleCalendar.js";
 import { getScheduleCalendar } from "../gen/backoffice/hooks/useGetScheduleCalendar.js";
 import { postScheduleCalendarRotate } from "../gen/backoffice/hooks/usePostScheduleCalendarRotate.js";
 
@@ -11,15 +12,9 @@ import { postScheduleCalendarRotate } from "../gen/backoffice/hooks/usePostSched
  * Bearer/baseURL/withCredentials já vêm do interceptor do `axiosInstance`
  * partilhado (AuthContext.tsx) — o client gerado corre nesse mesmo
  * `axiosInstance`, por isso `authHeader()` deixou de ser preciso aqui.
- * `CalendarFeed` mantém-se local (campos obrigatórios): o spec marca-os como
- * opcionais (contrato genérico), mas as respostas 200 destas rotas trazem
- * sempre os três campos — o `as CalendarFeed` abaixo é esse cast de fronteira.
+ * `CalendarFeed` = a resposta gerada (os três campos são `required` no spec).
  */
-export interface CalendarFeed {
-  token: string;
-  url: string;
-  webcalUrl: string;
-}
+export type CalendarFeed = GetScheduleCalendar200;
 
 const KEY = ["schedule", "calendar"] as const;
 
@@ -29,14 +24,14 @@ export function useScheduleCalendarFeed() {
     queryKey: KEY,
     enabled: isAuthenticated,
     staleTime: 5 * 60_000,
-    queryFn: async () => (await getScheduleCalendar()) as CalendarFeed,
+    queryFn: () => getScheduleCalendar(),
   });
 }
 
 export function useRotateScheduleCalendarToken() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => (await postScheduleCalendarRotate()) as CalendarFeed,
+    mutationFn: () => postScheduleCalendarRotate(),
     onSuccess: (data) => qc.setQueryData(KEY, data),
   });
 }

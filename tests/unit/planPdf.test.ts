@@ -240,7 +240,7 @@ describe("buildPlanPrintHtml", () => {
       id: "p1", name: "Plano", customerId: "c1",
       workouts: [workout({
         id: "w1", name: "Core", daysOfWeek: [0],
-        exercises: [ex({ id: "e1", name: "Mobilidade", group: "Abdómen", sets: 4, reps: undefined, type: "time", duration: 30, rest: 20 })],
+        exercises: [ex({ id: "e1", name: "Mobilidade", group: "Abdómen", sets: 4, reps: undefined as unknown as number, type: "time", duration: 30, rest: 20 })],
       })],
     });
     const html = buildPlanPrintHtml({ program: p, customerName: "Cliente", tenant: {}, colorOf });

@@ -127,49 +127,51 @@ export function mailboxLabel(kind: string | undefined, address: string | undefin
   return `${kind === "business" ? "Suporte" : "Pessoal"} · ${address ?? ""}`;
 }
 
-// ── Erros (a API devolve o código em `error`, em minúsculas ou MAIÚSCULAS, e uma `message` PT) ──────────────
+// ── Erros (a API devolve `{ error: <texto PT>, code: <CÓDIGO> }`; os códigos chegam em MAIÚSCULAS — as chaves são MAIÚSCULAS;
+// um `mailboxError` da Equipa em minúsculas casa por `toUpperCase()`) ────────
 
 export const MAIL_MESSAGE_BY_CODE: Record<string, string> = {
-  mail_not_configured: "O correio ainda não está configurado neste servidor.",
-  mail_provider_error: "O servidor de correio não respondeu. Tenta de novo daqui a pouco.",
-  mailbox_not_found: "Essa caixa já não está disponível.",
+  MAIL_NOT_CONFIGURED: "O correio ainda não está configurado neste servidor.",
+  MAIL_PROVIDER_ERROR: "O servidor de correio não respondeu. Tenta de novo daqui a pouco.",
+  MAILBOX_NOT_FOUND: "Essa caixa já não está disponível.",
   MAIL_NO_RECIPIENTS: "Falta o destinatário.",
   MAIL_EMPTY: "O email está vazio — escreve uma mensagem ou junta um anexo.",
   MAIL_ORIGINAL_REQUIRED: "Falta o email a que isto responde.",
   MAIL_TOO_MANY_RECIPIENTS: "Demasiados destinatários (máximo 20).",
   ATTACHMENT_INVALID: "Há um anexo inválido (só fotos JPEG/PNG/WebP e PDF, até 5 anexos e 20 MB no total).",
-  mailbox_address_unavailable: "Não foi possível escolher um endereço livre para esta caixa.",
-  mailbox_error: "A caixa não se criou agora; cria-se sozinha daqui a pouco.",
-  business_mailbox_missing: "A caixa do negócio ainda não existe.",
-  module_not_enabled: "Este negócio não tem o módulo Correio.",
-  email_domain_not_found: "O negócio ainda não tem domínio de email configurado.",
-  own_domain_not_supported: "As caixas em domínio próprio ainda não estão disponíveis.",
-  business_mailbox_protected: "Esta caixa não se desactiva por aqui.",
-  member_removed: "O membro desta caixa já não existe.",
+  MAILBOX_ADDRESS_UNAVAILABLE: "Não foi possível escolher um endereço livre para esta caixa.",
+  MAILBOX_ERROR: "A caixa não se criou agora; cria-se sozinha daqui a pouco.",
+  BUSINESS_MAILBOX_MISSING: "A caixa do negócio ainda não existe.",
+  MODULE_NOT_ENABLED: "Este negócio não tem o módulo Correio.",
+  EMAIL_DOMAIN_NOT_FOUND: "O negócio ainda não tem domínio de email configurado.",
+  OWN_DOMAIN_NOT_SUPPORTED: "As caixas em domínio próprio ainda não estão disponíveis.",
+  BUSINESS_MAILBOX_PROTECTED: "Esta caixa não se desactiva por aqui.",
+  MEMBER_REMOVED: "O membro desta caixa já não existe.",
   // Domínio próprio (fase 7)
-  mx_conflict:
+  MX_CONFLICT:
     "Este domínio já tem email noutro sítio: pôr a caixa na raiz cortava-lhe o email que já usa. Escolhe «contacto.<domínio>» ou «Sem caixa».",
-  mx_not_ready:
+  MX_NOT_READY:
     "O registo MX do domínio ainda não aponta para o servidor de correio. Põe o MX da tabela «Registos da caixa» no DNS, espera que propague e tenta de novo.",
-  kind_required: "Há dois domínios: diz de qual falas (endereço da plataforma ou domínio próprio).",
+  KIND_REQUIRED: "Há dois domínios: diz de qual falas (endereço da plataforma ou domínio próprio).",
   EMAIL_CODE_TAKEN: "Esse código já é de outro negócio. Escolhe outro.",
   EMAIL_CODE_RESERVED: "Esse código está reservado. Escolhe outro.",
   EMAIL_CODE_ADDRESS_TAKEN: "Algum endereço com o código novo já está ocupado: a mudança foi recusada e nada mudou.",
-  platform_domain_missing: "O domínio de email da plataforma ainda não está configurado no servidor.",
-  existing_email_required: "Diz se o negócio já tem email neste domínio antes de activar a caixa.",
-  mailboxes_in_domain: "Há caixas activas neste domínio. Passa-as para o endereço da plataforma antes de o mudar ou remover (o endereço da plataforma de um negócio com caixas também não se remove).",
-  mail_not_enabled: "A caixa de correio não está activada neste domínio.",
-  own_domain_missing: "O negócio ainda não tem domínio próprio.",
-  domain_not_verified: "O domínio ainda não está verificado — põe os registos no DNS e carrega em «Verificar agora».",
+  PLATFORM_DOMAIN_MISSING: "O domínio de email da plataforma ainda não está configurado no servidor.",
+  EXISTING_EMAIL_REQUIRED: "Diz se o negócio já tem email neste domínio antes de activar a caixa.",
+  MAILBOXES_IN_DOMAIN: "Há caixas activas neste domínio. Passa-as para o endereço da plataforma antes de o mudar ou remover (o endereço da plataforma de um negócio com caixas também não se remove).",
+  MAIL_NOT_ENABLED: "A caixa de correio não está activada neste domínio.",
+  OWN_DOMAIN_MISSING: "O negócio ainda não tem domínio próprio.",
+  DOMAIN_NOT_VERIFIED: "O domínio ainda não está verificado — põe os registos no DNS e carrega em «Verificar agora».",
   MAIL_SENDING_PAUSED: "Os envios deste negócio estão pausados.",
   // Password da app
-  app_password_owner_only: "Só o dono desta caixa pode gerir a password da app.",
+  APP_PASSWORD_OWNER_ONLY: "Só o dono desta caixa pode gerir a password da app.",
+  TEAM_OWNER_ONLY: "Só o dono desta caixa pode gerir a password da app.",
   APP_PASSWORD_LIMIT: "Já há 5 passwords da app. Revoga-as e gera uma nova.",
   // Contactos e consentimento (fase 8)
-  consent_confirmation_required: "Tens de confirmar que estes contactos deram consentimento.",
-  too_many_rows: "O ficheiro tem demasiadas linhas (máximo 5 000).",
-  customer_no_email: "Este cliente não tem email na ficha.",
-  contact_blocked: "Este email está bloqueado (inválido ou queixa de spam) e não pode ser subscrito.",
+  CONSENT_CONFIRMATION_REQUIRED: "Tens de confirmar que estes contactos deram consentimento.",
+  TOO_MANY_ROWS: "O ficheiro tem demasiadas linhas (máximo 5 000).",
+  CUSTOMER_NO_EMAIL: "Este cliente não tem email na ficha.",
+  CONTACT_BLOCKED: "Este email está bloqueado (inválido ou queixa de spam) e não pode ser subscrito.",
   // Campanhas (fase 9)
   CAMPAIGNS_LOCKED: "As campanhas só abrem com o domínio do negócio e o subdomínio «news.» verificados.",
   CAMPAIGN_INCOMPLETE: "A campanha ainda está incompleta — falta assunto ou conteúdo.",
@@ -180,26 +182,27 @@ export const MAIL_MESSAGE_BY_CODE: Record<string, string> = {
   CAMPAIGN_NOT_EDITABLE: "Só os rascunhos se editam. Duplica a campanha para mudar o conteúdo.",
   CAMPAIGN_NOT_CANCELLABLE: "Esta campanha já não se pode cancelar.",
   CAMPAIGN_TEST_LIMIT: "Atingiste o limite de testes de hoje. Tenta amanhã.",
-  own_domain_required: "As campanhas precisam de um domínio próprio do negócio, não só do endereço da plataforma.",
+  OWN_DOMAIN_REQUIRED: "As campanhas precisam de um domínio próprio do negócio, não só do endereço da plataforma.",
 };
 
 /** Texto PT de um código de erro de correio (`mailboxError` da Equipa ou `error` de uma resposta); `null` se desconhecido. */
 export function mailCodeMessage(code: unknown): string | null {
-  return typeof code === "string" && MAIL_MESSAGE_BY_CODE[code] ? MAIL_MESSAGE_BY_CODE[code] : null;
+  if (typeof code !== "string") return null;
+  return MAIL_MESSAGE_BY_CODE[code] ?? MAIL_MESSAGE_BY_CODE[code.toUpperCase()] ?? null;
 }
 
-/** 503 `mail_not_configured` → a Caixa mostra «Por configurar». */
+/** 503 `MAIL_NOT_CONFIGURED` → a Caixa mostra «Por configurar». */
 export function isMailNotConfigured(error: unknown): boolean {
   const r = (error as any)?.response;
-  return r?.status === 503 && r?.data?.error === "mail_not_configured";
+  return r?.status === 503 && r?.data?.code === "MAIL_NOT_CONFIGURED";
 }
 
 export function mailErrorMessage(error: unknown, fallback = "Não foi possível concluir. Tenta novamente."): string {
   const data = (error as any)?.response?.data;
-  const known = mailCodeMessage(data?.error) ?? mailCodeMessage(data?.code);
+  const known = mailCodeMessage(data?.code);
   if (known) return known;
+  if (typeof data?.error === "string" && data.error) return data.error;
   if (typeof data?.message === "string" && data.message) return data.message;
-  if (typeof data?.error === "string" && data.error && !/^[A-Za-z_]+$/.test(data.error)) return data.error;
   return fallback;
 }
 

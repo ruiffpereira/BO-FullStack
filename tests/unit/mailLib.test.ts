@@ -57,11 +57,11 @@ describe("Correio — iframe do HTML recebido", () => {
 });
 
 describe("Correio — erros em PT", () => {
-  const err = (status: number, error: string, message?: string) => ({ response: { status, data: { error, message } } });
-  it("códigos da API (em `error`) → texto PT", () => {
+  const err = (status: number, code: string, message?: string) => ({ response: { status, data: { error: message ?? "x", code } } });
+  it("códigos da API (em `code`) → texto PT", () => {
     expect(mailErrorMessage(err(400, "MAIL_NO_RECIPIENTS"))).toBe("Falta o destinatário.");
     expect(mailErrorMessage(err(400, "ATTACHMENT_INVALID"))).toMatch(/anexo inválido/);
-    expect(mailErrorMessage(err(502, "mail_provider_error"))).toMatch(/não respondeu/);
+    expect(mailErrorMessage(err(502, "MAIL_PROVIDER_ERROR"))).toMatch(/não respondeu/);
     expect(mailErrorMessage(err(404, "mailbox_not_found"))).toMatch(/caixa/);
   });
   it("código desconhecido cai na `message` da API, depois no fallback", () => {
@@ -69,8 +69,8 @@ describe("Correio — erros em PT", () => {
     expect(mailErrorMessage({}, "fallback")).toBe("fallback");
   });
   it("503 mail_not_configured é «Por configurar»", () => {
-    expect(isMailNotConfigured(err(503, "mail_not_configured"))).toBe(true);
-    expect(isMailNotConfigured(err(502, "mail_provider_error"))).toBe(false);
+    expect(isMailNotConfigured(err(503, "MAIL_NOT_CONFIGURED"))).toBe(true);
+    expect(isMailNotConfigured(err(502, "MAIL_PROVIDER_ERROR"))).toBe(false);
   });
   it("getApiError e teamErrorMessage também conhecem os códigos do correio", () => {
     expect(getApiError(err(400, "MAIL_EMPTY"))).toMatch(/vazio/);
@@ -184,7 +184,7 @@ describe("Correio — contactos (fase 8) e domínio próprio (fase 7)", () => {
     ["customer_no_email", "não tem email"],
     ["contact_blocked", "bloqueado"],
   ])("código %s tem mensagem PT", (code, part) => {
-    expect(mailErrorMessage({ response: { data: { error: code } } })).toContain(part);
+    expect(mailErrorMessage({ response: { data: { error: "x", code } } })).toContain(part);
   });
 });
 

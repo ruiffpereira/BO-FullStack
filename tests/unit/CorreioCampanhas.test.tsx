@@ -356,7 +356,7 @@ describe("Nova campanha — passo 3, teste", () => {
 
   it("limite diário atingido: mostra o texto PT", async () => {
     getMock.mockImplementation((id: string) => (id === "c1" ? ok(DRAFT()) : { data: undefined, isLoading: false, isError: false }));
-    testMock.mockRejectedValue({ response: { status: 429, data: { error: "CAMPAIGN_TEST_LIMIT" } } });
+    testMock.mockRejectedValue({ response: { status: 429, data: { error: "x", code: "CAMPAIGN_TEST_LIMIT" } } });
     renderAt("/correio/campanhas/c1?passo=3");
     await userEvent.click(screen.getByRole("button", { name: "Enviar para mim" }));
     await waitFor(() => expect(screen.getByTestId("campaign-error")).toHaveTextContent("limite de testes"));
@@ -426,7 +426,7 @@ describe("Nova campanha — passo 4, enviar ou agendar", () => {
   });
 
   it("erro da API (CAMPAIGN_INCOMPLETE) mostra o que falta", async () => {
-    sendMock.mockRejectedValue({ response: { status: 400, data: { error: "CAMPAIGN_INCOMPLETE", details: ["Falta o assunto (en)."] } } });
+    sendMock.mockRejectedValue({ response: { status: 400, data: { error: "x", code: "CAMPAIGN_INCOMPLETE", details: ["Falta o assunto (en)."] } } });
     renderAt("/correio/campanhas/c1?passo=4");
     await waitFor(() => expect(screen.getByTestId("campaign-summary-audience")).toHaveTextContent("42"));
     await userEvent.click(screen.getByRole("button", { name: "Enviar agora" }));

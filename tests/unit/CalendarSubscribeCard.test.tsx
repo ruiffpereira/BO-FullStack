@@ -19,6 +19,11 @@ vi.mock("../../src/hooks/useScheduleCalendar", () => ({
   }),
 }));
 
+// O write-guard (GuardButton) lê a subscrição de billing: dono com tudo pago.
+vi.mock("../../src/gen/backoffice/hooks/useGetBillingSubscription", () => ({
+  useGetBillingSubscription: () => ({ data: { readOnly: false, reason: "active" } }),
+}));
+
 import { CalendarSubscribeCard } from "../../src/components/CalendarSubscribeCard";
 
 const FEED = {

@@ -23,7 +23,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write|Edit",
+        "matcher": "Write|Edit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
@@ -40,7 +40,7 @@
             "type": "command",
             "command": "node \"D:/Projetos/Projectos/.claude/hooks/guard.mjs\" pre-bash",
             "timeout": 15,
-            "statusMessage": "Guarda: migrações, testes partilhados, git, cadeia cross-repo"
+            "statusMessage": "Guarda: trinco, migrações, git perigoso, cadeia cross-repo"
           }
         ]
       }
@@ -66,6 +66,18 @@
             "command": "node \"D:/Projetos/Projectos/.claude/hooks/guard.mjs\" session-start",
             "timeout": 10,
             "statusMessage": "A ler a fila de trabalho"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"D:/Projetos/Projectos/.claude/hooks/guard.mjs\" session-end",
+            "timeout": 10,
+            "statusMessage": "A libertar o trinco"
           }
         ]
       }

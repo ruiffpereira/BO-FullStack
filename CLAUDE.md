@@ -40,7 +40,7 @@ A API tem de estar no URL de `VITE_API_BASE_URL` (dev: `http://localhost:3001/ap
 > (único ponto de leitura em runtime; exporta `API_BASE`). Uma env nova entra nas **duas** (e o `kubb.config.ts` exige `VITE_API_BASE_URL`).
 
 - Valores: dev → `.env.development` (commitado) · e2e → `.env.test` (gitignored, o CI gera) · **prod → build-time variables no Coolify** (as `VITE_*` ficam embutidas no bundle no build; mudá-las em runtime não faz nada).
-- ⚠ **NUNCA commitar um `.env`**: o Vite carrega-o em todos os modos, incluindo produção — satisfaz o fail-fast **com o valor errado**.
+- ⚠ Um `.env` commitado satisfaz o fail-fast **com o valor errado** em produção (o `coerencia.test.mjs (m)` verifica que está ignorado).
 
 ---
 
@@ -86,7 +86,7 @@ Tabela de páginas/rotas/permissões: [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS
 
 ## Dinheiro no ecrã — só se mostra
 
-O Backoffice **nunca calcula** dívida, totais faturados, contagens abertas nem stock baixo: lê `debt`/`priorDebt`, `stats` de `/orders` e `/products`. Euros só com `fmtEur` (`lib/money.ts`, pt-PT; `moneyFormat.test.ts` falha com `toFixed(2)} €`). Toda a mutation que mexe em dinheiro chama `invalidateMoney(qc)`. Listas que podem crescer paginam no servidor (`serverPagination` + `<Pagination>`). Um `<select>` que grava ao mudar usa `GuardSelect`.
+O Backoffice **nunca calcula** dívida, totais faturados, contagens abertas nem stock baixo: lê `debt`/`priorDebt`, `stats` de `/orders` e `/products`. Euros só com `fmtEur` (`lib/money.ts`, pt-PT; `moneyFormat.test.ts` verifica). Toda a mutation que mexe em dinheiro chama `invalidateMoney(qc)`. Listas que podem crescer paginam no servidor (`serverPagination` + `<Pagination>`). Um `<select>` que grava ao mudar usa `GuardSelect`.
 
 ## Primitivas de UI — não reimplementar
 
@@ -101,7 +101,7 @@ O Backoffice **nunca calcula** dívida, totais faturados, contagens abertas nem 
 
 ## Geração de código (Kubb)
 
-`spec.json` → `src/gen/backoffice/{hooks,types}/`. **Nunca editar `src/gen/` à mão.** O `kubb.config.ts` gera **sempre** do `spec.json` **committado** (offline, determinístico). Quando a API muda: `pnpm kubb:refresh` e **committar o `spec.json`**.
+`spec.json` → `src/gen/backoffice/{hooks,types}/` (a guarda recusa editar `src/gen/`). O `kubb.config.ts` gera **sempre** do `spec.json` **committado** (offline, determinístico). Quando a API muda: `pnpm kubb:refresh` e **committar o `spec.json`**.
 
 - **Tipos: sempre os gerados** — alias de `src/gen/backoffice/types/**`, nunca `interface` à mão que duplica um schema. Um `as any` por «falta de tipo» é defeito do `@swagger` da API — corrige-se lá, não aqui.
 - Aliases deprecated da API têm `operationId` próprio (o BO não os usa). `kubb.config.ts` leva `@ts-nocheck`.
@@ -118,7 +118,7 @@ O Backoffice **nunca calcula** dívida, totais faturados, contagens abertas nem 
 
 ## Layout — alturas SEMPRE por flex (regra obrigatória)
 
-**O `Shell` é o único dono da altura do viewport.** **Proibido** `calc(100vh - Xpx)`, `h-screen`, `100dvh` e offsets fixos que adivinhem a altura do chrome (o `BillingBanner` aparece e desaparece). Cadeia flex: Shell = coluna `h-dvh` → página `flex-1 min-h-0` → tabelas/listas com scroll **interno** (`overflow-auto`). Páginas que enchem a altura pedem-no ao Shell (`fillPage`/`fillAgenda`/`fillConteudos`/`fullBleed`). Acções só-hover usam `REVEAL_ON_HOVER`, nunca `opacity-0 group-hover` à mão.
+**O `Shell` é o único dono da altura do viewport.** Nada de offsets fixos que adivinhem a altura do chrome (o `BillingBanner` aparece e desaparece; a guarda avisa de `calc(100vh)`/`h-screen`). Cadeia flex: Shell = coluna `h-dvh` → página `flex-1 min-h-0` → tabelas/listas com scroll **interno** (`overflow-auto`). Páginas que enchem a altura pedem-no ao Shell (`fillPage`/`fillAgenda`/`fillConteudos`/`fullBleed`). Acções só-hover usam `REVEAL_ON_HOVER`, nunca `opacity-0 group-hover` à mão.
 
 **Lint:** `typescript-eslint` + `react-hooks` (`rules-of-hooks` = erro). `no-explicit-any` = aviso (a baixar; um `any` novo precisa de motivo). Chaves de React Query à mão em `src/lib/queryKeys.ts`.
 

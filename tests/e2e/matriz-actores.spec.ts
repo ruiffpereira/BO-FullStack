@@ -31,7 +31,8 @@ const ADMIN_ROUTES = [
   "/admin", "/admin/permissoes", "/admin/componentes", "/admin/tokens", "/admin/dominios",
   "/admin/faturacao", "/admin/integracoes", "/admin/atividade", "/admin/sistema",
 ];
-const CORREIO_ROUTES = ["/correio", "/correio/campanhas", "/correio/contactos"];
+// «/correio/campanhas» fora da matriz: FEATURES.campaigns = false (dono 2026-10-24) — redirecciona para todos.
+const CORREIO_ROUTES = ["/correio", "/correio/contactos"];
 const FINANCEIRO = ["/financeiro", "/financeiro/agenda", "/financeiro/loja", "/financeiro/ginasio", "/financeiro/despesas"];
 const LOJA = ["/loja", "/loja/encomendas", "/loja/categorias"];
 const AGENDA = ["/agenda", "/agenda/marcacoes", "/agenda/servicos", "/agenda/profissionais", "/agenda/config"];

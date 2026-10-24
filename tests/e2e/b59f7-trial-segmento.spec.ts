@@ -42,6 +42,7 @@ for (const { w, h } of SIZES) {
     });
 
     test("CR-34: o segmento «Sócios activos» diz «Subscritos com subscrição activa e conta confirmada»", async ({ page, context }) => {
+      test.skip(true, "FEATURES.campaigns = false (dono 2026-10-24)");
       await loginAs(context, "correio@e2e.local");
       // O seed não tem domínio verificado (assistente bloqueado): abre-se o assistente com o estado simulado.
       await page.route("**/mail/campaigns/status", (route) =>

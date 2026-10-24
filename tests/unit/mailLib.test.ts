@@ -115,7 +115,7 @@ describe("Correio — datas e deep-links", () => {
 
 describe("Correio — navegação e permissões", () => {
   it("o submenu do Correio tem a Caixa atrás de VIEW_EMAIL e da folha correio.caixa", () => {
-    expect(allowedSubitems("/correio", () => true).map((s) => s.label)).toEqual(["Caixa", "Campanhas", "Contactos"]);
+    expect(allowedSubitems("/correio", () => true).map((s) => s.label)).toEqual(["Caixa", "Contactos"]); // sem «Campanhas»: FEATURES.campaigns = false (dono 2026-10-24)
     expect(allowedSubitems("/correio", () => false)).toEqual([]);
     expect(memberSubitems("/correio", (k) => k === "correio.caixa")).toHaveLength(1);
     expect(memberSubitems("/correio", () => false)).toHaveLength(0);
@@ -124,10 +124,10 @@ describe("Correio — navegação e permissões", () => {
     expect(allowedSubitems("/conteudos", () => true).some((s) => s.label === "Correio")).toBe(false);
     expect(allowedSubitems("/correio", () => true).some((s) => s.label === "Emails")).toBe(false);
   });
-  it("Campanhas: folha correio.campanhas na lista e na ficha; um membro só com ela vê só esse subitem", () => {
+  it("Campanhas (escondidas, FEATURES.campaigns = false): a folha da rota fica; um membro só com ela não vê subitem nenhum", () => {
     expect(leafForPath("/correio/campanhas")).toBe("correio.campanhas");
     expect(leafForPath("/correio/campanhas/abc")).toBe("correio.campanhas");
-    expect(memberSubitems("/correio", ((k: string) => k === "correio.campanhas") as any).map((i) => i.id)).toEqual(["campanhas"]);
+    expect(memberSubitems("/correio", ((k: string) => k === "correio.campanhas") as any).map((i) => i.id)).toEqual([]);
   });
   it("CR-09: com o módulo Correio a «Caixa» vê-se sempre a um membro (a caixa pessoal não depende de correio.caixa); o resto continua por folha", () => {
     const opts = { personalMailbox: true };

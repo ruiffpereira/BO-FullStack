@@ -9,6 +9,8 @@
  *     utilizador nunca chegar a um 422.
  */
 
+import { FEATURES } from "./features";
+
 export type TeamLevel = "view" | "edit";
 
 export interface TreeNode {
@@ -176,13 +178,21 @@ export function levelLabel(n: Pick<TreeNode, "levelLabels">, level: TeamLevel): 
 }
 
 /**
+ * Nós escondidos por `FEATURES` (dono 2026-10-24: Campanhas): não aparecem na árvore nem no convite, mas os nós e as
+ * permissões já guardadas ficam intactos (o mapa de grants não os perde ao gravar).
+ */
+export function isFeatureHiddenNode(key: string): boolean {
+  return !FEATURES.campaigns && (key === "correio.campanhas" || key.startsWith("correio.campanhas."));
+}
+
+/**
  * A árvore que o editor mostra: sem os nós que o plano do tenant não inclui (`available: false`) — decisão do dono,
  * não aparecem de todo — e sem os agrupadores que fiquem sem nada seleccionável debaixo.
  */
 export function visibleTree(tree: TreeNode[]): TreeNode[] {
   const out: TreeNode[] = [];
   for (const n of tree) {
-    if (!n.available) continue;
+    if (!n.available || isFeatureHiddenNode(n.key)) continue;
     const children = visibleTree(n.children ?? []);
     if (!n.storable && children.length === 0) continue;
     out.push({ ...n, children });
@@ -305,7 +315,7 @@ export function fullAccess(tree: readonly TreeNode[]): GrantMap {
   const g: GrantMap = {};
   for (const top of tree) {
     for (const n of subtreeOf(top)) {
-      if (selectable(n) && !n.excludeFromFullAccess) g[n.key] = giveLevelOf(n) ?? maxLevelOf(n);
+      if (selectable(n) && !n.excludeFromFullAccess && !isFeatureHiddenNode(n.key)) g[n.key] = giveLevelOf(n) ?? maxLevelOf(n);
     }
   }
   return g;

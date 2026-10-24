@@ -51,6 +51,7 @@ test("a API recusa criar rascunhos sem domínio verificado (409 CAMPAIGNS_LOCKED
 for (const { w, h } of SIZES) {
   test.describe(`Correio — Campanhas (${w}px)`, () => {
     test.use({ viewport: { width: w, height: h } });
+    test.skip(true, "FEATURES.campaigns = false (dono 2026-10-24)");
 
     test("sem domínio configurado: a mensagem de bloqueio, sem «Nova campanha» e sem scroll horizontal", async ({ page, context }) => {
       await loginAs(context, DONO);

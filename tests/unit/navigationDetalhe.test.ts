@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { SUBMENU, pathInSubitems } from "../../src/lib/navigation";
 
 describe("pathInSubitems — páginas de detalhe debaixo de um subitem", () => {
-  const correio = SUBMENU["/correio"];
+  // Campanhas escondidas (FEATURES.campaigns = false, dono 2026-10-24): o subitem já não está no SUBMENU real,
+  // por isso o comportamento genérico prova-se com um subitem sintético (a lógica é a mesma quando a flag voltar).
+  const campanhas = { id: "campanhas", label: "Campanhas", path: "/correio/campanhas" };
+  const correio = [...SUBMENU["/correio"], campanhas];
   it("aceita o path do subitem e o detalhe debaixo dele (assistente de campanhas)", () => {
     expect(pathInSubitems("/correio/campanhas", "/correio", correio)).toBe(true);
     expect(pathInSubitems("/correio/campanhas/nova", "/correio", correio)).toBe(true);

@@ -588,8 +588,16 @@ describe("AdminEmailModal — domínio próprio (fase 7)", () => {
 });
 
 // ── Fase 9: news. das campanhas ─────────────────────────────────────────────────────────────────────────────────
+// FEATURES.campaigns = false (dono 2026-10-24): a secção news. está escondida; os testes que a exercitam ficam skip.
 describe("AdminEmailModal — Preparar campanhas (news.)", () => {
-  it("domínio próprio verificado sem news.: mostra «Preparar campanhas (news.)» e chama POST …/news", () => {
+  it("FEATURES.campaigns = false: domínio próprio verificado não mostra a secção news.", () => {
+    getMock.mockReturnValue({ data: twoDomains({ domain: { ...OWN, news: null }, domains: [SUB, { ...OWN, news: null }] }), isLoading: false, isError: false });
+    renderModal();
+    expect(screen.queryByTestId("news-section")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Preparar campanhas (news.)" })).toBeNull();
+  });
+
+  it.skip("domínio próprio verificado sem news.: mostra «Preparar campanhas (news.)» e chama POST …/news [FEATURES.campaigns = false (dono 2026-10-24)]", () => {
     getMock.mockReturnValue({ data: twoDomains({ domain: { ...OWN, news: null } , domains: [SUB, { ...OWN, news: null }] }), isLoading: false, isError: false });
     renderModal();
     expect(screen.getByTestId("news-section")).toHaveTextContent("news.tifas.pt");
@@ -597,7 +605,7 @@ describe("AdminEmailModal — Preparar campanhas (news.)", () => {
     expect(mutates.news).toHaveBeenCalledWith({ userId: "u1" });
   });
 
-  it("com news. criado: mostra o nome, o estado e os registos com ✓/✗", () => {
+  it.skip("com news. criado [FEATURES.campaigns = false (dono 2026-10-24)]: mostra o nome, o estado e os registos com ✓/✗", () => {
     const news = {
       domain: "news.tifas.pt",
       configured: true,

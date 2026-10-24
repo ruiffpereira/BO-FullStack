@@ -105,6 +105,7 @@ for (const vp of WIDTHS) {
     test.use({ viewport: { width: vp.w, height: vp.h } });
     for (const pg of MUDARAM) {
       test(`${pg.slug}: abre, sem scroll horizontal, com captura`, async ({ page, context }) => {
+        test.skip(pg.slug === "correio-campanhas", "FEATURES.campaigns = false (dono 2026-10-24)");
         await loginAs(context, pg.user);
         const errors: string[] = [];
         page.on("pageerror", (e) => errors.push(e.message));

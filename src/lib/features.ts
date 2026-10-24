@@ -8,8 +8,14 @@
  * - `googleCalendar`: só o cartão "Google Calendar" em Admin → Integrações.
  *   A API continua com os endpoints; só a UI sai. O cartão do feed `.ics` da
  *   Agenda (subscrever no telemóvel) é independente e aparece sempre (B59 F8).
+ * - `campaigns`: as Campanhas de email do Correio (dono 2026-10-24: "as campanhas quero
+ *   que escondas no backoffice, ainda não quero isso disponível"). Com `false`: sem
+ *   separador, `/correio/campanhas*` redirecciona para `/correio`, sem os blocos de
+ *   `news.<domínio>` no Admin e sem os nós `correio.campanhas*` na árvore da Equipa
+ *   nem no convite (as permissões já guardadas ficam). Contactos continua visível.
  */
 export const FEATURES = {
   signup: false,
   googleCalendar: false,
+  campaigns: false,
 } as const;

@@ -211,8 +211,9 @@ function App() {
         <Route path="/faturacao" element={<Faturacao />} />
         {/* Correio (B42): o item da sidebar só existe com VIEW_EMAIL; o guard do Shell trata o resto. */}
         <Route path="/correio" element={<Correio />} />
-        <Route path="/correio/campanhas" element={<CorreioCampanhas />} />
-        <Route path="/correio/campanhas/:campaignId" element={<CorreioCampanha />} />
+        {/* Campanhas escondidas (lib/features.ts): com a flag a false, o link antigo cai no Correio. */}
+        <Route path="/correio/campanhas" element={FEATURES.campaigns ? <CorreioCampanhas /> : <Navigate to="/correio" replace />} />
+        <Route path="/correio/campanhas/:campaignId" element={FEATURES.campaigns ? <CorreioCampanha /> : <Navigate to="/correio" replace />} />
         <Route path="/correio/contactos" element={<CorreioContactos />} />
         <Route path="/mensagens" element={<Mensagens view="clientes" />} />
         <Route path="/mensagens/backoffice" element={<Mensagens view="backoffice" />} />

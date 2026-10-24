@@ -4,6 +4,7 @@ import type { EmailDnsRecord } from "../../gen/backoffice/types/EmailDnsRecord.j
 import type { TenantEmailDomain } from "../../gen/backoffice/types/TenantEmailDomain.js";
 import { DnsRecordsTable } from "./DnsRecordsTable";
 import { NewsSection } from "./EmailStatusCard";
+import { FEATURES } from "../../lib/features";
 
 export type DomainKind = "platform" | "own";
 
@@ -135,7 +136,7 @@ export function DomainBlock({
       )}
 
       {/* Campanhas (fase 9): só no domínio próprio verificado. Abrem quando o domínio E o news. estão verificados. */}
-      {isOwn && verified && <NewsSection d={d} busy={busy} pending={newsPending} onPrepare={onPrepareNews} />}
+      {FEATURES.campaigns && isOwn && verified && <NewsSection d={d} busy={busy} pending={newsPending} onPrepare={onPrepareNews} />}
 
       {mailOn && activeBoxes.length > 0 && (
         <div className="rounded-xl border border-zinc-200/80 dark:border-zinc-800 p-3 space-y-2" data-testid="mailboxes-move">

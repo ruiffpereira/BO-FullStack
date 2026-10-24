@@ -194,7 +194,7 @@ Um **membro** da equipa entra pelo mesmo login e vê só os módulos que o dono 
 ## Funcionalidades escondidas (`src/lib/features.ts`)
 
 Decisão do dono (2026-09-28): `signup` (registo self-serve) e `googleCalendar` (só o cartão em Admin →
-Integrações) estão a `false`; o cartão do feed `.ics` da Agenda aparece sempre (B59 F8). O código fica; voltar = pôr a `true`.
+Integrações) estão a `false`; `campaigns` (Correio → Campanhas, dono 2026-10-24: sem separador, `/correio/campanhas*` → `/correio`, sem `news.` no Admin, sem `correio.campanhas*` na árvore da Equipa/convite — `isFeatureHiddenNode` em `lib/teamTree.ts`) também; o cartão do feed `.ics` da Agenda aparece sempre (B59 F8). O código fica; voltar = pôr a `true`.
 
 ---
 

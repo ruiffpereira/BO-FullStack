@@ -13,6 +13,8 @@
  * DESIGN_BRIEF.md`) estão todas neste mapa.
  */
 
+import { FEATURES } from "./features";
+
 export interface SubmenuItem {
   id: string;
   label: string;
@@ -112,7 +114,10 @@ export const SUBMENU: Record<string, SubmenuItem[]> = {
   // O item chama-se "Correio" (não "Email"): "Emails" já é um subitem de Conteúdos e os nomes repetidos partem os testes.
   "/correio": [
     { id: "caixa", label: "Caixa", path: "/correio", perm: "VIEW_EMAIL", leaf: "correio.caixa" },
-    { id: "campanhas", label: "Campanhas", path: "/correio/campanhas", perm: "VIEW_EMAIL", leaf: "correio.campanhas" },
+    // Escondido por `FEATURES.campaigns` (dono 2026-10-24).
+    ...(FEATURES.campaigns
+      ? [{ id: "campanhas", label: "Campanhas", path: "/correio/campanhas", perm: "VIEW_EMAIL", leaf: "correio.campanhas" }]
+      : []),
     { id: "contactos", label: "Contactos", path: "/correio/contactos", perm: "VIEW_EMAIL", leaf: "correio.contactos" },
   ],
   "/conteudos": [

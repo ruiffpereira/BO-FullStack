@@ -1,4 +1,5 @@
 # CLAUDE.md — Backoffice
+> **Lê-se:** as sessões e agentes que trabalham nesse repo · **Verdadeiro por:** `coerencia.test.mjs` (caminhos)
 
 Vite + React + TypeScript + Tailwind + React Query (hooks gerados por Kubb).
 Um único deploy serve **todos** os tenants da plataforma. **PWA** "RufVision BO" (`public/manifest.json`,

@@ -1,4 +1,5 @@
 # Backoffice — React + Vite + TailwindCSS
+> **Lê-se:** quem instala ou corre o repo · **Verdadeiro por:** `coerencia.test.mjs` (caminhos)
 
 Backoffice multi-negócio com sistema de **componentes → permissões**. Suporta vários tipos de cliente (ex.: barbearia e loja online) e adapta os menus e o dashboard às permissões de cada conta.
 
@@ -45,25 +46,20 @@ npm run preview
 
 ```
 src/
-  main.jsx          Entry point
-  App.jsx           Root: auth, tema, routing, estado de permissões
+  main.tsx          Entry point
+  App.tsx           Root: auth, tema, routing, estado de permissões
   index.css         Tailwind + keyframes + scrollbar
-  data.js           Dados fictícios (substituir por chamadas à API)
-  icons.jsx         Conjunto de ícones SVG
-  charts.jsx        Gráficos SVG (área, barras, donut, sparkline)
-  ui.jsx            Primitivos (Card, Button, Badge, Input, Modal, ...)
-  Login.jsx         Ecrã de login
-  Shell.jsx         Sidebar + topbar + navegação responsiva
-  Dashboard.jsx     Dashboard com KPIs e gráficos
-  Clientes.jsx      Clientes finais
-  Loja.jsx          Produtos + encomendas
-  AgendaPanels.jsx  Modais e painéis da Agenda
-  Agenda.jsx        Calendário semanal + submenu
-  Admin.jsx         Contas, permissões e componentes
+  gen/              Cliente da API gerado pelo Kubb (nunca à mão)
+  ui/               Primitivos (ui.jsx: Card, Button, Badge, Input, Modal, ...), ícones e gráficos SVG
+  pages/            Uma página por módulo (Dashboard, Clientes, Loja, Agenda, Admin, ...)
+  components/       Componentes partilhados
+  hooks/ lib/ utils/ context/   Dados da API (React Query), helpers e contexto
 ```
+
+Mapa página a página: [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md).
 
 ## Notas
 
-- Os dados em `src/data.js` são **fictícios** e mantidos em memória (estado React). Ao recarregar, voltam ao estado inicial. Para produção, liga estes módulos à tua API/base de dados.
+- Os dados vêm todos da API (`API-FullStack`), pelo cliente gerado em `src/gen`; não há dados fictícios.
 - O sistema de permissões é a base: cada **permissão** lista os **componentes** (`id`/chave) a que dá acesso, e a navegação + dashboard adaptam-se automaticamente. Novos componentes criados no Admin ficam disponíveis para atribuir a qualquer permissão.
-- O accent (cor principal) é controlado por variáveis CSS `--accent` / `--accent-hex` em `App.jsx` (mudam com o tema). Ajusta aí para mudar a cor de marca.
+- O accent (cor principal) é controlado por variáveis CSS `--accent` / `--accent-hex` em `App.tsx` (mudam com o tema). Ajusta aí para mudar a cor de marca.

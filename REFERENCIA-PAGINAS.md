@@ -224,7 +224,7 @@ Configuradas em Admin → tab "Línguas":
 
 ## Equipa do tenant (B41, fase 1)
 
-O dono do tenant convida pessoas e escolhe, **por módulo**, se vêem ou editam. A API decide tudo (`GET /user-permissions/access`, `/team*`); o Backoffice só apresenta e desactiva a UI antes de bater num 403. Decisões: `../DECISOES.md` (2026-10-17).
+O dono do tenant convida pessoas e escolhe, **por módulo**, se vêem ou editam. A API decide tudo (`GET /user-permissions/access`, `/team*`); o Backoffice só apresenta e desactiva a UI antes de bater num 403. Decisões: [DEC-035 e DEC-037](../DECISOES.md).
 
 - **`AuthContext`**: depois do login/refresh vai buscar `/user-permissions/access` (no mesmo passo das `Component`s, antes de a sessão ficar autenticada) e expõe `member` (`null` = dono), `isMember` e `can(chave, nível = "view")` — o dono pode sempre; um membro só se a API lhe deu o módulo, e `edit` implica `view`. Em sessão de suporte o admin entra como o **dono** (`member: null`).
 - **Módulos (catálogo da API, árvore de folhas — a lista autoritativa é `GET /team/catalog`, nunca escrita à mão no BO):** `agenda` (incl. `agenda.profissionais`) · `loja` · `ginasio` · `clientes` · `dashboard` · `financeiro` (incl. `despesas`) · `conteudos` · `paginas` · `correio` · `equipa` · `estatisticas` (só ver) · `mensagens` — agrupador (B43) com `mensagens.clientes` [Ver · Responder; nasce fechado] · `mensagens.equipa` [Ver · Escrever] · `mensagens.suporte` [Ver · Escrever].
@@ -239,7 +239,7 @@ O dono do tenant convida pessoas e escolhe, **por módulo**, se vêem ou editam.
 
 ### Delegação (fase 3)
 
-Um membro pode gerir parte da equipa. Decisões em `../DECISOES.md` (2026-10-18); a API decide tudo (`/team*` aberto a membros com o nó `equipa`).
+Um membro pode gerir parte da equipa. Decisão: [DEC-039](../DECISOES.md); a API decide tudo (`/team*` aberto a membros com o nó `equipa`).
 
 - **Nó `equipa` [Ver | Gerir]** — fora do "Acesso total" e do convite feito por um membro (fechado para todos até o dono o dar). **Ver**: a lista de toda a equipa (nome, estado, último acesso), sem permissões nem fichas (`TeamMemberBasic`, `isSelf`). **Gerir**: convida e gere **só os que criou** (`canManage` vem da API); a árvore só lhe deixa dar o que ele próprio tem, ao mesmo nível ou menos ("Só podes dar o que tens", visível também a 390). O dono vê e mexe em todos. `canManageTeam = !isMember || can("equipa", "edit")`.
 - **Coluna "Criado por"** (tabela e cartões): "Tu", o nome do criador, ou o dono (`createdByLabel`).

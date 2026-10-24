@@ -8,7 +8,7 @@ import { withSessionRetry } from "./fixtures/session";
  * Fluxo (Agenda.tsx, handlers globais de `pointermove/up`): arrastar uma marcação para outra hora NÃO grava logo — abre a
  * modal da marcação com o banner "Reagendado" (hora velha riscada → nova); o "Guardar" é que faz o PUT com `date`/`time`.
  *
- * Regra AG-02 (DECISOES 2026-10-19): no Backoffice o negócio PODE marcar/arrastar por cima de outra marcação (encaixes —
+ * Regra AG-02 (DEC-048): no Backoffice o negócio PODE marcar/arrastar por cima de outra marcação (encaixes —
  * o filho que vem com o pai). Não há aviso nem recusa: o teste prova que a sobreposição é ACEITE e fica gravada.
  * (O site é que recusa, com `409 SLOT_TAKEN` — AG-01, `tests/websites/booking.test.ts` na API.)
  *

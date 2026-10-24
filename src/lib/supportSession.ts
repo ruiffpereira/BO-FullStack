@@ -2,7 +2,7 @@ import { toast } from "sonner";
 import { getApiError } from "./apiError";
 
 /**
- * Sessão de suporte ("Acesso de suporte", DECISOES 2026-10-10): o admin da
+ * Sessão de suporte ("Acesso de suporte", DEC-018): o admin da
  * plataforma entra na conta de um tenant, sem password, durante o tempo que o
  * tenant consentiu. Este módulo só tem as peças puras/sem estado; a máquina de
  * estados vive no `AuthContext`.

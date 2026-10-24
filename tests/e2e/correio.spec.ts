@@ -293,6 +293,25 @@ for (const { w, h } of SIZES) {
       expect(await noHorizontalScroll(page)).toBeLessThanOrEqual(0);
     });
 
+    test("CR-26: a barra não deixa nada órfão — «Novo email» na linha dos separadores; abaixo de xl a pesquisa tem a sua linha", async ({ page, context }) => {
+      await loginAs(context, DONO);
+      await abrir(page);
+      const box = async (l: import("@playwright/test").Locator) => (await l.boundingBox())!;
+      const novo = await box(page.getByRole("button", { name: "Novo email" }));
+      const tabs = await box(page.getByRole("tab", { name: /Entrada/ }));
+      const pesquisa = await box(page.getByTestId("mail-search"));
+      if (w >= 1280) {
+        // Computador: tudo numa linha.
+        expect(Math.abs(novo.y - tabs.y)).toBeLessThan(tabs.height);
+        expect(Math.abs(pesquisa.y - tabs.y)).toBeLessThan(tabs.height);
+      } else if (w >= 768) {
+        // Tablet (834): «Novo email» à direita da linha dos separadores; pesquisa na linha de baixo, toda a largura.
+        expect(Math.abs(novo.y + novo.height / 2 - (tabs.y + tabs.height / 2))).toBeLessThan(tabs.height);
+        expect(pesquisa.y).toBeGreaterThan(tabs.y + tabs.height - 1);
+      }
+      expect(await noHorizontalScroll(page)).toBeLessThanOrEqual(0);
+    });
+
     test("CR-26: filtro Todas / Por ler / Lidas na Entrada (por ler = alguma mensagem por ler)", async ({ page, context }) => {
       await loginAs(context, DONO);
       await abrir(page);

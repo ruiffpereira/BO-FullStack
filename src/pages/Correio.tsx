@@ -181,7 +181,8 @@ export function Correio() {
             </Select>
           </div>
         )}
-        <div className="flex-1 min-w-[10rem]">
+        {/* Abaixo de xl a pesquisa desce para a sua linha (toda a largura) e o «Novo email» fica à direita da 1.ª: nada órfão a 834. */}
+        <div className="order-last w-full xl:order-none xl:w-auto xl:flex-1 xl:min-w-[10rem]" data-testid="mail-search">
           <Input
             icon="search"
             aria-label="Pesquisar no correio"
@@ -197,9 +198,11 @@ export function Correio() {
             Configurar no telemóvel
           </Button>
         )}
-        <GuardButton leaf={mailLeaf(personal)} icon="edit" onClick={() => setComposeOpen(true)}>
-          Novo email
-        </GuardButton>
+        <div className="ml-auto xl:ml-0 shrink-0">
+          <GuardButton leaf={mailLeaf(personal)} icon="edit" onClick={() => setComposeOpen(true)}>
+            Novo email
+          </GuardButton>
+        </div>
       </div>
 
       <div

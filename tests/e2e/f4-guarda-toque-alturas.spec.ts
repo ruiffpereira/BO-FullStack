@@ -26,7 +26,7 @@ const TOTAL = "av-total@e2e.local";
 const APAGAR_VER = "av-apagarver@e2e.local";
 const VIEW_ONLY = "Só tens permissão para ver";
 
-const SHOTS = path.resolve(".design", "b57-f4", "capturas");
+const SHOTS = path.resolve(".capturas", "b57-f4", "capturas");
 fs.mkdirSync(SHOTS, { recursive: true });
 
 const WIDTHS = [

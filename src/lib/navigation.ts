@@ -1,5 +1,5 @@
 /**
- * Fonte única dos SUBMENUS da sidebar (T1.1, `.design/shell-nav-perfil/`).
+ * Fonte única dos SUBMENUS da sidebar (T1.1).
  *
  * Cada página com tabs de topo passa a ter uma entrada aqui: `path pai` →
  * lista de subitens `{ id, label, path, perm? }`. O `Shell.tsx` usa isto para
@@ -9,8 +9,8 @@
  *
  * Financeiro (T1.2, piloto), Loja (T2.1), Clientes (T2.2), Admin (T2.4),
  * Ginásio (T2.5), Agenda (T2.7) e Conteúdos (T2.6) já estão migradas — as
- * páginas com tabs de topo do brief (`.design/shell-nav-perfil/
- * DESIGN_BRIEF.md`) estão todas neste mapa.
+ * páginas com tabs de topo
+ * estão todas neste mapa.
  */
 
 import { FEATURES } from "./features";

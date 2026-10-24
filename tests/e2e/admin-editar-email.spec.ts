@@ -19,7 +19,7 @@ const SIZES = [
   { w: 834, h: 1112 },
   { w: 390, h: 844 },
 ];
-const SHOTS = path.resolve(".design", "ronda-grande", "capturas");
+const SHOTS = path.resolve(".capturas", "ronda-grande", "capturas");
 
 const overflow = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

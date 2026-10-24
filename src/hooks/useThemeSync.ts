@@ -15,7 +15,7 @@ import {
 } from "../lib/uiTheme";
 
 /**
- * Fonte única do tema aplicado da app (T3.4, `.design/shell-nav-perfil/TASKS.md`
+ * Fonte única do tema aplicado da app (T3.4)
  * — última tarefa da Fase 3, resolve "o tema começa sempre dark noutro
  * browser"). Único consumidor: `App.tsx` (passa `theme`/`toggleTheme` ao
  * `Shell`/`Login`/`Signup`/`SetupPassword`, exatamente como antes do T3.4).

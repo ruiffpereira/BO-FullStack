@@ -24,7 +24,7 @@ import { DespesasPage } from "./pages/DespesasPage";
  *   dono           tenantA@e2e         (Despesas do mês, só para o formato dos euros)
  *
  * As marcações dos testes criam-se pela API no próprio tenant (2030, não pisam o semeado) e apagam-se no fim.
- * Capturas em `.design/ronda-grande/capturas/b57-f3-*.png` — para OLHAR.
+ * Capturas em `.capturas/ronda-grande/capturas/b57-f3-*.png` — para OLHAR.
  */
 
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -35,7 +35,7 @@ const SEM_VALORES = "av-semvalores@e2e.local";
 const SO_VER = "av-sover@e2e.local";
 const COM_VALORES = "av-comvalores@e2e.local";
 
-const SHOTS = path.resolve(".design", "ronda-grande", "capturas");
+const SHOTS = path.resolve(".capturas", "ronda-grande", "capturas");
 const NBSP = String.fromCharCode(160);
 
 async function shot(page: Page, nome: string, w: number) {

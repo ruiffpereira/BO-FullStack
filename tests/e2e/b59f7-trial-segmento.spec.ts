@@ -38,7 +38,7 @@ for (const { w, h } of SIZES) {
       await expect(page.getByRole("button", { name: /entrar/i }).first()).toBeVisible({ timeout: 15_000 });
       await expect(page.getByText(/dias? grátis|Experimenta grátis|undefined/)).toHaveCount(0);
       expect(await noHScroll(page)).toBeLessThanOrEqual(0);
-      await page.screenshot({ path: `.design/ronda-grande/capturas/b59f7-signup-${w}.png` });
+      await page.screenshot({ path: `.capturas/ronda-grande/capturas/b59f7-signup-${w}.png` });
     });
 
     test("CR-34: o segmento «Sócios activos» diz «Subscritos com subscrição activa e conta confirmada»", async ({ page, context }) => {
@@ -55,7 +55,7 @@ for (const { w, h } of SIZES) {
       await expect(body.getByText("Subscritos com subscrição activa e conta confirmada.")).toBeVisible();
       await expect(body.getByText(/Subscritos com subscrição activa e conta confirmada\./)).toHaveCount(1);
       expect(await noHScroll(page)).toBeLessThanOrEqual(0);
-      await page.screenshot({ path: `.design/ronda-grande/capturas/b59f7-segmento-${w}.png` });
+      await page.screenshot({ path: `.capturas/ronda-grande/capturas/b59f7-segmento-${w}.png` });
     });
   });
 }

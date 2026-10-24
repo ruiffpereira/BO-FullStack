@@ -26,7 +26,7 @@ for (const { w, h } of SIZES) {
       }
       await expect(page.getByTestId("correio-caixa").or(page.getByTestId("mail-not-configured")).or(page.getByTestId("mail-no-mailbox"))).toBeVisible({ timeout: 15_000 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
-      await page.screenshot({ path: `.design/ronda-grande/capturas/campanhas-escondidas-${w}.png` });
+      await page.screenshot({ path: `.capturas/ronda-grande/capturas/campanhas-escondidas-${w}.png` });
     });
 
     test("o menu do Correio não tem «Campanhas»; Contactos continua", async ({ page, context }) => {

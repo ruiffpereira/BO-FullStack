@@ -47,7 +47,7 @@ const SIZES = [
   { w: 390, h: 844 },
 ];
 
-const SHOTS = path.resolve(".design", "email", "capturas"); // relativo ao Backoffice (cwd do Playwright)
+const SHOTS = path.resolve(".capturas", "email", "capturas"); // relativo ao Backoffice (cwd do Playwright)
 fs.mkdirSync(SHOTS, { recursive: true });
 const shot = (page: Page, name: string, w: number) => page.screenshot({ path: path.join(SHOTS, `b55-${name}-${w}.png`), fullPage: false });
 

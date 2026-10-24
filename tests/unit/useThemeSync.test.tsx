@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 //
-// useThemeSync (T3.4, .design/shell-nav-perfil/) é conduzido por
+// useThemeSync (T3.4) é conduzido por
 // GET/PUT /users/me (hooks gerados pelo Kubb) + useAuth (isAuthenticated).
 // Mockamos os dois lados da API para controlar o "servidor" sem rede real,
 // mesmo padrão de tests/unit/Perfil.test.tsx. useQueryClient (invalidação)

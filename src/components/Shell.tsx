@@ -483,7 +483,7 @@ function resolveTopbarTitle(pathname: string): string {
 }
 
 /**
- * Menu do avatar no topbar (T3.3, `.design/shell-nav-perfil/`): devolve a
+ * Menu do avatar no topbar (T3.3): devolve a
  * identidade do tenant que foi removida do cartão da sidebar (fix anterior) —
  * "O meu perfil" (→ `/perfil`) e "Terminar sessão". Portal (mesmo padrão do
  * flyout de `NavItemGroup`/`useAnchoredMenu`), ancorado à direita por baixo do

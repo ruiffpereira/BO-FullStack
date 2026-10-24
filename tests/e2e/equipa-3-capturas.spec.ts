@@ -6,10 +6,10 @@ import { EquipaPage } from "./pages/EquipaPage";
 
 /**
  * Fase 3 — capturas responsivas de `/equipa` (1440 / 834 / 390): lista do dono, ficha com Permissões e Actividade, e o modal
- * de convite do delegado. Guardam em `.design/equipa-permissoes/capturas/fase3/` e afirmam o que dá para medir:
+ * de convite do delegado. Guardam em `.capturas/equipa-permissoes/capturas/fase3/` e afirmam o que dá para medir:
  * sem scroll horizontal da página e o modal dentro do ecrã. (O resto — texto cortado, sobreposição — vê-se nas imagens.)
  */
-const OUT = path.resolve(process.cwd(), ".design/equipa-permissoes/capturas/fase3");
+const OUT = path.resolve(process.cwd(), ".capturas/equipa-permissoes/capturas/fase3");
 const DONO = "equipa3@e2e.local";
 const GERIR = "e3-gerir@e2e.local";
 const VIEWPORTS = [

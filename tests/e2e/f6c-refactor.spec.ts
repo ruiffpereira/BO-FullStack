@@ -27,7 +27,7 @@ const SEM_VALORES = "av-semvalores@e2e.local";
 const SUPORTE_SIM = { name: "Cliente Suporte", email: "suporte-sim@e2e.local" };
 const VIEW_ONLY = "Só tens permissão para ver";
 
-const SHOTS = path.resolve(".design", "b57-f6c", "capturas");
+const SHOTS = path.resolve(".capturas", "b57-f6c", "capturas");
 fs.mkdirSync(SHOTS, { recursive: true });
 
 const WIDTHS = [

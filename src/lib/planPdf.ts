@@ -3,7 +3,7 @@
  *
  * Gera um documento A4 horizontal — **1 página se o plano couber, 2 (frente
  * + verso) só se transbordar** — com o layout aprovado pelo utilizador
- * (maqueta em `.design/`), e imprime-o via CSS de impressão dentro de um
+ * (maqueta aprovada), e imprime-o via CSS de impressão dentro de um
  * `<iframe>` escondido — sem dependências novas (nada de jspdf/react-pdf).
  * O utilizador usa "Guardar como PDF" no diálogo de impressão do browser.
  *
@@ -456,7 +456,7 @@ export function buildPlanPrintHtml(opts: BuildPlanPrintHtmlOptions): string {
 </html>`;
 }
 
-// ── CSS (layout aprovado — ver `.design/plano-a4.html`) ─────────────────
+// ── CSS (layout aprovado) ─────────────────
 //
 // Idêntico ao da maqueta, com as propriedades que definem a densidade
 // vertical (fonte/padding das linhas da tabela e espaçamento entre dias)

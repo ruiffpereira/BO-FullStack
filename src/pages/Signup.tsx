@@ -13,7 +13,7 @@ import { fmtEur } from '../lib/money'
 import { VERTICALS, VERTICAL_MODULES, isVertical, type Vertical } from '../lib/verticals'
 
 /**
- * `/signup` — signup self-serve público (T8, brief `.design/self-serve/`). Par
+ * `/signup` — signup self-serve público (T8). Par
  * standalone do `Login.tsx` (sem Shell). 2 passos + 1 estado final:
  *  1. Negócio: vertical (radio cards) + nome do negócio + email.
  *  2. Plano: módulos pré-marcados pela vertical (editável) + total €/mês live,

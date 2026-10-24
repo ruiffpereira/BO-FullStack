@@ -5,7 +5,7 @@
  * porque corre antes do bundle — mantém os dois em sincronia se mexeres
  * aqui).
  *
- * T3.4 (`.design/shell-nav-perfil/TASKS.md`): a preferência server-side
+ * T3.4: a preferência server-side
  * (`User.uiTheme`, via `useThemeSync` em `src/hooks/useThemeSync.ts`) manda
  * assim que `GET /users/me` resolve — prioridade servidor > localStorage >
  * sistema. Este ficheiro continua a ser só o 1.º palpite (antes de saber se

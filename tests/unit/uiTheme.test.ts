@@ -33,7 +33,7 @@ describe("resolveInitialTheme", () => {
   });
 });
 
-// T3.4 (.design/shell-nav-perfil/TASKS.md) — tema server-side: o servidor
+// T3.4 — tema server-side: o servidor
 // (User.uiTheme) ganha sempre a localStorage/sistema deste browser quando é
 // "light"/"dark" explícito; "system" (ou ausente/inválido) segue o sistema.
 describe("resolveThemeFromServer", () => {

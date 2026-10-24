@@ -10,7 +10,7 @@ import { useGetGymSubscriptions } from '../gen/backoffice/hooks/useGetGymSubscri
 import { useGetProducts } from '../gen/backoffice/hooks/useGetProducts.js'
 
 /**
- * Bloco "Primeiros passos" no topo do Dashboard (T11, brief `.design/self-serve/`).
+ * Bloco "Primeiros passos" no topo do Dashboard (T11).
  * Checklist por vertical, derivada das PERMISSÕES do tenant + dados que já existem
  * (nunca um novo endpoint): agenda→serviço/horário · ginásio→subscrição/cliente/
  * cobrança · loja→produto · core→cliente. Cada item é um deep-link; completa-se

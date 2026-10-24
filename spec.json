@@ -13357,7 +13357,7 @@
                 }
               }
             },
-            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver `FUNCIONALIDADES.md`"
+            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver a ficha do módulo Conteúdos (pasta 0)"
           }
         }
       },
@@ -13461,7 +13461,7 @@
                 }
               }
             },
-            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver `FUNCIONALIDADES.md`"
+            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver a ficha do módulo Conteúdos (pasta 0)"
           }
         }
       }
@@ -13541,7 +13541,7 @@
                 }
               }
             },
-            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver `FUNCIONALIDADES.md`"
+            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver a ficha do módulo Conteúdos (pasta 0)"
           }
         }
       }
@@ -13582,7 +13582,7 @@
                 }
               }
             },
-            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver `FUNCIONALIDADES.md`"
+            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver a ficha do módulo Conteúdos (pasta 0)"
           },
           "404": {
             "content": {
@@ -13920,7 +13920,7 @@
                 }
               }
             },
-            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`), ou tenant sem o módulo de algum contexto do template (`MODULE_NOT_AVAILABLE`, CO-13) — ver `FUNCIONALIDADES.md`"
+            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`), ou tenant sem o módulo de algum contexto do template (`MODULE_NOT_AVAILABLE`, CO-13) — ver a ficha do módulo Conteúdos (pasta 0)"
           }
         }
       }
@@ -14383,7 +14383,7 @@
                 }
               }
             },
-            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`), ou tenant sem o módulo do contexto/do pai (`MODULE_NOT_AVAILABLE`, CO-13) — ver `FUNCIONALIDADES.md`"
+            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`), ou tenant sem o módulo do contexto/do pai (`MODULE_NOT_AVAILABLE`, CO-13) — ver a ficha do módulo Conteúdos (pasta 0)"
           }
         }
       }
@@ -14465,7 +14465,7 @@
                 }
               }
             },
-            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver `FUNCIONALIDADES.md`"
+            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver a ficha do módulo Conteúdos (pasta 0)"
           }
         }
       }
@@ -14543,7 +14543,7 @@
                 }
               }
             },
-            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`), ou tenant sem o módulo da secção/do novo pai (`MODULE_NOT_AVAILABLE`, CO-13) — ver `FUNCIONALIDADES.md`"
+            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`), ou tenant sem o módulo da secção/do novo pai (`MODULE_NOT_AVAILABLE`, CO-13) — ver a ficha do módulo Conteúdos (pasta 0)"
           },
           "404": {
             "content": {
@@ -14592,7 +14592,7 @@
                 }
               }
             },
-            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver `FUNCIONALIDADES.md`"
+            "description": "Membro da equipa sem a folha de Conteúdos desse contexto (`TEAM_FORBIDDEN`) — ver a ficha do módulo Conteúdos (pasta 0)"
           },
           "404": {
             "content": {

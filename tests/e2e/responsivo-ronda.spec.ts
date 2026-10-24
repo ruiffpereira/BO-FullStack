@@ -8,13 +8,13 @@ import { withSessionRetry } from "./fixtures/session";
  * Ronda grande (R6.3) — RESPONSIVO.
  *
  *  A) as páginas que mudaram na ronda, nas 3 larguras (1440 / 834 / 390): abrem sem erro, sem scroll horizontal da
- *     página nem do <main>, com captura em `.design/ronda-grande/capturas/` (para OLHAR);
+ *     página nem do <main>, com captura em `.capturas/ronda-grande/capturas/` (para OLHAR);
  *  B) smoke a 834 e 390 em TODAS as páginas antigas: abre sem erro e sem scroll horizontal.
  */
 test.use({ storageState: { cookies: [], origins: [] } });
 test.describe.configure({ retries: 0 });
 
-const SHOTS = path.resolve(".design", "ronda-grande", "capturas");
+const SHOTS = path.resolve(".capturas", "ronda-grande", "capturas");
 fs.mkdirSync(SHOTS, { recursive: true });
 
 const WIDTHS = [

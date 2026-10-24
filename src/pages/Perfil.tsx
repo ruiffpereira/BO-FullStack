@@ -28,7 +28,7 @@ const THEME_TABS: { id: UiThemeChoice; label: string; icon: string }[] = [
 ];
 
 /**
- * Página `/perfil` (T3.3, `.design/shell-nav-perfil/`). Core, FORA da sidebar
+ * Página `/perfil` (T3.3). Core, FORA da sidebar
  * — acede-se pelo menu do avatar no topbar (`Shell.tsx`, `AvatarMenu`), como o
  * `/despesas` é deep-link sem item de menu próprio (`Shell.tsx` acrescenta-o
  * a `guardRoots` para o guard de rotas não o expulsar para o dashboard).

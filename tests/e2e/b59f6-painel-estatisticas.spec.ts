@@ -19,7 +19,7 @@ import { login, mkService, mkAppt, delAppts, delService, expectNoHScroll, LARGUR
  *
  * Actores: dono do `dinheiro` (Drogaria Cobalto: Agenda + Clientes + Loja + Despesas, dedicado — sem despesas no seed nem
  * marcações no período), membros do `arvoreA` (av-sover@e2e.local tem a folha `estatisticas`; av-semvalores@e2e.local não).
- * Capturas em `.design/ronda-grande/capturas/b59f6-*.png` — para OLHAR.
+ * Capturas em `.capturas/ronda-grande/capturas/b59f6-*.png` — para OLHAR.
  */
 
 test.use({ storageState: { cookies: [], origins: [] }, viewport: { width: 1440, height: 900 } });
@@ -30,7 +30,7 @@ const DONO = "dinheiro@e2e.local";
 const AGENDA = "agenda@e2e"; // só VIEW_SCHEDULE: a faixa do painel tem espaço para «Marcações · 14 dias» (máx. 4 cartões)
 const SOVER = "av-sover@e2e.local"; // tem `estatisticas`
 const SEM_STATS = "av-semvalores@e2e.local"; // agenda + clientes, sem `estatisticas`
-const SHOTS = path.resolve(".design", "ronda-grande", "capturas");
+const SHOTS = path.resolve(".capturas", "ronda-grande", "capturas");
 
 async function shot(page: Page, nome: string, w: number) {
   fs.mkdirSync(SHOTS, { recursive: true });

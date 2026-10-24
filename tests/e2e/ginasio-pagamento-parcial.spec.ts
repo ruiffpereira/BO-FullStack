@@ -18,7 +18,7 @@ const ARVORE_DONO = "arvore-a@e2e.local";
 const SO_VER = "av-sover@e2e.local";
 const VIEW_ONLY = "Só tens permissão para ver";
 const PRECO = 40;
-const SHOTS = path.resolve(".design", "ronda-grande", "capturas");
+const SHOTS = path.resolve(".capturas", "ronda-grande", "capturas");
 const tag = String(Date.now()).slice(-6);
 
 /** Cliente com a subscrição de 40 € atribuída (nasce com a mensalidade do mês por pagar — GY-37). */

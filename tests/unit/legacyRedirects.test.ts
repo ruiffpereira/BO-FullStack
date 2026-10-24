@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { resolveLegacyTabTarget } from "../../src/lib/navigation";
 
-// T2.8 (varredura de deep-links órfãos, `.design/shell-nav-perfil/TASKS.md`):
+// T2.8 (varredura de deep-links órfãos):
 // cobre `resolveLegacyTabTarget` para os casos reais que o `LegacyTabEntry`
 // (App.tsx) resolve em produção — um por página migrada na Fase 2, mais os
 // dois casos "sem redirect" (id-âncora da raiz e id desconhecido).

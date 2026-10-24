@@ -15,13 +15,13 @@ import { PaginasPage, VIEWPORTS, uniq } from "./pages/PaginasPage";
  *
  * Só corre com `CAPTURAS=1` (não escreve PNG na árvore em cada CI):
  *   CAPTURAS=1 pnpm exec playwright test paginas-capturas-p1-p3 --project=chromium
- * Grava em `Backoffice/.design/page-builder/capturas/p1-p3/<ecrã>-<largura>-<tema>.png`.
+ * Grava em `Backoffice/.capturas/page-builder/p1-p3/<ecrã>-<largura>-<tema>.png`.
  * Além de capturar, falha se a página ou o modal tiver scroll horizontal (o que se vê a 390 não pode cortar).
  */
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.design/page-builder/capturas/p1-p3");
+const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.capturas/page-builder/p1-p3");
 const MEDIA = "https://e2e-media.test";
 const OWNER = "pages@e2e";
 const SUPPORT_TENANT = "pagesB@e2e";

@@ -537,5 +537,5 @@ for (const { w, h } of SIZES) {
   });
 }
 
-const SHOTS = path.resolve(".design", "email", "capturas");
+const SHOTS = path.resolve(".capturas", "email", "capturas");
 fs.mkdirSync(SHOTS, { recursive: true });

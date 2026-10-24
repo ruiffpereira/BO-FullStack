@@ -3,8 +3,8 @@ import * as path from "path";
 import { loginAs } from "./fixtures/login";
 import { withSessionRetry } from "./fixtures/session";
 
-/** Capturas da fase 2c (só guardam; sem asserções de layout). Saída: .design/equipa-permissoes/capturas/2c/ */
-const OUT = path.resolve(process.cwd(), ".design/equipa-permissoes/capturas/2c");
+/** Capturas da fase 2c (só guardam; sem asserções de layout). Saída: .capturas/equipa-permissoes/capturas/2c/ */
+const OUT = path.resolve(process.cwd(), ".capturas/equipa-permissoes/capturas/2c");
 test.use({ storageState: { cookies: [], origins: [] }, viewport: { width: 390, height: 844 } });
 
 const SHOTS = [

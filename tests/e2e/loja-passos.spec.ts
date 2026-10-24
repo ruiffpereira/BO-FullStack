@@ -15,7 +15,7 @@ import { LARGURAS, eur, expectNoHScroll } from "./fixtures/dinheiro";
  *
  * Seed (`API-FullStack/scripts/seedE2e.ts`, `E2E_LOJA_PASSOS`): dono `loja-passos@e2e.local`, membro só-ver `lp-sover@e2e.local`;
  * produto «Produto Zimbro» (stock 10) e uma encomenda por situação, cada uma com 2 unidades e um preço único (31,10 … 36,60).
- * Capturas em `.design/ronda-grande/capturas/b59f4-*.png` — para OLHAR.
+ * Capturas em `.capturas/ronda-grande/capturas/b59f4-*.png` — para OLHAR.
  */
 test.use({ storageState: { cookies: [], origins: [] } });
 test.describe.configure({ mode: "serial", retries: 0 });
@@ -29,7 +29,7 @@ const QTY = 2;
 
 const P = { fluxo: "31,10", cancelar: "32,20", porPagar: "33,30", cancelada: "34,40", reembolsada: "35,50", guarda: "36,60" } as const;
 
-const SHOTS = path.resolve(".design", "ronda-grande", "capturas");
+const SHOTS = path.resolve(".capturas", "ronda-grande", "capturas");
 async function shot(page: Page, nome: string) {
   fs.mkdirSync(SHOTS, { recursive: true });
   await page.screenshot({ path: path.join(SHOTS, `b59f4-${nome}.png`) });

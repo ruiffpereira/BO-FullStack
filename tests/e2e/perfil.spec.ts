@@ -3,7 +3,7 @@ import { DEFAULT_TEST_USER } from "./fixtures/login";
 import { withSessionRetry } from "./fixtures/session";
 
 /**
- * /perfil (T3.3, `.design/shell-nav-perfil/`) + menu do avatar no topbar.
+ * /perfil (T3.3) + menu do avatar no topbar.
  *
  * IMPORTANTE: `admin@e2e` é o utilizador seeded partilhado por praticamente
  * todos os outros specs (login via `./fixtures/auth`, `TEST_USER=admin@e2e`

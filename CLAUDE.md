@@ -11,7 +11,7 @@ forçar o refresh nos dispositivos já instalados.
 > [4.2 armadilhas](<../docs/4 - Como trabalhar/4.2 - armadilhas.md>) (erros já pagos).
 >
 > **Detalhe por página/componente:** [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md) — ler quando se
-> mexe na página em causa. **Briefs de todos os épicos da plataforma:** `.design/<épico>/`.
+> mexe na página em causa. **Planos dos itens em curso:** `docs/6 - Planos/` na raiz.
 
 Este ficheiro tem **invariantes**. Estado e trabalho aberto vivem no `TASKS.md` da raiz.
 

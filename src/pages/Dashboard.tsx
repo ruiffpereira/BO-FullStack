@@ -14,6 +14,7 @@ import { StaffFilterSelect } from "../components/StaffSelect";
 import { STAFF_ALL, staffParam } from "../lib/staffFilter";
 import { useNow } from "../hooks/useNow";
 import { fmtEur } from "../lib/money";
+import { apptsOfDay, windowSeries } from "../lib/dashboardAppts";
 import { dashboardBlocks, dashboardSpine, hasRevenue, revenueSourcesLabel } from "../lib/dashboardBlocks";
 import { Appt, DayRail } from "./dashboard/DayRail";
 import { CustomersWelcome, FulfillmentSpine, OrderLike, OrdersList, StockAlerts } from "./dashboard/Lists";
@@ -43,6 +44,7 @@ export function Dashboard() {
         schedule: hasPermission('VIEW_SCHEDULE'),
         products: hasPermission('VIEW_PRODUCTS'),
         gym: hasPermission('VIEW_GYM'),
+        customers: hasPermission('VIEW_CUSTOMERS'),
       },
     }),
     [isMember, dash?.included, hasPermission],
@@ -51,7 +53,7 @@ export function Dashboard() {
   const canOrders = blocks.orders
   const canGym = blocks.gymRevenue
 
-  const { data: customersData, isLoading: loadingCustomers } = useGetCustomers({
+  const { data: customersData, isLoading: loadingCustomers, isError: customersFailed } = useGetCustomers({
     query: { enabled: blocks.customers },
   })
   const { data: ordersData, isLoading: loadingOrders } = useGetOrders({ limit: 6, ...(staff ? { staff } : {}) }, {
@@ -60,6 +62,12 @@ export function Dashboard() {
   const { data: appointmentsData, isLoading: loadingAppts } = useGetScheduleAppointments(
     { month: thisMonth, ...(staff ? { staff } : {}) },
     { query: { enabled: canSchedule } },
+  )
+  // «Marcações · 14 dias»: nos primeiros 13 dias do mês a janela começa no mês anterior → pede-o também.
+  const windowStartMonth = format(subDays(now, 13), 'yyyy-MM')
+  const { data: prevMonthApptsData } = useGetScheduleAppointments(
+    { month: windowStartMonth, ...(staff ? { staff } : {}) },
+    { query: { enabled: canSchedule && windowStartMonth !== thisMonth } },
   )
   const { data: servicesData } = useGetScheduleServices({
     query: { enabled: canSchedule && (!isMember || can('agenda.servicos')) },
@@ -80,7 +88,10 @@ export function Dashboard() {
   }, [services])
 
   // ── Today ──────────────────────────────────────────────────────────────
-  const apptsToday = useMemo(() => appts.filter((a) => a.date === today), [appts, today])
+  // ES-15: as canceladas não são marcações do dia (nem entram em «tudo confirmado»).
+  const apptsToday = useMemo(() => apptsOfDay(appts, today), [appts, today])
+  // A linha do tempo mostra também as canceladas (com o seu estado); só as contagens as ignoram.
+  const dayRailAppts = useMemo(() => appts.filter((a) => a.date === today), [appts, today])
   const pendingToday = apptsToday.filter((a) => a.status === 'pending').length
 
   // Receita de hoje agregada (agenda + loja + ginásio), dos dados reais do /dashboard.
@@ -107,14 +118,13 @@ export function Dashboard() {
 
   // ── 14-day appointment series + 7d-over-7d delta ──────────────────────────
   const { spark14, weekDelta, weekCount } = useMemo(() => {
-    const days = eachDayOfInterval({ start: subDays(now, 13), end: now })
-    const counts: Record<string, number> = {}
-    for (const a of appts) counts[a.date] = (counts[a.date] ?? 0) + 1
-    const series = days.map((d) => counts[format(d, 'yyyy-MM-dd')] ?? 0)
-    const last7 = series.slice(7).reduce((s, v) => s + v, 0)
-    const prev7 = series.slice(0, 7).reduce((s, v) => s + v, 0)
-    return { spark14: series, weekDelta: last7 - prev7, weekCount: last7 }
-  }, [appts, now])
+    const days = eachDayOfInterval({ start: subDays(now, 13), end: now }).map((d) => format(d, 'yyyy-MM-dd'))
+    // Com o mesmo mês a query desactivada partilha a cache da do mês (mesma chave) → sem este guarda contava tudo a dobrar.
+    const prev = windowStartMonth !== thisMonth ? ((prevMonthApptsData ?? []) as Appt[]) : []
+    const w = windowSeries([...prev, ...appts], days)
+    // O número é o dos 14 dias (o do mini-gráfico); a variação compara os últimos 7 com os 7 anteriores.
+    return { spark14: w.series, weekDelta: w.delta, weekCount: w.total }
+  }, [appts, prevMonthApptsData, windowStartMonth, thisMonth, now])
 
   // ── Status breakdown (mês, agenda) ────────────────────────────────────────
   const breakdown = useMemo(() => {
@@ -145,12 +155,13 @@ export function Dashboard() {
         : { label: 'Vendas de hoje', value: fmtEur(salesToday), sub: 'loja', icon: 'cart', tone: 'blue', loading: loadingDash, href: '/loja/encomendas' })
     }
     // Core + fillers (só para encher a faixa em tenants de uma só vertical).
-    if (blocks.customers) list.push({ label: 'Clientes', value: totalCustomers, sub: newCustomers ? `${newCustomers} novos esta semana` : 'no total', icon: 'users', tone: 'violet', loading: loadingCustomers, href: '/clientes' })
-    if (canSchedule) list.push({ label: 'Marcações · 14 dias', value: weekCount, sub: 'últimos 7 dias', icon: 'trend', tone: 'violet', loading: loadingAppts, delta: weekDelta, spark: spark14, href: '/agenda' })
+    // Sem dados de clientes (pedido recusado) o cartão não existe: nunca um esqueleto eterno nem um «0» falso.
+    if (blocks.customers && !customersFailed) list.push({ label: 'Clientes', value: totalCustomers, sub: newCustomers ? `${newCustomers} novos esta semana` : 'no total', icon: 'users', tone: 'violet', loading: loadingCustomers, href: '/clientes' })
+    if (canSchedule) list.push({ label: 'Marcações · 14 dias', value: weekCount, sub: 'últimos 14 dias', icon: 'trend', tone: 'violet', loading: loadingAppts, delta: weekDelta, spark: spark14, href: '/agenda' })
     if (blocks.gymMembers) list.push({ label: 'Sócios ativos', value: dash?.gym?.activeMembers ?? '—', sub: 'ginásio', icon: 'users', tone: 'violet', loading: loadingDash, href: '/financeiro/ginasio' })
     if (canOrders) list.push({ label: 'Ticket médio', value: fmtEur(dash?.ecommerce?.period?.avgOrderValue ?? 0), sub: 'por encomenda', icon: 'cart', tone: 'blue', loading: loadingDash, href: '/loja/encomendas' })
     return list.slice(0, 4)
-  }, [blocks, canSchedule, canOrders, canGym, revToday, apptsToday.length, pendingToday, today, gym.emAtraso, gym.porCobrar, gym.previsto, openOrders, salesToday, totalCustomers, newCustomers, weekCount, weekDelta, spark14, dash, loadingDash, loadingAppts, loadingGym, loadingOrders, loadingCustomers])
+  }, [blocks, canSchedule, canOrders, canGym, revToday, apptsToday.length, pendingToday, today, gym.emAtraso, gym.porCobrar, gym.previsto, openOrders, salesToday, totalCustomers, newCustomers, weekCount, weekDelta, spark14, dash, loadingDash, loadingAppts, loadingGym, loadingOrders, loadingCustomers, customersFailed])
 
   // ── Espinha (peça central) por prioridade operacional ─────────────────────
   const spine = dashboardSpine(blocks)
@@ -245,7 +256,7 @@ export function Dashboard() {
               <SectionTitle right={<span className="text-xs text-zinc-400 tabular-nums">{apptsToday.length} hoje</span>}>Hoje</SectionTitle>
               {loadingAppts
                 ? <div className="space-y-3 py-2">{[0, 1, 2].map((i) => <div key={i} className="h-10 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />)}</div>
-                : <DayRail appts={apptsToday} colorOf={colorOf} now={now} />}
+                : <DayRail appts={dayRailAppts} colorOf={colorOf} now={now} />}
             </>
           )}
           {spine === 'gym' && <GymCobrancasSpine fin={gymFin} monthLabel={monthLabel} loading={loadingGym} />}

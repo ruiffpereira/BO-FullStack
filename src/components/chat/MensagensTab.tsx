@@ -67,13 +67,13 @@ function NewConversationModal({
   }, [users, q]);
 
   return (
-    <Modal open={open} onClose={onClose} title="Nova conversa" subtitle="Escolhe um cliente para iniciar">
-      <Input icon="search" placeholder="Procurar cliente…" value={q} onChange={(e: any) => setQ(e.target.value)} />
+    <Modal open={open} onClose={onClose} title="Nova conversa" subtitle="Escolhe um negócio para iniciar">
+      <Input icon="search" placeholder="Procurar negócio…" value={q} onChange={(e: any) => setQ(e.target.value)} />
       <div className="mt-3 max-h-80 overflow-y-auto -mx-1">
         {isLoading ? (
           <p className="text-sm text-zinc-400 px-2 py-6 text-center">A carregar…</p>
         ) : filtered.length === 0 ? (
-          <p className="text-sm text-zinc-400 px-2 py-6 text-center">Sem clientes.</p>
+          <p className="text-sm text-zinc-400 px-2 py-6 text-center">Sem negócios.</p>
         ) : (
           filtered.map((u) => (
             <button

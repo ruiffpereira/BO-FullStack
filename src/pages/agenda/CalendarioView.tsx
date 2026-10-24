@@ -26,7 +26,6 @@ import { useNow } from "../../hooks/useNow";
 import { useStaffOptions } from "../../hooks/useStaff";
 import { STAFF_ALL, staffParam } from "../../lib/staffFilter";
 import { toastStaffWarnings } from "../../lib/staffWarnings";
-import { FEATURES } from "../../lib/features";
 import { AG_H_END, AG_H_START, AG_ROW_H, customerIdForAppointment, minuteToTime, weekStartForDate } from "./geometry";
 import { useAgendaCustomers } from "./useAgendaCustomers";
 import { CustomerProfileModal } from "../../components/customers/CustomerProfileModal";
@@ -387,7 +386,7 @@ export function CalendarioView() {
             Nova marcação
           </GuardButton>
         </Card>
-        {FEATURES.googleCalendar && <CalendarSubscribeCard />}
+        <CalendarSubscribeCard />
         <UpcomingCard upcoming={upcoming} services={services} today={today} onSelect={setSelAppt} />
       </div>
 

@@ -1,7 +1,7 @@
 # Login com Google para os clientes dos sites — PLANO (B28)
 
 > Estado: **decidido (2026-10-19)**, a construir na ronda grande. Desenho original (2026-09-26) em
-> `docs/TASKS-FEITO.md#b28` (as fases do site-engine caíram com o B35). Decisões em `DECISOES.md` (2026-10-19 · B28).
+> `docs/5 - Historico/5.1 - tarefas feitas.md#b28` (as fases do site-engine caíram com o B35). Decisões em `DECISOES.md` (2026-10-19 · B28).
 
 ## Para quem
 

@@ -3,7 +3,7 @@
 > Faz parte da ronda grande (R5.0). O código das fases 5–7 escreve-se e testa-se contra um Stalwart em Docker local;
 > **em produção fica desligado** (`STALWART_*` por definir → o BO mostra "Por configurar") até este piloto estar
 > verde. Plano e decisões: [PLANO.md](PLANO.md) §1. Configuração final da produção vai para
-> [docs/INFRA.md](../../../docs/INFRA.md) quando estiver feita.
+> [3.1 producao](<../../../docs/3 - Infra/3.1 - producao.md>) quando estiver feita.
 >
 > **Versão:** os passos 4–5 são para a **0.16.27** (a provada, B52). O piloto que já está de pé corre a 0.11.8 — para o
 > passar à 0.16 vai à secção **«Subir de versão»** no fim.
@@ -282,5 +282,5 @@ fica sem correio funcional (fala JMAP) até voltares à 0.16 — e `STALWART_URL
 Com os 5 pontos verdes, passas à API (Coolify → API → envs, **reiniciar** depois de gravar):
 `STALWART_URL=http://stalwart:8080` · `STALWART_USER` · `STALWART_PASSWORD` (a conta `api-plataforma` do passo 5b.3; o nome
 sem domínio ou o endereço completo). Os nomes
-finais confirmam-se na R5.2 e ficam em INFRA.md. Sem elas a API arranca na mesma e o Correio → Caixa fica "Por
+finais confirmam-se na R5.2 e ficam em `docs/3 - Infra/3.1 - producao.md`. Sem elas a API arranca na mesma e o Correio → Caixa fica "Por
 configurar".

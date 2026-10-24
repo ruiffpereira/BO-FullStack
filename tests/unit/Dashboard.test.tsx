@@ -127,9 +127,16 @@ describe("Dashboard — KPIs por permissão (dono)", () => {
   });
 
   it("sem nenhum módulo só sobra o core (Clientes) e não há 'Receita de hoje'", () => {
+    perms = new Set(["VIEW_CUSTOMERS"]);
     renderDash();
     expect(screen.queryByText("Receita de hoje")).not.toBeInTheDocument();
     expect(screen.getByText("Clientes")).toBeInTheDocument();
+  });
+
+  it("sem a permissão de clientes o cartão «Clientes» não existe (nem esqueleto eterno)", () => {
+    perms = new Set(["VIEW_SCHEDULE"]);
+    renderDash();
+    expect(screen.queryByText("Clientes")).not.toBeInTheDocument();
   });
 });
 

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Icon } from '../ui/icons.jsx'
 import { Button, Input, Badge } from '../ui/ui.jsx'
+import { useGetBillingTrial } from '../gen/backoffice/hooks/useGetBillingTrial'
 import { usePostUsersSignup } from '../gen/backoffice/hooks/usePostUsersSignup'
 import { usePostUsersSignupResend } from '../gen/backoffice/hooks/usePostUsersSignupResend'
 import { useGetBillingCatalog } from '../gen/backoffice/hooks/useGetBillingCatalog'
@@ -78,6 +79,9 @@ export function Signup({ theme, onToggleTheme }: Props) {
     return () => clearInterval(id)
   }, [cooldownEpoch])
 
+  // Os dias de experiência vêm da API (o mesmo valor que ela usa ao criar a conta) — sem número fixo aqui.
+  const { data: trial } = useGetBillingTrial()
+  const trialLabel = trial ? `${trial.trialDays} ${trial.trialDays === 1 ? 'dia grátis' : 'dias grátis'}` : 'Experimenta grátis'
   const { data: catalog = [], isLoading: catalogLoading, isError: catalogError } = useGetBillingCatalog()
   // Catálogo PÚBLICO — só devolve módulos ATIVOS (ver useGetBillingCatalog). Um
   // módulo ausente daqui está "indisponível" (não é rejeitado por estar inativo,
@@ -200,7 +204,7 @@ export function Signup({ theme, onToggleTheme }: Props) {
               >
                 A tua app de gestão
               </h1>
-              <p className="text-sm text-zinc-500 mt-1 mb-5">14 dias grátis, sem cartão.</p>
+              <p className="text-sm text-zinc-500 mt-1 mb-5">{trialLabel}, sem cartão.</p>
 
               <fieldset className="mb-4">
                 <legend className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-2">
@@ -308,7 +312,7 @@ export function Signup({ theme, onToggleTheme }: Props) {
                 >
                   Escolhe o teu plano
                 </h1>
-                <Badge tone="green">14 dias grátis, sem cartão</Badge>
+                <Badge tone="green">{trialLabel}, sem cartão</Badge>
               </div>
               <p className="text-sm text-zinc-500 mb-5">
                 Pré-selecionámos os módulos para {VERTICALS.find((v) => v.id === vertical)?.label ?? 'o teu negócio'} —

@@ -26,7 +26,7 @@
 7. **Antes de apontar o domínio** (dono, DNS): os PDFs dos Downloads estão hoje no WordPress antigo
    (`http://www.winterplateau.pt/inc/uploads/…`) — carregá-los no Backoffice (F07) antes, senão partem.
 8. **Fecho do épico:** `DECISOES.md` (o que se aprendeu, se algo mudou), `TASKS.md` da raiz (fechar o item e mover
-   para `docs/TASKS-FEITO.md`), `CLAUDE.md` da raiz (tabela de projectos: winterplateau lê o construtor),
+   para `docs/5 - Historico/5.1 - tarefas feitas.md`), `CLAUDE.md` da raiz (tabela de projectos: winterplateau lê o construtor),
    `winterplateau/CLAUDE.md` (o fluxo novo), `FUNCIONALIDADES.md`, e o futuro no TASKS: pré-visualização,
    histórico de versões no servidor, kit React/Next para outros sites.
 

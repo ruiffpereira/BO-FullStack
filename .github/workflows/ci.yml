@@ -5,7 +5,7 @@ name: CI
 #   - unit corre sempre (não precisa de config).
 #   - e2e só corre quando E2E_ENABLED == 'true' (precisa do secret GH_PAT p/ clonar a API).
 #   - deploy/smoke só correm quando DEPLOY_ENABLED == 'true'.
-# Ver CI-SETUP.md na raiz do workspace.
+# Ver docs/3 - Infra/3.2 - ci.md na raiz do workspace.
 
 on:
   push:
@@ -124,7 +124,7 @@ jobs:
       # O painel do Coolify não é público (vive dentro da WireGuard) — é o
       # runner que entra na rede, em vez de expormos o plano de controlo.
       # Racional completo e armadilhas (AllowedIPs estreito, DNS/--resolve) no
-      # workflow do site-engine, que é o canónico. Setup: ../CI-SETUP.md.
+      # workflow do site-engine, que é o canónico. Setup: ../docs/3 - Infra/3.2 - ci.md.
       - name: Entrar na rede WireGuard (o painel do Coolify não é público)
         env:
           WG_CONFIG: ${{ secrets.WIREGUARD_CONFIG }}

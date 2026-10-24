@@ -1369,6 +1369,21 @@
             "format": "uuid",
             "nullable": true,
             "description": "Profissional que vendeu (a venda conta para ele no financeiro); null = sem profissional"
+          },
+          "allowedTransitions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "processing",
+                "shipped",
+                "delivered",
+                "cancelled",
+                "refunded"
+              ]
+            },
+            "description": "Estados para onde o Backoffice pode passar a encomenda a partir do actual (LJ-33). `pending → processing` só pelo pagamento. Vazio = estado final."
           }
         },
         "required": [
@@ -1936,6 +1951,89 @@
             "description": "Sem `agenda.marcacoes.valores` saem sem preços/pagamentos (EQ-06)",
             "items": {
               "$ref": "#/components/schemas/Appointment"
+            }
+          },
+          "addresses": {
+            "type": "array",
+            "description": "Moradas do cliente (CL-18)",
+            "items": {
+              "type": "object",
+              "properties": {
+                "addressId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "address": {
+                  "type": "string"
+                },
+                "postalCode": {
+                  "type": "string"
+                },
+                "city": {
+                  "type": "string"
+                },
+                "phoneNumber": {
+                  "type": "string"
+                },
+                "nif": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "bankCards": {
+            "type": "array",
+            "description": "Cartões guardados: só os 4 últimos dígitos e a validade (o CVV nunca é guardado) — CL-18",
+            "items": {
+              "type": "object",
+              "properties": {
+                "cardId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "lastFourDigits": {
+                  "type": "string"
+                },
+                "expirationDate": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "messages": {
+            "type": "array",
+            "description": "Mensagens do cliente com o negócio, da mais antiga para a mais recente (CL-18)",
+            "items": {
+              "type": "object",
+              "properties": {
+                "messageId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "senderRole": {
+                  "type": "string",
+                  "enum": [
+                    "customer",
+                    "business"
+                  ]
+                },
+                "body": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "attachments": {
+                  "type": "array",
+                  "nullable": true,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
             }
           },
           "gym": {
@@ -2579,9 +2677,32 @@
           "customerId": {
             "type": "string"
           },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "description": "Linhas da encomenda (obrigatório, LJ-36). O preço sai dos produtos do tenant; a encomenda nasce `pending`. Sem linhas -> 400 LINES_REQUIRED.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "productId": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "productId",
+                "quantity"
+              ]
+            }
+          },
           "price": {
             "type": "number",
-            "format": "decimal"
+            "format": "decimal",
+            "description": "Só no PUT, e só numa encomenda `pending` sem pagamento iniciado; senão 409 PRICE_LOCKED (LJ-37). Ignorado no POST (o preço sai das linhas)."
           },
           "status": {
             "type": "string",
@@ -2592,7 +2713,8 @@
               "delivered",
               "cancelled",
               "refunded"
-            ]
+            ],
+            "description": "Só no PUT, só um passo válido (409 STATUS_TRANSITION_INVALID). Ignorado no POST (nasce pending)."
           },
           "notes": {
             "type": "string",
@@ -6973,6 +7095,7 @@
   "paths": {
     "/csrf-token": {
       "get": {
+        "x-codigo": "E16-04",
         "summary": "Get CSRF token",
         "tags": [
           "Security"
@@ -6998,6 +7121,7 @@
     },
     "/audit-logs": {
       "get": {
+        "x-codigo": "E16-08",
         "summary": "Listar registo de atividade (ações + autenticação + erros 5xx)",
         "description": "Registo unificado. Use `errors=true` para ver apenas os erros de sistema (statusCode >= 500, com stack).",
         "tags": [
@@ -7150,6 +7274,7 @@
     },
     "/health/details": {
       "get": {
+        "x-codigo": "E16-03",
         "summary": "Diagnóstico completo do sistema (só Admin da plataforma)",
         "tags": [
           "AuditLogs"
@@ -7227,6 +7352,7 @@
     },
     "/health": {
       "get": {
+        "x-codigo": "E16-02",
         "summary": "Saúde do sistema (público — só estado + commit)",
         "description": "Público devolve só `status` e `commit` (o smoke pós-deploy do CI compara o commit). Com o header `x-swagger-key` certo devolve também BD, uptime, versão, ambiente e memória.",
         "tags": [
@@ -7287,6 +7413,7 @@
     },
     "/users/login": {
       "post": {
+        "x-codigo": "E01-09",
         "summary": "Login a user",
         "tags": [
           "Users"
@@ -7368,6 +7495,7 @@
     },
     "/users/refresh": {
       "post": {
+        "x-codigo": "E01-10",
         "summary": "Refresh access token using the HttpOnly refresh cookie",
         "tags": [
           "Users"
@@ -7421,6 +7549,7 @@
     },
     "/users/logout": {
       "post": {
+        "x-codigo": "E01-11",
         "summary": "Logout a user",
         "tags": [
           "Users"
@@ -7449,6 +7578,7 @@
     },
     "/admin/billing/subscriptions": {
       "get": {
+        "x-codigo": "E13-07",
         "summary": "Listar tenants + estado da subscrição da plataforma (dono da plataforma)",
         "tags": [
           "BillingAdmin"
@@ -7485,6 +7615,7 @@
         }
       },
       "post": {
+        "x-codigo": "E13-08",
         "summary": "Criar/gerir a subscrição da plataforma de um tenant (dono da plataforma)",
         "tags": [
           "BillingAdmin"
@@ -7617,6 +7748,7 @@
     },
     "/admin/billing/catalog": {
       "get": {
+        "x-codigo": "E13-05",
         "summary": "Listar o catálogo de preços dos módulos da plataforma (dono)",
         "tags": [
           "BillingAdmin"
@@ -7655,6 +7787,7 @@
     },
     "/admin/billing/catalog/{module}": {
       "put": {
+        "x-codigo": "E13-06",
         "summary": "Atualizar o preço/label/estado de um módulo do catálogo (dono)",
         "description": "Muda o preço-base de um módulo. Afeta apenas subscrições NOVAS — as\nexistentes mantêm o preço já fixado no Stripe (o total guardado não muda).\n",
         "tags": [
@@ -7748,6 +7881,7 @@
     },
     "/admin/billing/subscriptions/{userId}/trial": {
       "patch": {
+        "x-codigo": "E13-09",
         "summary": "Estender o período experimental LOCAL de um tenant (dono da plataforma)",
         "description": "Só válido para subscrições LOCAIS (sem `stripeSubscriptionId` — ex.: trial\ndo signup self-serve). `trialEnd` novo = max(agora, trialEnd atual) + `days`;\nrepõe/mantém o estado `trialing`. Subscrições geridas pelo Stripe devolvem 409.\n",
         "tags": [
@@ -7845,6 +7979,7 @@
     },
     "/admin/billing/settings": {
       "get": {
+        "x-codigo": "E13-10",
         "summary": "Ler a configuração global de platform billing (dono)",
         "description": "Hoje só devolve `trialDays` — o período experimental (dias) atribuído\na NOVOS signups self-serve. Afeta apenas trials futuros.\n",
         "tags": [
@@ -7879,6 +8014,7 @@
         }
       },
       "put": {
+        "x-codigo": "E13-11",
         "summary": "Atualizar a configuração global de platform billing (dono)",
         "description": "Atualiza `trialDays` (0–90). Afeta APENAS signups self-serve NOVOS a\npartir daqui — os trials já criados mantêm o `trialEnd` já fixado\n(nunca se retroage).\n",
         "tags": [
@@ -7945,6 +8081,7 @@
     },
     "/components": {
       "post": {
+        "x-codigo": "E08-30",
         "summary": "Create a new component",
         "tags": [
           "Components"
@@ -8020,6 +8157,7 @@
         }
       },
       "get": {
+        "x-codigo": "E08-31",
         "summary": "Get all components",
         "tags": [
           "Components"
@@ -8053,6 +8191,7 @@
     },
     "/components/{id}": {
       "get": {
+        "x-codigo": "E08-32",
         "summary": "Get a component by ID",
         "tags": [
           "Components"
@@ -8101,6 +8240,7 @@
         }
       },
       "put": {
+        "x-codigo": "E08-33",
         "summary": "Update a component by ID",
         "tags": [
           "Components"
@@ -8190,6 +8330,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E08-34",
         "summary": "Delete a component by ID",
         "tags": [
           "Components"
@@ -8250,6 +8391,7 @@
     },
     "/admin/cors-origins": {
       "get": {
+        "x-codigo": "E01-36",
         "summary": "Domínios permitidos no CORS (só o dono da plataforma)",
         "description": "Devolve os domínios EXTRA geridos aqui (`extra`), os websites dos tenants que entram automaticamente (`tenants`, só leitura) e as origens definidas no servidor pela env `CORS_ORIGINS` (`env`, só leitura e informativo). Exige `VIEW_ADMIN`; fechado em sessão de suporte.\n",
         "tags": [
@@ -8356,6 +8498,7 @@
         }
       },
       "post": {
+        "x-codigo": "E01-37",
         "summary": "Permitir um domínio extra no CORS (só o dono da plataforma)",
         "description": "Acrescenta um domínio (normalizado — sem protocolo/path/espaços, minúsculas) à lista de origens aceites no CORS, com credenciais. Aceita `https://<domínio>` exacto e a variante www/apex. Exige `VIEW_ADMIN`. **409** `{ error: \"domain_exists\" }` se já estiver na lista ou for o website de algum tenant.\n",
         "tags": [
@@ -8464,6 +8607,7 @@
     },
     "/admin/cors-origins/{corsOriginId}": {
       "delete": {
+        "x-codigo": "E01-38",
         "summary": "Deixar de permitir um domínio extra no CORS (só o dono da plataforma)",
         "description": "Remove um domínio da lista de extras. Não mexe nos websites dos tenants. Exige `VIEW_ADMIN`. A cache de origens é invalidada de imediato.\n",
         "tags": [
@@ -8534,6 +8678,7 @@
     },
     "/admin/users/{userId}/email-domain": {
       "get": {
+        "x-codigo": "E11-35",
         "summary": "Domínios de email de um tenant — estado e registos DNS (só o dono da plataforma)",
         "description": "Devolve o estado guardado (verificado ou não, o que o job periódico/“Verificar agora” leram do Resend) e a tabela de registos DNS do domínio próprio (`domains`: o endereço da plataforma e/ou o domínio próprio; `domain` = o principal; o da plataforma não tem DNS por negócio), os registos MX/DKIM do servidor de correio quando há caixa no domínio próprio (`mailRecords`), de onde sai agora o email do negócio (`sendingFrom`) e o estado de envio (pausa/tectos). Sem domínio: `configured: false` + `suggestedCode`. `VIEW_ADMIN`; fechada em sessão de suporte.\n",
         "tags": [
@@ -8598,6 +8743,7 @@
         }
       },
       "put": {
+        "x-codigo": "E11-36",
         "summary": "Definir ou alterar o email de um tenant — endereço no domínio da plataforma (código) ou domínio próprio (cria-o no Resend)",
         "description": "O corpo traz **um** de `platformCode` (endereço da plataforma: `suporte.<código>@<EMAIL_PLATFORM_DOMAIN>`) ou `domain` (domínio próprio). Um negócio tem no máximo um de cada e os dois coexistem (o próprio assina o envio quando verificado, senão o da plataforma). **Plataforma (CR-24):** sem Resend nem DNS por negócio, nasce `verified`. O código (`^[a-z0-9](?:[a-z0-9-]{0,28}[a-z0-9])?$`, sem pontos) é único em toda a plataforma (409 `EMAIL_CODE_TAKEN`; inclui os códigos retirados por outros negócios, reservados para sempre) e há códigos reservados — nenhum pode conter `rufvision` (409 `EMAIL_CODE_RESERVED`). **Pode mudar a qualquer momento, mesmo com caixas:** todas as caixas do negócio (também as desactivadas) passam ao código novo, os endereços antigos ficam como alias da mesma caixa e o código antigo fica reservado para sempre a este negócio; se algum endereço novo estiver ocupado → 409 `EMAIL_CODE_ADDRESS_TAKEN` e nada muda (BD atómica; no servidor de correio, se falhar a meio fica por acabar e a reconciliação conclui). Sem `EMAIL_PLATFORM_DOMAIN` → 409 `platform_domain_missing`. 201 se criou, 200 se actualizou. **Domínio próprio:** o domínio da plataforma (ou um subdomínio dele) não é aceite (400). Sem domínio próprio → cria-o no Resend (devolve os registos DNS) e grava (201). Com outro domínio → cria o novo, apaga o antigo no Resend e volta a \"não verificado\" (200). Mesmo domínio → só actualiza as opções, sem tocar no Resend (200). **Domínio próprio — \"Já tem email neste domínio?\"**: `existingEmail` + `mail`. (a) `existingEmail: false` → `mail: root` põe a caixa no próprio domínio; (c) `existingEmail: true` → `mail: subdomain` põe-na em `contacto.<domínio>` (`mailSubdomain` muda o nome) ou `mail: none` não a activa; `root` com email existente → 409 `mx_conflict` (cortava o email actual). Activar a caixa sem responder à pergunta → 400 `existing_email_required`. (b) migrar o email existente NÃO se automatiza (faz-se à mão). Os registos MX/DKIM aparecem em `mailRecords`. Não se muda a caixa de um domínio onde já há caixas activas (409 `mailboxes_in_domain`). **409** `domain_taken` se for de outro tenant; **502** se o Resend falhar.\n",
         "tags": [
@@ -8744,6 +8890,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E11-37",
         "summary": "Remover um domínio de email de um tenant (apaga-o também no Resend)",
         "description": "Os emails do negócio voltam a sair do outro domínio (se houver) ou do endereço da plataforma. Com os dois domínios é preciso `?kind=` (400 `kind_required`). Um domínio próprio com caixas activas não se remove (409 `mailboxes_in_domain`: passá-las antes para a plataforma). **502** se o Resend falhar (a linha mantém-se; repetir).\n",
         "tags": [
@@ -8834,6 +8981,7 @@
     },
     "/admin/users/{userId}/email-domain/verify": {
       "post": {
+        "x-codigo": "E11-38",
         "summary": "Verificar agora — pede ao Resend para verificar o DNS e devolve o estado",
         "description": "Sem `kind` verifica todos os domínios do negócio; com `kind` só esse. Se o estado mudar (passou a verificado / deixou de estar), o tenant recebe uma notificação. Passando a verificado, os emails do negócio passam a sair do domínio dele (se `useForSending`; o domínio próprio ganha ao subdomínio) — **troca automática do remetente**. Se for o domínio próprio, a caixa lá está activada e o MX já aponta para o servidor de correio, as caixas passam para lá (o endereço antigo fica como alias).\n",
         "tags": [
@@ -8921,6 +9069,7 @@
     },
     "/admin/users/{userId}/email-domain/use-platform": {
       "post": {
+        "x-codigo": "E11-39",
         "summary": "Voltar atrás — os emails do negócio deixam de sair do domínio próprio",
         "description": "Idempotente. Actua sobre o domínio próprio (ou o único que houver; `?kind=` escolhe). O domínio fica configurado; não volta a ser usado até `use-own`. Com o domínio próprio posto de lado, o envio cai no subdomínio da plataforma (se verificado) e senão no endereço da plataforma. Não mexe nas caixas (para essas, `mailboxes/move`).\n",
         "tags": [
@@ -8998,6 +9147,7 @@
     },
     "/admin/users/{userId}/email-domain/use-own": {
       "post": {
+        "x-codigo": "E11-40",
         "summary": "Voltar ao envio do negócio (o domínio verificado volta a assinar os emails)",
         "description": "Idempotente. Actua sobre o domínio próprio (ou o único que houver; `?kind=` escolhe). **409** `domain_not_verified` se o domínio não está verificado.",
         "tags": [
@@ -9085,6 +9235,7 @@
     },
     "/admin/users/{userId}/email-domain/mailboxes/move": {
       "post": {
+        "x-codigo": "E11-41",
         "summary": "Passar as caixas do negócio para o domínio próprio — ou voltar atrás para o subdomínio da plataforma",
         "description": "`to: own` move as caixas activas (a do negócio e as dos membros) para o domínio da caixa do domínio próprio: o login passa a `suporte@tifas.pt`, as mensagens ficam onde estão e o endereço antigo (`suporte.tifas@rufvision.com`) continua a entregar na mesma caixa (alias; idem os endereços que reencaminhavam para ela). Exige o domínio próprio verificado, a caixa activada nele e o MX já a apontar para o servidor de correio (409 `domain_not_verified`, `mail_not_enabled`, `mx_not_ready`). `to: platform` faz o inverso (sem verificar MX) e trava a mudança automática. Idempotente. As caixas cujo endereço novo já existe ficam em `skipped`. O caminho (b) — migrar o email que o cliente já tem noutro sítio — não é automático.\n",
         "tags": [
@@ -9246,6 +9397,7 @@
     },
     "/admin/users/{userId}/email-domain/news": {
       "post": {
+        "x-codigo": "E11-44",
         "summary": "Criar o subdomínio das campanhas (news.<domínio próprio>) no Resend",
         "description": "Idempotente. Só com domínio próprio (404 `email_domain_not_found` sem ele; 409 `own_domain_required` se o único domínio é o da plataforma). Cria `news.<domínio>` no Resend e devolve os registos DNS a pôr (no envelope, `domain.news`). As campanhas só abrem quando o domínio próprio E o `news.` estão verificados (job de 15 min ou \"Verificar agora\"). `VIEW_ADMIN`; fechada em sessão de suporte.\n",
         "tags": [
@@ -9322,6 +9474,7 @@
     },
     "/admin/users/{userId}/email-domain/pause": {
       "post": {
+        "x-codigo": "E11-42",
         "summary": "Pausar os envios do negócio pela caixa (e campanhas)",
         "description": "Pausa manual (a automática vem das queixas de spam do Resend). Funciona mesmo sem domínio de email configurado (o estado vive em `EmailTenantStates`); o envelope traz `sending.paused` nesse caso também. Com a pausa, enviar pela caixa dá 423 `MAIL_SENDING_PAUSED`. Os emails automáticos (marcações, reset…) continuam. Idempotente. `VIEW_ADMIN`; fechada em sessão de suporte.\n",
         "tags": [
@@ -9404,6 +9557,7 @@
     },
     "/admin/users/{userId}/email-domain/resume": {
       "post": {
+        "x-codigo": "E11-43",
         "summary": "Retomar os envios do negócio (depois de pausa por queixas ou manual)",
         "description": "Idempotente. `VIEW_ADMIN`; fechada em sessão de suporte. O negócio volta a poder enviar pela caixa (os tectos diários mantêm-se).",
         "tags": [
@@ -9460,6 +9614,7 @@
     },
     "/admin/email/status": {
       "get": {
+        "x-codigo": "E11-34",
         "summary": "Estado do correio da plataforma (cartão Admin → Sistema)",
         "description": "Resend (configurado? domínios verificados/não verificados, envios do mês — contagem local, o Resend não a dá barata) e Stalwart (configurado? alcançável? credencial aceite?). Sem `STALWART_URL` o estado é `not_configured` (\"Por configurar\"). Nunca devolve chaves, URLs nem credenciais. `VIEW_ADMIN`; fechada em sessão de suporte.\n",
         "tags": [
@@ -9640,6 +9795,7 @@
     },
     "/admin/users/{userId}/mailboxes": {
       "get": {
+        "x-codigo": "E11-45",
         "summary": "Caixas de correio de um tenant (endereço, estado, espaço usado)",
         "description": "Só o dono da plataforma (`VIEW_ADMIN`); fechada em sessão de suporte. Não devolve conteúdo de emails.",
         "tags": [
@@ -9696,6 +9852,7 @@
     },
     "/admin/users/{userId}/mailboxes/business": {
       "post": {
+        "x-codigo": "E11-46",
         "summary": "Activar a caixa do negócio (cria `suporte.<código>@` no servidor de correio)",
         "description": "Exige o módulo Correio (VIEW_EMAIL) no tenant, o domínio de email já criado (a caixa nasce no domínio próprio, se verificado e com a caixa activada, senão no domínio da plataforma com o código do negócio) e o servidor de correio configurado. Idempotente (201 ao criar, 200 se já existia/reactivada). 409 `module_not_enabled`, `email_domain_not_found`, `mail_domain_unavailable`, `mailbox_address_unavailable` (o endereço já é de outra caixa, é alias de outra ou é o de um admin: nunca se chama o servidor de correio, que repunha a credencial da conta alheia); 503 `mail_not_configured`; 502 se o servidor falhar.",
         "tags": [
@@ -9820,8 +9977,9 @@
     },
     "/admin/users/{userId}/mailboxes/{mailboxId}/disable": {
       "post": {
+        "x-codigo": "E11-47",
         "summary": "Desactivar uma caixa de membro (o endereço passa a reencaminhar para suporte@)",
-        "description": "Idempotente. A caixa do negócio não se desactiva (409 `business_mailbox_protected`). Caixa de outro tenant = 404.",
+        "description": "Idempotente. A caixa do negócio não se desactiva (409 `BUSINESS_MAILBOX_PROTECTED`). Caixa de outro tenant = 404.",
         "tags": [
           "Users"
         ],
@@ -9895,6 +10053,7 @@
     },
     "/admin/users/{userId}/mailboxes/{mailboxId}/enable": {
       "post": {
+        "x-codigo": "E11-48",
         "summary": "Reactivar uma caixa desactivada",
         "description": "Idempotente. 409 `member_removed` se o membro da caixa já não existe. Caixa de outro tenant = 404.",
         "tags": [
@@ -9980,6 +10139,7 @@
     },
     "/users/me": {
       "get": {
+        "x-codigo": "E01-02",
         "summary": "Perfil do tenant autenticado (self)",
         "tags": [
           "Users"
@@ -10056,6 +10216,7 @@
         }
       },
       "put": {
+        "x-codigo": "E01-03",
         "summary": "Atualizar o perfil do tenant autenticado (self)",
         "description": "Atualiza name/phone/logoUrl/uiTheme livremente. Mudar o email exige `currentPassword` válida (bcrypt) — v1 sem verificação por link. Whitelist estrita: qualquer outro campo do body (userId, permissionId, password, tokenVersion, websiteDomain, ...) é ignorado.",
         "tags": [
@@ -10199,6 +10360,7 @@
     },
     "/users/me/password": {
       "put": {
+        "x-codigo": "E01-04",
         "summary": "Mudar a password do tenant autenticado (self)",
         "description": "Exige `currentPassword` válida (bcrypt). Ao ter sucesso, incrementa `tokenVersion` — o que invalida de imediato os access/refresh tokens de TODOS os dispositivos, incluindo o próprio pedido atual — mas reemite já a seguir, na mesma resposta, um par de tokens NOVO (accessToken no corpo + refresh token em cookie HttpOnly), exactamente como `POST /users/login`. Resultado líquido: a sessão que pediu a mudança continua ligada (basta adotar o `accessToken` devolvido); todas as OUTRAS sessões são forçadas a re-autenticar. Contas sem password ainda definida (signup self-serve por verificar) não podem usar este endpoint — o caminho correto é o link de definição de password (`POST /users/setup-password`).",
         "tags": [
@@ -10283,6 +10445,7 @@
     },
     "/permissions": {
       "get": {
+        "x-codigo": "E01-43",
         "summary": "Get all permissions",
         "tags": [
           "Permissions"
@@ -10314,6 +10477,7 @@
         }
       },
       "post": {
+        "x-codigo": "E01-44",
         "summary": "Create a new permission",
         "tags": [
           "Permissions"
@@ -10382,6 +10546,7 @@
     },
     "/permissions/{id}": {
       "get": {
+        "x-codigo": "E01-46",
         "summary": "Get a permission by ID",
         "tags": [
           "Permissions"
@@ -10430,6 +10595,7 @@
         }
       },
       "put": {
+        "x-codigo": "E01-45",
         "summary": "Update a permission by ID",
         "tags": [
           "Permissions"
@@ -10506,6 +10672,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E01-47",
         "summary": "Delete a permission by ID",
         "tags": [
           "Permissions"
@@ -10569,6 +10736,7 @@
     },
     "/admin/security/idor": {
       "get": {
+        "x-codigo": "E16-01",
         "summary": "Tentativas de IDOR dos últimos N dias (só o dono da plataforma)",
         "description": "Conta os 403/404 em rotas autenticadas (Backoffice e clientes dos sites) com um id UUID no path — o sinal de alguém a experimentar ids. Não conta rotas públicas, 401, sessões de suporte nem o admin da plataforma. `suspects` = actor+IP+dia com 50 ou mais tentativas (máx. 50, por contagem desc). Só nomes: nunca email nem credenciais. Exige `VIEW_ADMIN`; fechado em sessão de suporte.\n",
         "tags": [
@@ -10728,6 +10896,7 @@
     },
     "/users/signup": {
       "post": {
+        "x-codigo": "E01-17",
         "summary": "Signup público self-serve (cria tenant em período experimental configurável, default 14 dias, sem cartão)",
         "description": "Endpoint PÚBLICO (sem auth, sem CSRF — como o `/setup-password`), rate-limited\n(`authRateLimit`). Cria um `User` sem password (com `setupToken` de 24h), um\n`Permission` novo por-tenant com os componentes RBAC dos módulos escolhidos\n(+ os componentes \"core\" que o backend já exige), e uma\n`PlatformSubscription` local `trialing` (período experimental configurável,\ndefault 14 dias). Tudo\nnuma única transação.\n\nANTI-ENUMERAÇÃO: a resposta é SEMPRE `{ ok: true }` (200), mesmo que o email já\nexista — nesse caso nada é criado; só o email enviado difere.\n",
         "tags": [
@@ -10818,7 +10987,7 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "example": "signup_disabled"
+                      "example": "SIGNUP_DISABLED"
                     }
                   }
                 }
@@ -10830,6 +10999,7 @@
     },
     "/users/signup/resend": {
       "post": {
+        "x-codigo": "E01-18",
         "summary": "Reenvia o email de verificação/definição de password do signup self-serve",
         "description": "Público, rate-limited (`authRateLimit`), anti-enumeração (responde sempre 200).\nSó tem efeito para contas que ainda não definiram password (`password IS NULL`)\n— regenera `setupToken`/expiry e reenvia o mesmo email de `/users/signup`.\n\nFIX E — cooldown de 60s (email-bomb): se já existe um token válido emitido\nhá menos de 60s, o pedido é um no-op silencioso (responde 200 na mesma,\nsem regenerar nem reenviar).\n",
         "tags": [
@@ -10893,7 +11063,7 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "example": "signup_disabled"
+                      "example": "SIGNUP_DISABLED"
                     }
                   }
                 }
@@ -10905,6 +11075,7 @@
     },
     "/admin/users/{userId}/site-domain": {
       "put": {
+        "x-codigo": "E01-19",
         "summary": "Definir o domínio do site de um tenant (só o dono da plataforma)",
         "description": "Grava `User.websiteDomain` do tenant `userId` (normalizado — sem protocolo/path/espaços, minúsculas) e provisiona o website Umami desse tenant (cria ou reaproveita por domínio exacto; se o tenant já tem `analyticsSiteId`, actualiza o domínio desse website em vez de criar outro). Sem Umami configurado no servidor, grava o domínio na mesma. Exige `VIEW_ADMIN` — um tenant nunca define o próprio domínio. Recusa com **409** se o domínio já pertencer a OUTRO tenant.\n",
         "tags": [
@@ -11037,6 +11208,7 @@
     },
     "/site-tokens": {
       "get": {
+        "x-codigo": "E01-39",
         "summary": "Listar tokens (filtrável por userId)",
         "tags": [
           "SiteTokens"
@@ -11068,6 +11240,7 @@
         }
       },
       "post": {
+        "x-codigo": "E01-40",
         "summary": "Gerar novo token para um utilizador (o valor raw só é devolvido nesta resposta)",
         "tags": [
           "SiteTokens"
@@ -11111,6 +11284,7 @@
     },
     "/site-tokens/{id}/revoke": {
       "patch": {
+        "x-codigo": "E01-41",
         "summary": "Revogar token (fica inactivo mas mantém histórico)",
         "tags": [
           "SiteTokens"
@@ -11141,6 +11315,7 @@
     },
     "/site-tokens/{id}": {
       "delete": {
+        "x-codigo": "E01-42",
         "summary": "Eliminar token permanentemente",
         "tags": [
           "SiteTokens"
@@ -11171,6 +11346,7 @@
     },
     "/admin/users/{userId}/impersonate": {
       "post": {
+        "x-codigo": "E01-34",
         "summary": "Entrar na conta de um tenant (sessão de suporte, só o dono da plataforma)",
         "description": "Emite um access token de 60 min (sem refresh token, sem cookie) que age como o tenant `userId`. Exige consentimento do tenant (`supportAccessUntil` no futuro) ou conta ainda não activada (sem password). Grava um registo no log do tenant. Não permitido a partir de outra sessão de suporte, nem sobre admins ou sobre si próprio.\n",
         "tags": [
@@ -11286,6 +11462,7 @@
     },
     "/users/me/support-access": {
       "get": {
+        "x-codigo": "E01-05",
         "summary": "Estado do consentimento de acesso de suporte do próprio tenant",
         "tags": [
           "Users"
@@ -11349,6 +11526,7 @@
         }
       },
       "put": {
+        "x-codigo": "E01-07",
         "summary": "Dar ou revogar o consentimento de acesso de suporte (self)",
         "description": "`days` 1, 7 ou 30 define a expiração em now + days; 0 revoga. Indisponível numa sessão de suporte (o admin nunca estende o próprio acesso). Body estrito.\n",
         "tags": [
@@ -11459,6 +11637,7 @@
     },
     "/users/me/support-access/logs": {
       "get": {
+        "x-codigo": "E01-06",
         "summary": "Registo de acessos e alterações do suporte na conta do próprio tenant",
         "description": "Linhas do tenant feitas por um admin (sessões, alterações e leituras `view` em sessão de suporte; uma leitura repetida no mesmo minuto conta uma vez) e as suas próprias concessões/revogações. Campos por allowlist — nunca devolve ip, userAgent, responseBody, message, stack nem o id do ator.\n",
         "tags": [
@@ -11590,6 +11769,7 @@
     },
     "/users": {
       "get": {
+        "x-codigo": "E01-01",
         "summary": "List all users",
         "description": "Sem `password`/`setupToken`. Inclui `websiteDomain` (definido só pelo admin, `PUT /admin/users/{userId}/site-domain`), `supportAccessUntil` e `canImpersonate` (calculado no servidor — não é o próprio, não é admin da plataforma e há consentimento de suporte).",
         "tags": [
@@ -11666,6 +11846,7 @@
         }
       },
       "put": {
+        "x-codigo": "E01-12",
         "summary": "Update a user",
         "tags": [
           "Users"
@@ -11693,6 +11874,10 @@
                   },
                   "email": {
                     "type": "string"
+                  },
+                  "currentPassword": {
+                    "type": "string",
+                    "description": "A password ACTUAL de quem está ligado (o admin). Obrigatória só quando `email` muda de valor"
                   },
                   "permissionId": {
                     "type": "string"
@@ -11791,6 +11976,7 @@
     },
     "/users/register": {
       "post": {
+        "x-codigo": "E01-08",
         "summary": "Register a user",
         "tags": [
           "Users"
@@ -11908,6 +12094,7 @@
     },
     "/users/{userId}": {
       "delete": {
+        "x-codigo": "E01-13",
         "summary": "Apagar um tenant — HARD DELETE, irreversível (B8, 2026-09-26)",
         "description": "Apaga TUDO o que pertence ao tenant (as ~49 tabelas ligadas ao seu `userId`, filhos antes dos pais, numa única transacção) — sem soft delete, sem lixeira, sem forma de recuperar. Só o admin da plataforma pode chamar este endpoint, e nunca contra a própria conta.\nOrdem das operações (corrigida 2026-09-26 — o Stripe já não é tocado antes de abrir a transacção; ver o porquê no comentário do handler): 1. Abre uma transacção e apaga tudo na BD (as ~49 tabelas do tenant). 2. SÓ DEPOIS, ainda dentro da MESMA transacção e antes do commit,\n   cancela a subscrição Stripe do tenant (se houver). Se o\n   cancelamento falhar, a transacção é revertida — nada é apagado,\n   nem na BD nem no Stripe (502). O Stripe Customer **nunca** é\n   apagado — as faturas emitidas vivem lá e têm obrigação legal de\n   retenção de 10 anos. (Janela residual, rara e inevitável: se o\n   `commit` falhar DEPOIS de o Stripe já ter confirmado o\n   cancelamento, fica registado para reconciliação manual — 500.)\n3. Grava uma entrada no audit log presa ao admin (id do tenant + nome\n   do negócio — nunca email/telefone do tenant).\n4. Best-effort (nunca falha o pedido nem muda o 200): apaga os\n   ficheiros do tenant no storage, o website no Umami, e revoga o\n   token OAuth da Google. Falhas ficam só logadas — repete-se com\n   `scripts/purgeTenantExternal.ts`.\n",
         "tags": [
@@ -12003,8 +12190,60 @@
         }
       }
     },
+    "/users/{userId}/send-setup": {
+      "post": {
+        "x-codigo": "E01-14",
+        "summary": "Enviar email de definição de password para um utilizador",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "adminBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Email enviado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Utilizador não encontrado"
+          }
+        }
+      }
+    },
     "/users/{userId}/send-reset": {
       "post": {
+        "x-codigo": "E01-15",
         "summary": "Enviar email de reset de password para um utilizador",
         "tags": [
           "Users"
@@ -12055,6 +12294,7 @@
     },
     "/users/setup-password": {
       "post": {
+        "x-codigo": "E01-16",
         "summary": "Definir a password pela primeira vez a partir do token de setup recebido por email",
         "description": "Endpoint público (sem auth) — o token de setup enviado por `POST /users/{userId}/send-setup` ou `POST /users/signup` funciona como credencial de uma só utilização. Limitado por `authRateLimit`.\n",
         "tags": [
@@ -12125,6 +12365,7 @@
     },
     "/user-permissions": {
       "post": {
+        "x-codigo": "E01-48",
         "summary": "Check if the current user has access to given components",
         "tags": [
           "UserPermissions"
@@ -12178,6 +12419,7 @@
         }
       },
       "get": {
+        "x-codigo": "E01-49",
         "summary": "Get all components accessible by the current user",
         "description": "Para um membro da equipa (B41) devolve só as `Component`s dos módulos que lhe foram dados E que o tenant também tem (mesmo formato). O nível por módulo e quem é o membro vêm em `GET /user-permissions/access`.",
         "tags": [
@@ -12220,6 +12462,7 @@
     },
     "/user-permissions/access": {
       "get": {
+        "x-codigo": "E01-50",
         "summary": "Módulos da equipa a que a sessão tem acesso, com o nível (B41)",
         "description": "Calculado na API (o Backoffice nunca deduz permissões). `grants` = as FOLHAS efectivas da árvore (B41 2b), já cortadas pelo tecto do tenant: dono do tenant → todas as disponíveis ao nível máximo (`member` é `null`); membro → as que lhe foram dadas E que o tenant tem. As acções (ex. `clientes.lista.exportar`) vêm com `level: edit`. `modules` resume por topo (o máximo das folhas desse topo) para o menu. As chaves são as de `GET /team/catalog`.",
         "tags": [
@@ -12305,6 +12548,7 @@
     },
     "/analytics/site": {
       "get": {
+        "x-codigo": "E12-01",
         "summary": "Estatísticas do site do tenant (Umami)",
         "tags": [
           "Analytics"
@@ -12480,6 +12724,7 @@
     },
     "/analytics/backoffice": {
       "get": {
+        "x-codigo": "E12-04",
         "operationId": "getBackofficeTracking",
         "summary": "Obter o par websiteId + src do script de tracking do próprio Backoffice",
         "description": "PÚBLICO e sem autenticação nenhuma — o Backoffice pede-o no arranque, incluindo no ecrã de login. O par não depende de quem pede. A API provisiona (uma vez, idempotente, memoizado em memória) um website \"Backoffice\" no Umami para o domínio do Backoffice. Devolve 204 (sem corpo) quando o Umami não está configurado, o domínio do Backoffice falta/é inválido ou é local (localhost), ou o Umami falhou. Query string e body são ignorados.\n",
@@ -12548,6 +12793,7 @@
     },
     "/billing/subscription": {
       "get": {
+        "x-codigo": "E13-01",
         "summary": "Estado da subscrição da plataforma do tenant",
         "tags": [
           "Billing"
@@ -12573,6 +12819,7 @@
     },
     "/billing/portal": {
       "post": {
+        "x-codigo": "E13-02",
         "summary": "Abrir uma sessão do Stripe Billing Portal (o tenant gere cartão/faturas/cancelamento)",
         "tags": [
           "Billing"
@@ -12608,6 +12855,7 @@
     },
     "/billing/subscribe": {
       "post": {
+        "x-codigo": "E13-03",
         "summary": "Self-serve — o tenant converte o trial local numa subscrição Stripe real (Checkout Session)",
         "description": "Cria uma Stripe Checkout Session (modo subscription) para o tenant autenticado\nintroduzir o cartão. Usa os módulos já guardados na `PlatformSubscription` do\ntenant (do signup self-serve) — não aceita módulos no body. Honra os dias\nrestantes do trial local (não reseta para 14 dias completos); se o trial local\njá expirou, cria sem trial (cobra logo ao completar o Checkout).\n",
         "tags": [
@@ -12664,6 +12912,7 @@
     },
     "/billing/catalog": {
       "get": {
+        "x-codigo": "E13-04",
         "summary": "Catálogo público de módulos + preços (para o ecrã de signup)",
         "description": "Endpoint PÚBLICO (sem auth), `publicRateLimit`. Devolve só os módulos\nATIVOS do catálogo de billing, sem nenhum dado interno (sem\n`stripeProductId`). Usado pelo passo 2 do `/signup` para mostrar o total\n€/mês antes de criar conta.\n",
         "tags": [
@@ -12686,8 +12935,39 @@
         }
       }
     },
+    "/billing/trial": {
+      "get": {
+        "x-codigo": "E13-13",
+        "summary": "Dias de período experimental dos registos novos (para o ecrã de signup)",
+        "description": "Endpoint PÚBLICO (sem auth), `publicRateLimit`. É o mesmo valor que a API usa ao criar a conta (`getTrialDays`, configurável\nem Admin → Faturação): o ecrã de registo mostra «N dias grátis» a partir daqui, sem número fixo no frontend.\n",
+        "tags": [
+          "Billing"
+        ],
+        "responses": {
+          "200": {
+            "description": "Dias de experiência.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "trialDays": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "trialDays"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/chat/support/messages": {
       "get": {
+        "x-codigo": "E10-01",
         "summary": "Thread de suporte do tenant autenticado",
         "tags": [
           "Chat"
@@ -12722,6 +13002,7 @@
         }
       },
       "post": {
+        "x-codigo": "E10-02",
         "summary": "Enviar mensagem ao suporte",
         "tags": [
           "Chat"
@@ -12767,6 +13048,7 @@
     },
     "/chat/support/read": {
       "post": {
+        "x-codigo": "E10-03",
         "summary": "Marcar a conversa de suporte como lida (lado tenant)",
         "tags": [
           "Chat"
@@ -12792,6 +13074,7 @@
     },
     "/admin/chat/conversations": {
       "get": {
+        "x-codigo": "E10-04",
         "summary": "Lista de conversas (todos os tenants) — só Admin",
         "tags": [
           "Chat"
@@ -12837,6 +13120,7 @@
     },
     "/admin/chat/conversations/{tenantUserId}/messages": {
       "get": {
+        "x-codigo": "E10-05",
         "summary": "Mensagens da conversa de um tenant — só Admin",
         "tags": [
           "Chat"
@@ -12889,6 +13173,7 @@
         }
       },
       "post": {
+        "x-codigo": "E10-06",
         "summary": "Enviar mensagem a um tenant — só Admin",
         "tags": [
           "Chat"
@@ -12955,6 +13240,7 @@
     },
     "/admin/chat/conversations/{tenantUserId}/read": {
       "post": {
+        "x-codigo": "E10-07",
         "summary": "Marcar a conversa de um tenant como lida (lado Admin)",
         "tags": [
           "Chat"
@@ -13001,6 +13287,7 @@
     },
     "/cms/entries": {
       "delete": {
+        "x-codigo": "E08-03",
         "summary": "Eliminar múltiplas entradas em bulk",
         "description": "Membro da equipa: exige `edit` na folha de Conteúdos de CADA chave (403 `TEAM_FORBIDDEN`, nada é apagado) e só poda as secções vazias dos contextos onde tem `edit`. `keys` tem de ser uma lista de texto.",
         "tags": [
@@ -13075,6 +13362,7 @@
         }
       },
       "get": {
+        "x-codigo": "E08-01",
         "summary": "Listar todas as entradas de conteúdo",
         "tags": [
           "CMS"
@@ -13096,6 +13384,7 @@
         }
       },
       "put": {
+        "x-codigo": "E08-02",
         "summary": "Criar ou actualizar uma entrada (upsert por key + locale)",
         "description": "Membro da equipa: a folha vem da classificação da chave (`email.`/`notif.` > secção > prefixo); mudar a secção exige `edit` também no contexto da nova. `key`, `locale` e `sectionId` têm de ser texto.",
         "tags": [
@@ -13179,6 +13468,7 @@
     },
     "/cms/entries/reorder": {
       "patch": {
+        "x-codigo": "E08-04",
         "summary": "Reordenar entradas de conteúdo em bulk (define sortOrder de cada uma)",
         "tags": [
           "CMS"
@@ -13258,6 +13548,7 @@
     },
     "/cms/entries/{key}": {
       "delete": {
+        "x-codigo": "E08-07",
         "summary": "Eliminar uma key e todas as suas traduções",
         "tags": [
           "CMS"
@@ -13308,6 +13599,7 @@
     },
     "/cms/entries/references-counts": {
       "get": {
+        "x-codigo": "E08-05",
         "summary": "Contar, para cada key pedida, quantas entidades a referenciam (produtos, serviços, ginásio)",
         "description": "Exige `authenticateToken` + `billingGate` (sem efeito em GET, só bloqueia mutações) + `authorizePermissions([\"VIEW_CMS\"])` — quem tem a permissão `Admin` salta a verificação de componente. `keys` é uma lista separada por vírgulas na query string; sem `keys` (ou vazio depois de trim), devolve `{}` sem tocar na BD. Uma key conta se aparecer em `contentKey` OU em `descriptionKey` de Product/Service; keys que comecem por `gym.` também contam ExerciseCatalog/MuscleGroup/WorkoutTemplate/Plano. Toda key pedida aparece na resposta (mesmo com contagem 0); keys não pedidas nunca aparecem.\n",
         "tags": [
@@ -13378,6 +13670,7 @@
     },
     "/cms/entries/{key}/references": {
       "get": {
+        "x-codigo": "E08-06",
         "summary": "Listar as entidades concretas (produtos, serviços, ginásio) que referenciam uma key",
         "description": "Exige `authenticateToken` + `billingGate` (sem efeito em GET, só bloqueia mutações) + `authorizePermissions([\"VIEW_CMS\"])` — quem tem a permissão `Admin` salta a verificação de componente. Um produto/serviço entra na lista se `key` corresponder ao seu `contentKey` OU ao seu `descriptionKey`; o `name` devolvido é sempre resolvido a partir do `contentKey` PRÓPRIO da entidade (o nome \"principal\"), não da key pedida — se `key` só bateu no `descriptionKey`, `name` continua a ser o nome do produto/serviço, não a descrição. `gym` só é preenchido quando `key` começa por `gym.`. Sem correspondências, devolve 200 com arrays vazios (nunca 404).\n",
         "tags": [
@@ -13535,6 +13828,7 @@
     },
     "/cms/setup": {
       "post": {
+        "x-codigo": "E08-23",
         "summary": "Aplicar template — cria secções e entradas em bulk",
         "tags": [
           "CMS"
@@ -13633,6 +13927,7 @@
     },
     "/cms/email-templates": {
       "get": {
+        "x-codigo": "E08-24",
         "summary": "Listar os templates de email editáveis, com os valores atuais do tenant por língua",
         "description": "Só `authenticateToken` — ao contrário de `/cms/entries` e `/cms/sections`, NÃO exige a permissão `VIEW_CMS` (nem passa pelo `billingGate`, irrelevante em GET). Qualquer utilizador do backoffice autenticado do tenant pode listar, mesmo sem a permissão de CMS. `locales` vem de `User.languages` (ou `[defaultLanguage]` se o tenant não tiver línguas escolhidas). Para cada template, `localeValues` tem uma entrada por língua de `locales` com o valor guardado no CMS (`\"\"` se a entrada ainda não existir — não é o `defaultSubject`/ `defaultBody`, a UI decide o fallback). A gravação usa o upsert normal do CMS (`PUT /cms/entries`) com as chaves `email.<key>.assunto` / `email.<key>.corpo`.\n",
         "tags": [
@@ -13777,6 +14072,7 @@
     },
     "/cms/notification-templates": {
       "get": {
+        "x-codigo": "E08-25",
         "summary": "Listar os templates de NOTIFICAÇÃO (push + in-app) editáveis, com os valores atuais do tenant por língua",
         "description": "Espelho de `GET /cms/email-templates` (título+corpo em vez de assunto+corpo, sem HTML). Só `authenticateToken` — ao contrário de `/cms/entries` e `/cms/sections`, NÃO exige a permissão `VIEW_CMS` (nem passa pelo `billingGate`, irrelevante em GET). Qualquer utilizador do backoffice autenticado do tenant pode listar, mesmo sem a permissão de CMS. `locales` vem de `User.languages` (ou `[defaultLanguage]` se o tenant não tiver línguas escolhidas). `localeValues` tem uma entrada por língua de `locales` com o valor guardado no CMS (`\"\"` se a entrada ainda não existir — não é o `defaultTitle`/`defaultBody`). A gravação usa o upsert normal do CMS (`PUT /cms/entries`) com as chaves `notif.<key>.titulo` / `notif.<key>.corpo`.\n",
         "tags": [
@@ -13924,6 +14220,7 @@
     },
     "/cms/search": {
       "get": {
+        "x-codigo": "E08-13",
         "summary": "Pesquisar entradas CMS por contexto e língua (para combos de associação)",
         "tags": [
           "CMS"
@@ -13996,6 +14293,7 @@
     },
     "/cms/sections": {
       "get": {
+        "x-codigo": "E08-08",
         "summary": "Listar todas as secções (lista plana — o cliente constrói a árvore)",
         "tags": [
           "CMSSections"
@@ -14017,6 +14315,7 @@
         }
       },
       "post": {
+        "x-codigo": "E08-09",
         "summary": "Criar secção",
         "tags": [
           "CMSSections"
@@ -14091,6 +14390,7 @@
     },
     "/cms/sections/reorder": {
       "patch": {
+        "x-codigo": "E08-10",
         "summary": "Reordenar secções em bulk (define sortOrder de cada uma)",
         "tags": [
           "CMSSections"
@@ -14172,6 +14472,7 @@
     },
     "/cms/sections/{id}": {
       "patch": {
+        "x-codigo": "E08-11",
         "summary": "Actualizar secção (nome, pai, ordem)",
         "tags": [
           "CMSSections"
@@ -14257,6 +14558,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E08-12",
         "summary": "Eliminar secção (as entradas ficam sem secção)",
         "tags": [
           "CMSSections"
@@ -14307,6 +14609,7 @@
     },
     "/cms/site-builder": {
       "get": {
+        "x-codigo": "E08-14",
         "summary": "Estado completo do construtor de páginas do tenant (para o editor)",
         "description": "O construtor está activo para quem tem `VIEW_SITE_PAGES` (não há interruptor próprio): quem chega aqui tem-no, por isso `enabled` é sempre `true` (campo mantido por compatibilidade). Se o tenant ainda não tem linha (primeira abertura), cria-a e devolve o estado vazio. Sem a permissão a rota responde 403. Devolve o estado inteiro do tenant autenticado: nome do site (`siteName`, `null` se não houver), imagem de partilha por omissão (`shareImage` + `shareImageAlt`, `null` se não houver), revisão, línguas (`User.languages`, ou só a língua base se vazia), catálogo do núcleo, manifest, páginas (por ordem), itens por página (ordenados), blocos, pastas, partes comuns (topo/rodapé), redireccionamentos, estado da publicação e limites. O `publish` traz o que a barra persistente do Backoffice precisa: `mode`, `status`, `phase` (`queued`/`building`/`confirming`, só a correr), `startedAt`, `estimatedMs` (duração média dos deploys anteriores do site; `null` no primeiro), `liveAt` e `error` — nunca credenciais nem endereços internos. Tudo filtrado pelo `userId` do token. Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
@@ -14520,6 +14823,7 @@
     },
     "/cms/site-builder/publish": {
       "post": {
+        "x-codigo": "E08-16",
         "summary": "Publicar agora o site do tenant (pede já um deploy ao Coolify)",
         "description": "Só para sites com `publishMode = coolify`. Pede já o deploy da app do site ao Coolify (a gravação do editor já o faz sozinha; isto serve para repetir, p.ex. depois de um `failed`) e devolve `202` com o estado da publicação (`running`). O `GET /cms/site-builder` passa a mostrar `running` (com `phase`) → `live`/`failed` à medida que o job confirma o `cms-build.json` do site (`publish.liveAt` = quando passou a `live`). Limite: 1 pedido por minuto por tenant (429). Resolve sempre pelo tenant autenticado. Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
@@ -14680,6 +14984,7 @@
     },
     "/cms/site-builder/save": {
       "post": {
+        "x-codigo": "E08-15",
         "summary": "Grava páginas, itens, blocos, pastas e partes comuns do construtor (uma gravação = uma transacção)",
         "description": "Aplica `pages.upsert`/`pages.delete` e as listas COMPLETAS de itens (`items[pageId]`) sobre o estado do tenant, valida o estado FINAL (árvore, endereços por língua, traduções, referências, itens) e escreve tudo numa só transacção, com lock na linha do tenant (`SELECT … FOR UPDATE`). O `path` é calculado pelo servidor. Se o endereço de uma página mudar (slug, mãe ou `slugs` por língua), criam-se redireccionamentos do antigo para a página e para as descendentes (o `fromPath` leva o prefixo `/en/…` nas línguas que não a base) e apagam-se os que passaram a ser endereço vivo. `revision` sobe 1; com `publishMode='coolify'` marca `publishRequestedAt` (e `publishStatus=pending`) e o deploy começa logo a seguir ao commit; em `runtime` grava `liveAt` (o site lê a API ao vivo). Ids de outro tenant → 404 (nada é alterado). `blocks.upsert/delete` e `folders.upsert/delete` mexem na biblioteca; `parts.topo`/`parts.rodape` substituem a parte inteira (`null`/ausente = não mexer; `{comps:[]}` esvazia). Um ÚNICO varrimento valida o estado final do tenant (páginas, TODOS os blocos usados ou não, partes, itens e especiais, traduções, limites do §6.8): o `422` pode apontar para um bloco que não vinha no pedido. Apagar bloco ainda numa página → `409 BLOCK_IN_USE`; apagar pasta com blocos → `409 FOLDER_NOT_EMPTY` (ambos contados no estado final: tirar o bloco da página no mesmo pedido é legítimo). Âncoras únicas por tenant (trocar duas âncoras no mesmo pedido é permitido). `folderId` de uma pasta que não é do tenant → `422 BAD_REF` (igual a uma pasta inexistente). Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
@@ -15196,6 +15501,7 @@
     },
     "/cms/site-builder/settings": {
       "put": {
+        "x-codigo": "E08-17",
         "summary": "Definir o nome do site e a imagem de partilha por omissão do tenant autenticado",
         "description": "Corpo `{ siteName?, shareImage?, shareImageAlt? }`; **pelo menos um** (senão 400). Cada campo: **ausente = manter**; `null` ou `\"\"` apaga. Age sempre sobre o tenant autenticado (`req.user`) — também numa sessão de suporte. Cria a linha do construtor se ainda não existir. `siteName` é aparado, 1–80 caracteres, sem caracteres de controlo nem `<` `>` (400). `shareImage` é o URL de uma imagem da biblioteca **do próprio tenant** (media de outro tenant ou URL externo → 400). `shareImageAlt` é um mapa `{ língua: texto }` só com línguas do tenant (400 senão), cada texto até 160 caracteres, sem caracteres de controlo nem `<` `>`; textos vazios saem do mapa e um mapa vazio apaga. A API não faz fallback: o site usa esta imagem quando a página não tem a sua. **Mudar de facto qualquer dos três é uma mudança visível no site**: sobe a `revision` (uma vez por pedido) e pede publicação (`pending`/`publishRequestedAt` quando o site publica pelo Coolify, e o deploy começa logo a seguir ao commit; em `runtime` grava `liveAt`). Gravar o mesmo valor não faz nada. A resposta traz a `revision` **já actualizada**: o editor deve usá-la como `baseRevision` do próximo `save` (senão levava `409 REVISION_CONFLICT` por uma mudança que ele próprio fez). Campos extra do corpo são ignorados. Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
@@ -15331,6 +15637,7 @@
     },
     "/cms/site-builder/support": {
       "get": {
+        "x-codigo": "E08-18",
         "summary": "Configuração técnica do construtor do tenant da sessão de suporte (só sessão de suporte)",
         "description": "Devolve o resumo do manifest (contagens e chaves, nunca o JSON inteiro) e a publicação pelo Coolify: o estado (`mode`, `status`, `phase`, `startedAt`, `estimatedMs`, `liveAt`, `error` — o mesmo que `GET /cms/site-builder`) e a configuração: `coolifyApp` (uuid da app, `null` se por configurar), `force` e `hasToken` (a API tem o token do Coolify na env). **Nunca** devolve o token nem o endereço interno. `mode` é `coolify` quando há app e `runtime` enquanto não está configurado. Só funciona numa sessão de suporte (o dono entrou na conta do cliente com \"Entrar como\", `impersonatorId` definido); um tenant normal recebe 403 `SUPPORT_SESSION_REQUIRED`. Resolve sempre pelo tenant da sessão. Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
@@ -15485,6 +15792,7 @@
     },
     "/cms/site-builder/support/manifest": {
       "put": {
+        "x-codigo": "E08-19",
         "summary": "Carregar o manifest do site do tenant da sessão de suporte (só sessão de suporte)",
         "description": "O corpo é o manifest (CONTRATO §4: estilos, fundos, ícones, partes e especiais), validado por zod — nunca JSON Schema. Corpo máximo 1 MB (acima → 413). Cria a linha do construtor se não existir. Se o tenant já tem conteúdo e o manifest novo tira um estilo/fundo/ícone/especial em uso, recusa com **409 MANIFEST_IN_USE** e a lista de onde está a ser usado (nada é gravado). Não altera a revisão do conteúdo. Só numa sessão de suporte (403 `SUPPORT_SESSION_REQUIRED` senão); age sempre sobre o tenant da sessão. Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
@@ -15635,6 +15943,7 @@
     },
     "/cms/site-builder/support/publish": {
       "put": {
+        "x-codigo": "E08-21",
         "summary": "Configurar a publicação (webhook do Coolify) do site do tenant da sessão de suporte (só sessão de suporte)",
         "description": "A publicação é pelo **Coolify**: cada gravação do editor marca um pedido e a API pede logo o deploy da app do site (sem espera). O dono cola o webhook de deploy tal como o Coolify o mostra (`webhookUrl`, p.ex. `https://coolify.exemplo.com/api/v1/deploy?uuid=abc123def456&force=false`); a API tira-lhe o `uuid` e o `force` e guarda **só** esses dois (`coolifyApp`, `force`). O host do URL é ignorado e nunca guardado nem usado: o Coolify é sempre chamado pelo endereço interno da env `COOLIFY_INTERNAL_URL`, com o token da env `COOLIFY_TOKEN` (um para todos os sites; o tenant não o envia nem o vê) — por isso nenhum dado do tenant escolhe para onde a API liga. Validação: URL http(s), caminho a acabar em `/api/v1/deploy`, `uuid` presente (8 a 64 minúsculas/dígitos), `force` opcional `true`|`false`, sem outros parâmetros nem repetidos, sem utilizador/palavra-passe no endereço (400 com uma mensagem para pessoas). `webhookUrl: null` (ou texto vazio) desliga: volta a `runtime` e limpa a app, o pedido pendente e o estado. Ausente → 400. Mudar a config tira um `failed` anterior. Só numa sessão de suporte; age sobre o tenant da sessão. Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
@@ -15807,6 +16116,7 @@
     },
     "/cms/site-builder/support/publish/test": {
       "post": {
+        "x-codigo": "E08-22",
         "summary": "Testar a ligação ao Coolify e à app do site do tenant da sessão de suporte, sem fazer deploy (só sessão de suporte)",
         "description": "Confirma, **sem fazer deploy**: (1) há token na env da API; (2) `GET /api/health` do Coolify responde; (3) `GET /api/v1/applications/<uuid>` — 200 diz o nome da app; 401 token inválido; 403 o token não tem a permissão de leitura (não dá para confirmar a app sem fazer deploy; a publicação funciona, mas só com confirmação pelo site); 404 a app não existe no Coolify (ou é de outra equipa). Os passos seguintes só correm se o anterior passou. A resposta é sempre `200 { ok, checks: [{ id, ok, message }], appName? }` (`ok` = todos passaram); as mensagens são truncadas e **nunca** levam o token nem o endereço interno. Sem app configurada → 400. Só numa sessão de suporte. Exige `VIEW_SITE_PAGES`.\n",
         "tags": [
@@ -15922,6 +16232,7 @@
     },
     "/cms/site-builder/support/import": {
       "post": {
+        "x-codigo": "E08-20",
         "operationId": "importSiteZip",
         "summary": "Migrar site — importar um zip (manifest + conteúdo + ficheiros) para o construtor do tenant da sessão de suporte",
         "description": "Substitui o script de terminal (`pnpm import:site-pages`), o `PUT /support/manifest` e os ficheiros carregados à mão. `multipart/form-data`: `file` = o zip, `mode` = `dry-run` | `apply`, `replace` = `\"true\"` (ausente = não). **Layout do zip:** `manifest.json` (o corpo de `PUT /support/manifest`), `content.json` (o corpo do `save` sem `baseRevision`, com ids simbólicos `@page:`/`@block:`/`@folder:`, ids em falta gerados e ficheiros como `@media:<nome>`) e `media/<nome>` (nomes só `[A-Za-z0-9._-]`). Imagens JPEG/PNG/WebP (optimizadas como no upload de imagens) e PDF (até 20 MB); o tipo vem dos **bytes**, não da extensão; SVG é recusado. `__MACOSX/` e `.DS_Store` ignoram-se; qualquer outra entrada fora do layout é erro com o nome. **Tectos:** zip 60 MB (413), 120 MB descomprimidos contados enquanto se descomprime (413), 300 entradas (413), `manifest.json`/`content.json` 1 MB cada (413), ficheiro de `media/` 20 MB. Entradas encriptadas, ligações simbólicas, nomes com `..`, barra invertida, caminho absoluto ou unicode, e métodos de compressão desconhecidos são recusados (422). **`dry-run`** valida tudo (zip, manifest, ficheiros, conteúdo contra o manifest DO ZIP) e não escreve nada (nem BD nem storage); se o tenant já tem conteúdo simula a substituição e devolve `existing` para o Backoffice pedir confirmação. **`apply`** carrega os ficheiros referidos para o storage do tenant e, numa transacção com o lock da linha do construtor (o mesmo do `save`), grava o manifest e aplica o conteúdo pelo `applySave`; se falhar, apaga (melhor esforço) o que carregou — nunca fica meio-importado. Com conteúdo existente e sem `replace=true` → 409 `HAS_CONTENT`. Ficheiros do zip não referidos no conteúdo não são carregados (`warnings`); um `@media:` sem ficheiro no zip é erro. O `manifest.json` e o `content.json` recebem o MESMO tratamento de sanitização que qualquer corpo de pedido (HTML removido das strings, chaves `$`/`__proto__` descartadas, aninhamento máximo 100 → 422), por isso um `<script>` no zip nunca fica gravado (e um `&` passa a `&amp;`, como no editor). Dois `apply` em paralelo no mesmo tenant: um ganha e o outro recebe 409 `HAS_CONTENT` (sem `replace`) — os ficheiros do perdedor são apagados. Ids de páginas/blocos/pastas/itens de OUTRO tenant no `content.json` → 404 (nada é alterado nem carregado). Só numa sessão de suporte; age sempre sobre o tenant da sessão. Rate limit: 6 por 10 minutos por tenant. Exige `VIEW_SITE_PAGES`.\n",
@@ -16184,6 +16495,7 @@
     },
     "/customers/{id}/export": {
       "get": {
+        "x-codigo": "E06-06",
         "summary": "Exportar dados pessoais do cliente (RGPD)",
         "description": "Membro da equipa: folha-acção `clientes.lista.exportar` (B41 2b). Sem `agenda.marcacoes.valores` (view) as marcações saem sem preços/pagamentos; sem `financeiro.mensalidades` (view) o bloco `gym` leva só `memberships` (sem `payments`); sem `loja.encomendas` (view) não há `orders`.",
         "tags": [
@@ -16235,6 +16547,7 @@
     },
     "/customers/{id}": {
       "delete": {
+        "x-codigo": "E06-09",
         "summary": "Anonimizar o cliente (direito ao esquecimento, RGPD)",
         "tags": [
           "BackofficeCustomers"
@@ -16283,6 +16596,7 @@
         }
       },
       "get": {
+        "x-codigo": "E06-07",
         "summary": "Obter cliente por ID",
         "tags": [
           "BackofficeCustomers"
@@ -16321,6 +16635,7 @@
         }
       },
       "patch": {
+        "x-codigo": "E06-08",
         "summary": "Actualizar cliente",
         "tags": [
           "BackofficeCustomers"
@@ -16412,6 +16727,7 @@
     },
     "/customers": {
       "get": {
+        "x-codigo": "E06-01",
         "summary": "Listar todos os clientes",
         "description": "Membro da equipa: `clientes.lista` OU `agenda.marcacoes` (a Agenda usa a lista, a ficha e o histórico). Criar (POST): `clientes.lista` ou `agenda.marcacoes` (edit). PATCH: `clientes.lista` (edit) para tudo; só com `agenda.marcacoes` (edit) apenas `nif` e `wantsInvoice` — outro campo (ex. `blocked`, `name`) dá 403 `TEAM_FORBIDDEN` sem escrever. Apagar: `clientes.lista.apagar`.",
         "tags": [
@@ -16442,6 +16758,7 @@
         }
       },
       "post": {
+        "x-codigo": "E06-02",
         "summary": "Criar cliente manualmente (backoffice)",
         "tags": [
           "BackofficeCustomers"
@@ -16523,6 +16840,7 @@
     },
     "/customers/{id}/history": {
       "get": {
+        "x-codigo": "E06-05",
         "summary": "Histórico e estatísticas do cliente",
         "description": "Membro da equipa SEM `agenda.marcacoes.valores` (view): `stats.totalSpent` e `stats.debt` não vêm e as marcações saem sem preços/pagamentos/`debt` (B41 2b). `stats.debt` = soma da dívida (AG-18) das marcações listadas (âmbito \"Só os meus\" incluído).",
         "tags": [
@@ -16610,6 +16928,7 @@
     },
     "/customers/{customerId}/newsletter": {
       "get": {
+        "x-codigo": "E06-03",
         "summary": "Estado de \"Aceita novidades por email\" de um cliente",
         "description": "Quem lê a lista de clientes. Cliente de outro negócio = 404.",
         "tags": [
@@ -16650,6 +16969,7 @@
         }
       },
       "put": {
+        "x-codigo": "E06-04",
         "summary": "Marcar ou desmarcar \"Aceita novidades por email\" (consentimento ao balcão)",
         "description": "Folha-acção `clientes.lista.novidades` (edit; nasce fechada — um membro com só `clientes.lista` recebe 403 `TEAM_FORBIDDEN`). `subscribed: true` regista o consentimento com origem `balcao`, a data e o texto; `false` retira-o (idempotente). 409 `customer_no_email` se o cliente não tem email; 409 `contact_blocked` se o email é bounced/complained. Cliente de outro negócio = 404. Os clientes que já existem NÃO ficam subscritos por omissão.",
         "tags": [
@@ -16740,6 +17060,7 @@
     },
     "/dashboard": {
       "get": {
+        "x-codigo": "E12-02",
         "summary": "Get analytics dashboard data (dono, ou membro da equipa com a folha dashboard)",
         "tags": [
           "Dashboard"
@@ -17269,7 +17590,7 @@
                           "properties": {
                             "revenue": {
                               "type": "number",
-                              "description": "Soma de GymPayment.amount pago (status=paid, paidAt) no período"
+                              "description": "Recebido das mensalidades no período (GY-04): pagas pelo preço em paidAt + parciais (em dívida) pelo valor já pago em debtSince"
                             },
                             "revenuePrevious": {
                               "type": "number"
@@ -17305,7 +17626,7 @@
                         },
                         "activeMembers": {
                           "type": "integer",
-                          "description": "Membros com GymMembership.subscriptionId definido (independente de período)"
+                          "description": "Sócios activos (GY-35): subscrição activa e ligação confirmada - a mesma definição da Análise"
                         }
                       }
                     },
@@ -17421,6 +17742,7 @@
     },
     "/categories": {
       "get": {
+        "x-codigo": "E04-01",
         "summary": "Get all categories",
         "tags": [
           "Categories"
@@ -17460,6 +17782,7 @@
         }
       },
       "post": {
+        "x-codigo": "E04-03",
         "summary": "Create a category",
         "tags": [
           "Categories"
@@ -17541,6 +17864,7 @@
     },
     "/categories/{id}": {
       "get": {
+        "x-codigo": "E04-02",
         "summary": "Get a category by ID",
         "tags": [
           "Categories"
@@ -17589,6 +17913,7 @@
         }
       },
       "put": {
+        "x-codigo": "E04-04",
         "summary": "Update a category (PUT sem id cria)",
         "tags": [
           "Categories"
@@ -17678,6 +18003,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E04-05",
         "summary": "Delete a category by ID",
         "tags": [
           "Categories"
@@ -17730,6 +18056,7 @@
     },
     "/coupons": {
       "get": {
+        "x-codigo": "E04-25",
         "summary": "List all coupons",
         "description": "Só o dono do tenant: um membro da equipa recebe 403 `TEAM_OWNER_ONLY` em TODAS as rotas de `/coupons` (B41 2b; não têm ecrã no Backoffice).",
         "tags": [
@@ -17777,6 +18104,7 @@
         }
       },
       "post": {
+        "x-codigo": "E04-27",
         "summary": "Create a new coupon",
         "tags": [
           "Coupons"
@@ -17815,7 +18143,7 @@
                 }
               }
             },
-            "description": "Validation error"
+            "description": "Validation error (code BAD_REQUEST): `type` fora de percentage/fixed; percentagem fora de 1–100; valor fixo ≤ 0; falta code, type ou value; code que não é texto (1–64, sem espaços nas pontas); value/minOrderValue que não são números; maxUses que não é inteiro ≥ 1; active que não é booleano"
           },
           "409": {
             "content": {
@@ -17832,6 +18160,7 @@
     },
     "/coupons/{id}": {
       "get": {
+        "x-codigo": "E04-26",
         "summary": "Get a coupon by ID",
         "tags": [
           "Coupons"
@@ -17875,7 +18204,9 @@
         }
       },
       "put": {
+        "x-codigo": "E04-28",
         "summary": "Update a coupon",
+        "description": "O `value` valida-se contra o tipo efectivo (o do corpo, senão o guardado): percentagem entre 1 e 100, fixo maior que 0. Mudar só o `type` valida também o valor guardado. `type` fora de percentage/fixed → 400.",
         "tags": [
           "Coupons"
         ],
@@ -17915,6 +18246,16 @@
               }
             }
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Invalid `type`, `value` fora do intervalo do tipo (percentagem 1–100, fixo > 0), ou code/value/minOrderValue/maxUses/active com tipo ou limite inválido"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -17924,10 +18265,21 @@
               }
             },
             "description": "Coupon not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Coupon code already exists"
           }
         }
       },
       "delete": {
+        "x-codigo": "E04-29",
         "summary": "Delete a coupon",
         "tags": [
           "Coupons"
@@ -17966,6 +18318,7 @@
     },
     "/orders": {
       "get": {
+        "x-codigo": "E04-16",
         "summary": "List orders with optional status filter and pagination",
         "tags": [
           "Orders"
@@ -18080,7 +18433,9 @@
         }
       },
       "post": {
-        "summary": "Create a new order (backoffice)",
+        "x-codigo": "E04-19",
+        "summary": "Create a new order (backoffice) from product lines",
+        "description": "LJ-36: `items` (productId + quantity) é obrigatório; o preço sai dos produtos do tenant, a encomenda nasce `pending` (sem stock descontado) e cancela-se sozinha ao fim de 24 h se ninguém a pagar.",
         "tags": [
           "Orders"
         ],
@@ -18109,12 +18464,33 @@
                 }
               }
             }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Sem linhas (LINES_REQUIRED), linha inválida (LINES_INVALID) ou customerId que não é texto"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Cliente ou produto de outro negócio"
           }
         }
       }
     },
     "/orders/{id}": {
       "get": {
+        "x-codigo": "E04-18",
         "summary": "Get an order by ID (includes customer and products)",
         "description": "Membro da equipa SEM `loja.produtos.custo` (view): sem `cost`/`costAtPurchase` nos itens (B41 2b).",
         "tags": [
@@ -18159,7 +18535,9 @@
         }
       },
       "put": {
+        "x-codigo": "E04-20",
         "summary": "Update an order — status, notes, trackingCode",
+        "description": "Estado só por passos válidos (`allowedTransitions` da encomenda): 409 `STATUS_TRANSITION_INVALID` (inclui `pending → processing`, que só o pagamento faz). Cancelar/reembolsar uma encomenda paga repõe o stock, uma só vez; não devolve dinheiro. Preço de encomenda paga ou com pagamento iniciado: 409 `PRICE_LOCKED`.",
         "tags": [
           "Orders"
         ],
@@ -18227,6 +18605,16 @@
               }
             }
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Estado fora da lista, preço que não é um número entre 0 e 99 999 999, notas ou código de envio que não são texto, profissional inválido"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -18236,11 +18624,22 @@
               }
             },
             "description": "Order not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "STATUS_TRANSITION_INVALID ou PRICE_LOCKED"
           }
         }
       },
       "delete": {
-        "summary": "Delete an order",
+        "x-codigo": "E04-21",
+        "summary": "Delete an order (never a paid one)",
         "tags": [
           "Orders"
         ],
@@ -18272,12 +18671,23 @@
               }
             },
             "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "PAID_NOT_DELETABLE (paga, a processar, enviada ou entregue — inclui a que foi paga entre a leitura e o apagar)"
           }
         }
       }
     },
     "/orders/customerid/{id}": {
       "get": {
+        "x-codigo": "E04-17",
         "summary": "Get orders by customer ID",
         "tags": [
           "Orders"
@@ -18316,6 +18726,7 @@
     },
     "/order-products/orderid/{id}": {
       "get": {
+        "x-codigo": "E04-22",
         "summary": "Get products for a specific order",
         "tags": [
           "OrderProducts"
@@ -18370,6 +18781,7 @@
     },
     "/order-products/productid/{id}": {
       "get": {
+        "x-codigo": "E04-23",
         "summary": "Get orders containing a specific product",
         "tags": [
           "OrderProducts"
@@ -18424,6 +18836,7 @@
     },
     "/order-products/{id}": {
       "get": {
+        "x-codigo": "E04-24",
         "summary": "Get order products by customer ID",
         "tags": [
           "OrderProducts"
@@ -18478,6 +18891,7 @@
     },
     "/products": {
       "get": {
+        "x-codigo": "E04-11",
         "summary": "Listar todos os produtos",
         "description": "Membro da equipa SEM `loja.produtos.custo` (view): os produtos saem sem `cost` (B41 2b). Leitura com qualquer folha `loja.*`.",
         "tags": [
@@ -18533,6 +18947,7 @@
         }
       },
       "post": {
+        "x-codigo": "E04-13",
         "summary": "Criar produto",
         "tags": [
           "Products"
@@ -18612,7 +19027,7 @@
                 }
               }
             },
-            "description": "contentKey obrigatório ou campos inválidos"
+            "description": "contentKey obrigatório, campos inválidos ou categoryId/subcategoryId que não são ids em texto"
           },
           "409": {
             "content": {
@@ -18629,6 +19044,7 @@
     },
     "/products/{id}": {
       "get": {
+        "x-codigo": "E04-12",
         "summary": "Obter produto por ID",
         "description": "Membro da equipa SEM `loja.produtos.custo` (view): sem `cost`. No POST/PUT, sem `loja.produtos.custo` (edit) o `cost` do corpo é ignorado.",
         "tags": [
@@ -18668,6 +19084,7 @@
         }
       },
       "put": {
+        "x-codigo": "E04-14",
         "summary": "Actualizar produto",
         "tags": [
           "Products"
@@ -18749,6 +19166,16 @@
               }
             }
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "categoryId ou subcategoryId que não são ids em texto (lista/objecto)"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -18772,6 +19199,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E04-15",
         "summary": "Eliminar produto",
         "tags": [
           "Products"
@@ -18832,6 +19260,7 @@
     },
     "/subcategories": {
       "get": {
+        "x-codigo": "E04-06",
         "summary": "Get all subcategories",
         "tags": [
           "Subcategories"
@@ -18863,6 +19292,7 @@
         }
       },
       "post": {
+        "x-codigo": "E04-08",
         "summary": "Create a subcategory",
         "tags": [
           "Subcategories"
@@ -18948,6 +19378,7 @@
     },
     "/subcategories/{id}": {
       "get": {
+        "x-codigo": "E04-07",
         "summary": "Get a subcategory by ID",
         "tags": [
           "Subcategories"
@@ -18996,6 +19427,7 @@
         }
       },
       "put": {
+        "x-codigo": "E04-09",
         "summary": "Update a subcategory (PUT sem id cria)",
         "tags": [
           "Subcategories"
@@ -19089,6 +19521,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E04-10",
         "summary": "Delete a subcategory by ID",
         "tags": [
           "Subcategories"
@@ -19139,6 +19572,7 @@
     },
     "/expenses/categories": {
       "get": {
+        "x-codigo": "E07-04",
         "summary": "Listar categorias de despesa",
         "tags": [
           "ExpenseCategories"
@@ -19160,6 +19594,7 @@
         }
       },
       "post": {
+        "x-codigo": "E07-05",
         "summary": "Criar categoria de despesa",
         "tags": [
           "ExpenseCategories"
@@ -19222,6 +19657,7 @@
     },
     "/expenses/categories/reorder": {
       "patch": {
+        "x-codigo": "E07-06",
         "summary": "Reordenar categorias",
         "tags": [
           "ExpenseCategories"
@@ -19258,12 +19694,23 @@
                 }
               }
             }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "order com elementos que não são ids em texto ou com mais de 1000 ids"
           }
         }
       }
     },
     "/expenses/categories/{id}": {
       "patch": {
+        "x-codigo": "E07-07",
         "summary": "Atualizar categoria",
         "tags": [
           "ExpenseCategories"
@@ -19319,6 +19766,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E07-08",
         "summary": "Eliminar categoria (as despesas ligadas ficam sem categoria)",
         "tags": [
           "ExpenseCategories"
@@ -19359,6 +19807,7 @@
     },
     "/expenses": {
       "get": {
+        "x-codigo": "E07-10",
         "summary": "Listar despesas",
         "tags": [
           "Expenses"
@@ -19433,11 +19882,12 @@
                 }
               }
             },
-            "description": "month/from/to/staff inválidos"
+            "description": "month/from/to/staff inválidos, ou categoryId em formato de lista/objecto"
           }
         }
       },
       "post": {
+        "x-codigo": "E07-11",
         "summary": "Criar despesa",
         "tags": [
           "Expenses"
@@ -19510,6 +19960,7 @@
     },
     "/expenses/summary": {
       "get": {
+        "x-codigo": "E07-09",
         "summary": "Resumo de despesas (mês, ano, categorias)",
         "tags": [
           "Expenses"
@@ -19554,7 +20005,8 @@
                     },
                     "monthChange": {
                       "type": "number",
-                      "description": "% variação vs mês anterior"
+                      "nullable": true,
+                      "description": "% variação vs mês anterior; null = mês anterior a zero (novo)"
                     },
                     "topCategory": {
                       "type": "string",
@@ -19604,6 +20056,7 @@
     },
     "/expenses/{id}": {
       "patch": {
+        "x-codigo": "E07-12",
         "summary": "Actualizar despesa",
         "tags": [
           "Expenses"
@@ -19687,6 +20140,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E07-13",
         "summary": "Eliminar despesa",
         "tags": [
           "Expenses"
@@ -19720,6 +20174,7 @@
     },
     "/financeiro/agenda": {
       "get": {
+        "x-codigo": "E07-02",
         "summary": "Mini-dashboard financeiro da Agenda (faturado/recebido/dívida, ocupação, clientes)",
         "tags": [
           "Financeiro"
@@ -19843,6 +20298,7 @@
     },
     "/financeiro/loja": {
       "get": {
+        "x-codigo": "E07-03",
         "summary": "Mini-dashboard financeiro da Loja (margem/COGS, recompra, LTV, dead stock, carrinhos)",
         "tags": [
           "Financeiro"
@@ -19952,6 +20408,7 @@
     },
     "/financeiro/negocio": {
       "get": {
+        "x-codigo": "E07-01",
         "summary": "Vista consolidada (faturado/recebido/dívida, lucro, fontes, Score de saúde)",
         "tags": [
           "Financeiro"
@@ -20050,6 +20507,7 @@
     },
     "/gym/clients/{customerId}/logs": {
       "get": {
+        "x-codigo": "E05.2-08",
         "summary": "Histórico de treinos de um cliente",
         "tags": [
           "GymClients"
@@ -20123,6 +20581,7 @@
     },
     "/gym/clients/{customerId}/stats": {
       "get": {
+        "x-codigo": "E05.2-09",
         "summary": "Estatísticas/progresso de um cliente (resumo + semanal + recordes)",
         "tags": [
           "GymClients"
@@ -20465,6 +20924,7 @@
     },
     "/gym/exercises": {
       "get": {
+        "x-codigo": "E05.1-06",
         "summary": "Listar exercícios do catálogo",
         "tags": [
           "GymExercises"
@@ -20491,6 +20951,7 @@
         }
       },
       "post": {
+        "x-codigo": "E05.1-07",
         "summary": "Criar exercício",
         "tags": [
           "GymExercises"
@@ -20604,6 +21065,7 @@
     },
     "/gym/exercises/reorder": {
       "patch": {
+        "x-codigo": "E05.1-08",
         "summary": "Reordenar exercícios",
         "tags": [
           "GymExercises"
@@ -20661,6 +21123,7 @@
     },
     "/gym/exercises/{id}": {
       "get": {
+        "x-codigo": "E05.1-09",
         "summary": "Obter exercício por ID",
         "tags": [
           "GymExercises"
@@ -20704,6 +21167,7 @@
         }
       },
       "put": {
+        "x-codigo": "E05.1-10",
         "summary": "Atualizar exercício",
         "tags": [
           "GymExercises"
@@ -20819,6 +21283,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E05.1-11",
         "summary": "Eliminar exercício",
         "tags": [
           "GymExercises"
@@ -20864,6 +21329,7 @@
     },
     "/gym/members/invite": {
       "post": {
+        "x-codigo": "E05.2-26",
         "summary": "Convidar um novo sócio do ginásio por email",
         "description": "Cria (ou reutiliza) um Customer sem password + uma GymMembership \"pending\" com o plano indicado (ou o plano default do tenant), e envia um email com o link para o convidado definir a password (reutiliza o fluxo genérico de reset de password). Idempotente: repetir o convite para o mesmo email não duplica nem muda o plano já atribuído — para trocar o plano usa-se o endpoint já existente `PUT /gym/mensalidade/customers/:customerId/subscription`.\nMembro da equipa (B41 2b): a resposta é GENÉRICA e igual para \"criado\" e \"já existia\" — sempre `201` com `{ customer:{ name, email } (os que enviou), alreadyInvited:false, emailSent, appUrl }`, sem `customerId`, `membership` nem dados de um cliente existente. Sem `financeiro.mensalidades` (edit) só pode convidar com o plano por defeito: um `subscriptionId` diferente do default → 403 `TEAM_FORBIDDEN`. O corpo só aceita `name`, `email` e `subscriptionId`.",
         "tags": [
@@ -20948,6 +21414,7 @@
     },
     "/gym/mensalidade/generate": {
       "post": {
+        "x-codigo": "E05.2-16",
         "summary": "Gerar as mensalidades em falta do período (todos os membros ativos)",
         "tags": [
           "GymMensalidade"
@@ -20997,7 +21464,9 @@
     },
     "/gym/mensalidade/bulk-pay": {
       "post": {
+        "x-codigo": "E05.2-17",
         "summary": "Marcar vários clientes como pagos no período",
+        "description": "Só sócios activos (subscrição activa e conta confirmada, GY-35); os outros ids são ignorados sem erro.",
         "tags": [
           "GymMensalidade"
         ],
@@ -21072,6 +21541,7 @@
     },
     "/gym/mensalidade/remind": {
       "post": {
+        "x-codigo": "E05.2-18",
         "summary": "Enviar lembrete de cobrança aos clientes em atraso (ou indicados)",
         "tags": [
           "GymMensalidade"
@@ -21131,6 +21601,7 @@
     },
     "/gym/mensalidade/analytics": {
       "get": {
+        "x-codigo": "E05.2-15",
         "summary": "Análise de mensalidades (MRR, churn, retenção, LTV, tendência do MRR, waterfall)",
         "tags": [
           "GymMensalidade"
@@ -21290,6 +21761,7 @@
     },
     "/gym/mensalidade/finance": {
       "get": {
+        "x-codigo": "E05.2-14",
         "summary": "Estado de mensalidades de todos os clientes + KPIs do período",
         "tags": [
           "GymMensalidade"
@@ -21325,6 +21797,7 @@
     },
     "/gym/mensalidade/customers/{customerId}": {
       "get": {
+        "x-codigo": "E05.2-19",
         "summary": "Mensalidade de um cliente (subscrição + pagamentos)",
         "tags": [
           "GymMensalidade"
@@ -21370,6 +21843,7 @@
     },
     "/gym/mensalidade/customers/{customerId}/subscription": {
       "put": {
+        "x-codigo": "E05.2-20",
         "summary": "Atribuir/trocar a subscrição do cliente",
         "tags": [
           "GymMensalidade"
@@ -21444,6 +21918,7 @@
     },
     "/gym/mensalidade/customers/{customerId}/block": {
       "patch": {
+        "x-codigo": "E05.2-21",
         "summary": "Bloquear/desbloquear o cliente",
         "tags": [
           "GymMensalidade"
@@ -21464,10 +21939,14 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": [
+                  "blocked"
+                ],
                 "properties": {
                   "blocked": {
                     "type": "boolean"
@@ -21499,12 +21978,23 @@
                 }
               }
             }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Valor não booleano"
           }
         }
       }
     },
     "/gym/mensalidade/customers/{customerId}/pay-only": {
       "patch": {
+        "x-codigo": "E05.2-22",
         "summary": "Marcar/desmarcar o cliente como \"só paga\" (sem app, fora das estatísticas de assiduidade)",
         "tags": [
           "GymMensalidade"
@@ -21525,10 +22015,14 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": [
+                  "payOnly"
+                ],
                 "properties": {
                   "payOnly": {
                     "type": "boolean"
@@ -21560,13 +22054,25 @@
                 }
               }
             }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Valor não booleano"
           }
         }
       }
     },
     "/gym/mensalidade/customers/{customerId}/payments": {
       "post": {
+        "x-codigo": "E05.2-23",
         "summary": "Registar/atualizar o pagamento de um período (upsert)",
+        "description": "Estado paid com paidAmount abaixo do preço fica debt (preço inalterado). O valor pago nunca excede o preço. method: cash, mbway, card, transfer ou multibanco.",
         "tags": [
           "GymMensalidade"
         ],
@@ -21657,12 +22163,23 @@
                 }
               }
             }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Valor pago acima do preço, dívida sem valor pago ou método fora da lista"
           }
         }
       }
     },
     "/gym/mensalidade/payments/{paymentId}": {
       "patch": {
+        "x-codigo": "E05.2-24",
         "summary": "Atualizar um pagamento",
         "tags": [
           "GymMensalidade"
@@ -21715,6 +22232,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E05.2-25",
         "summary": "Eliminar um pagamento",
         "tags": [
           "GymMensalidade"
@@ -21760,6 +22278,7 @@
     },
     "/gym/muscle-groups": {
       "get": {
+        "x-codigo": "E05.1-01",
         "summary": "Listar grupos musculares (semeia os defaults na 1ª utilização)",
         "tags": [
           "GymMuscleGroups"
@@ -21786,6 +22305,7 @@
         }
       },
       "post": {
+        "x-codigo": "E05.1-02",
         "summary": "Criar grupo muscular",
         "tags": [
           "GymMuscleGroups"
@@ -21864,6 +22384,7 @@
     },
     "/gym/muscle-groups/reorder": {
       "patch": {
+        "x-codigo": "E05.1-03",
         "summary": "Reordenar grupos musculares",
         "tags": [
           "GymMuscleGroups"
@@ -21921,6 +22442,7 @@
     },
     "/gym/muscle-groups/{id}": {
       "put": {
+        "x-codigo": "E05.1-04",
         "summary": "Atualizar grupo muscular",
         "tags": [
           "GymMuscleGroups"
@@ -21992,6 +22514,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E05.1-05",
         "summary": "Eliminar grupo muscular (apaga também os seus subgrupos)",
         "tags": [
           "GymMuscleGroups"
@@ -22037,6 +22560,7 @@
     },
     "/gym/planos": {
       "get": {
+        "x-codigo": "E05.2-01",
         "summary": "Listar planos",
         "tags": [
           "GymPlanos"
@@ -22063,6 +22587,7 @@
         }
       },
       "post": {
+        "x-codigo": "E05.2-02",
         "summary": "Criar plano (com treinos por dia)",
         "tags": [
           "GymPlanos"
@@ -22138,6 +22663,7 @@
     },
     "/gym/planos/reorder": {
       "patch": {
+        "x-codigo": "E05.2-03",
         "summary": "Reordenar planos",
         "tags": [
           "GymPlanos"
@@ -22179,12 +22705,23 @@
                 }
               }
             }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "order com elementos que não são ids em texto ou com mais de 1000 ids"
           }
         }
       }
     },
     "/gym/planos/{id}": {
       "get": {
+        "x-codigo": "E05.2-04",
         "summary": "Obter plano por ID",
         "tags": [
           "GymPlanos"
@@ -22228,6 +22765,7 @@
         }
       },
       "put": {
+        "x-codigo": "E05.2-05",
         "summary": "Atualizar plano (nome/nota e/ou substituir treinos)",
         "tags": [
           "GymPlanos"
@@ -22307,6 +22845,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E05.2-06",
         "summary": "Eliminar plano",
         "tags": [
           "GymPlanos"
@@ -22352,6 +22891,7 @@
     },
     "/gym/planos/{id}/assign": {
       "post": {
+        "x-codigo": "E05.2-07",
         "summary": "Atribuir (copiar) um plano a um cliente, com datas — cria um Program",
         "description": "Membro da equipa: exige `ginasio.treinos` (edit) E `ginasio.clientes` (edit) — escreve um programa no cliente (403 `TEAM_FORBIDDEN`).",
         "tags": [
@@ -22461,6 +23001,7 @@
     },
     "/gym/programs": {
       "get": {
+        "x-codigo": "E05.1-12",
         "summary": "Listar programas (opcionalmente filtrados por cliente)",
         "tags": [
           "GymPrograms"
@@ -22494,10 +23035,21 @@
                 }
               }
             }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "customerId em formato de lista/objecto (tem de ser um id em texto)"
           }
         }
       },
       "post": {
+        "x-codigo": "E05.1-13",
         "summary": "Criar programa para um cliente (owner='coach' por omissão)",
         "tags": [
           "GymPrograms"
@@ -22599,6 +23151,7 @@
     },
     "/gym/programs/reorder": {
       "patch": {
+        "x-codigo": "E05.1-14",
         "summary": "Reordenar programas",
         "tags": [
           "GymPrograms"
@@ -22640,12 +23193,23 @@
                 }
               }
             }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "order com elementos que não são ids em texto ou com mais de 1000 ids"
           }
         }
       }
     },
     "/gym/programs/{id}": {
       "get": {
+        "x-codigo": "E05.1-15",
         "summary": "Obter programa por ID",
         "tags": [
           "GymPrograms"
@@ -22689,6 +23253,7 @@
         }
       },
       "put": {
+        "x-codigo": "E05.1-16",
         "summary": "Atualizar programa (nome/nota/estrutura)",
         "tags": [
           "GymPrograms"
@@ -22771,6 +23336,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E05.1-18",
         "summary": "Eliminar programa (cascade nos treinos)",
         "tags": [
           "GymPrograms"
@@ -22816,6 +23382,7 @@
     },
     "/gym/programs/{id}/active": {
       "patch": {
+        "x-codigo": "E05.1-17",
         "summary": "Definir o programa ativo do cliente (ativar um desativa os outros)",
         "tags": [
           "GymPrograms"
@@ -22888,6 +23455,7 @@
     },
     "/gym/programs/{programId}/workouts": {
       "post": {
+        "x-codigo": "E05.1-20",
         "summary": "Criar treino dentro de um programa",
         "tags": [
           "GymWorkouts"
@@ -22986,6 +23554,7 @@
     },
     "/gym/programs/{programId}/workouts/reorder": {
       "patch": {
+        "x-codigo": "E05.1-19",
         "summary": "Reordenar treinos dentro de um programa",
         "tags": [
           "GymWorkouts"
@@ -23063,6 +23632,7 @@
     },
     "/gym/subscriptions": {
       "get": {
+        "x-codigo": "E05.2-10",
         "summary": "Listar subscrições (catálogo de mensalidades) + nº de clientes",
         "tags": [
           "GymMensalidade"
@@ -23089,6 +23659,7 @@
         }
       },
       "post": {
+        "x-codigo": "E05.2-11",
         "summary": "Criar subscrição",
         "tags": [
           "GymMensalidade"
@@ -23162,6 +23733,7 @@
     },
     "/gym/subscriptions/{id}": {
       "put": {
+        "x-codigo": "E05.2-12",
         "summary": "Atualizar subscrição",
         "tags": [
           "GymMensalidade"
@@ -23236,6 +23808,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E05.2-13",
         "summary": "Eliminar subscrição",
         "tags": [
           "GymMensalidade"
@@ -23281,6 +23854,7 @@
     },
     "/gym/workouts/{id}": {
       "get": {
+        "x-codigo": "E05.1-21",
         "summary": "Obter treino por ID",
         "description": "Os treinos são de programas de CLIENTES: a rota (GET/PUT/DELETE) exige `ginasio.clientes` (view / edit) a um membro da equipa, não `ginasio.treinos` (403 `TEAM_FORBIDDEN`).",
         "tags": [
@@ -23325,6 +23899,7 @@
         }
       },
       "put": {
+        "x-codigo": "E05.1-22",
         "summary": "Atualizar treino (nome e/ou substituir exercícios)",
         "tags": [
           "GymWorkouts"
@@ -23408,6 +23983,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E05.1-23",
         "summary": "Eliminar treino (cascade nos exercícios)",
         "tags": [
           "GymWorkouts"
@@ -23453,6 +24029,7 @@
     },
     "/gym/workout-templates": {
       "get": {
+        "x-codigo": "E05.1-24",
         "summary": "Listar templates de treino",
         "tags": [
           "GymWorkoutTemplates"
@@ -23479,6 +24056,7 @@
         }
       },
       "post": {
+        "x-codigo": "E05.1-25",
         "summary": "Criar template de treino",
         "tags": [
           "GymWorkoutTemplates"
@@ -23543,6 +24121,7 @@
     },
     "/gym/workout-templates/reorder": {
       "patch": {
+        "x-codigo": "E05.1-26",
         "summary": "Reordenar templates",
         "tags": [
           "GymWorkoutTemplates"
@@ -23584,12 +24163,23 @@
                 }
               }
             }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "order com elementos que não são ids em texto ou com mais de 1000 ids"
           }
         }
       }
     },
     "/gym/workout-templates/{id}": {
       "get": {
+        "x-codigo": "E05.1-27",
         "summary": "Obter template por ID",
         "tags": [
           "GymWorkoutTemplates"
@@ -23633,6 +24223,7 @@
         }
       },
       "put": {
+        "x-codigo": "E05.1-28",
         "summary": "Atualizar template (nome e/ou exercícios)",
         "tags": [
           "GymWorkoutTemplates"
@@ -23701,6 +24292,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E05.1-29",
         "summary": "Eliminar template",
         "tags": [
           "GymWorkoutTemplates"
@@ -23746,6 +24338,7 @@
     },
     "/gym/workout-templates/{id}/assign": {
       "post": {
+        "x-codigo": "E05.1-30",
         "summary": "Atribuir (copiar) um template para o programa de um cliente, com dias",
         "description": "Se o programa é weekly (dias da semana), daysOfWeek é obrigatório. Se o programa é free (dias numerados), dayLabel é opcional. Membro da equipa: exige `ginasio.treinos` (edit) E `ginasio.clientes` (edit) — escreve no programa de um cliente (403 `TEAM_FORBIDDEN`).",
         "tags": [
@@ -23848,6 +24441,7 @@
     },
     "/integrations/google/status": {
       "get": {
+        "x-codigo": "E14-02",
         "summary": "Estado da ligação Google do tenant autenticado",
         "description": "Nunca falha com erro — se a decifra dos tokens guardados rebentar (linha corrompida), degrada para `connected: false` em vez de 500 (fica registado para investigação).\n",
         "tags": [
@@ -23867,6 +24461,7 @@
                   "type": "object",
                   "required": [
                     "connected",
+                    "status",
                     "calendarId",
                     "placeId",
                     "connectedAt",
@@ -23874,7 +24469,17 @@
                   ],
                   "properties": {
                     "connected": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "true só com token e sem erro"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "disconnected",
+                        "connected",
+                        "error"
+                      ],
+                      "description": "error = o Google recusou o token; é preciso voltar a ligar (IN-11)"
                     },
                     "calendarId": {
                       "type": "string",
@@ -23923,6 +24528,7 @@
     },
     "/integrations/google/connect": {
       "get": {
+        "x-codigo": "E14-03",
         "summary": "Construir o URL de consentimento OAuth do Google (Calendar)",
         "description": "O `state` do OAuth é um JWT assinado (10 min) que transporta o `userId` — necessário porque o callback (`GET /integrations/google/callback`) não recebe o Bearer. Emite também um cookie HttpOnly de curta duração com um nonce que o callback exige de volta — sem ele (ex.: o consentimento é completado noutro browser), o callback aborta sem tocar em nada.\n",
         "tags": [
@@ -23993,10 +24599,45 @@
         }
       }
     },
+    "/integrations/google/callback": {
+      "get": {
+        "x-codigo": "E14-01",
+        "summary": "Regresso do OAuth do Google (redirecciona para o Backoffice)",
+        "description": "Sem sessão — o tenant sai do `state` assinado e o browser tem de trazer o cookie de nonce. Responde sempre com redirect.",
+        "tags": [
+          "Integrations"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect para o Backoffice (com o resultado na query)"
+          }
+        }
+      }
+    },
     "/integrations/google/disconnect": {
       "post": {
+        "x-codigo": "E14-04",
         "summary": "Desligar a integração Google do tenant autenticado",
-        "description": "Limpa os tokens (access/refresh/expiry/scopes/connectedAt) mas mantém a linha da GoogleIntegration.",
+        "description": "Revoga o token no Google (melhor esforço — se o Google falhar, desliga na mesma) e limpa os tokens (access/refresh/expiry/scopes/connectedAt/erro) mas mantém a linha da GoogleIntegration.",
         "tags": [
           "Integrations"
         ],
@@ -24056,6 +24697,7 @@
     },
     "/integrations/google/place": {
       "put": {
+        "x-codigo": "E14-05",
         "summary": "Definir o Place ID do Google (usado pelas Reviews) do tenant",
         "description": "`placeId` vazio/omitido limpa o valor guardado (`null`). Faz `findOrCreate` da GoogleIntegration se o tenant ainda não tinha nenhuma linha.\n",
         "tags": [
@@ -24134,6 +24776,7 @@
     },
     "/integrations/google/reviews": {
       "get": {
+        "x-codigo": "E14-06",
         "summary": "Obter as reviews do Google do Place configurado do tenant",
         "description": "Env-gated: sem `placeId` guardado ou sem `GOOGLE_PLACES_API_KEY` no servidor devolve `{ configured: false, reviews: [] }` (200 — nunca 400/503). Nunca rebenta com 500: um erro a chamar a Places API (ou a própria excepção) também degrada para 200 com `error` preenchido.\n",
         "tags": [
@@ -24239,6 +24882,7 @@
     },
     "/leads": {
       "get": {
+        "x-codigo": "E06-10",
         "summary": "Listar leads do tenant",
         "tags": [
           "Leads"
@@ -24279,12 +24923,23 @@
                 }
               }
             }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "status repetido ou em formato de lista/objecto (tem de ser texto)"
           }
         }
       }
     },
     "/leads/{id}": {
       "patch": {
+        "x-codigo": "E06-11",
         "summary": "Actualizar o estado de um lead",
         "tags": [
           "Leads"
@@ -24359,6 +25014,7 @@
     },
     "/mail/mailboxes/{mailboxId}/app-password": {
       "get": {
+        "x-codigo": "E11-12",
         "summary": "Estado da password da app de uma caixa e dados de configuração (IMAP/SMTP)",
         "description": "Nunca devolve a password (não é guardada). Só o dono da caixa (o dono do negócio para `suporte@` e para a sua pessoal, o próprio membro para a sua): outro membro com `correio.caixa` recebe 403 e uma caixa que não é sua é 404.",
         "tags": [
@@ -24409,6 +25065,7 @@
         }
       },
       "post": {
+        "x-codigo": "E11-13",
         "summary": "Criar uma password da app (para abrir a caixa no telemóvel ou no Outlook)",
         "description": "Exige `correio.caixa` Responder e ser o dono da caixa. Gera uma password aleatória forte, junta-a às credenciais da conta (a que a API usa mantém-se) e devolve-a **uma única vez**, com os dados de configuração (IMAP 993 SSL/TLS, SMTP 465 SSL/TLS, utilizador = o endereço). A API não a guarda. Máx. 5 por caixa (409 `APP_PASSWORD_LIMIT`; revogar zera). 10 pedidos/hora.",
         "tags": [
@@ -24499,6 +25156,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E11-14",
         "summary": "Revogar as passwords da app da caixa",
         "description": "Corta o acesso externo (IMAP/SMTP) de TODOS os dispositivos ligados com passwords da app; o Backoffice continua a funcionar. Idempotente. Exige `correio.caixa` Responder e ser o dono da caixa.",
         "tags": [
@@ -24564,6 +25222,7 @@
     },
     "/mail/campaigns/status": {
       "get": {
+        "x-codigo": "E11-21",
         "summary": "As campanhas estão disponíveis? (domínio próprio + news. verificados, pausa)",
         "description": "`correio.campanhas` (Ver) + VIEW_EMAIL. Nunca falha por estar bloqueado: devolve `available: false` com o `reason` e a mensagem \"Disponível quando o teu domínio estiver configurado.\" (ou, com `reason: \"api_url_missing\"`, \"Campanhas por configurar na plataforma\": falta a env `API_PUBLIC_URL`) para o Backoffice mostrar o estado vazio em vez de um erro.",
         "tags": [
@@ -24595,6 +25254,7 @@
     },
     "/mail/campaigns": {
       "get": {
+        "x-codigo": "E11-23",
         "summary": "Listar campanhas (Rascunho · Agendada · A enviar · Enviada), com aberturas e cliques",
         "description": "`correio.campanhas` (Ver) + VIEW_EMAIL. Só as campanhas do negócio. Filtro `status`; paginado (`limit` até 100).",
         "tags": [
@@ -24667,6 +25327,7 @@
         }
       },
       "post": {
+        "x-codigo": "E11-24",
         "summary": "Criar um rascunho de campanha",
         "description": "`correio.campanhas` Editar + VIEW_EMAIL. 409 `CAMPAIGNS_LOCKED` sem domínio próprio + news. verificados. Só `name` é obrigatório; `segment` por omissão são todos os subscritos. Os `refId` de produto/serviço têm de ser do negócio (400 `INVALID_REFERENCE`).",
         "tags": [
@@ -24761,6 +25422,7 @@
     },
     "/mail/campaigns/{campaignId}": {
       "get": {
+        "x-codigo": "E11-25",
         "summary": "Ver uma campanha (conteúdo por língua, segmento, prontidão)",
         "tags": [
           "MailCampaigns"
@@ -24810,6 +25472,7 @@
         }
       },
       "patch": {
+        "x-codigo": "E11-26",
         "summary": "Editar um rascunho",
         "description": "`correio.campanhas` Editar. Só rascunhos (409 `CAMPAIGN_NOT_EDITABLE` nos outros: cancela o agendamento e duplica). `content`, `subjects` e `preheaders` substituem o objecto inteiro (um separador por língua). 409 `CAMPAIGNS_LOCKED` sem domínio.",
         "tags": [
@@ -24919,6 +25582,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E11-27",
         "summary": "Apagar um rascunho, cancelada ou falhada",
         "description": "`correio.campanhas` Editar. Campanhas agendadas, a enviar ou enviadas não se apagam (409 `CAMPAIGN_NOT_EDITABLE`): ficam como histórico.",
         "tags": [
@@ -24974,6 +25638,7 @@
     },
     "/mail/campaigns/preview-audience": {
       "post": {
+        "x-codigo": "E11-22",
         "summary": "Quantos subscritos apanha um segmento",
         "description": "`correio.campanhas` Editar. Conta SÓ contactos `subscribed` do negócio (o segmento é sempre interseccionado com o consentimento). Não devolve emails nem identifica ninguém.",
         "tags": [
@@ -25048,6 +25713,7 @@
     },
     "/mail/campaigns/{campaignId}/test": {
       "post": {
+        "x-codigo": "E11-29",
         "summary": "Enviar para mim (email de teste para quem está ligado)",
         "description": "`correio.campanhas` Editar. O destino é SEMPRE o email de quem está ligado (nunca um endereço do corpo). Marca `[Teste]` no assunto, sem destinatário na fila nem estatísticas. Tecto de 10 por dia por negócio (429 `CAMPAIGN_TEST_LIMIT`). 409 `CAMPAIGNS_LOCKED`; 423 `MAIL_SENDING_PAUSED`; 400 `CAMPAIGN_INCOMPLETE` se a língua pedida não tem assunto e conteúdo.",
         "tags": [
@@ -25165,6 +25831,7 @@
     },
     "/mail/campaigns/{campaignId}/send": {
       "post": {
+        "x-codigo": "E11-31",
         "summary": "Enviar agora",
         "description": "`correio.campanhas.enviar` + VIEW_EMAIL. Congela a audiência (os subscritos de agora) numa fila e passa a `sending`; o envio sai em lotes (a cada minuto, com tectos por minuto e por dia) e cada email reavalia a supressão no momento do envio. Cada email leva `List-Unsubscribe` + one-click. 409 `CAMPAIGNS_LOCKED` / `CAMPAIGN_STATE`; 423 `MAIL_SENDING_PAUSED`; 400 `CAMPAIGN_INCOMPLETE` (assunto/conteúdo em falta) ou `NO_AUDIENCE`.",
         "tags": [
@@ -25247,6 +25914,7 @@
     },
     "/mail/campaigns/{campaignId}/schedule": {
       "post": {
+        "x-codigo": "E11-32",
         "summary": "Agendar o envio",
         "description": "`correio.campanhas.enviar` + VIEW_EMAIL. `at` entre daqui a 1 minuto e 1 ano (400 `INVALID_SCHEDULE`). A audiência só se congela à hora do envio (quem anular entretanto não recebe). Mesmas recusas que `send`.",
         "tags": [
@@ -25348,6 +26016,7 @@
     },
     "/mail/campaigns/{campaignId}/cancel": {
       "post": {
+        "x-codigo": "E11-33",
         "summary": "Cancelar o agendamento (ou parar uma campanha a enviar)",
         "description": "`correio.campanhas.enviar` + VIEW_EMAIL. Agendada ou a enviar → `cancelled`; o que ainda estava na fila não sai (os já enviados ficam). 409 `CAMPAIGN_NOT_CANCELLABLE` nos outros estados. Duplica para reutilizar o conteúdo.",
         "tags": [
@@ -25410,6 +26079,7 @@
     },
     "/mail/campaigns/{campaignId}/duplicate": {
       "post": {
+        "x-codigo": "E11-30",
         "summary": "Duplicar uma campanha para um novo rascunho",
         "description": "`correio.campanhas` Editar. Copia nome (+ \"(cópia)\"), segmento e conteúdo; sem estatísticas nem destinatários. 409 `CAMPAIGNS_LOCKED`.",
         "tags": [
@@ -25472,6 +26142,7 @@
     },
     "/mail/campaigns/{campaignId}/stats": {
       "get": {
+        "x-codigo": "E11-28",
         "summary": "Estatísticas — entregues, aberturas, cliques, anulações, bounces, queixas",
         "description": "`correio.campanhas` (Ver). Contagens de pessoas (cada destinatário conta uma vez). Só da campanha do negócio.",
         "tags": [
@@ -25524,6 +26195,7 @@
     },
     "/mail/contacts": {
       "get": {
+        "x-codigo": "E11-16",
         "summary": "Listar contactos de email (estado, origem, data, pesquisa, etiqueta)",
         "description": "`correio.contactos` (Ver) + VIEW_EMAIL. Filtros `status`, `source`, `q` (email/nome), `tag`; paginado (`limit` até 100). `counts` conta TODOS os contactos do negócio por estado. Só os contactos do negócio autenticado.",
         "tags": [
@@ -25625,6 +26297,7 @@
     },
     "/mail/contacts/export": {
       "get": {
+        "x-codigo": "E11-17",
         "summary": "Exportar os contactos em CSV",
         "description": "`correio.contactos` (Ver). Aceita os mesmos filtros da lista (`status`, `source`, `q`, `tag`). Máx. 20 000 linhas. Células que começam por `= + - @` saem com `'` à frente (sem injecção de fórmulas no Excel). Só os contactos do negócio autenticado.",
         "tags": [
@@ -25704,6 +26377,7 @@
     },
     "/mail/contacts/{contactId}": {
       "patch": {
+        "x-codigo": "E11-19",
         "summary": "Editar etiquetas, nome e língua de um contacto",
         "description": "`correio.contactos` Editar. SÓ `name`, `tags` e `language` — o estado de subscrição nunca se muda por aqui (o consentimento é da pessoa). Contacto de outro negócio = 404.",
         "tags": [
@@ -25793,6 +26467,7 @@
     },
     "/mail/contacts/{contactId}/unsubscribe": {
       "post": {
+        "x-codigo": "E11-20",
         "summary": "Anular a subscrição de um contacto (a pedido da pessoa)",
         "description": "`correio.contactos` Editar. Passa a `unsubscribed` (\"Não subscrito\"). Idempotente; não mexe em `bounced`/`complained`/\"Anulou\". Voltar a subscrever só acontece por um novo consentimento da própria pessoa (site, perfil ou ficha ao balcão).",
         "tags": [
@@ -25845,6 +26520,7 @@
     },
     "/mail/contacts/import": {
       "post": {
+        "x-codigo": "E11-18",
         "summary": "Importar contactos de um CSV (com confirmação de consentimento)",
         "description": "`correio.contactos` Editar. **`consentConfirmed` tem de ser `true`** (\"confirmo que estes contactos deram consentimento\") — sem isso, 400 e nada se grava. O CSV vem como texto em `csv` (cabeçalho com `email`; opcionais `nome`, `etiquetas` separadas por `|`, `lingua`; separador `,` ou `;`). Máx. 5 000 linhas (400 `too_many_rows`). Valida cada email; linhas recusadas vêm no relatório. Os novos ficam `subscribed` com origem `importacao`. **Nunca reactiva** quem já anulou, não está subscrito, ou é bounced/complained (recusados com o motivo); quem já está subscrito só ganha as etiquetas. Liga ao cliente com o mesmo email, se existir.",
         "tags": [
@@ -25921,6 +26597,7 @@
     },
     "/mail/mailboxes": {
       "get": {
+        "x-codigo": "E11-01",
         "summary": "Caixas a que tenho acesso (a minha pessoal primeiro, depois a do negócio)",
         "description": "VIEW_EMAIL. O dono do negócio vê a pessoal dele e `suporte@`; um membro vê a sua e, se tiver `correio.caixa` (Ver), `suporte@`; o admin da plataforma vê a dele (`rui.pereira@…`). A de um colega nunca aparece, nem ao dono; a de outro negócio nunca. `configured` false = o servidor de correio não está configurado (Por configurar).",
         "tags": [
@@ -25973,6 +26650,7 @@
     },
     "/mail/mailboxes/{mailboxId}/threads": {
       "get": {
+        "x-codigo": "E11-02",
         "summary": "Conversas de uma caixa (Entrada, Arquivo, Enviados; filtro Todas/Por ler/Lidas; pesquisa)",
         "description": "Paginado (`page`, `limit` até 50). `folder` = onde; `status` = o estado (ortogonal à pasta): `unread` = alguma mensagem da conversa por ler, `read` = todas lidas. As conversas fixadas vêm primeiro (data desc), depois as restantes (data desc), em qualquer pasta; a paginação corre sobre as duas juntas (sem repetidos). Caixa que não é minha = 404. 502 se o servidor de correio falhar; 503 `mail_not_configured`.",
         "tags": [
@@ -26122,6 +26800,7 @@
     },
     "/mail/mailboxes/{mailboxId}/threads/{threadId}": {
       "get": {
+        "x-codigo": "E11-03",
         "summary": "Abrir uma conversa (HTML saneado na API)",
         "description": "Mensagens por ordem cronológica. O `html` vem SEMPRE saneado; as imagens remotas vêm bloqueadas e `hasRemoteImages` diz se havia. Com `remoteImages=true` deixa-as passar (escolha do utilizador, por conversa). Não marca como lida (usar `.../read`).",
         "tags": [
@@ -26218,6 +26897,7 @@
     },
     "/mail/mailboxes/{mailboxId}/threads/{threadId}/read": {
       "post": {
+        "x-codigo": "E11-04",
         "summary": "Marcar a conversa como lida",
         "description": "Exige `correio.caixa` Responder. Idempotente. Também marca como lidos os avisos do sino (email) dessa conversa e caixa, SÓ de quem a leu (CR-27); o aviso-resumo de uma rajada fica lido quando a caixa já não tem nada por ler.",
         "tags": [
@@ -26288,6 +26968,7 @@
     },
     "/mail/mailboxes/{mailboxId}/threads/{threadId}/unread": {
       "post": {
+        "x-codigo": "E11-05",
         "summary": "Marcar a conversa como não lida",
         "description": "Exige `correio.caixa` Responder. Idempotente.",
         "tags": [
@@ -26358,6 +27039,7 @@
     },
     "/mail/mailboxes/{mailboxId}/threads/{threadId}/archive": {
       "post": {
+        "x-codigo": "E11-06",
         "summary": "Arquivar a conversa",
         "description": "Exige `correio.caixa` Responder. Idempotente.",
         "tags": [
@@ -26428,6 +27110,7 @@
     },
     "/mail/mailboxes/{mailboxId}/threads/{threadId}/unarchive": {
       "post": {
+        "x-codigo": "E11-07",
         "summary": "Tirar a conversa do arquivo",
         "description": "Exige `correio.caixa` Responder. Idempotente.",
         "tags": [
@@ -26498,6 +27181,7 @@
     },
     "/mail/mailboxes/{mailboxId}/threads/{threadId}/pin": {
       "post": {
+        "x-codigo": "E11-08",
         "summary": "Fixar a conversa (fica no topo da lista)",
         "description": "Exige `correio.caixa` Responder (como arquivar e marcar). Põe `$flagged` em todas as mensagens da conversa (menos rascunhos e lixo): é o \"sinalizado\" do telemóvel, nos dois sentidos. Arquivar não desafixa. Idempotente.",
         "tags": [
@@ -26568,6 +27252,7 @@
     },
     "/mail/mailboxes/{mailboxId}/threads/{threadId}/unpin": {
       "post": {
+        "x-codigo": "E11-09",
         "summary": "Desafixar a conversa",
         "description": "Exige `correio.caixa` Responder. Tira `$flagged` de todas as mensagens da conversa. Idempotente.",
         "tags": [
@@ -26638,6 +27323,7 @@
     },
     "/mail/mailboxes/{mailboxId}/send": {
       "post": {
+        "x-codigo": "E11-10",
         "summary": "Novo email, responder, responder a todos ou encaminhar",
         "description": "Exige `correio.caixa` Responder. O remetente é SEMPRE o endereço da caixa. Em `reply`, `reply_all` e `forward`, `emailId` é obrigatório e tem de ser da MESMA caixa (senão 404); os destinatários derivam do original se `to` não vier. Anexos são URLs do storage do próprio tenant (fotos JPEG/PNG/WebP até 10 MB e PDF até 20 MB, máx. 5, 20 MB no total; carregar antes por `POST /uploads` ou `/uploads/pdf` com `module=mail`). Máx. 20 destinatários; 30 envios por hora. O envio sai pelo relay do servidor de correio.",
         "tags": [
@@ -26816,6 +27502,7 @@
     },
     "/mail/mailboxes/{mailboxId}/emails/{emailId}/attachments/{attachmentId}": {
       "get": {
+        "x-codigo": "E11-11",
         "summary": "Descarregar um anexo recebido (autenticado)",
         "description": "O anexo tem de pertencer ao email e o email à caixa a que o utilizador tem acesso (senão 404). Nunca há um URL do servidor de correio. Sai sempre como descarga (`Content-Disposition` attachment, `nosniff`); tipos executáveis pelo browser (html, svg) saem como binário.",
         "tags": [
@@ -26895,6 +27582,7 @@
     },
     "/mail/by-customer/{customerId}": {
       "get": {
+        "x-codigo": "E11-15",
         "summary": "Emails de um cliente (separador Emails da ficha)",
         "description": "Conversas da caixa DO NEGÓCIO em que o email do cliente aparece (de, para ou cc; correspondência exacta). Exige `correio.caixa` (Ver) e `clientes.lista` (Ver). Cliente de outro tenant = 404. Cliente sem email, ou negócio sem caixa activa, devolve lista vazia.",
         "tags": [
@@ -26991,6 +27679,7 @@
     },
     "/webhooks/resend": {
       "post": {
+        "x-codigo": "E11-53",
         "summary": "Webhook do Resend — bounces, queixas e estatísticas das campanhas",
         "description": "Chamado pelo Resend, não pelo Backoffice. Verifica a assinatura Svix (`svix-id`, `svix-timestamp`, `svix-signature`) com `RESEND_WEBHOOK_SECRET`. `email.bounced` (permanente) → o contacto fica `bounced`; `email.complained` → `complained` e, com queixas a mais numa janela, o negócio fica com os envios pausados. Campanhas (fase 9): `email.delivered`, `email.opened`, `email.clicked`, `email.bounced` e `email.complained` actualizam o destinatário da campanha (ligado pelo id da mensagem, ou pelas tags `campaign`/`tenant` + email) e os contadores — idempotente (marcas de tempo escritas uma vez, estado só sobe). Idempotente pelo `svix-id`. Outros eventos: 200 sem efeito. Sem o segredo configurado responde 503 (nunca aceita sem verificar).",
         "tags": [
@@ -27067,6 +27756,7 @@
     },
     "/messages/customers/conversations": {
       "get": {
+        "x-codigo": "E09-02",
         "operationId": "listCustomerConversations",
         "summary": "Conversas com clientes do site (separador Clientes)",
         "description": "Só do tenant autenticado, mais recente em cima. `filter=unread` = só as por ler; `search` = nome ou email do cliente. Folha `mensagens.clientes` (Ver).",
@@ -27165,6 +27855,7 @@
     },
     "/messages/customers/conversations/{conversationId}/messages": {
       "get": {
+        "x-codigo": "E09-04",
         "operationId": "getCustomerConversationMessages",
         "summary": "Fio de uma conversa com um cliente",
         "description": "Folha `mensagens.clientes` (Ver). Conversa de outro tenant → 404. `before` pagina para trás.",
@@ -27239,6 +27930,7 @@
         }
       },
       "post": {
+        "x-codigo": "E09-05",
         "operationId": "replyCustomerConversation",
         "summary": "Responder a um cliente",
         "description": "Folha `mensagens.clientes` (Responder). Texto (≤ 4000) e/ou até 5 anexos (foto JPEG/PNG/WebP ou PDF carregados em `/uploads` com `module=chat`). Avisa o cliente por Web Push (se tiver a app instalada); sem email.",
@@ -27327,6 +28019,7 @@
     },
     "/messages/customers/conversations/{conversationId}/read": {
       "post": {
+        "x-codigo": "E09-06",
         "operationId": "readCustomerConversation",
         "summary": "Marcar a conversa com um cliente como lida (lado do negócio)",
         "description": "Folha `mensagens.clientes` (Ver basta — é estado de leitura, não uma resposta).",
@@ -27395,6 +28088,7 @@
     },
     "/messages/customers/by-customer/{customerId}": {
       "get": {
+        "x-codigo": "E09-03",
         "operationId": "getCustomerConversationByCustomer",
         "summary": "Conversa de um cliente (atalho \"Abrir conversa\" na ficha)",
         "description": "`conversationId` é `null` se ainda não há conversa com esse cliente. Cliente de outro tenant → 404. Folha `mensagens.clientes` (Ver).",
@@ -27477,6 +28171,7 @@
     },
     "/messages/team/people": {
       "get": {
+        "x-codigo": "E09-07",
         "operationId": "listTeamPeople",
         "summary": "Pessoas da equipa para conversar (separador Backoffice)",
         "description": "Dono e membros activos do tenant com a folha `mensagens.equipa` (menos quem pede), mais quem já tem conversa comigo (um membro removido aparece como \"Nome (removida)\", `removed: true`, só leitura). Ordem: a última mensagem primeiro. Cada `lastMessage` traz `mine` (quem pede foi quem escreveu). `support` é o marcador do Suporte (fixo em primeiro no BO; `null` se não tens `mensagens.suporte`) — o fio do Suporte continua em `/chat/support`. Folha `mensagens.equipa` OU `mensagens.suporte` (Ver): quem só tem o Suporte recebe `people: []` e o marcador.",
@@ -27524,6 +28219,7 @@
     },
     "/messages/team/people/{personKey}/messages": {
       "get": {
+        "x-codigo": "E09-08",
         "operationId": "getTeamThread",
         "summary": "Fio 1-para-1 com uma pessoa da equipa",
         "description": "`personKey` = `owner` (o dono) ou o `memberId` de um membro DO MESMO tenant (outro tenant → 404). Sem conversa ainda devolve o fio vazio (`conversationId: null`). `readOnly: true` se a outra pessoa foi removida. `before` pagina para trás; `after` devolve só o mais novo. Folha `mensagens.equipa` (Ver).",
@@ -27616,6 +28312,7 @@
         }
       },
       "post": {
+        "x-codigo": "E09-09",
         "operationId": "sendTeamMessage",
         "summary": "Enviar mensagem a uma pessoa da equipa (abre a conversa se ainda não existe)",
         "description": "Folha `mensagens.equipa` (Escrever). Texto (≤ 4000) e/ou até 5 anexos (foto ou PDF, `/uploads` com `module=chat`). Aviso em tempo real e push SÓ à outra pessoa (se tiver a folha). Pessoa removida → 409 `TEAM_PERSON_REMOVED`.",
@@ -27714,6 +28411,7 @@
     },
     "/messages/team/people/{personKey}/read": {
       "post": {
+        "x-codigo": "E09-10",
         "operationId": "readTeamThread",
         "summary": "Marcar a conversa 1-para-1 como lida (o meu lado)",
         "description": "Folha `mensagens.equipa` (Ver basta). Sem conversa ainda → 200 sem efeito.",
@@ -27791,6 +28489,7 @@
     },
     "/messages/summary": {
       "get": {
+        "x-codigo": "E09-01",
         "operationId": "getMessagesSummary",
         "summary": "Contadores de não lidas por separador (badge do menu Mensagens)",
         "description": "Cada contador só vem se a sessão tem a folha respectiva em `view` (`mensagens.clientes` / `mensagens.equipa` / `mensagens.suporte`); sem ela é `null` (nunca 0 a fingir). `total` soma os que a sessão pode ver. Nunca traz conversas de outro tenant nem de outras pessoas da equipa.",
@@ -27838,6 +28537,7 @@
     },
     "/notifications": {
       "get": {
+        "x-codigo": "E18-02",
         "summary": "Listar notificações",
         "tags": [
           "Notifications"
@@ -27895,6 +28595,7 @@
     },
     "/notifications/{id}/read": {
       "patch": {
+        "x-codigo": "E18-04",
         "summary": "Marcar notificação como lida",
         "tags": [
           "Notifications"
@@ -27936,6 +28637,7 @@
     },
     "/notifications/read-all": {
       "patch": {
+        "x-codigo": "E18-03",
         "summary": "Marcar todas as notificações como lidas",
         "tags": [
           "Notifications"
@@ -27956,6 +28658,7 @@
     },
     "/notifications/{id}": {
       "delete": {
+        "x-codigo": "E18-05",
         "summary": "Eliminar notificação (membro da equipa - esconde só para si)",
         "tags": [
           "Notifications"
@@ -27997,6 +28700,7 @@
     },
     "/push/vapid-public-key": {
       "get": {
+        "x-codigo": "E18-06",
         "summary": "Obter a chave pública VAPID para registar uma subscrição de Web Push",
         "tags": [
           "Push"
@@ -28032,6 +28736,7 @@
     },
     "/push/subscribe": {
       "post": {
+        "x-codigo": "E18-07",
         "summary": "Registar (ou reatribuir) uma subscrição de Web Push deste dispositivo ao utilizador autenticado (dono ou membro da equipa - o dispositivo fica do último a subscrever)",
         "description": "Upsert pelo `endpoint` (não pela combinação utilizador+endpoint): um endpoint pertence sempre a um só utilizador. Se o dispositivo já tinha subscrição de outro utilizador (ou de um cliente da PWA), esta é reatribuída ao utilizador autenticado.\n",
         "tags": [
@@ -28112,6 +28817,7 @@
     },
     "/push/unsubscribe": {
       "post": {
+        "x-codigo": "E18-08",
         "summary": "Remover a subscrição de Web Push deste dispositivo (só as do próprio - dono ou membro)",
         "description": "Apaga apenas a subscrição do `endpoint` pertencente ao utilizador autenticado. Um endpoint de OUTRO utilizador é ignorado silenciosamente — devolve sempre 200, mesmo sem linhas apagadas (não revela se o endpoint pertence a outro tenant).\n",
         "tags": [
@@ -28176,6 +28882,7 @@
     },
     "/events/stream": {
       "get": {
+        "x-codigo": "E18-01",
         "summary": "Stream de eventos em tempo real (Server-Sent Events) do utilizador autenticado",
         "description": "Ligação SSE de longa duração — a resposta nunca fecha por si (o cliente mantém-na aberta e o servidor envia um `: ping` de keep-alive a cada 25s). O primeiro evento enviado é sempre `data: {\"type\":\"connected\"}`. Fecha quando o cliente desliga (`req.on(\"close\")`) ou quando o token deixa de ser válido. Usado para notificar o Backoffice de eventos do tenant (ex.: notificações novas) sem polling.\n",
         "tags": [
@@ -28206,8 +28913,230 @@
         }
       }
     },
+    "/schedule/appointments/{id}": {
+      "get": {
+        "x-codigo": "E03-12",
+        "summary": "Ficha de uma marcação",
+        "tags": [
+          "Appointments"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Marcação (dinheiro só com agenda.marcacoes.valores)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Appointment"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Marcação não encontrada"
+          }
+        }
+      },
+      "put": {
+        "x-codigo": "E03-14",
+        "summary": "Atualizar marcação (estado, hora, serviço, pagamento)",
+        "description": "Membro da equipa SEM `agenda.marcacoes.valores` (edit): `paymentCash`, `paymentMbway`, `paymentCard` e `cancelPayment` do corpo são IGNORADOS (o resto do PUT aplica-se). Trocar o `serviceId` de uma marcação que já tem pagamentos exige a mesma folha (403 `TEAM_FORBIDDEN`). Mudar o `status` (cancelar, no_show, reabrir, concluir…) de uma marcação que já tem pagamentos (`paymentCash/Mbway/Card` > 0, `paidAt` ou `paymentHistory`) também exige `agenda.marcacoes.valores` (edit): 403 `TEAM_FORBIDDEN` sem gravar nada; numa marcação sem pagamentos o estado continua livre.",
+        "tags": [
+          "Appointments"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "confirmed",
+                      "completed",
+                      "cancelled",
+                      "no_show"
+                    ]
+                  },
+                  "notes": {
+                    "type": "string"
+                  },
+                  "time": {
+                    "type": "string",
+                    "example": "10:30",
+                    "description": "Só editável se status for pending ou confirmed"
+                  },
+                  "serviceId": {
+                    "type": "string",
+                    "description": "Só editável se status for pending ou confirmed"
+                  },
+                  "paymentCash": {
+                    "type": "number",
+                    "description": "Valor pago em dinheiro (€)"
+                  },
+                  "paymentMbway": {
+                    "type": "number",
+                    "description": "Valor pago por MBway (€)"
+                  },
+                  "paymentCard": {
+                    "type": "number",
+                    "description": "Valor pago por cartão (€)"
+                  },
+                  "cancelPayment": {
+                    "type": "boolean",
+                    "description": "true = anula todo o pagamento registado"
+                  },
+                  "staffId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true,
+                    "description": "Muda o profissional (null = sem profissional). Só em marcações abertas; recalcula o preço (preço próprio do profissional ou o do serviço) — numa marcação com pagamentos exige agenda.marcacoes.valores (403 TEAM_FORBIDDEN). Ignorado para membros com âmbito 'Só os meus'."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Marcação atualizada. `warnings`: STAFF_BUSY / STAFF_TIME_OFF (não bloqueantes; só calculados se data, hora, serviço ou profissional mudaram).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "STAFF_BUSY",
+                          "STAFF_TIME_OFF"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Campo inválido ou operação não permitida no estado actual"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Marcação ou serviço não encontrado"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "APPOINTMENT_CANCELLED — não se regista pagamento numa marcação cancelada (F5). Pagar uma «Faltou» fica paga e continua «Faltou»."
+          }
+        }
+      },
+      "delete": {
+        "x-codigo": "E03-15",
+        "summary": "Eliminar marcação",
+        "description": "Membro da equipa SEM `agenda.marcacoes.valores` (edit): uma marcação com pagamentos registados não se elimina (403 `TEAM_FORBIDDEN`).",
+        "tags": [
+          "Appointments"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Marcação eliminada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Membro da equipa sem `agenda.marcacoes.valores` (edit) numa marcação com pagamentos (`TEAM_FORBIDDEN`)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Marcação não encontrada"
+          }
+        }
+      }
+    },
     "/schedule/appointments": {
       "get": {
+        "x-codigo": "E03-10",
         "summary": "Listar marcações",
         "description": "Membro da equipa SEM `agenda.marcacoes.valores` (view): a marcação sai sem `servicePrice`, `paymentCash`, `paymentMbway`, `paymentCard`, `paidAt`, `paymentHistory`, `debt` e `priorDebt` (B41 2b). O dono vê tudo. Folha: `agenda.marcacoes`. Cada marcação traz `debt` e `priorDebt` calculados na API (AG-18). Sem filtros devolve TODAS (inalterado); para paginar use `GET /schedule/appointments/page`.",
         "tags": [
@@ -28298,6 +29227,7 @@
         }
       },
       "post": {
+        "x-codigo": "E03-13",
         "summary": "Criar marcação manualmente (backoffice)",
         "description": "O preço vem sempre do serviço. Membro da equipa SEM `agenda.marcacoes.valores` (view): a marcação sai sem `servicePrice`, `paymentCash`, `paymentMbway`, `paymentCard`, `paidAt` e `paymentHistory` (B41 2b). O dono vê tudo. (aplica-se à resposta).",
         "tags": [
@@ -28409,6 +29339,7 @@
     },
     "/schedule/appointments/page": {
       "get": {
+        "x-codigo": "E03-11",
         "summary": "Listar marcações paginadas no servidor (AG-19)",
         "description": "A mesma lista e os mesmos filtros de GET /schedule/appointments (date, month, from, to, status, staff) mais serviceId e q (procura em nome, email e telefone do cliente). Ordem: a mais recentemente alterada primeiro. Cada marcação traz debt e priorDebt (AG-18); sem agenda.marcacoes.valores (view) saem sem dinheiro. Âmbito 'Só os meus' (EQ-15) aplica-se ao total e às linhas. Folha: agenda.marcacoes.",
         "tags": [
@@ -28546,178 +29477,9 @@
         }
       }
     },
-    "/schedule/appointments/{id}": {
-      "put": {
-        "summary": "Atualizar marcação (estado, hora, serviço, pagamento)",
-        "description": "Membro da equipa SEM `agenda.marcacoes.valores` (edit): `paymentCash`, `paymentMbway`, `paymentCard` e `cancelPayment` do corpo são IGNORADOS (o resto do PUT aplica-se). Trocar o `serviceId` de uma marcação que já tem pagamentos exige a mesma folha (403 `TEAM_FORBIDDEN`). Mudar o `status` (cancelar, no_show, reabrir, concluir…) de uma marcação que já tem pagamentos (`paymentCash/Mbway/Card` > 0, `paidAt` ou `paymentHistory`) também exige `agenda.marcacoes.valores` (edit): 403 `TEAM_FORBIDDEN` sem gravar nada; numa marcação sem pagamentos o estado continua livre.",
-        "tags": [
-          "Appointments"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "status": {
-                    "type": "string",
-                    "enum": [
-                      "pending",
-                      "confirmed",
-                      "completed",
-                      "cancelled",
-                      "no_show"
-                    ]
-                  },
-                  "notes": {
-                    "type": "string"
-                  },
-                  "time": {
-                    "type": "string",
-                    "example": "10:30",
-                    "description": "Só editável se status for pending ou confirmed"
-                  },
-                  "serviceId": {
-                    "type": "string",
-                    "description": "Só editável se status for pending ou confirmed"
-                  },
-                  "paymentCash": {
-                    "type": "number",
-                    "description": "Valor pago em dinheiro (€)"
-                  },
-                  "paymentMbway": {
-                    "type": "number",
-                    "description": "Valor pago por MBway (€)"
-                  },
-                  "paymentCard": {
-                    "type": "number",
-                    "description": "Valor pago por cartão (€)"
-                  },
-                  "cancelPayment": {
-                    "type": "boolean",
-                    "description": "true = anula todo o pagamento registado"
-                  },
-                  "staffId": {
-                    "type": "string",
-                    "format": "uuid",
-                    "nullable": true,
-                    "description": "Muda o profissional (null = sem profissional). Só em marcações abertas; recalcula o preço (preço próprio do profissional ou o do serviço) — numa marcação com pagamentos exige agenda.marcacoes.valores (403 TEAM_FORBIDDEN). Ignorado para membros com âmbito 'Só os meus'."
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Marcação atualizada. `warnings`: STAFF_BUSY / STAFF_TIME_OFF (não bloqueantes; só calculados se data, hora, serviço ou profissional mudaram).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "warnings": {
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "enum": [
-                          "STAFF_BUSY",
-                          "STAFF_TIME_OFF"
-                        ]
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Campo inválido ou operação não permitida no estado actual"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Marcação ou serviço não encontrado"
-          }
-        }
-      },
-      "delete": {
-        "summary": "Eliminar marcação",
-        "description": "Membro da equipa SEM `agenda.marcacoes.valores` (edit): uma marcação com pagamentos registados não se elimina (403 `TEAM_FORBIDDEN`).",
-        "tags": [
-          "Appointments"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Marcação eliminada",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MessageResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Membro da equipa sem `agenda.marcacoes.valores` (edit) numa marcação com pagamentos (`TEAM_FORBIDDEN`)"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Marcação não encontrada"
-          }
-        }
-      }
-    },
     "/schedule/blocked-slots": {
       "get": {
+        "x-codigo": "E03-21",
         "summary": "Listar slots bloqueados",
         "tags": [
           "BlockedSlots"
@@ -28778,6 +29540,7 @@
         }
       },
       "post": {
+        "x-codigo": "E03-23",
         "summary": "Bloquear dia ou intervalo de horas",
         "tags": [
           "BlockedSlots"
@@ -28829,6 +29592,7 @@
     },
     "/schedule/blocked-slots/{id}": {
       "delete": {
+        "x-codigo": "E03-24",
         "summary": "Remover bloqueio",
         "tags": [
           "BlockedSlots"
@@ -28869,6 +29633,7 @@
     },
     "/schedule/blocked-slots/vacation": {
       "post": {
+        "x-codigo": "E03-22",
         "summary": "Bloquear período de férias (vários dias consecutivos)",
         "tags": [
           "BlockedSlots"
@@ -28928,13 +29693,14 @@
                 }
               }
             },
-            "description": "Datas inválidas ou período demasiado longo"
+            "description": "Datas inválidas, período demasiado longo ou reason que não é texto (até 255)"
           }
         }
       }
     },
     "/schedule/calendar": {
       "get": {
+        "x-codigo": "E03-02",
         "summary": "Obter (gerando na 1.ª vez) o URL de subscrição do feed .ics da agenda",
         "description": "Se o tenant ainda não tem `calendarToken`, gera um novo. O `url` devolvido aponta para o feed público `GET /schedule/calendar/{token}.ics` (sem login — o token é o segredo).\n",
         "tags": [
@@ -29006,6 +29772,7 @@
     },
     "/schedule/calendar/rotate": {
       "post": {
+        "x-codigo": "E03-03",
         "summary": "Rodar o token do feed .ics (invalida a subscrição antiga)",
         "description": "Gera um novo `calendarToken`, substituindo o anterior — qualquer subscrição feita com o token antigo passa a devolver 404.",
         "tags": [
@@ -29053,8 +29820,52 @@
         }
       }
     },
+    "/schedule/calendar/{token}.ics": {
+      "get": {
+        "x-codigo": "E03-01",
+        "summary": "Feed .ics público da agenda do negócio, por token",
+        "description": "Sem autenticação — o calendarToken é o segredo. Token inválido responde 404.",
+        "tags": [
+          "Calendar"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ficheiro .ics com as marcações não canceladas dos próximos 90 dias",
+            "content": {
+              "text/calendar": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Token inválido"
+          }
+        }
+      }
+    },
     "/schedule/settings": {
       "get": {
+        "x-codigo": "E03-19",
         "summary": "Obter as preferências da agenda (intervalo da grelha)",
         "operationId": "getScheduleSettings",
         "tags": [
@@ -29109,6 +29920,7 @@
         }
       },
       "put": {
+        "x-codigo": "E03-20",
         "summary": "Guardar as preferências da agenda (intervalo da grelha)",
         "operationId": "updateScheduleSettings",
         "tags": [
@@ -29202,6 +30014,7 @@
     },
     "/schedule/services": {
       "get": {
+        "x-codigo": "E03-04",
         "summary": "Listar todos os serviços",
         "tags": [
           "Services"
@@ -29223,6 +30036,7 @@
         }
       },
       "post": {
+        "x-codigo": "E03-05",
         "summary": "Criar serviço",
         "tags": [
           "Services"
@@ -29312,6 +30126,7 @@
     },
     "/schedule/services/{id}": {
       "get": {
+        "x-codigo": "E03-07",
         "summary": "Obter serviço por ID",
         "tags": [
           "Services"
@@ -29350,6 +30165,7 @@
         }
       },
       "put": {
+        "x-codigo": "E03-08",
         "summary": "Atualizar serviço",
         "tags": [
           "Services"
@@ -29436,6 +30252,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E03-09",
         "summary": "Eliminar serviço",
         "tags": [
           "Services"
@@ -29486,6 +30303,7 @@
     },
     "/schedule/services/reorder": {
       "patch": {
+        "x-codigo": "E03-06",
         "summary": "Reordenar serviços",
         "tags": [
           "Services"
@@ -29532,13 +30350,14 @@
                 }
               }
             },
-            "description": "Array inválido ou serviceIds não pertencem ao utilizador"
+            "description": "Array inválido (só ids em texto, até 1000) ou serviceIds não pertencem ao utilizador"
           }
         }
       }
     },
     "/schedule/staff/options": {
       "get": {
+        "x-codigo": "E03-25",
         "summary": "Profissionais para selectores (marcação, venda, despesa, filtros do financeiro/dashboard)",
         "description": "Só nome, foto, cor e estado — sem horário, preços nem membro ligado. Acessível a quem tem `view` em qualquer folha que use o selector (agenda.marcacoes, agenda.profissionais, loja.encomendas, financeiro.*, dashboard, equipa). Tenant sem profissionais → lista vazia (o Backoffice não mostra o selector).",
         "tags": [
@@ -29610,6 +30429,7 @@
     },
     "/schedule/staff/linkable-members": {
       "get": {
+        "x-codigo": "E03-26",
         "summary": "Membros activos da equipa que se podem ligar a um profissional (só id e nome)",
         "description": "Não exige a folha `equipa`. Precisa de `agenda.profissionais` (Editar) e de NÃO ter o âmbito \"Só os meus\" (403 `STAFF_LINK_FORBIDDEN`). Só membros activos do tenant; nunca devolve email nem permissões.",
         "tags": [
@@ -29649,6 +30469,7 @@
     },
     "/schedule/staff": {
       "get": {
+        "x-codigo": "E03-27",
         "summary": "Listar profissionais",
         "tags": [
           "Staff"
@@ -29685,6 +30506,7 @@
         }
       },
       "post": {
+        "x-codigo": "E03-28",
         "summary": "Criar profissional",
         "description": "Por omissão faz TODOS os serviços ao preço normal, herda o horário do negócio e aparece no site. `memberId` (opcional) liga-o a um membro da equipa do mesmo tenant — um membro por profissional; um membro com âmbito \"Só os meus\" não pode ligar membros (403 `STAFF_LINK_FORBIDDEN`). Máximo 50 por tenant.",
         "tags": [
@@ -29785,6 +30607,7 @@
     },
     "/schedule/staff/{id}": {
       "get": {
+        "x-codigo": "E03-29",
         "summary": "Detalhe de um profissional (serviços que faz, preços próprios, horário, férias e folgas)",
         "tags": [
           "Staff"
@@ -29839,6 +30662,7 @@
         }
       },
       "put": {
+        "x-codigo": "E03-30",
         "summary": "Editar profissional (nome, foto, cor, \"Aparece no site\", activo, ordem, membro ligado)",
         "description": "Todos os campos opcionais. `memberId: null` desliga o membro. Mudar a ligação a um membro muda o que esse membro vê se tiver o âmbito \"Só os meus\" — por isso um membro com esse âmbito não pode mexer nas ligações (403 `STAFF_LINK_FORBIDDEN`).",
         "tags": [
@@ -29951,6 +30775,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E03-31",
         "summary": "Apagar profissional",
         "description": "Só se nunca atendeu, vendeu nem teve despesas (senão perdia-se o histórico do financeiro): nesse caso 409 `STAFF_HAS_HISTORY` e a saída é desactivar (`active: false`). Apaga também as regras de serviço, o horário e as folgas.",
         "tags": [
@@ -30018,6 +30843,7 @@
     },
     "/schedule/staff/{id}/services": {
       "put": {
+        "x-codigo": "E03-32",
         "summary": "Definir as excepções de serviços do profissional (quem não faz, preço próprio)",
         "description": "Por omissão o profissional faz TODOS os serviços ao preço normal. O corpo é a lista COMPLETA das excepções: serviços não listados voltam a \"faz, preço normal\". `price` (número) é o preço próprio; `null` apaga-o. **Sem a folha `agenda.profissionais.precos` (Editar) o `price` do corpo é IGNORADO** — os preços próprios que já existiam mantêm-se (o resto aplica-se). Todos os `serviceId` têm de ser do tenant (400 `SERVICE_INVALID`).",
         "tags": [
@@ -30114,6 +30940,7 @@
     },
     "/schedule/staff/{id}/working-hours": {
       "put": {
+        "x-codigo": "E03-33",
         "summary": "Horário próprio do profissional (herdar o do negócio, copiá-lo para editar, ou gravar dias)",
         "description": "`{ inherit: true }` apaga o horário próprio (herda o do negócio). `{ inherit: false }` sem `hours` COPIA o horário do negócio para o profissional (a editar depois). `{ inherit: false, hours: [...] }` grava esses dias — com horário próprio, um dia sem linha (ou inactivo) é um dia em que o profissional não trabalha.",
         "tags": [
@@ -30216,6 +31043,7 @@
     },
     "/schedule/staff/{id}/time-off": {
       "post": {
+        "x-codigo": "E03-34",
         "summary": "Registar férias ou folga do profissional",
         "description": "Dias inteiros `[startDate, endDate]` ou, num só dia, uma janela `[startTime, endTime]`. O site deixa de oferecer horas nesse período para este profissional; no Backoffice continua a poder marcar (aviso `STAFF_TIME_OFF`). Máximo 200 por profissional.",
         "tags": [
@@ -30331,6 +31159,7 @@
     },
     "/schedule/staff/{id}/time-off/{timeOffId}": {
       "delete": {
+        "x-codigo": "E03-35",
         "summary": "Apagar uma folga do profissional",
         "tags": [
           "Staff"
@@ -30396,6 +31225,7 @@
     },
     "/schedule/working-hours": {
       "get": {
+        "x-codigo": "E03-16",
         "summary": "Obter horários de trabalho",
         "tags": [
           "WorkingHours"
@@ -30417,6 +31247,7 @@
         }
       },
       "post": {
+        "x-codigo": "E03-17",
         "summary": "Guardar horários de trabalho (upsert por dia)",
         "tags": [
           "WorkingHours"
@@ -30472,6 +31303,7 @@
     },
     "/schedule/working-hours/{id}": {
       "delete": {
+        "x-codigo": "E03-18",
         "summary": "Eliminar horário",
         "tags": [
           "WorkingHours"
@@ -30512,6 +31344,7 @@
     },
     "/settings/languages": {
       "get": {
+        "x-codigo": "E01-51",
         "summary": "Get available languages and tenant's current selection",
         "tags": [
           "Settings"
@@ -30573,6 +31406,7 @@
         }
       },
       "put": {
+        "x-codigo": "E01-52",
         "summary": "Update tenant's language selection",
         "description": "Se as línguas do site mudaram DE FACTO (o conjunto de línguas, a base incluída, ou a língua por omissão — a ordem e `[]` vs só a base não contam) e o tenant tem o construtor de páginas activo, sobe a `revision` do construtor e pede publicação, na mesma transacção: em `coolify` `publishStatus` passa a `pending` (ou fica `running`) e marca `publishRequestedAt`; em `runtime` grava `liveAt`. Um editor aberto leva `409 REVISION_CONFLICT` no próximo save. Sem construtor (ou desligado) não faz mais nada.",
         "tags": [
@@ -30665,6 +31499,7 @@
     },
     "/team/{memberId}/activity": {
       "get": {
+        "x-codigo": "E02-08",
         "summary": "Actividade de um membro (do registo de auditoria)",
         "description": "O dono (qualquer membro do tenant) ou o criador directo com `equipa` Gerir (outro membro → 403 `TEAM_NOT_CREATOR`; só \"Ver\" → 403 `TEAM_FORBIDDEN`). Lê do audit log as acções com `actorMemberId` = o membro **e** do tenant certo, da mais recente para a mais antiga, paginado. Allowlist: data, acção (código + etiqueta), área legível e estado — nunca corpos de pedido, caminhos, ids, IPs, user agents nem mensagens de erro.",
         "tags": [
@@ -30796,6 +31631,7 @@
     },
     "/admin/users/{userId}/team": {
       "get": {
+        "x-codigo": "E01-35",
         "summary": "Equipa de um tenant (só leitura, para suporte)",
         "description": "Só o dono da plataforma (`VIEW_ADMIN`). Lista nome, email, estado, último acesso e módulos dos membros do tenant. Nunca password nem tokens. Mexer na equipa é com o tenant (ou numa sessão de suporte, com o consentimento dele).",
         "tags": [
@@ -30841,6 +31677,7 @@
     },
     "/team/{memberId}/resend-invite": {
       "post": {
+        "x-codigo": "E02-12",
         "summary": "Reenviar o convite a um membro ainda não aceite",
         "description": "Dono, ou membro com `equipa` Gerir nos membros que criou (`TEAM_NOT_CREATOR`/`TEAM_SELF_FORBIDDEN` fora disso). Só para `invited` (senão 409 `TEAM_NOT_INVITED`). Gera um token novo (o anterior deixa de valer).",
         "tags": [
@@ -30918,6 +31755,7 @@
     },
     "/team/{memberId}/send-reset": {
       "post": {
+        "x-codigo": "E02-13",
         "summary": "Enviar a um membro activo o email para redefinir a password",
         "description": "Dono, ou membro com `equipa` Gerir nos membros que criou (`TEAM_NOT_CREATOR`/`TEAM_SELF_FORBIDDEN` fora disso). (\"esqueci a password\" de um membro: as contas também não têm fluxo público). Só para `active` (senão 409 `TEAM_NOT_ACTIVE`). O token é o `setupToken`, consumido por `POST /users/setup-password`, que também termina as sessões do membro.",
         "tags": [
@@ -30985,6 +31823,7 @@
     },
     "/team/{memberId}/disable": {
       "post": {
+        "x-codigo": "E02-14",
         "summary": "Desactivar um membro",
         "description": "Dono, ou membro com `equipa` Gerir nos membros que criou (`TEAM_NOT_CREATOR`/`TEAM_SELF_FORBIDDEN` fora disso). `status=disabled`, `tokenVersion++` e refresh tokens revogados: a sessão morre no pedido seguinte (401). O convite pendente também deixa de valer. Idempotente. Se o actor é o dono, marca `disabledByOwner=true` (um delegado não o reactiva); se é um delegado, `false`.",
         "tags": [
@@ -31037,6 +31876,7 @@
     },
     "/team/{memberId}/enable": {
       "post": {
+        "x-codigo": "E02-15",
         "summary": "Reactivar um membro desactivado",
         "description": "Dono, ou membro com `equipa` Gerir nos membros que criou (`TEAM_NOT_CREATOR`/`TEAM_SELF_FORBIDDEN` fora disso). Volta a `active` se já tinha password; senão volta a `invited` e é enviado um convite novo. Só para `disabled` (senão 409 `TEAM_NOT_DISABLED`). Um membro desactivado PELO DONO (`disabledByOwner`) só o dono reactiva: um delegado recebe 403 `TEAM_OWNER_DISABLED`. Actor e alvo são revalidados sob o lock do tenant.",
         "tags": [
@@ -31107,6 +31947,7 @@
     },
     "/team/{memberId}/revoke-sessions": {
       "post": {
+        "x-codigo": "E02-16",
         "summary": "Terminar todas as sessões de um membro",
         "description": "Dono, ou membro com `equipa` Gerir nos membros que criou (`TEAM_NOT_CREATOR`/`TEAM_SELF_FORBIDDEN` fora disso). `tokenVersion++` e refresh tokens revogados; o membro tem de voltar a entrar.",
         "tags": [
@@ -31159,6 +32000,7 @@
     },
     "/team/me": {
       "get": {
+        "x-codigo": "E02-01",
         "summary": "O próprio membro da equipa (perfil + módulos)",
         "description": "Só para sessões de membro (o dono recebe 403 `TEAM_MEMBER_ONLY`). Não expõe dados do negócio.",
         "tags": [
@@ -31188,6 +32030,7 @@
         }
       },
       "put": {
+        "x-codigo": "E02-02",
         "summary": "Mudar o próprio nome (membro)",
         "tags": [
           "Team"
@@ -31246,6 +32089,7 @@
     },
     "/team/me/password": {
       "put": {
+        "x-codigo": "E02-03",
         "summary": "Mudar a própria password (membro)",
         "description": "Exige `currentPassword`. Sobe o `tokenVersion` do MEMBRO (nunca o do tenant) e revoga as suas outras sessões; reemite um par novo para esta (`accessToken` + cookie de refresh), como `PUT /users/me/password`. Limitada por `meRateLimit` (balde próprio do membro).",
         "tags": [
@@ -31325,6 +32169,7 @@
     },
     "/team/catalog": {
       "get": {
+        "x-codigo": "E02-04",
         "summary": "Catálogo de permissões que o tenant pode dar à equipa",
         "description": "Dono, ou membro com a folha `equipa` (sem ela → 403 `TEAM_FORBIDDEN`; conta admin → 403 `TEAM_ADMIN_FORBIDDEN`). Devolve a ÁRVORE de permissões (B41 fase 2b): cada nó traz `available` (o tenant tem TODOS os componentes RBAC que ele exige — `requiresComponents`) — só os disponíveis se podem dar. Só se guardam os nós com `storable: true` (folhas e nós com permissão própria); um agrupador (`storable: false`, `levels: []`) nunca se guarda. Uma acção sim/não (`action: true`) tem `levels: [\"edit\"]` e guarda-se com `level: edit`. Regras que a API valida em POST/PUT /team: o pai (guardável mais próximo) tem de estar presente e o nível do filho é ≤ ao do pai (as acções só exigem o pai). Fase 3: cada nó traz `maxLevel` — o nível máximo que QUEM PEDE pode dar (dono: o máximo do nó; membro: o seu próprio nível, ou `null` se não o tem — o BO desactiva o resto) —, `excludeFromFullAccess` (o nó `equipa` nunca entra no \"Acesso total\") e `levelLabels` (ex. `{ edit: \"Gerir\" }`).",
         "tags": [
@@ -31367,6 +32212,7 @@
     },
     "/team": {
       "get": {
+        "x-codigo": "E02-05",
         "summary": "Membros da equipa do tenant",
         "description": "Dono, ou membro com `equipa` (ver/Gerir). O dono vê o detalhe completo de todos (`TeamMember`: email, permissões, `canManage: true`). Um membro vê a lista de TODA a equipa do negócio só com nome, estado, último acesso e \"criado por\" (`TeamMemberBasic`: sem email nem permissões); com Gerir, nos membros que ele criou directamente vê o detalhe completo (`canManage: true`). Nunca devolve password nem tokens.",
         "tags": [
@@ -31406,6 +32252,7 @@
         }
       },
       "post": {
+        "x-codigo": "E02-07",
         "summary": "Convidar um membro para a equipa",
         "description": "Dono, ou membro com `equipa` Gerir (fase 3: o convidado fica com `createdByMemberId` = o membro; o dono => null). Escrita fechada em sessão de suporte (`IMPERSONATION_FORBIDDEN`). Cria o membro em `invited` e envia o email com o link de definição de password (24 h, o ecrã `SetupPassword`). O email é único entre `Users` e `TeamMembers`. Tecto: só chaves do catálogo, níveis permitidos e módulos que o tenant tem; um MEMBRO só dá o que ele próprio tem, ao mesmo nível ou menos (validado sob o lock).",
         "tags": [
@@ -31519,6 +32366,7 @@
     },
     "/team/{memberId}": {
       "put": {
+        "x-codigo": "E02-10",
         "summary": "Editar o nome e as permissões de um membro",
         "description": "Dono (qualquer membro do tenant), ou membro com `equipa` Gerir **nos membros que ele criou directamente** (outro membro do mesmo tenant → 403 `TEAM_NOT_CREATOR`; ele próprio → 403 `TEAM_SELF_FORBIDDEN`). `grants`, se vier, SUBSTITUI as permissões do membro (mesmo tecto do convite; um membro só dá o que tem, ao mesmo nível ou menos). **Cascata (fase 3):** se as permissões baixam, as de TODA a descendência do membro (recursiva por quem convidou quem) são cortadas ao que o respectivo criador tem depois do corte, na mesma transacção e sob o lock do tenant, e as ligações SSE dos afectados fecham. A resposta traz `cascadeAffected` (nº de descendentes cujas permissões mudaram); para o saber ANTES de guardar, usar `POST /team/{memberId}/grants-preview`. O efeito é no pedido seguinte do membro (as permissões são lidas a cada pedido). Membro de outro tenant → 404.",
         "tags": [
@@ -31623,6 +32471,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E02-11",
         "summary": "Remover um membro",
         "description": "Dono, ou membro com `equipa` Gerir nos que criou (`TEAM_NOT_CREATOR`/`TEAM_SELF_FORBIDDEN` como no PUT). Apaga o membro, as permissões e as sessões (o registo de auditoria fica com o nome, sem FK). O email fica livre. A caixa de email do membro (se tinha) fica desactivada e o endereço passa a reencaminhar para a caixa do negócio. **Os membros que ele convidou NÃO saem**: passam para o dono (`createdByMemberId = null`) com as permissões que tinham, na mesma transacção. Membro de outro tenant → 404.",
         "tags": [
@@ -31675,6 +32524,7 @@
     },
     "/team/{memberId}/grants-preview": {
       "post": {
+        "x-codigo": "E02-09",
         "summary": "Quantos utilizadores saem/descem se estas permissões forem guardadas (cascata, sem escrever nada)",
         "description": "Mesmas regras de acesso e de validação do `PUT /team/{memberId}` (dono, ou membro com Gerir nos que criou; mesmo tecto do tenant e do delegado), mas NÃO escreve: devolve em `affected` o nº de descendentes do membro (recursivo, por quem convidou quem) cujas permissões seriam cortadas — para o BO avisar \"Também sai a N utilizadores criados por este membro\" antes de guardar.",
         "tags": [
@@ -31773,6 +32623,7 @@
     },
     "/team/mailbox-preview": {
       "get": {
+        "x-codigo": "E02-06",
         "summary": "O endereço de email que um membro novo vai receber (previsão, não cria nada)",
         "description": "Dono, ou membro com `equipa` Ver. As caixas dos membros criam-se sozinhas ao convidar (`ana.<código>@…`, depois `ana.silva.<código>@…`, `ana2.<código>@…`); isto mostra o que sairia agora. `address` é `null` se o negócio ainda não tem domínio de email da plataforma (ou o módulo Correio). Só lê o negócio da sessão.",
         "tags": [
@@ -31832,6 +32683,7 @@
     },
     "/uploads": {
       "post": {
+        "x-codigo": "E08-26",
         "operationId": "uploadImage",
         "summary": "Upload de imagem optimizada para SeaweedFS",
         "description": "Membro da equipa: o `module` (contexto, fica na key) tem de ser de uma folha onde tem `edit` — `chat`→mensagens.clientes|equipa|suporte, `branding`→conteudos.website, `cms`→conteudos.website|paginas.rascunho, `products`→loja.produtos|conteudos.produtos, `gym`→ginasio.exercicios|treinos|clientes|conteudos.ginasio, `mail`→correio.caixa (anexos de um email); `general`, `profile` ou desconhecido só o dono (403 `TEAM_FORBIDDEN`).",
@@ -32016,6 +32868,7 @@
         }
       },
       "delete": {
+        "x-codigo": "E08-29",
         "operationId": "deleteUpload",
         "summary": "Eliminar ficheiro do SeaweedFS",
         "description": "Membro da equipa: o contexto do ficheiro é o 2.º segmento da key (`<userId>/<module>/…`) e tem de ser de uma folha onde tem `edit` (mesma tabela do upload); basta UMA key fora de contexto (ou sem contexto, ou de módulo desconhecido) para recusar o pedido todo (403 `TEAM_FORBIDDEN`). O dono apaga qualquer ficheiro seu.",
@@ -32105,6 +32958,7 @@
     },
     "/uploads/video": {
       "post": {
+        "x-codigo": "E08-27",
         "operationId": "uploadVideo",
         "summary": "Upload de vídeo (sem otimização) para SeaweedFS",
         "description": "Mesma regra de contexto (`module`) por folha do upload de imagem para membros da equipa.",
@@ -32192,6 +33046,7 @@
     },
     "/uploads/pdf": {
       "post": {
+        "x-codigo": "E08-28",
         "operationId": "uploadPdf",
         "summary": "Upload de PDF (sem processar) para SeaweedFS",
         "description": "Aceita só `application/pdf` até 20MB cujo conteúdo comece por `%PDF-` (os bytes são verificados, não só o mimetype/extensão). Guardado tal-qual em `<userId>/site/<uuid>-<nome-limpo>.pdf`. Membro da equipa: o contexto `site` exige `paginas.rascunho` (edit); o `chat` exige `edit` numa folha de `mensagens.*`.\n",
@@ -32302,8 +33157,58 @@
         }
       }
     },
+    "/webhook/stripe": {
+      "post": {
+        "x-codigo": "E13-12",
+        "summary": "Webhook da Stripe — pagamentos de encomendas e subscrições da plataforma",
+        "description": "Chamado pela Stripe, não pelo Backoffice. Corpo RAW; só aceita com assinatura válida (`stripe-signature`).",
+        "tags": [
+          "Billing"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Evento da Stripe"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Evento recebido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "received": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Assinatura inválida"
+          }
+        }
+      }
+    },
     "/ordersproduct/orderid/{id}": {
       "get": {
+        "x-codigo": "E04-22",
         "summary": "[DEPRECATED — usa /order-products/orderid/{id}] Get products for a specific order",
         "tags": [
           "OrderProducts"
@@ -32360,6 +33265,7 @@
     },
     "/ordersproduct/productid/{id}": {
       "get": {
+        "x-codigo": "E04-23",
         "summary": "[DEPRECATED — usa /order-products/productid/{id}] Get orders containing a specific product",
         "tags": [
           "OrderProducts"
@@ -32416,6 +33322,7 @@
     },
     "/ordersproduct/{id}": {
       "get": {
+        "x-codigo": "E04-24",
         "summary": "[DEPRECATED — usa /order-products/{id}] Get order products by customer ID",
         "tags": [
           "OrderProducts"
@@ -32472,6 +33379,7 @@
     },
     "/userpermissions": {
       "post": {
+        "x-codigo": "E01-48",
         "summary": "[DEPRECATED — usa /user-permissions] Check if the current user has access to given components",
         "tags": [
           "UserPermissions"
@@ -32527,6 +33435,7 @@
         "operationId": "legacyPostUserpermissionsDeprecated"
       },
       "get": {
+        "x-codigo": "E01-49",
         "summary": "[DEPRECATED — usa /user-permissions] Get all components accessible by the current user",
         "description": "Para um membro da equipa (B41) devolve só as `Component`s dos módulos que lhe foram dados E que o tenant também tem (mesmo formato). O nível por módulo e quem é o membro vêm em `GET /user-permissions/access`.",
         "tags": [
@@ -32571,6 +33480,7 @@
     },
     "/userpermissions/access": {
       "get": {
+        "x-codigo": "E01-50",
         "summary": "[DEPRECATED — usa /user-permissions/access] Módulos da equipa a que a sessão tem acesso, com o nível (B41)",
         "description": "Calculado na API (o Backoffice nunca deduz permissões). `grants` = as FOLHAS efectivas da árvore (B41 2b), já cortadas pelo tecto do tenant: dono do tenant → todas as disponíveis ao nível máximo (`member` é `null`); membro → as que lhe foram dadas E que o tenant tem. As acções (ex. `clientes.lista.exportar`) vêm com `level: edit`. `modules` resume por topo (o máximo das folhas desse topo) para o menu. As chaves são as de `GET /team/catalog`.",
         "tags": [

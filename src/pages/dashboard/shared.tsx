@@ -50,8 +50,9 @@ export function KpiCard({ label, value, sub, icon, tone, loading, delta, spark, 
       )}
       <div className="mt-1.5 flex items-end justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-[13px] text-zinc-500 truncate">{label}</p>
-          {sub && <p className="text-xs text-zinc-400 mt-0.5 truncate">{sub}</p>}
+          {/* Com mini-gráfico o espaço é curto (390): o texto quebra em vez de ser cortado com «…». */}
+          <p className={`text-[13px] text-zinc-500 ${spark ? "break-words" : "truncate"}`}>{label}</p>
+          {sub && <p className={`text-xs text-zinc-400 mt-0.5 ${spark ? "break-words" : "truncate"}`}>{sub}</p>}
         </div>
         {spark && spark.some((v) => v > 0) && (
           <Sparkline data={spark} color="#2A6FDB" width={64} height={26} up={delta === undefined || delta >= 0} />

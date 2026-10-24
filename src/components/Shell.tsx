@@ -15,46 +15,12 @@ import { NavBadge } from './NavBadge'
 import { useSSE } from '../hooks/useSSE'
 import { useChatUnread } from '../hooks/useChat'
 import { useMailUnread } from '../hooks/useMail'
+import { accessiblePaths as menuPaths } from '../lib/menuAccess'
 import { SUBMENU, allowedSubitems, findRoot, memberSubitems, pathInSubitems, type SubmenuItem } from '../lib/navigation'
-
-// Core: todos os tenants têm (sem permissão). Módulos: por permissão.
-const CORE_PATHS = ['/clientes', '/mensagens', '/financeiro', '/conteudos', '/estatisticas', '/faturacao']
-// `/estatisticas` (Umami) é sempre core: a API nunca gateou por permissão, só
-// por `userId`. Até B35 vivia como subitem de `/website`; ganhou home própria
-// aqui quando o site-engine foi desligado e a página Website saiu.
-const MODULE_PERM_TO_PATH: Record<string, string> = {
-  VIEW_SCHEDULE:  '/agenda',
-  VIEW_PRODUCTS:  '/loja',
-  VIEW_GYM:       '/ginasio',
-  // Construtor de páginas (B38): item de topo próprio, só com a permissão. O label "Páginas" não
-  // existe em nenhum SUBMENU nem noutro item da sidebar (ver a regra dos labels em CLAUDE.md).
-  VIEW_SITE_PAGES: '/paginas',
-  // Correio (B42): o módulo de email. O label "Correio" não colide com o subitem Conteúdos → Emails.
-  VIEW_EMAIL: '/correio',
-}
 
 // Ordem fixa de apresentação na sidebar (independente de core/módulos/admin).
 // Cada item só aparece se for acessível ao tenant (permissões + admin).
 const MENU_ORDER = ['/dashboard', '/admin', '/clientes', '/mensagens', '/correio', '/conteudos', '/paginas', '/estatisticas', '/loja', '/agenda', '/ginasio', '/financeiro', '/faturacao']
-
-// Equipa (B41 2b/2c): o TOPO da árvore da API → item da sidebar (`can(topo)` = alguma folha debaixo). O Dashboard tem
-// folha própria (`dashboard`) e o Financeiro mostra a um membro as abas com folha (O Negócio, Agenda, Loja, Ginásio/
-// mensalidades, Despesas); só a Faturação é do dono. O sino e o tempo real (SSE) valem também para membros. Os subitens de cada grupo filtram-se por folha (`memberSubitems`, `lib/navigation.ts`).
-const MEMBER_MODULE_PATH: Record<string, string> = {
-  dashboard: '/dashboard',
-  agenda: '/agenda',
-  loja: '/loja',
-  ginasio: '/ginasio',
-  clientes: '/clientes',
-  financeiro: '/financeiro',
-  conteudos: '/conteudos',
-  paginas: '/paginas',
-  estatisticas: '/estatisticas',
-  // Agrupador (B43): `can('mensagens')` = alguma das folhas clientes/equipa/suporte.
-  mensagens: '/mensagens',
-  // Correio (B42): `can('correio')` = alguma das folhas (hoje `correio.caixa`).
-  correio: '/correio',
-}
 
 const ROUTE_META: Record<string, { nome: string; icon: string }> = {
   '/dashboard':         { nome: 'Dashboard',  icon: 'dashboard' },
@@ -663,7 +629,8 @@ function Topbar({ theme, onToggleTheme, onMenu, onCollapse, onLogout, showTeam }
           ícones); `min-w-0` + `truncate` garantem que um título/subtítulo
           longo trunca em vez de empurrar os ícones da direita. */}
       <div className="min-w-0 flex-1 mr-2">
-        <h2 className="text-[15px] font-semibold text-zinc-900 dark:text-white truncate leading-tight">{title}</h2>
+        {/* Telemóvel: o título «Pai · Subitem» quebra em 2 linhas em vez de se cortar; a partir de sm continua numa linha. */}
+        <h2 className="text-[15px] font-semibold text-zinc-900 dark:text-white line-clamp-2 sm:line-clamp-1 break-words leading-tight">{title}</h2>
         {subtitle && <p className="text-xs text-zinc-500 truncate leading-tight">{subtitle}</p>}
       </div>
 
@@ -726,19 +693,7 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
   // CR-09/CR-07: a caixa PESSOAL de um membro é sempre dele, mesmo sem `correio.caixa`: com o módulo Correio no negócio (`VIEW_EMAIL`) o item
   // «Correio» e a «Caixa» vêem-se sempre; `suporte@` e o resto continuam atrás das folhas (a API decide).
   const mailOpts = { personalMailbox: hasPermission('VIEW_EMAIL') }
-  const accessible = new Set<string>(
-    isMember
-      ? [
-          ...Object.entries(MEMBER_MODULE_PATH).filter(([key]) => can(key)).map(([, path]) => path),
-          ...(mailOpts.personalMailbox ? ['/correio'] : []),
-        ]
-      : [
-          '/dashboard',
-          ...permissions.map((p) => MODULE_PERM_TO_PATH[p.name ?? '']).filter(Boolean),
-          ...CORE_PATHS,
-          ...(isAdmin ? ['/admin'] : []),
-        ],
-  )
+  const accessible = menuPaths({ isMember, isAdmin, can, permissionNames: permissions.map((p) => p.name ?? ''), personalMailbox: mailOpts.personalMailbox })
   // Equipa (B41): o dono do tenant, ou um membro com o nó `equipa` (Ver lê, Gerir convida). A conta admin não tem
   // equipa. Em sessão de suporte o admin entra como o dono e vê-a (só leitura).
   const showTeam = !isAdmin && (!isMember || can('equipa'))
@@ -883,7 +838,8 @@ export function Shell({ theme, onToggleTheme, children }: Props) {
           <div
             className={
               fillPage
-                ? "h-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4"
+                // Telemóvel: no assistente de campanhas (`/correio/campanhas/:id`) a barra de botões fica no fim — espaço para o botão flutuante não a tapar.
+                ? `h-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4${location.pathname.startsWith("/correio/campanhas/") ? " max-sm:pb-24" : ""}`
                 : fullBleed
                   ? "h-full flex flex-col sm:max-w-[1400px] sm:mx-auto sm:px-6 lg:px-8 sm:py-8"
                   // pb-24 no telemóvel: o fim da página fica livre do botão flutuante das mensagens (não tapa o último botão).

@@ -56,6 +56,8 @@ export function IntegracoesTab() {
   };
 
   const connected = status?.connected;
+  // O Google recusou o token (IN-11): a ligação está em «erro» e é preciso voltar a ligar.
+  const hasError = status?.status === "error";
   const configured = status?.configured ?? true;
 
   return (
@@ -75,8 +77,8 @@ export function IntegracoesTab() {
             </p>
           </div>
           {!isLoading && (
-            <Badge tone={connected ? "green" : "neutral"} dot>
-              {connected ? "Ligado" : "Não ligado"}
+            <Badge tone={connected ? "green" : hasError ? "red" : "neutral"} dot>
+              {connected ? "Ligado" : hasError ? "Erro" : "Não ligado"}
             </Badge>
           )}
         </div>
@@ -100,9 +102,16 @@ export function IntegracoesTab() {
                 )}
               </>
             ) : (
-              <GuardButton icon="calendar" onClick={handleConnect} disabled={connect.isPending}>
-                Conectar Google Calendar
-              </GuardButton>
+              <>
+                {hasError && (
+                  <p className="w-full text-sm text-red-500">
+                    O Google recusou o acesso ao calendário. Volta a ligar para as marcações voltarem a sincronizar.
+                  </p>
+                )}
+                <GuardButton icon="calendar" onClick={handleConnect} disabled={connect.isPending}>
+                  {hasError ? "Voltar a ligar o Google Calendar" : "Conectar Google Calendar"}
+                </GuardButton>
+              </>
             )}
           </div>
         )}

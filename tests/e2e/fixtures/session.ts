@@ -9,7 +9,7 @@ import { loginAs } from "./login";
  * (`AUTH_REQUEST_TIMEOUT_MS`). Se qualquer uma atrasar sob carga, o `catch`
  * desliga `initializing` sem `isAuthenticated`, e o `App.tsx` renderiza o
  * ecrã de Login público em vez da rota pedida. Não é preciso rotação de
- * refresh token — um timeout chega. Ver docs/ARMADILHAS.md → "Testes e2e".
+ * refresh token — um timeout chega. Ver docs/4 - Como trabalhar/4.2 - armadilhas.md → "Testes e2e".
  *
  * Este ficheiro extrai o padrão que já existia (isolado) dentro do
  * `expectBlockedRedirect` do `rbac-matriz.spec.ts`, para ser reutilizável em

@@ -2,7 +2,7 @@
 
 **Repo:** Backoffice · **Tamanho:** M · **Depende:** F09 · **Agentes:** 1 Sonnet · `e2e-backoffice` (só RBAC do menu)
 **Contrato:** §1, §5.1, §5.2, §6.4 · **Protótipo:** `prototipo.html` (estrutura geral, botões do topo)
-**Ler antes:** `docs/ARMADILHAS.md` (alturas, labels de navegação) · `Backoffice/CLAUDE.md`
+**Ler antes:** `docs/4 - Como trabalhar/4.2 - armadilhas.md` (alturas, labels de navegação) · `Backoffice/CLAUDE.md`
 
 ## Objetivo
 O esqueleto da página **Páginas** e o cérebro dela: estado de trabalho com desfazer/refazer e uma gravação que manda

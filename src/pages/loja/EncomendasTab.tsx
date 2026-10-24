@@ -4,8 +4,9 @@ import { toast } from "sonner";
 import { getApiError } from "../../lib/apiError";
 import { useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { Icon } from "../../ui/icons.jsx";
-import { Card, BADGE_TONES } from "../../ui/ui.jsx";
-import { GuardSelect } from "../../components/GuardButton";
+import { Card, Badge, BADGE_TONES } from "../../ui/ui.jsx";
+import { GuardButton, GuardSelect } from "../../components/GuardButton";
+import { confirmDialog } from "../../components/confirm";
 import { fmtEur } from "../../lib/money";
 import { invalidateMoney } from "../../lib/invalidateMoney";
 import { StaffFilterSelect } from "../../components/StaffSelect";
@@ -15,6 +16,38 @@ import { usePutOrdersId } from "../../gen/backoffice/hooks/usePutOrdersId.js";
 import { useGetOrders } from "../../gen/backoffice/hooks/useGetOrders.js";
 
 export const ORDERS_PAGE_SIZE = 20;
+
+/** Folha das escritas deste separador (a árvore da equipa): marcar enviada/entregue, cancelar, reembolsar. */
+const LEAF = "loja.encomendas";
+
+type OrderStatus = "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "refunded";
+
+// Só apresentação. QUAIS passos existem a partir de cada estado vem da API (`allowedTransitions`, LJ-33).
+const STATUS_VIEW: Record<OrderStatus, { label: string; tone: "amber" | "blue" | "violet" | "green" | "neutral" | "red" }> = {
+  pending: { label: "Por pagar", tone: "amber" },
+  processing: { label: "A processar", tone: "blue" },
+  shipped: { label: "Enviada", tone: "violet" },
+  delivered: { label: "Entregue", tone: "green" },
+  cancelled: { label: "Cancelada", tone: "neutral" },
+  refunded: { label: "Reembolsada", tone: "red" },
+};
+
+const STEP_VIEW: Partial<Record<OrderStatus, { label: string; variant: "outline" | "ghost" }>> = {
+  shipped: { label: "Marcar enviada", variant: "outline" },
+  delivered: { label: "Marcar entregue", variant: "outline" },
+  cancelled: { label: "Cancelar", variant: "ghost" },
+  refunded: { label: "Reembolsar", variant: "ghost" },
+};
+
+/** Cancelar e reembolsar pedem confirmação e dizem o que acontece ao stock e ao dinheiro (LJ-34). */
+function confirmCopy(to: OrderStatus, from: OrderStatus) {
+  if (to === "cancelled") {
+    return from === "pending"
+      ? { title: "Cancelar esta encomenda?", message: "Ainda não foi paga, por isso o stock não muda." }
+      : { title: "Cancelar esta encomenda?", message: "O stock volta para a loja. O dinheiro não é devolvido por aqui: se o cliente já pagou, reembolsa-o na Stripe." };
+  }
+  return { title: "Reembolsar esta encomenda?", message: "O stock volta para a loja. O dinheiro não é devolvido por aqui: reembolsa o cliente na Stripe. Não dá para desfazer." };
+}
 
 /** Separador «Encomendas» da Loja: lista paginada no servidor, total faturado e «Vendido por». */
 export function EncomendasTab() {
@@ -30,6 +63,23 @@ export function EncomendasTab() {
     { page: ordersPage, limit: ORDERS_PAGE_SIZE, ...(staffFilter ? { staff: staffFilter } : {}) },
     { query: { placeholderData: keepPreviousData } },
   );
+  const changeStatus = usePutOrdersId({
+    mutation: {
+      onSuccess: (_d, vars) => {
+        toast.success(`Encomenda: ${STATUS_VIEW[vars.data?.status as OrderStatus]?.label ?? "actualizada"}`);
+        invalidateMoney(qc);
+      },
+      onError: (error) => toast.error(getApiError(error)),
+    },
+  });
+  const step = async (o: { orderId: string; status?: string }, to: OrderStatus) => {
+    if (to === "cancelled" || to === "refunded") {
+      const copy = confirmCopy(to, (o.status ?? "pending") as OrderStatus);
+      const ok = await confirmDialog({ ...copy, danger: true, confirmLabel: to === "cancelled" ? "Cancelar encomenda" : "Reembolsar", cancelLabel: "Voltar", leaf: LEAF });
+      if (!ok) return;
+    }
+    changeStatus.mutate({ id: o.orderId, data: { status: to } });
+  };
   const setSoldBy = usePutOrdersId({
     mutation: {
       onSuccess: () => {
@@ -77,19 +127,21 @@ export function EncomendasTab() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-zinc-100 dark:border-zinc-800 text-left text-zinc-500">
-                      <th className="font-medium px-4 sm:px-5 py-3">ID</th>
-                      <th className="font-medium px-4 py-3">Total</th>
+                      <th className="font-medium px-4 sm:px-5 py-3 hidden sm:table-cell">ID</th>
+                      <th className="font-medium px-4 py-3 max-sm:pl-5">Total</th>
+                      <th className="font-medium px-4 max-sm:px-2 py-3">Estado</th>
                       {hasStaff && <th className="font-medium px-4 py-3">Vendido por</th>}
                       <th className="font-medium px-4 py-3 hidden md:table-cell">
                         Data
                       </th>
+                      <th className="font-medium px-4 max-sm:px-2 py-3">Passos</th>
                     </tr>
                   </thead>
                   <tbody>
                     {orders.length === 0 && (
                       <tr>
                         <td
-                          colSpan={hasStaff ? 4 : 3}
+                          colSpan={hasStaff ? 6 : 5}
                           className="px-4 py-8 text-center text-zinc-400"
                         >
                           Nenhuma encomenda encontrada.
@@ -101,15 +153,25 @@ export function EncomendasTab() {
                         key={o.orderId}
                         className="border-b border-zinc-50 dark:border-zinc-800/50 last:border-0 hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 transition"
                       >
-                        <td className="px-4 sm:px-5 py-3.5 font-mono text-xs text-zinc-500">
+                        <td className="px-4 sm:px-5 py-3.5 font-mono text-xs text-zinc-500 hidden sm:table-cell">
                           {o.orderId.slice(0, 8)}…
                         </td>
-                        <td className="px-4 py-3.5 font-semibold text-zinc-900 dark:text-white tabular-nums">
+                        <td className="px-4 py-3.5 max-sm:pl-5 font-semibold text-zinc-900 dark:text-white tabular-nums">
                           {fmtEur(Number(o.price))}
+                        </td>
+                        <td className="px-4 max-sm:px-2 py-3.5">
+                          {STATUS_VIEW[o.status as OrderStatus] ? (
+                            <Badge tone={STATUS_VIEW[o.status as OrderStatus].tone} dot>
+                              {STATUS_VIEW[o.status as OrderStatus].label}
+                            </Badge>
+                          ) : (
+                            "—"
+                          )}
                         </td>
                         {hasStaff && (
                           <td className="px-4 py-3.5">
                             <GuardSelect
+                              leaf={LEAF}
                               aria-label={`Vendido por (encomenda ${o.orderId.slice(0, 8)})`}
                               value={o.soldByStaffId ?? ""}
                               disabled={setSoldBy.isPending}
@@ -130,6 +192,27 @@ export function EncomendasTab() {
                           {o.createdAt
                             ? new Date(o.createdAt).toLocaleDateString("pt-PT")
                             : "—"}
+                        </td>
+                        <td className="px-4 max-sm:px-2 py-3.5">
+                          <div className="flex flex-wrap gap-1.5">
+                            {(o.allowedTransitions ?? []).map((to) => {
+                              const v = STEP_VIEW[to as OrderStatus];
+                              if (!v) return null;
+                              return (
+                                <GuardButton
+                                  key={to}
+                                  leaf={LEAF}
+                                  size="sm"
+                                  variant={v.variant}
+                                  disabled={changeStatus.isPending}
+                                  aria-label={`${v.label} (encomenda ${o.orderId.slice(0, 8)})`}
+                                  onClick={() => step(o, to as OrderStatus)}
+                                >
+                                  {v.label}
+                                </GuardButton>
+                              );
+                            })}
+                          </div>
                         </td>
                       </tr>
                     ))}

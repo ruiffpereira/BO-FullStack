@@ -31,6 +31,8 @@ export interface TenantPerms {
   schedule: boolean
   products: boolean
   gym: boolean
+  /** `VIEW_CUSTOMERS`: sem ela `GET /customers` dá 403 e o cartão «Clientes» nem deve existir. Omitido = como sempre (core). */
+  customers?: boolean
 }
 
 /** Tudo fechado — o estado de um membro enquanto o `/dashboard` ainda não respondeu. */
@@ -50,7 +52,7 @@ export function dashboardBlocks(opts: {
     return {
       schedule: perms.schedule, scheduleValues: perms.schedule,
       orders: perms.products, stock: perms.products,
-      customers: true,
+      customers: perms.customers ?? true,
       gymRevenue: perms.gym, gymMembers: perms.gym,
       expenses: true,
     }

@@ -592,3 +592,8 @@ export function useAuth(): AuthCtx {
 export function useSupportSession(): SupportSessionInfo | null {
   return useContext(AuthContext)?.supportSession ?? null;
 }
+
+/** `true` se a sessão é a de um membro de equipa. Tolerante: sem provider (testes isolados) devolve `false`. */
+export function useIsMember(): boolean {
+  return useContext(AuthContext)?.isMember ?? false;
+}

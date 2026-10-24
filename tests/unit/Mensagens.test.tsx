@@ -303,12 +303,12 @@ describe("ChatConversationView — só-ver não escreve", () => {
     expect(screen.getByRole("status")).toHaveTextContent("já não está na equipa");
   });
 
-  it("clientes e equipa aceitam anexar PDF (o Suporte só fotos)", () => {
+  it("clientes, equipa e suporte aceitam anexar PDF (B59 F8: o Suporte também)", () => {
     authMock.mockReturnValue(ownerAuth());
     const { unmount } = renderAt(<ChatConversationView scope={{ kind: "customer", conversationId: "cv1" }} />);
     expect(screen.getByLabelText("Anexar foto ou PDF")).toBeInTheDocument();
     unmount();
     renderAt(<ChatConversationView scope={{ kind: "support" }} />);
-    expect(screen.getByLabelText("Anexar imagem")).toBeInTheDocument();
+    expect(screen.getByLabelText("Anexar foto ou PDF")).toBeInTheDocument();
   });
 });

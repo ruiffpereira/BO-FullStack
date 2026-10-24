@@ -78,7 +78,7 @@ língua) · manifest final sem o botão `claro` · endereços antigos tratados p
 (`2c8cf33`, `3da8e70`, na `main`) · `deploy.yml` já tinha `concurrency`. Suite e2e inteira do BO: 314 verdes (o
 `paginas-ux` instável não repetiu).
 **F19 — falta (depois dos passos do dono):** paridade visual com o site antigo (1440/834/390 × PT/EN/FR) e fecho do
-épico (DECISOES, TASKS da raiz → `docs/TASKS-FEITO.md`, `CLAUDE.md` da raiz, `FUNCIONALIDADES.md`). Fora do épico:
+épico (DECISOES, TASKS da raiz → `docs/5 - Historico/5.1 - tarefas feitas.md`, `CLAUDE.md` da raiz, `FUNCIONALIDADES.md`). Fora do épico:
 o `src/gen` do booking do winterplateau está desactualizado; o repo não tem `user.name` (commits com `-c user.name=Rui`).
 
 **Lacunas conhecidas (aceites, sem fatia):**

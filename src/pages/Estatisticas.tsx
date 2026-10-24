@@ -94,7 +94,7 @@ export function Estatisticas() {
     const ts = data?.timeseries ?? []
     return {
       labels: ts.map((p) => shortLabel(p.date ?? '')),
-      series: [{ values: ts.map((p) => p.visitors ?? 0), label: 'Visitantes' }],
+      series: [{ values: ts.map((p) => p.visitors ?? 0), label: 'Visitas' }],
     }
   }, [data])
 
@@ -155,9 +155,9 @@ export function Estatisticas() {
         <KpiCard label="Duração média" icon="clock" tone="violet" loading={isLoading} value={fmtDuration(agg?.visit_duration?.value)} />
       </div>
 
-      {/* Visitantes ao longo do tempo */}
+      {/* Visitas (sessões) ao longo do tempo — não são visitantes únicos (ES-16) */}
       <Card className="p-5">
-        <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-4">Visitantes ao longo do tempo</h2>
+        <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-4">Visitas ao longo do tempo</h2>
         {isLoading ? (
           <div className="h-56 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
         ) : hasData ? (

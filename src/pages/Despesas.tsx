@@ -63,6 +63,10 @@ function SummaryCard({ label, value, icon, tone, delta, sub, loading }: {
         <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${BADGE_TONES[tone]}`}>
           <Icon name={icon} className="w-[18px] h-[18px]" />
         </div>
+        {delta === null && (
+          // FI-20: mês anterior a zero → não há %, mostra-se «novo»
+          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">novo</span>
+        )}
         {delta !== undefined && delta !== null && delta !== 0 && (
           <div className={`flex items-center gap-0.5 text-xs font-medium ${delta > 0 ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
             <Icon name={delta > 0 ? 'arrowUp' : 'arrowDown'} className="w-3 h-3" />
@@ -298,7 +302,7 @@ export function Despesas() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <SummaryCard
           label="Despesas do mês" icon="euro" tone="red" loading={loadingSummary}
-          value={fmtEur(summary?.monthTotal ?? 0)} delta={summary?.monthChange ?? null}
+          value={fmtEur(summary?.monthTotal ?? 0)} delta={summary?.monthChange}
           sub="vs. mês anterior"
         />
         <SummaryCard label="Despesas do ano" icon="calendar" tone="amber" loading={loadingSummary} value={fmtEur(summary?.yearTotal ?? 0)} />

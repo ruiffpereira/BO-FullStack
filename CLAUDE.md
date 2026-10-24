@@ -8,7 +8,7 @@ forçar o refresh nos dispositivos já instalados.
 
 > **Coordenação da plataforma:** [`../CLAUDE.md`](../CLAUDE.md) (roteiro + **Regra cross-repo**) ·
 > [`../TASKS.md`](../TASKS.md) (o que falta) · [`../DECISOES.md`](../DECISOES.md) (porquê) ·
-> [`../docs/ARMADILHAS.md`](../docs/ARMADILHAS.md) (erros já pagos).
+> [4.2 armadilhas](<../docs/4 - Como trabalhar/4.2 - armadilhas.md>) (erros já pagos).
 >
 > **Detalhe por página/componente:** [REFERENCIA-PAGINAS.md](REFERENCIA-PAGINAS.md) — ler quando se
 > mexe na página em causa. **Briefs de todos os épicos da plataforma:** `.design/<épico>/`.
@@ -193,8 +193,8 @@ Um **membro** da equipa entra pelo mesmo login e vê só os módulos que o dono 
 
 ## Funcionalidades escondidas (`src/lib/features.ts`)
 
-Decisão do dono (2026-09-28): `signup` (registo self-serve) e `googleCalendar` (cartão em Admin →
-Integrações e cartão de subscrição na Agenda) estão a `false`. O código fica; voltar = pôr a `true`.
+Decisão do dono (2026-09-28): `signup` (registo self-serve) e `googleCalendar` (só o cartão em Admin →
+Integrações) estão a `false`; o cartão do feed `.ics` da Agenda aparece sempre (B59 F8). O código fica; voltar = pôr a `true`.
 
 ---
 
@@ -248,7 +248,7 @@ depende dela.
   erros desconhecidos (`catch`).
 - **Aliases deprecated:** a API gera-os no spec com `operationId` explícito `legacy…Deprecated` (distinto dos novos,
   mesmo ignorando maiúsculas), por isso o Kubb gera-os sem colisão; o BO não os usa (só `useGetUserPermissions`,
-  `/order-products`…). Ver `docs/ARMADILHAS.md` → «operationIds que só diferem em maiúsculas».
+  `/order-products`…). Ver `docs/4 - Como trabalhar/4.2 - armadilhas.md` → «operationIds que só diferem em maiúsculas».
 - `VITE_API_BASE_URL` continua obrigatória (é o `baseURL` dos hooks) mas só precisa de estar
   **definida**, não de a API estar **a correr**.
 - `kubb.config.ts` é tooling Node fora do `tsconfig` da app → `@ts-nocheck` no topo.

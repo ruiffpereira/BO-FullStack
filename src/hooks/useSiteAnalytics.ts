@@ -21,8 +21,7 @@ import type { GetAnalyticsSite200 } from "../gen/backoffice/types/GetAnalyticsSi
  */
 
 // Períodos suportados (a API traduz para o que o Umami espera).
-// Nota: "7d"/"30d" vão até ONTEM (não incluem hoje); "day" (Hoje) e "month"
-// (Este mês) incluem o dia corrente — daí o default ser "month".
+// Nota: "7d"/"30d" incluem hoje (B59 F6), tal como "day" (Hoje) e "month" (Este mês) — o default continua "month".
 export type AnalyticsPeriod = "day" | "7d" | "30d" | "month" | "6mo";
 
 /**

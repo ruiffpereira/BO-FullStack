@@ -18,6 +18,12 @@ describe("dashboardBlocks — o que o Dashboard mostra", () => {
     expect(revenueSourcesLabel(b)).toBe("agenda + loja");
   });
 
+  it("o dono sem a permissão de clientes não tem o bloco «Clientes» (o pedido daria 403)", () => {
+    const b = dashboardBlocks({ isMember: false, included: undefined, perms: { ...perms, customers: false } });
+    expect(b.customers).toBe(false);
+    expect(b.schedule).toBe(true);
+  });
+
   it("um membro lê só o `included`; enquanto o /dashboard não responde não tem nada", () => {
     expect(dashboardBlocks({ isMember: true, included: undefined, perms })).toEqual(NO_BLOCKS);
     expect(hasAnyBlock(NO_BLOCKS)).toBe(false);

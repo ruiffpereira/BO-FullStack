@@ -67,11 +67,14 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
   const atraso = eff.overdue
   const view = STATUS_VIEW[atraso ? 'overdue' : estado]
   const falta = Math.max(0, (eff.amount || 0) - (eff.paidAmount || 0))
+  // «Em dívida» leva sempre o valor já pago (a API exige-o): o que já estava pago, ou 0 se vem de «Não pago».
+  const bodyFor = (st: Exclude<Status, 'paid'>): PostGymMensalidadeCustomersCustomeridPaymentsMutationRequest =>
+    st === 'debt' ? { period, status: 'debt', paidAmount: estado === 'debt' ? (eff.paidAmount ?? 0) : 0 } : { period, status: st }
   const setEstado = (st: Status) => {
     if (st === 'paid') { setPagModal({ period, amount: eff.amount || sub?.price || 0 }); return }
     // Baixar de "pago" para dívida/não pago apaga o registo do pagamento → confirmar.
     if (estado === 'paid') { setDowngrade(st); return }
-    upsert.mutate({ period, status: st })
+    upsert.mutate(bodyFor(st))
   }
 
   // Linha "Bloqueado" reutilizada (com e sem subscrição).
@@ -176,7 +179,7 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
                   <p className="font-medium text-zinc-900 dark:text-white truncate">{sub.name}</p>
                   <p className="text-sm text-zinc-500"><span className="font-medium text-zinc-700 dark:text-zinc-200 tabular-nums">{fmtEur(sub.price)}</span>/mês · vence dia {sub.dueDay}</p>
                 </div>
-                <Button variant="ghost" size="sm" icon="edit" onClick={() => setAtribuir(true)}>Trocar</Button>
+                <GuardButton variant="ghost" size="sm" icon="edit" onClick={() => setAtribuir(true)}>Trocar</GuardButton>
               </div>
               {monthBody}
               <div className="px-4 sm:px-5 py-3.5 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40">{blockRow}</div>
@@ -258,7 +261,7 @@ export function ClienteMensalidade({ customerId, dense = false }: { customerId: 
       <ConfirmDialog
         open={!!downgrade}
         onClose={() => setDowngrade(null)}
-        onConfirm={() => { if (downgrade) upsert.mutate({ period, status: downgrade }); setDowngrade(null) }}
+        onConfirm={() => { if (downgrade) upsert.mutate(bodyFor(downgrade)); setDowngrade(null) }}
         variant="warning"
         title="Alterar pagamento?"
         description={<>Este mês está marcado como <strong>pago</strong>. Ao mudar para <strong>{downgrade === 'debt' ? 'em dívida' : 'não pago'}</strong>, o registo do pagamento (data, método e valor) é apagado. Tens a certeza?</>}

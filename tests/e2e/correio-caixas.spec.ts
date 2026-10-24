@@ -19,7 +19,7 @@ import { AdminPage } from "./pages/AdminPage";
  *   caixas.edita@e2e.local  «Eva Editora»    correio.caixa Responder  → pessoal + suporte@ (escreve)
  *   caixas.sem@e2e.local    «Vera Contactos» sem correio.caixa        → só a pessoal, sem selector
  *
- * Regras provadas (docs/REGRAS-NEGOCIO.md): CR-09 (a caixa do membro cria-se sozinha no convite; só ele a lê), CR-24 (endereços
+ * Regras provadas (docs/0 - Regras de negocio/0.00 - indice.md): CR-09 (a caixa do membro cria-se sozinha no convite; só ele a lê), CR-24 (endereços
  * `<pessoa>.<código>@` e `suporte.<código>@`), CR-25 (as caixas nascem sozinhas; a pessoal aparece primeiro e é sempre de quem a
  * abre), EQ-03 (Ver = botões desactivados com o motivo).
  */

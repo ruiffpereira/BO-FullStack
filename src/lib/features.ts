@@ -5,9 +5,9 @@
  *
  * - `signup`: o registo self-serve de tenants (`/signup` e o link "Criar conta"
  *   no Login). Com `false`, `/signup` redirecciona para o login.
- * - `googleCalendar`: o cartão "Google Calendar" em Admin → Integrações e o
- *   cartão de subscrição do calendário na Agenda. A API continua com os
- *   endpoints; só a UI sai.
+ * - `googleCalendar`: só o cartão "Google Calendar" em Admin → Integrações.
+ *   A API continua com os endpoints; só a UI sai. O cartão do feed `.ics` da
+ *   Agenda (subscrever no telemóvel) é independente e aparece sempre (B59 F8).
  */
 export const FEATURES = {
   signup: false,

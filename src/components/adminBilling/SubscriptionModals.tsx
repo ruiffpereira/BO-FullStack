@@ -9,6 +9,7 @@ import { getApiError } from "../../lib/apiError";
 import { getAdminBillingSubscriptionsQueryKey } from "../../gen/backoffice/hooks/useGetAdminBillingSubscriptions";
 import { usePostAdminBillingSubscriptions } from "../../gen/backoffice/hooks/usePostAdminBillingSubscriptions";
 import { getAdminBillingCatalogQueryKey } from "../../gen/backoffice/hooks/useGetAdminBillingCatalog";
+import { useGetBillingTrial } from "../../gen/backoffice/hooks/useGetBillingTrial";
 import { usePatchAdminBillingSubscriptionsUseridTrial } from "../../gen/backoffice/hooks/usePatchAdminBillingSubscriptionsUseridTrial";
 import type { AdminBillingTenant } from "../../gen/backoffice/types/AdminBillingTenant";
 import type { BillingCatalogModule } from "../../gen/backoffice/types/BillingCatalogModule";
@@ -116,12 +117,16 @@ export function CreateSubscriptionModal({
     createM.mutate({ data: { userId, items } })
   }
 
+  // Os dias de experiência vêm da API (E13-13), como no registo — sem número fixo aqui.
+  const { data: trial } = useGetBillingTrial();
+  const trialText = trial ? ` (trial de ${trial.trialDays} ${trial.trialDays === 1 ? "dia" : "dias"})` : "";
+
   return (
     <Modal
       open={open}
       onClose={closeAndReset}
       title="Criar subscrição"
-      subtitle="Cria uma subscrição da plataforma (trial de 14 dias) para um tenant."
+      subtitle={`Cria uma subscrição da plataforma${trialText} para um tenant.`}
       footer={
         <>
           <Button variant="ghost" onClick={closeAndReset}>

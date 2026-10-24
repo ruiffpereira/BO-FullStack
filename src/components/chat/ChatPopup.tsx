@@ -112,7 +112,7 @@ function AdminPopup({ onClose }: { onClose: () => void }) {
 
   return (
     <>
-      <PopupHeader title="Mensagens" subtitle="Conversas com clientes" onClose={onClose} />
+      <PopupHeader title="Mensagens" subtitle="Conversas com negócios" onClose={onClose} />
       <div className="p-2 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
         <Input icon="search" placeholder="Procurar…" value={q} onChange={(e: any) => setQ(e.target.value)} />
       </div>

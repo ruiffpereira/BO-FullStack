@@ -101,6 +101,8 @@ describe("Estatisticas — estado configurado (KPIs)", () => {
     // Labels dos KPIs
     expect(screen.getByText("Visitantes")).toBeInTheDocument();
     expect(screen.getByText("Visualizações")).toBeInTheDocument();
+    // ES-16: o gráfico conta visitas (sessões), por isso não se chama «Visitantes»
+    expect(screen.getByText("Visitas ao longo do tempo")).toBeInTheDocument();
     expect(screen.getByText("Taxa de saída")).toBeInTheDocument();
     expect(screen.getByText("Duração média")).toBeInTheDocument();
 

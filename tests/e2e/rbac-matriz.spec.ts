@@ -51,7 +51,7 @@ function navItem(page: Page, name: string) {
 
 // `expectBlockedRedirect`/`withSessionRetry` (importados de `./fixtures/session`)
 // mitigam a corrida diagnosticada no `AuthContext.doRefresh` (três chamadas em
-// série, 5s de timeout cada — ver docs/ARMADILHAS.md → "Testes e2e"): sob
+// série, 5s de timeout cada — ver docs/4 - Como trabalhar/4.2 - armadilhas.md → "Testes e2e"): sob
 // carga, a app pode cair no ecrã de Login em vez de mostrar a rota pedida.
 // Re-autentica e repete, sem nunca enfraquecer o assert em si.
 

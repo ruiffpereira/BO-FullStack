@@ -2,7 +2,7 @@
 
 **Repo:** winterplateau (Astro 4, npm) · **Tamanho:** L · **Depende:** F09 (contrato congelado) · **Agentes:** 1 Sonnet
 **Contrato:** §7, §9 (parte "feito pelo site"), §8 (`cms-build.json`)
-**Ler antes:** `winterplateau/CLAUDE.md`, `winterplateau/kubb.config.ts` (bypass `X-CI-Bypass`), `docs/ARMADILHAS.md` §sites externos
+**Ler antes:** `winterplateau/CLAUDE.md`, `winterplateau/kubb.config.ts` (bypass `X-CI-Bypass`), `docs/4 - Como trabalhar/4.2 - armadilhas.md` §sites externos
 
 ## Objetivo
 O site passa a ser gerado a partir do objecto da API. Nesta fatia os componentes ainda são **simples e sem estilo

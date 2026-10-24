@@ -36,6 +36,8 @@ export function UtilizadoresTab({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selected, setSelected] = useState<UserRow | null>(null);
   const [form, setForm] = useState<UserForm>(emptyUserForm);
+  // Mudar o email pede a password ACTUAL de quem está ligado (CT-18, B59 F1).
+  const [currentPassword, setCurrentPassword] = useState("");
   // Confirmação forte do apagar tenant (B8, hard delete): o admin tem de
   // escrever o email do tenant para o botão destrutivo ficar activo.
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState("");
@@ -143,8 +145,11 @@ export function UtilizadoresTab({
       permissionId: u.permissions?.[0]?.permissionId ?? "",
       websiteDomain: "",
     });
+    setCurrentPassword("");
     setEditOpen(true);
   };
+
+  const emailChanged = !!selected && form.email.trim() !== selected.email;
 
   // Comparação case-insensitive (com trim) do email de confirmação: o que
   // interessa é provar que o admin sabe qual é o tenant que vai desaparecer,
@@ -357,12 +362,13 @@ export function UtilizadoresTab({
               Cancelar
             </Button>
             <GuardButton
-              disabled={updateM.isPending}
+              disabled={updateM.isPending || (emailChanged && !currentPassword)}
               onClick={() => {
                 if (!selected) return;
                 const p: any = { userId: selected.userId };
                 if (form.name) p.name = form.name;
                 if (form.email) p.email = form.email;
+                if (emailChanged) p.currentPassword = currentPassword;
                 p.phone = form.phone || null;
                 p.ownerName = form.ownerName.trim() || null;
                 // Na conta admin a role é fixa: não se envia `permissionId`.
@@ -383,6 +389,18 @@ export function UtilizadoresTab({
           isEdit
           isPlatformAdmin={!!selected?.isPlatformAdmin}
         />
+        {emailChanged && (
+          <div className="mt-4">
+            <Input
+              label="A tua password"
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e: any) => setCurrentPassword(e.target.value)}
+              hint="Para mudar o email pedimos a tua password actual."
+            />
+          </div>
+        )}
       </Modal>
 
       <Modal

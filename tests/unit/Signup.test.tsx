@@ -11,6 +11,7 @@ import { MemoryRouter } from "react-router-dom";
 // Mockamos os 3 para testar o fluxo sem servidor, como o Faturacao.test.tsx faz.
 
 const catalogMock = vi.fn();
+const trialMock = vi.fn(); // useGetBillingTrial (os dias de experiência vêm da API — B59 F7)
 const signupMutateMock = vi.fn();
 let signupOptions: any;
 const resendMutateMock = vi.fn();
@@ -18,6 +19,10 @@ let resendOptions: any;
 
 vi.mock("../../src/gen/backoffice/hooks/useGetBillingCatalog", () => ({
   useGetBillingCatalog: () => catalogMock(),
+}));
+
+vi.mock("../../src/gen/backoffice/hooks/useGetBillingTrial", () => ({
+  useGetBillingTrial: () => trialMock(),
 }));
 
 vi.mock("../../src/gen/backoffice/hooks/usePostUsersSignup", () => ({
@@ -92,12 +97,26 @@ function fillStep1(vertical = "Ginásio") {
 beforeEach(() => {
   vi.clearAllMocks();
   mockCatalog();
+  trialMock.mockReturnValue({ data: { trialDays: 14 } });
   signupOptions = undefined;
   resendOptions = undefined;
 });
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe("Signup — dias grátis vêm da configuração (B59 F7)", () => {
+  it("mostra o valor da API, sem número fixo: 21 dias e, enquanto não chega, um texto sem número", () => {
+    trialMock.mockReturnValue({ data: { trialDays: 21 } });
+    const { unmount } = renderSignup();
+    expect(screen.getByText(/21 dias grátis, sem cartão/)).toBeTruthy();
+    expect(screen.queryByText(/14 dias/)).toBeNull();
+    unmount();
+    trialMock.mockReturnValue({ data: undefined });
+    renderSignup();
+    expect(screen.getByText(/Experimenta grátis, sem cartão/)).toBeTruthy();
+  });
 });
 
 describe("Signup — passo 1 (negócio)", () => {

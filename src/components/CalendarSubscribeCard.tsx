@@ -4,7 +4,7 @@ import { Card, Button, Input } from "../ui/ui.jsx";
 import { Icon } from "../ui/icons.jsx";
 import { GuardButton } from "./GuardButton";
 import { confirmDialog } from "./confirm";
-import { useSupportSession } from "../context/AuthContext";
+import { useIsMember, useSupportSession } from "../context/AuthContext";
 import {
   useScheduleCalendarFeed,
   useRotateScheduleCalendarToken,
@@ -28,7 +28,9 @@ import {
  */
 export function CalendarSubscribeCard() {
   // O feed traz o calendarToken (credencial sem expiração): a API recusa-o numa sessão de suporte.
-  return useSupportSession() ? null : <CalendarSubscribeCardContent />;
+  // O feed é só do dono do tenant (a API devolve 403 TEAM_OWNER_ONLY a membros): nem se pede.
+  const isMember = useIsMember();
+  return useSupportSession() || isMember ? null : <CalendarSubscribeCardContent />;
 }
 
 function CalendarSubscribeCardContent() {

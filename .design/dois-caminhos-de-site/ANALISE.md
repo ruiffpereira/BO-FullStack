@@ -162,7 +162,7 @@ Duas hipóteses, e são independentes do resto:
    derivado de `Site.template`. Dois campos para o mesmo facto nunca ficam sincronizados.
 3. **Validar `vertical` no `PUT /users`** — zod e enum, como em todo o resto.
 4. **Decidir o que fazer com `salon` e `generic`** — expor ou apagar.
-5. **Documentar o modelo de confiança da `RENDERER_API_KEY`** em `docs/ARQUITETURA.md` — que o
+5. **Documentar o modelo de confiança da `RENDERER_API_KEY`** em `docs/2 - Arquitectura/2.1 - arquitectura.md` — que o
    isolamento do tráfego do renderer depende do renderer, não da autenticação.
 
 ---

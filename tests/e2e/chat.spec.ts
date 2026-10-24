@@ -36,7 +36,7 @@ test.describe("Chat de suporte", () => {
     await loginAs(context, "admin@e2e");
     await page.goto("/mensagens");
 
-    await expect(page.getByText("Conversas com os teus clientes")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Conversas com os negócios")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("button", { name: "Nova" })).toBeVisible();
     await expect(page.getByPlaceholder("Procurar tenant…")).toBeVisible();
   });

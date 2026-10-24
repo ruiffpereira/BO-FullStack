@@ -43,7 +43,7 @@ export type SegmentType = CampaignSegment["type"];
 
 export const SEGMENT_OPTIONS: ReadonlyArray<{ type: SegmentType; label: string; hint: string }> = [
   { type: "all", label: "Todos os subscritos", hint: "Toda a gente que aceitou receber novidades." },
-  { type: "members_active", label: "Sócios activos", hint: "Subscritos com mensalidade em dia." },
+  { type: "members_active", label: "Sócios activos", hint: "Subscritos com subscrição activa e conta confirmada." },
   { type: "members_overdue", label: "Sócios em atraso", hint: "Subscritos com uma mensalidade vencida por pagar." },
   { type: "agenda_recent", label: "Clientes da agenda", hint: "Subscritos com marcação nos últimos dias." },
   { type: "buyers", label: "Compradores", hint: "Subscritos que compraram na loja." },

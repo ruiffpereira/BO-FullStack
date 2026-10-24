@@ -54,7 +54,7 @@ export function Mensagens({ view = "clientes" }: { view?: MensagensView }) {
   // O subtítulo é do separador activo (hook sempre chamado, por isso antes dos returns).
   const active: MensagensView = view === "backoffice" ? (showBackoffice ? "backoffice" : "clientes") : showClientes ? "clientes" : "backoffice";
   usePageSubtitle(
-    isAdmin ? "Conversas com os teus clientes"
+    isAdmin ? "Conversas com os negócios"
     : supportSession ? "Fala com o suporte"
     : active === "clientes" ? "Conversas com os clientes do teu site"
     : "Suporte e equipa",

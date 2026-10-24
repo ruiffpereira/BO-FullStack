@@ -220,21 +220,27 @@ export function PagamentoModal({ customerId, period, amount, onClose, onSaved, s
   const [pagoEm, setPagoEm] = useState(new Date().toISOString().slice(0, 10))
   const [notas, setNotas] = useState('')
   const pagoFloat = parseFloat(valor) || 0
-  const isValidValue = pagoFloat > 0
-  const isAbaixoEsperado = pagoFloat > 0 && pagoFloat < (amount || 0)
+  // O que cabe ainda neste mês: o preço todo, ou o que falta se já havia uma dívida (GY-36).
+  const maximo = isDebt ? falta : (amount || 0)
+  const acimaDoPreco = pagoFloat > maximo
+  const isValidValue = pagoFloat > 0 && !acimaDoPreco
+  // Total pago no mês depois deste registo. A API decide: abaixo do preço → «em dívida» com este valor; o preço não muda.
+  const totalPago = Math.round(((isDebt ? (paidAmount || 0) : 0) + pagoFloat) * 100) / 100
+  const fica = Math.max(0, Math.round(((amount || 0) - totalPago) * 100) / 100)
+  const isAbaixoEsperado = isValidValue && fica > 0
 
   const save = useMutation({
-    mutationFn: () => postGymMensalidadeCustomersCustomeridPayments(customerId, { period, status: 'paid', amount: pagoFloat, paidAt: pagoEm, method: metodo, notes: notas.trim() || null }),
-    onSuccess: () => { onSaved(); toast.success('Pagamento registado'); onClose() },
+    mutationFn: () => postGymMensalidadeCustomersCustomeridPayments(customerId, { period, status: 'paid', paidAmount: totalPago, paidAt: pagoEm, method: metodo, notes: notas.trim() || null }),
+    onSuccess: () => { onSaved(); toast.success(isAbaixoEsperado ? 'Pagamento parcial registado (em dívida)' : 'Pagamento registado'); onClose() },
     onError: (e) => toast.error(getApiError(e)),
   })
   return (
     <Modal open onClose={onClose} width="max-w-sm" title="Registar pagamento" subtitle={fmtPeriodo(period)}
-      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><GuardButton icon="check" isLoading={save.isPending} disabled={!isValidValue} onClick={() => save.mutate()}>Marcar paga</GuardButton></>}>
+      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><GuardButton icon="check" isLoading={save.isPending} disabled={!isValidValue} onClick={() => save.mutate()}>{isAbaixoEsperado ? 'Registar parcial' : 'Marcar paga'}</GuardButton></>}>
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Input label="Valor (€)" type="number" value={valor} onChange={(e: any) => setValor(e.target.value)} autoFocus />
+            <Input label={isDebt ? 'Valor recebido (€)' : 'Valor pago (€)'} type="number" value={valor} onChange={(e: any) => setValor(e.target.value)} autoFocus />
             <div className="mt-1.5 space-y-1.5">
               {isDebt && falta > 0 && (
                 <PriceFillChip amount={falta} label="Em falta" active={pagoFloat === falta} onClick={() => setValor(String(falta))} />
@@ -243,8 +249,11 @@ export function PagamentoModal({ customerId, period, amount, onClose, onSaved, s
                 <PriceFillChip amount={amount} label="Subscrição" active={pagoFloat === amount} onClick={() => setValor(String(amount))} />
               )}
             </div>
+            {acimaDoPreco && (
+              <p className="mt-2 text-xs text-red-600 dark:text-red-400">Não pode ser mais do que {isDebt ? 'falta pagar' : 'o preço do mês'} ({fmtEur(maximo)}).</p>
+            )}
             {isAbaixoEsperado && (
-              <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">Valor abaixo do esperado — fica registado como pago por {fmtEur(pagoFloat)}. Para dívida parcial usa 'Em dívida'.</p>
+              <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">Abaixo do preço — fica «em dívida»: pago {fmtEur(totalPago)}, faltam {fmtEur(fica)}. O preço do mês não muda.</p>
             )}
           </div>
           <label className="block"><span className="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Data</span><DatePicker value={pagoEm} onChange={setPagoEm} max={new Date().toISOString().slice(0, 10)} /></label>

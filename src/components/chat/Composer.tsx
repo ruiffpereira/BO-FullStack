@@ -17,7 +17,7 @@ export interface ComposerProps {
   /** Nota visível por cima da caixa quando está desactivada (ex.: sessão de suporte). */
   disabledNote?: string;
   placeholder?: string;
-  /** B43: aceita também PDF (Clientes e Equipa); o Suporte continua só com fotos. */
+  /** Aceita também PDF (todas as conversas, Suporte incluído desde o B59 F8 — a API já aceita `module=chat`). */
   allowPdf?: boolean;
 }
 

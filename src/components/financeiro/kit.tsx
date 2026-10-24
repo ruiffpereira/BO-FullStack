@@ -31,7 +31,9 @@ export function InfoDot({ title, body }: { title: string; body: React.ReactNode 
 
 /** Variação % vs período anterior. */
 export function DeltaPill({ delta, good = 'up' }: { delta?: number | null; good?: 'up' | 'down' }) {
-  if (delta === undefined || delta === null || delta === 0) return null
+  // null = período anterior a zero (FI-20 / ES-14): não há %, mostra-se «novo»; undefined = sem dado (nada).
+  if (delta === null) return <span className="inline-flex items-center text-xs font-medium text-zinc-500 dark:text-zinc-400">novo</span>
+  if (delta === undefined || delta === 0) return null
   const isGood = (delta > 0 && good === 'up') || (delta < 0 && good === 'down')
   return (
     <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${isGood ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>

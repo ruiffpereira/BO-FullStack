@@ -202,7 +202,7 @@ export function ChatConversationView({ scope, active = true }: { scope: ChatScop
           : scope.kind === "team" ? "Escreve uma mensagem…"
           : "Responder…"
         }
-        allowPdf={scope.kind === "customer" || scope.kind === "team"}
+        allowPdf
         disabled={inSupport || viewOnly}
         disabledNote={
           inSupport ? SUPPORT_UNAVAILABLE_NOTE : removedReadOnly ? REMOVED_NOTE : viewOnly ? VIEW_ONLY_MESSAGE : undefined

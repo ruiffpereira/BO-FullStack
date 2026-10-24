@@ -15,7 +15,10 @@ export const LARGURAS = [
   { label: "390", width: 390, height: 844 },
 ] as const;
 
-/** Euro pt-PT como o `fmtEur` o escreve: «12,50 €» (o espaço pode ser NBSP). */
+/**
+ * Regex para um euro escrito pelo `fmtEur` (Intl pt-PT): recebe o número já em pt-PT, com vírgula decimal (`eur("12,50")`), e aceita
+ * antes do € um espaço normal, NBSP (U+00A0) ou NBSP estreito (U+202F). Os pontos do texto são literais — pt-PT não usa ponto de milhares.
+ */
 export const eur = (txt: string) => new RegExp(txt.split(".").join("[.]") + "[ " + String.fromCharCode(160, 8239) + "]€");
 
 export async function login(request: APIRequestContext, email: string): Promise<Headers> {

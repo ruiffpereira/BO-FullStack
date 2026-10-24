@@ -9,7 +9,7 @@ import { withSessionRetry } from "./fixtures/session";
  *
  * Regras: EQ-03 (Ver = botões desactivados com o motivo — incluindo o confirmar do apagar —, acções de linha visíveis em
  * toque/teclado), EQ-02/EQ-04 (default-deny; rota sem folha = só-leitura: provado no unitário `routesLeaves.test.ts`, ver nota
- * no fim) e a regra de alturas por flex (`docs/ARMADILHAS.md`): nenhuma página tem scroll duplo.
+ * no fim) e a regra de alturas por flex (`docs/4 - Como trabalhar/4.2 - armadilhas.md`): nenhuma página tem scroll duplo.
  *
  * Seed (`API-FullStack/scripts/seedE2e.ts`): dono `arvore-a@e2e.local`; só-ver `av-sover@e2e.local` (todas as folhas em Ver);
  * Editar em tudo `av-total@e2e.local`; `av-apagarver@e2e.local` (clientes.lista Ver + clientes.lista.apagar Editar — NOVO);
